@@ -57,6 +57,10 @@ export function defaultSettings() {
       // Per-week record of which prompts the user marked done.
       //   { '2026-W16': ['p-quiet-moment', 'p-apology'], ... }
       completedByWeek: {},
+      // Lifetime sums preserved when GC prunes old completedByWeek
+      // entries. Added to the current-entries sum when computing stats
+      // so achievements don't regress across the retention boundary.
+      historicalTotals: { total: 0, weeksActive: 0 },
       // Last week the user opened the profile. Drives the "new week"
       // pulse on the mini-card.
       lastSeenWeek: null,
@@ -67,6 +71,12 @@ export function defaultSettings() {
       // doesn't affect completion history — completions are always
       // bucketed by containing-week under the hood.
       cadence: 'weekly',
+    },
+    memory: {
+      // Per-thread pin map: { [threadId]: { [entryId]: { label, createdAt, policy } } }
+      // Pinned memories are exempt from prune. See src/memory/pins.js for
+      // the API. Pins round-trip through backup/import automatically.
+      pinsByThread: {},
     },
   };
 }

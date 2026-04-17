@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 42 };
+  NS.__meta = { modules: 47 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -15393,6 +15393,494 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: memory/protection.js
+     ────────────────────────────────────────────────────────── */
+  // memory/protection.js
+  //
+  // Entry ID hashing + a session-scoped "protected" set.
+  //
+  // Adapted from PMT (Perchance Memory Trimmer Tool) src/core/protection.js —
+  // MIT licensed, original by the PMT authors. Preserved verbatim in logic;
+  // reformatted for our ESM conventions and commented for our context.
+  //
+  // getEntryId() is a djb2 string hash — deterministic, fast, and stable across
+  // sessions. Used as the primary key for pins (persisted) and session-only
+  // protection (ephemeral). Two memories with the same text always get the
+  // same ID, which matters for round-tripping through backup/restore.
+  //
+  // createSessionProtectionStore() returns an ephemeral Set wrapped in a small
+  // interface. Lives only in memory (not persisted) — PMT uses this for
+  // "protect this entry from trim IN THIS SESSION ONLY" scenarios. We'll
+  // probably use the persisted pins instead for most flows, but keeping the
+  // API around is cheap and matches the shape trim.js expects.
+
+  /**
+   * Deterministic djb2 hash of the entry text, returned as 'e_' + 8 lowercase
+   * hex chars. Trims whitespace first so "foo" and "foo " share an ID.
+   *
+   * @param {string} entry
+   * @returns {string}
+   */
+  function getEntryId(entry) {
+    const s = String(entry != null ? entry : '').trim();
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) + h) ^ s.charCodeAt(i);
+    }
+    return `e_${(h >>> 0).toString(16).padStart(8, '0')}`;
+  }
+
+  /**
+   * Session-only protection store. Not persisted.
+   *
+   * @returns {{
+   *   protect: (id: string) => void,
+   *   unprotect: (id: string) => void,
+   *   toggle: (id: string) => boolean,  // returns new protected state
+   *   has: (id: string) => boolean,
+   *   clear: () => void,
+   *   values: () => string[],
+   *   size: () => number,
+   * }}
+   */
+  function createSessionProtectionStore() {
+    const protectedIds = new Set();
+    return {
+      protect(id)   { protectedIds.add(id); },
+      unprotect(id) { protectedIds.delete(id); },
+      toggle(id) {
+        if (protectedIds.has(id)) { protectedIds.delete(id); return false; }
+        protectedIds.add(id);
+        return true;
+      },
+      has(id)    { return protectedIds.has(id); },
+      clear()    { protectedIds.clear(); },
+      values()   { return [...protectedIds]; },
+      size()     { return protectedIds.size; },
+    };
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/trim.js
+     ────────────────────────────────────────────────────────── */
+  // memory/trim.js
+  //
+  // Pure prune/dedup logic. Given an array of entry strings and an options
+  // bundle, returns { kept, removed, byDedup, byLong, byAge, ... }.
+  //
+  // Adapted from PMT (Perchance Memory Trimmer Tool) src/core/trim.js —
+  // MIT licensed. The logic is preserved; style reformatted for our conventions
+  // (ESM, idiomatic nullish coalescing) and the token-budget path's
+  // getNativeTokenCount dependency is lifted up into the caller so this module
+  // stays fully pure (no host probing).
+  //
+  // Modes:
+  //   trimMode === 'newest'       (default) — drop the oldest entries until
+  //                                            length ≤ keepN. Pinned entries
+  //                                            always kept, counted against
+  //                                            the keepN quota.
+  //   trimMode === 'token_budget' — keep newest-first until adding the next
+  //                                  would exceed targetTokens, with optional
+  //                                  continuity scoring to prefer higher-value
+  //                                  entries when trimming. Requires caller
+  //                                  to supply tokenCounter: (text) => number.
+  //
+  // Order preservation: kept entries are returned in their original index
+  // order regardless of how they were selected. PMT's BUG-03a/b fixes are
+  // preserved — pinned entries respect chronology, not a bolt-on-at-the-top
+  // placement.
+
+  /**
+   * @param {string[]} entries  Input entries, order is chronology (oldest → newest)
+   * @param {{
+   *   keepN?: number | string,
+   *   charLimit?: number | string,
+   *   trimLong?: boolean,
+   *   dedup?: boolean,
+   *   trimMode?: 'newest' | 'token_budget',
+   *   targetTokens?: number,
+   *   tokenCounter?: (text: string) => number,
+   *   protectedEntryIds?: Set<string>,
+   *   getEntryId?: (entry: string) => string,
+   *   continuityScores?: Array<{ entryId: string, score: number }>,
+   * }} opts
+   * @returns {{
+   *   kept: string[],
+   *   removed: string[],
+   *   byDedup: string[],
+   *   byLong: string[],
+   *   byAge: string[],
+   *   originalCount: number,
+   *   finalCount: number,
+   *   totalRemoved: number,
+   *   keptPct: number,
+   *   overBudgetPinWarning: boolean,
+   *   trimMode: string,
+   * }}
+   */
+  function runTrim(entries, opts = {}) {
+    const {
+      charLimit,
+      keepN,
+      trimLong = false,
+      dedup = false,
+      trimMode = 'newest',
+      targetTokens = 0,
+      tokenCounter = null,
+      protectedEntryIds = new Set(),
+      getEntryId = null,
+      continuityScores = null,
+    } = opts;
+
+    // We work on { text, origIdx } records so we can re-sort by chronology
+    // at the end regardless of intermediate reorderings.
+    let work = (entries || []).map((text, origIdx) => ({ text, origIdx }));
+
+    // ---- stage 1: exact dedup ----
+    const byDedup = [];
+    if (dedup) {
+      const seen = new Set();
+      const next = [];
+      for (const rec of work) {
+        if (seen.has(rec.text)) byDedup.push(rec.text);
+        else { seen.add(rec.text); next.push(rec); }
+      }
+      work = next;
+    }
+
+    // ---- stage 2: length-based trim ----
+    const byLong = [];
+    if (trimLong) {
+      const limit = Math.max(1, parseInt(charLimit, 10) || 200);
+      const next = [];
+      for (const rec of work) {
+        const id = getEntryId ? getEntryId(rec.text) : null;
+        const isProtected = id && protectedEntryIds.has(id);
+        if (!isProtected && rec.text.length > limit) byLong.push(rec.text);
+        else next.push(rec);
+      }
+      work = next;
+    }
+
+    // ---- stage 3: age-based or token-budget trim ----
+    const byAge = [];
+    if (trimMode === 'token_budget' && targetTokens > 0) {
+      const result = tokenBudgetTrim(work, {
+        targetTokens,
+        tokenCounter,
+        protectedEntryIds,
+        getEntryId,
+        continuityScores,
+      });
+      byAge.push(...result.removed.map(r => r.text));
+      work = result.kept;
+    } else {
+      const n = parseInt(keepN, 10);
+      if (!isNaN(n) && n > 0 && work.length > n) {
+        if (getEntryId && protectedEntryIds.size > 0) {
+          // Pinned entries always kept; they count against the keepN quota.
+          // Unpinned are pruned oldest-first. Order is restored to chronological
+          // after selection so UI sees a coherent timeline.
+          const pinned = work.filter(r => protectedEntryIds.has(getEntryId(r.text)));
+          const unpinned = work.filter(r => !protectedEntryIds.has(getEntryId(r.text)));
+          const keepFromUnpinned = Math.max(0, n - pinned.length);
+          const droppedUnpinned = unpinned.slice(0, unpinned.length - keepFromUnpinned);
+          byAge.push(...droppedUnpinned.map(r => r.text));
+          const kept = [...pinned, ...unpinned.slice(unpinned.length - keepFromUnpinned)];
+          kept.sort((a, b) => a.origIdx - b.origIdx);
+          work = kept;
+        } else {
+          const dropped = work.splice(0, work.length - n);
+          byAge.push(...dropped.map(r => r.text));
+        }
+      }
+    }
+
+    // ---- stage 4: package results ----
+    const kept = work.map(r => r.text);
+    const removed = [...byDedup, ...byLong, ...byAge];
+    const originalCount = (entries || []).length;
+    const finalCount = kept.length;
+
+    // Token-budget mode can produce a state where pinned entries alone exceed
+    // the target. We flag this for the UI to warn rather than silently
+    // returning an over-budget result.
+    let overBudgetPinWarning = false;
+    if (trimMode === 'token_budget' && targetTokens > 0 && getEntryId && typeof tokenCounter === 'function') {
+      const pinnedKept = kept.filter(e => protectedEntryIds.has(getEntryId(e)));
+      if (pinnedKept.length > 0) {
+        const pinnedTokens = tokenCounter(pinnedKept.join('\n\n'));
+        overBudgetPinWarning = pinnedTokens > targetTokens;
+      }
+    }
+
+    return {
+      kept,
+      removed,
+      byDedup,
+      byLong,
+      byAge,
+      originalCount,
+      finalCount,
+      totalRemoved: removed.length,
+      keptPct: originalCount > 0 ? Math.round((finalCount / originalCount) * 100) : 100,
+      overBudgetPinWarning,
+      trimMode,
+    };
+  }
+
+  /**
+   * Internal: token-budget path. Keeps newest-first, optionally biasing
+   * which entries to drop by a continuity score (higher = keep, lower = drop).
+   * Falls back to pure newest-first if no scores supplied.
+   */
+  function tokenBudgetTrim(records, { targetTokens, tokenCounter, protectedEntryIds, getEntryId, continuityScores }) {
+    if (typeof tokenCounter !== 'function') {
+      // Degrade gracefully — behave like no-op if caller forgot to supply a counter
+      return { kept: [...records], removed: [] };
+    }
+
+    const scoreMap = new Map();
+    if (continuityScores) {
+      for (const { entryId, score } of continuityScores) scoreMap.set(entryId, score);
+    }
+
+    const pinned = records.filter(r => getEntryId && protectedEntryIds.has(getEntryId(r.text)));
+    const unpinned = records.filter(r => !getEntryId || !protectedEntryIds.has(getEntryId(r.text)));
+
+    // If we have scores, sort unpinned lowest-first — those are the first to
+    // be considered for dropping when we hit budget.
+    if (continuityScores && getEntryId) {
+      unpinned.sort((a, b) => {
+        const sa = scoreMap.get(getEntryId(a.text)) ?? 0;
+        const sb = scoreMap.get(getEntryId(b.text)) ?? 0;
+        return sa - sb;
+      });
+    }
+
+    // Start with pinned; greedily add unpinned newest-first until budget is hit.
+    const kept = [...pinned];
+    const removed = [];
+    const reviewOrder = [...unpinned].reverse(); // newest-first consideration
+    for (const rec of reviewOrder) {
+      const candidate = [...kept, rec];
+      const tokens = tokenCounter(candidate.map(r => r.text).join('\n\n'));
+      if (tokens <= targetTokens) kept.push(rec);
+      else removed.unshift(rec);
+    }
+
+    kept.sort((a, b) => a.origIdx - b.origIdx);
+    removed.sort((a, b) => a.origIdx - b.origIdx);
+    return { kept, removed };
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/continuity.js
+     ────────────────────────────────────────────────────────── */
+  // memory/continuity.js
+  //
+  // Heuristic scoring for 'which entries are worth keeping.' Scans each entry
+  // for signals that suggest it contains durable story value (relationships,
+  // worldbuilding, named scenes) rather than transient chat byproducts.
+  // Used by the prune UI to preview "what would be dropped" with reasons,
+  // and can feed trim.js's continuity-aware token-budget mode.
+  //
+  // Adapted from PMT (Perchance Memory Trimmer Tool) src/core/continuity.js —
+  // MIT licensed. Regex patterns and score weights preserved verbatim;
+  // reformatted for ESM.
+  //
+  // This is a HEURISTIC. Scores are directional, not authoritative. A low
+  // score doesn't mean "worthless," just "less likely to contain a durable
+  // fact than a high-scoring one." UI should always present scores as
+  // suggestions, never as verdicts.
+
+  const HIGH_SIGNAL_RE = /\b(relationship|loves?|hates?|married|sister|brother|father|mother|family|friend|enemy|rival|ally|betrayed?|trust|key|important|remember|always|never|must|critical|core|secret|sworn|promised?|turned|became|discovered?|realized?|revealed?|established?|origin|history|backstory|goal|mission|rule|law|forbidden)\b/i;
+  const WORLD_FACT_RE = /\b(world|realm|kingdom|city|place|location|town|village|region|land|continent|planet|era|age|period|century|culture|government|empire|faction|guild|order|religion|magic|system|power|ability|skill|class|rank|title)\b/i;
+  const SCENE_RE = /\b(happened?|occurred?|during|when|after|before|scene|moment|event|battle|fight|encounter|conversation|meeting|ritual|ceremony|quest|journey|first|last|finally|conclusion|ending|beginning|starting)\b/i;
+
+  /**
+   * @param {string} entry
+   * @param {{
+   *   isPinned?: boolean,
+   *   isProtected?: boolean,
+   *   index?: number,
+   *   total?: number,
+   * }} [ctx]
+   * @returns {{ score: number, label: 'high' | 'medium' | 'low', reasons: string[] }}
+   */
+  function scoreContinuity(entry, ctx = {}) {
+    const { isPinned = false, isProtected = false, index = 0, total = 1 } = ctx;
+    const reasons = [];
+    let score = 0;
+
+    if (isPinned)    { score += 40; reasons.push('pinned'); }
+    if (isProtected) { score += 30; reasons.push('protected'); }
+
+    if (HIGH_SIGNAL_RE.test(entry)) { score += 20; reasons.push('relationship/key-fact signal'); }
+    if (WORLD_FACT_RE.test(entry))  { score += 15; reasons.push('world-fact signal'); }
+    if (SCENE_RE.test(entry))       { score += 10; reasons.push('scene/event signal'); }
+
+    // Recency: the top 20% newest entries get a small bonus
+    const recencyThreshold = Math.max(1, Math.floor(total * 0.8));
+    if (index >= recencyThreshold) { score += 10; reasons.push('recent'); }
+
+    // "Goldilocks" length: very short = noise, very long = likely rambly
+    const len = String(entry || '').length;
+    if (len >= 30 && len <= 300) { score += 5; reasons.push('good length'); }
+
+    const label = score >= 40 ? 'high' : score >= 20 ? 'medium' : 'low';
+    return { score, label, reasons };
+  }
+
+  /**
+   * Score every entry in context. Returns an array indexed in step with
+   * the input, each item wrapping the entry with its score metadata.
+   *
+   * @param {string[]} entries
+   * @param {Set<string>} [pinnedIds]
+   * @param {Set<string>} [protectedIds]
+   * @param {(entry: string) => string} [getEntryId]
+   * @returns {Array<{
+   *   entry: string,
+   *   entryId: string,
+   *   score: number,
+   *   label: 'high' | 'medium' | 'low',
+   *   reasons: string[],
+   * }>}
+   */
+  function scoreAllEntries(entries, pinnedIds = new Set(), protectedIds = new Set(), getEntryId = (e) => e) {
+    const total = (entries || []).length;
+    return (entries || []).map((entry, index) => {
+      const entryId = getEntryId(entry);
+      const isPinned = pinnedIds.has(entryId);
+      const isProtected = protectedIds.has(entryId);
+      const { score, label, reasons } = scoreContinuity(entry, { isPinned, isProtected, index, total });
+      return { entry, entryId, score, label, reasons };
+    });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/duplicates.js
+     ────────────────────────────────────────────────────────── */
+  // memory/duplicates.js
+  //
+  // Near-duplicate clustering via Jaccard similarity on token sets.
+  // Used to surface "these entries overlap heavily — merge or drop one?"
+  // suggestions to the user.
+  //
+  // Adapted from PMT (Perchance Memory Trimmer Tool) src/core/duplicates.js —
+  // MIT licensed. Logic preserved verbatim; reformatted for ESM and our
+  // conventions.
+  //
+  // Jaccard similarity: intersection(A, B) / union(A, B). Tokens are
+  // lowercased a-z0-9 sequences. Threshold defaults to 0.6 — moderate
+  // overlap. PMT found this produced clusters that users recognized
+  // as "these are basically saying the same thing" without being so
+  // strict that paraphrases got missed.
+  //
+  // This is O(N²) in the number of entries. For a typical chat thread
+  // that stays well under a few hundred memories, that's fine. For
+  // pathological sizes the UI should consider chunking or a cheaper
+  // pre-filter.
+
+  /**
+   * Tokenize: lowercase a-z0-9' runs, space-split, non-empty only.
+   * @param {string} text
+   * @returns {string[]}
+   */
+  function tokenize(text) {
+    return String(text != null ? text : '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s']/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  /**
+   * Jaccard similarity of two token sets.
+   * Empty-both returns 1 (identical emptiness), empty-one returns 0.
+   * @param {Set<string>} setA
+   * @param {Set<string>} setB
+   * @returns {number} in [0, 1]
+   */
+  function jaccard(setA, setB) {
+    if (!setA.size && !setB.size) return 1;
+    if (!setA.size || !setB.size) return 0;
+    let intersection = 0;
+    for (const t of setA) if (setB.has(t)) intersection++;
+    return intersection / (setA.size + setB.size - intersection);
+  }
+
+  /**
+   * Compare two entries — similarity + human-readable reasons.
+   * @param {string} a
+   * @param {string} b
+   * @returns {{ similarity: number, reasons: string[] }}
+   */
+  function compareEntries(a, b) {
+    const tokA = new Set(tokenize(a));
+    const tokB = new Set(tokenize(b));
+    const sim = jaccard(tokA, tokB);
+    const reasons = [];
+    if      (sim >= 0.9) reasons.push('near-identical phrasing');
+    else if (sim >= 0.7) reasons.push('high token overlap');
+    else if (sim >= 0.5) reasons.push('moderate token overlap');
+
+    const lenA = a.length || 1;
+    const lenB = b.length || 1;
+    const ratio = Math.min(lenA, lenB) / Math.max(lenA, lenB);
+    if (ratio < 0.5) reasons.push('length mismatch (possible paraphrase)');
+
+    return { similarity: sim, reasons };
+  }
+
+  /**
+   * Build clusters of near-duplicate entries. Greedy single-pass: for each
+   * unassigned entry, scan forward and absorb anything above `threshold`.
+   * Clusters with < 2 entries are discarded (not useful to surface).
+   *
+   * @param {string[]} entries
+   * @param {(entry: string) => string} getEntryId
+   * @param {number} [threshold=0.6]
+   * @returns {Array<{
+   *   ids: string[],
+   *   entries: string[],
+   *   maxSimilarity: number,
+   *   reasons: string[],
+   * }>}
+   */
+  function buildNearDupClusters(entries, getEntryId, threshold = 0.6) {
+    const clusters = [];
+    const assigned = new Set();
+
+    for (let i = 0; i < entries.length; i++) {
+      if (assigned.has(i)) continue;
+      const cluster = { indices: [i], maxSimilarity: 0, reasons: new Set() };
+      for (let j = i + 1; j < entries.length; j++) {
+        if (assigned.has(j)) continue;
+        const { similarity, reasons } = compareEntries(entries[i], entries[j]);
+        if (similarity >= threshold) {
+          cluster.indices.push(j);
+          cluster.maxSimilarity = Math.max(cluster.maxSimilarity, similarity);
+          reasons.forEach(r => cluster.reasons.add(r));
+          assigned.add(j);
+        }
+      }
+      if (cluster.indices.length > 1) {
+        assigned.add(i);
+        clusters.push({
+          ids: cluster.indices.map(idx => getEntryId(entries[idx])),
+          entries: cluster.indices.map(idx => entries[idx]),
+          maxSimilarity: cluster.maxSimilarity,
+          reasons: [...cluster.reasons],
+        });
+      }
+    }
+
+    return clusters.sort((a, b) => b.maxSimilarity - a.maxSimilarity);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/styles.js
      ────────────────────────────────────────────────────────── */
   // render/styles.js
@@ -17037,6 +17525,12 @@ Use this template for your response:
         // bucketed by containing-week under the hood.
         cadence: 'weekly',
       },
+      memory: {
+        // Per-thread pin map: { [threadId]: { [entryId]: { label, createdAt, policy } } }
+        // Pinned memories are exempt from prune. See src/memory/pins.js for
+        // the API. Pins round-trip through backup/import automatically.
+        pinsByThread: {},
+      },
     };
   }
 
@@ -17421,6 +17915,136 @@ Use this template for your response:
       /* fall through to false */
     }
     return false;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/pins.js
+     ────────────────────────────────────────────────────────── */
+  // memory/pins.js
+  //
+  // Persistent per-thread memory pinning. Pinned memories are exempt from
+  // prune actions. Stored in our settings_store under memory.pinsByThread
+  // so it rides along with the rest of profile state (backup/export/restore
+  // "just work" without special handling).
+  //
+  // Adapted from PMT (Perchance Memory Trimmer Tool) src/core/pins.js —
+  // MIT licensed. API preserved (loadPins / savePins / togglePin / getPinnedIds);
+  // storage layer swapped from PMT's direct localStorage with a per-scope
+  // key prefix to our settings_store subtree model. This means backup/import
+  // round-trip the pin state automatically.
+  //
+  // Storage shape:
+  //   settings.memory.pinsByThread: {
+  //     [threadId]: {
+  //       [entryId]: { label: string, createdAt: number, policy: 'protect' }
+  //     }
+  //   }
+
+
+
+  /**
+   * Load the pin map for a given thread.
+   *
+   * @param {string} threadId
+   * @returns {Record<string, { label: string, createdAt: number, policy: string }>}
+   */
+  function loadPins(threadId) {
+    if (!threadId) return {};
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.pinsByThread) || {};
+      const forThread = all[threadId];
+      return (forThread && typeof forThread === 'object') ? forThread : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Replace the pin map for a given thread.
+   *
+   * @param {string} threadId
+   * @param {Record<string, { label: string, createdAt: number, policy: string }>} pins
+   */
+  function savePins(threadId, pins) {
+    if (!threadId) return;
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.pinsByThread) || {};
+      all[threadId] = pins || {};
+      updateField('memory.pinsByThread', all);
+    } catch { /* persist best-effort */ }
+  }
+
+  /**
+   * Toggle pin state for an entry. Returns the NEW pinned state.
+   *
+   * @param {string} threadId
+   * @param {string} entryId
+   * @param {string} [label='']
+   * @returns {boolean}
+   */
+  function togglePin(threadId, entryId, label = '') {
+    const pins = loadPins(threadId);
+    if (pins[entryId]) {
+      delete pins[entryId];
+      savePins(threadId, pins);
+      return false;
+    }
+    pins[entryId] = {
+      label: String(label || ''),
+      createdAt: Date.now(),
+      policy: 'protect',
+    };
+    savePins(threadId, pins);
+    return true;
+  }
+
+  /**
+   * Get the Set of pinned entry IDs for a thread — the shape trim.js expects
+   * for its protectedEntryIds parameter.
+   *
+   * @param {string} threadId
+   * @returns {Set<string>}
+   */
+  function getPinnedIds(threadId) {
+    return new Set(Object.keys(loadPins(threadId)));
+  }
+
+  /**
+   * Clear all pins for a thread. Useful when a thread is deleted upstream
+   * and we want to free up our associated state.
+   *
+   * @param {string} threadId
+   */
+  function clearPinsForThread(threadId) {
+    if (!threadId) return;
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.pinsByThread) || {};
+      if (all[threadId]) {
+        delete all[threadId];
+        updateField('memory.pinsByThread', all);
+      }
+    } catch { /* best-effort */ }
+  }
+
+  /**
+   * Return all thread IDs that currently have at least one pin. Useful for
+   * diagnostics and for bulk operations across threads.
+   *
+   * @returns {string[]}
+   */
+  function getThreadsWithPins() {
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.pinsByThread) || {};
+      return Object.keys(all).filter(tid =>
+        all[tid] && typeof all[tid] === 'object' && Object.keys(all[tid]).length > 0
+      );
+    } catch {
+      return [];
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
