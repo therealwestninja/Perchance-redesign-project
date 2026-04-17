@@ -90,3 +90,41 @@ export function replaceContents(el, newChildren) {
 export function escapeCssUrl(url) {
   return String(url || '').replace(/["\\]/g, '\\$&');
 }
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * SVG equivalent of h(). Uses createElementNS so the elements live in
+ * the SVG namespace and render correctly. Same attrs/children semantics
+ * as h(), but `style` and event handlers are less commonly needed.
+ *
+ * Attributes with camelCase names (viewBox, pointerEvents, strokeWidth)
+ * are passed through as-is — SVG accepts attributes in their canonical
+ * form via setAttribute.
+ *
+ *   hSVG('svg', { viewBox: '0 0 100 100', class: 'radar' }, [
+ *     hSVG('circle', { cx: 50, cy: 50, r: 40, fill: 'gold' }),
+ *   ])
+ */
+export function hSVG(tag, attrs = {}, children = []) {
+  const el = document.createElementNS(SVG_NS, tag);
+
+  for (const [key, val] of Object.entries(attrs || {})) {
+    if (val == null || val === false) continue;
+
+    if (key === 'class' || key === 'className') {
+      el.setAttribute('class', String(val));
+    } else if (key === 'style' && typeof val === 'object') {
+      Object.assign(el.style, val);
+    } else if (key.startsWith('on') && typeof val === 'function') {
+      el.addEventListener(key.slice(2).toLowerCase(), val);
+    } else if (val === true) {
+      el.setAttribute(key, '');
+    } else {
+      el.setAttribute(key, String(val));
+    }
+  }
+
+  appendChildren(el, children);
+  return el;
+}

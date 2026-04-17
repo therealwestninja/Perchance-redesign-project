@@ -12,6 +12,7 @@ import { createDetailsBody } from '../render/details_form.js';
 import { createChronicleGrid } from '../render/chronicle_grid.js';
 import { createAchievementsGrid } from '../render/achievements_grid.js';
 import { createPromptsBody } from '../render/prompts_section.js';
+import { createWritingRadar } from '../render/writing_radar.js';
 
 import { readAllStores } from '../stats/db.js';
 import { computeStats } from '../stats/queries.js';
@@ -179,6 +180,13 @@ export async function openFullPage() {
     initialState: displayState.chronicle,
   });
 
+  const styleSection = createSection({
+    id: 'style',
+    title: 'Writing Style',
+    children: createWritingRadar({ stats }),
+    initialState: displayState.style,
+  });
+
   const achievementsSection = createSection({
     id: 'achievements',
     title: 'Achievements',
@@ -196,6 +204,7 @@ export async function openFullPage() {
       detailsSection,
       promptsSection,
       chronicleSection,
+      styleSection,
       achievementsSection,
     ],
   });

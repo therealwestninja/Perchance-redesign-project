@@ -975,6 +975,86 @@ export const CSS = `
 }
 
 /* ============================================================
+   Writing Style radar (SVG pentagon)
+   ============================================================ */
+.pf-radar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 4px;
+}
+.pf-radar-svg {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  overflow: visible; /* labels can reach outside the viewBox */
+}
+
+/* Concentric guide rings — subtle, so the data polygon reads cleanly */
+.pf-radar-ring {
+  stroke: var(--border-color);
+  stroke-width: 1;
+  fill: none;
+  opacity: 0.4;
+}
+/* Axis lines from center outward */
+.pf-radar-axis-line {
+  stroke: var(--border-color);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+
+/* The filled data polygon — warm gold, low alpha so grid shows through */
+.pf-radar-value-fill {
+  fill: rgba(216, 179, 106, 0.22);
+  stroke: #d8b36a;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+/* Vertex dots where the user's values land */
+.pf-radar-value-dot {
+  fill: #d8b36a;
+  stroke: var(--box-color);
+  stroke-width: 1.5;
+}
+
+/* Axis labels */
+.pf-radar-label {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--text-color);
+  opacity: 0.7;
+}
+
+/* Raw values readout below the chart */
+.pf-radar-readout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 6px 14px;
+  width: 100%;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+.pf-radar-readout-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.pf-radar-readout-label {
+  opacity: 0.55;
+  letter-spacing: 0.05em;
+}
+.pf-radar-readout-value {
+  color: #d8b36a;
+  font-weight: 600;
+}
+
+/* ============================================================
    Achievements grid
    ============================================================ */
 .pf-ach-summary {
