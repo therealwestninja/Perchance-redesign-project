@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 14 };
+  NS.__meta = { modules: 24 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14423,7 +14423,1310 @@ Use this template for your response:
     opacity: 0.75;
     transform: translateX(1px);
   }
+
+  /* ============================================================
+     Full-screen profile overlay
+     ============================================================ */
+
+  .pf-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--text-color);
+    /* Backdrop blur when supported — subtle, doesn't scream */
+    -webkit-backdrop-filter: blur(2px);
+            backdrop-filter: blur(2px);
+  }
+  .pf-overlay[hidden] { display: none; }
+
+  .pf-overlay-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 24px 16px 80px;
+    /* Let scroll-container click dismiss only when clicking the BG, not content */
+  }
+
+  .pf-overlay-content {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    font-family: inherit;
+  }
+
+  .pf-overlay-close {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--box-color);
+    color: var(--text-color);
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+  }
+  .pf-overlay-close:hover { background: var(--box-color-hover, var(--box-color)); }
+  .pf-overlay-close:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     Splash — the above-the-fold breadwinner
+     ============================================================ */
+
+  .pf-splash {
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 28px 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .pf-splash-top {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+  }
+
+  .pf-splash-avatar {
+    flex-shrink: 0;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: var(--button-bg);
+    border: 2px solid #d8b36a;
+    box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+  }
+  .pf-splash-avatar-text {
+    font-size: 44px;
+    font-weight: 600;
+    line-height: 1;
+    color: #d8b36a;
+  }
+
+  .pf-splash-ident {
+    flex: 1;
+    min-width: 0;
+  }
+  .pf-splash-name {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0 4px;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pf-splash-title {
+    font-style: italic;
+    font-size: 14px;
+    opacity: 0.75;
+    color: #d8b36a;
+  }
+
+  .pf-splash-levelrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pf-splash-level {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid rgba(216, 179, 106, 0.45);
+    border-radius: 999px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #d8b36a;
+    background: rgba(185, 137, 74, 0.08);
+  }
+  .pf-splash-level-word { opacity: 0.7; }
+  .pf-splash-level strong { color: var(--text-color); font-weight: 600; }
+
+  .pf-splash-xpbar {
+    flex: 1;
+    height: 8px;
+    background: rgba(127, 127, 127, 0.18);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(216, 179, 106, 0.2);
+  }
+  .pf-splash-xpbar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+    transition: width 0.4s ease;
+  }
+  .pf-splash-xp-label {
+    flex-shrink: 0;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10px;
+    opacity: 0.65;
+    letter-spacing: 0.02em;
+  }
+
+  .pf-splash-badges {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .pf-splash-badge {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(185, 137, 74, 0.12);
+    border: 1px solid rgba(216, 179, 106, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #d8b36a;
+  }
+  .pf-splash-badge-locked {
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--border-color);
+    color: var(--text-color);
+    opacity: 0.22;
+  }
+
+  /* ============================================================
+     Section — collapsible + blurrable wrapper used below the fold
+     ============================================================ */
+
+  .pf-section {
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 16px 20px;
+  }
+
+  .pf-section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .pf-section-title {
+    flex: 1;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+
+  .pf-section-ctrls {
+    display: flex;
+    gap: 4px;
+  }
+  .pf-section-ctrl {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+  .pf-section-ctrl:hover { opacity: 1; background: var(--box-color-hover, var(--button-bg)); }
+  .pf-section-ctrl:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 1px;
+  }
+  .pf-section-eye[aria-pressed="true"] {
+    opacity: 1;
+    background: rgba(185, 137, 74, 0.12);
+    border-color: rgba(216, 179, 106, 0.45);
+  }
+
+  .pf-section-body-wrap {
+    position: relative;
+  }
+  .pf-section-body {
+    transition: filter 0.2s, opacity 0.2s;
+  }
+  .pf-section-cover {
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+  }
+  .pf-section-cover:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+  }
+
+  .pf-section-blurred .pf-section-body {
+    filter: blur(8px);
+    pointer-events: none;
+    user-select: none;
+  }
+  .pf-section-blurred .pf-section-cover {
+    display: flex;
+  }
+
+  .pf-section-collapsed .pf-section-body-wrap {
+    display: none;
+  }
+  .pf-section-collapsed { padding-bottom: 10px; }
+
+  /* ============================================================
+     About section
+     ============================================================ */
+  .pf-about { display: flex; flex-direction: column; gap: 6px; }
+  .pf-about-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 10px 12px;
+    background: var(--textarea-bg, var(--background));
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  .pf-about-textarea:focus {
+    outline: none;
+    border-color: rgba(216, 179, 106, 0.55);
+  }
+  .pf-about-counter {
+    align-self: flex-end;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10px;
+    opacity: 0.5;
+  }
+
+  /* ============================================================
+     Details form
+     ============================================================ */
+  .pf-details { display: flex; flex-direction: column; gap: 14px; }
+
+  .pf-field-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  @media (max-width: 480px) {
+    .pf-field-row {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+  }
+  .pf-field-label {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    opacity: 0.7;
+    padding-top: 8px;
+  }
+  .pf-field-input {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--textarea-bg, var(--background));
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-family: inherit;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .pf-field-input:focus {
+    outline: none;
+    border-color: rgba(216, 179, 106, 0.55);
+  }
+  .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
+
+  .pf-details-note {
+    margin: 4px 0 0;
+    font-size: 11px;
+    opacity: 0.55;
+    font-style: italic;
+  }
+
+  /* ============================================================
+     Gender square — 2D picker
+     ============================================================ */
+
+  .pf-gs {
+    display: flex;
+    justify-content: flex-start;
+  }
+  .pf-gs-labels {
+    position: relative;
+    width: 220px;
+    max-width: 100%;
+    aspect-ratio: 1;
+    padding: 22px 0; /* room for labels above/below */
+  }
+  .pf-gs-field {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background:
+      linear-gradient(180deg, rgba(216, 179, 106, 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
+      var(--textarea-bg, var(--background));
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: crosshair;
+    touch-action: none;
+    /* subtle crosshair grid */
+    background-image:
+      linear-gradient(var(--border-color), var(--border-color)),
+      linear-gradient(var(--border-color), var(--border-color));
+    background-size: 1px 100%, 100% 1px;
+    background-position: 50% 0, 0 50%;
+    background-repeat: no-repeat;
+  }
+  .pf-gs-field:focus {
+    outline: 2px solid rgba(216, 179, 106, 0.55);
+    outline-offset: 2px;
+  }
+
+  .pf-gs-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #d8b36a;
+    border: 2px solid var(--box-color);
+    box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: transform 0.05s;
+  }
+
+  .pf-gs-label {
+    position: absolute;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    white-space: nowrap;
+  }
+  .pf-gs-label-tl { top: 4px;    left: 0;     }
+  .pf-gs-label-tr { top: 4px;    right: 0;    }
+  .pf-gs-label-bl { bottom: 4px; left: 0;     }
+  .pf-gs-label-br { bottom: 4px; right: 0;    }
+
+  /* ============================================================
+     Chronicle stat grid
+     ============================================================ */
+  .pf-chron-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .pf-chron-card {
+    padding: 10px 12px;
+    background: rgba(127, 127, 127, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .pf-chron-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.65;
+  }
+  .pf-chron-value {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 18px;
+    color: var(--text-color);
+  }
+  .pf-chron-num { font-weight: 600; }
+  .pf-chron-denom { opacity: 0.55; font-size: 14px; }
+  .pf-chron-value-maxed .pf-chron-denom { color: #d8b36a; opacity: 1; }
+  .pf-chron-bar {
+    height: 3px;
+    background: rgba(127, 127, 127, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .pf-chron-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+    border-radius: 2px;
+    transition: width 0.4s;
+  }
+
+  /* ============================================================
+     Achievements grid
+     ============================================================ */
+  .pf-ach-summary {
+    font-size: 11px;
+    opacity: 0.6;
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  .pf-ach-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 6px;
+    background: rgba(127, 127, 127, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    text-align: center;
+    cursor: default;
+  }
+  .pf-ach-card:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 1px;
+  }
+  .pf-ach-icon { font-size: 22px; line-height: 1; }
+  .pf-ach-name { font-size: 11px; font-weight: 600; }
+  .pf-ach-tier {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-ach-locked {
+    opacity: 0.35;
+  }
+  .pf-ach-locked .pf-ach-icon { filter: grayscale(1); }
+
+  .pf-ach-tier-common    .pf-ach-icon { color: #a8a8a8; }
+  .pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
+  .pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
+  .pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
+  .pf-ach-tier-legendary .pf-ach-icon { color: #d8b36a; }
+
+  .pf-ach-unlocked {
+    background: rgba(185, 137, 74, 0.04);
+    border-color: rgba(216, 179, 106, 0.20);
+  }
   `.trim();
+
+  /* ──────────────────────────────────────────────────────────
+     module: profile/settings_store.js
+     ────────────────────────────────────────────────────────── */
+  // profile/settings_store.js
+  //
+  // localStorage-backed store for the user's profile inputs and the
+  // collapse/blur display state of each section on the hero page.
+  //
+  // Single key: 'pf:settings'. Old schema ('pf:profile' = { displayName, avatarUrl })
+  // migrated automatically on first load.
+
+  const KEY = 'pf:settings';
+  const OLD_KEY = 'pf:profile';
+
+  const SECTION_IDS = ['about', 'details', 'chronicle', 'achievements'];
+
+  /**
+   * Default shape. Every read path falls back through this, so any missing
+   * field in stored data (after an app update that added new fields) just
+   * uses the default.
+   */
+  function defaultSettings() {
+    return {
+      profile: {
+        displayName: '',
+        avatarUrl: null,
+        titleOverride: '',
+        bio: '',
+        username: '',
+        ageRange: '',                       // '' | 'under-18' | '18-24' | '25-34' | '35-44' | '45-54' | '55+' | 'prefer-not-say'
+        genderPos: { x01: 0.5, y01: 0.5 },  // normalized position on the 2D square, (0..1, 0..1)
+        genderCustom: '',
+      },
+      display: {
+        sections: {
+          about:        { collapsed: false, blurred: false },
+          details:      { collapsed: false, blurred: true   }, // private by default
+          chronicle:    { collapsed: false, blurred: false },
+          achievements: { collapsed: false, blurred: false },
+        },
+      },
+    };
+  }
+
+  /**
+   * Deep-merge `src` onto a fresh copy of `dst`. Objects merge recursively;
+   * arrays and primitives replace. Used to layer stored partial data onto
+   * current defaults so new fields get default values.
+   */
+  function mergeDeep(dst, src) {
+    if (src == null || typeof src !== 'object') return dst;
+    const out = Array.isArray(dst) ? dst.slice() : { ...dst };
+    for (const k of Object.keys(src)) {
+      const a = out[k];
+      const b = src[k];
+      if (a && typeof a === 'object' && !Array.isArray(a) &&
+          b && typeof b === 'object' && !Array.isArray(b)) {
+        out[k] = mergeDeep(a, b);
+      } else if (b !== undefined) {
+        out[k] = b;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Read settings. Never throws. Migrates the old schema if present.
+   */
+  function loadSettings() {
+    const base = defaultSettings();
+
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return mergeDeep(base, parsed);
+      }
+    } catch { /* fall through */ }
+
+    // Migrate from the old key if still around
+    try {
+      const oldRaw = localStorage.getItem(OLD_KEY);
+      if (oldRaw) {
+        const oldParsed = JSON.parse(oldRaw);
+        if (oldParsed && typeof oldParsed === 'object') {
+          const migrated = mergeDeep(base, { profile: oldParsed });
+          try { localStorage.setItem(KEY, JSON.stringify(migrated)); } catch {}
+          try { localStorage.removeItem(OLD_KEY); } catch {}
+          return migrated;
+        }
+      }
+    } catch { /* fall through */ }
+
+    return base;
+  }
+
+  /**
+   * Write settings. Never throws.
+   */
+  function saveSettings(settings) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(settings));
+    } catch {
+      // Storage full or disabled — we can't do anything useful; silently drop.
+    }
+  }
+
+  /**
+   * Convenience: update a single field by dotted path and persist.
+   * Returns the merged settings object.
+   *   updateField('profile.bio', 'new bio text')
+   *   updateField('display.sections.details.blurred', false)
+   */
+  function updateField(pathStr, value) {
+    const settings = loadSettings();
+    const parts = pathStr.split('.');
+    let cursor = settings;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (typeof cursor[parts[i]] !== 'object' || cursor[parts[i]] === null) {
+        cursor[parts[i]] = {};
+      }
+      cursor = cursor[parts[i]];
+    }
+    cursor[parts[parts.length - 1]] = value;
+    saveSettings(settings);
+    return settings;
+  }
+
+  const AGE_RANGE_OPTIONS = Object.freeze([
+    { value: '',               label: '— select —' },
+    { value: 'under-18',       label: 'under 18' },
+    { value: '18-24',          label: '18–24' },
+    { value: '25-34',          label: '25–34' },
+    { value: '35-44',          label: '35–44' },
+    { value: '45-54',          label: '45–54' },
+    { value: '55+',            label: '55+' },
+    { value: 'prefer-not-say', label: 'prefer not to say' },
+  ]);
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/overlay.js
+     ────────────────────────────────────────────────────────── */
+  // render/overlay.js
+  //
+  // Full-screen overlay used by the hero profile. Fixed positioning, fills
+  // the viewport, dark backdrop, centered content column with max-width,
+  // scrolls internally. Close via: close button, ESC key, click on backdrop.
+
+
+
+  /**
+   * Create a dismissible overlay.
+   *
+   * @param {{
+   *   ariaLabel?: string,
+   *   children?: any,
+   *   onClose?: () => void,
+   * }} opts
+   * @returns {HTMLElement & { show: () => void, hide: () => void }}
+   */
+  function createOverlay({ ariaLabel = 'Overlay', children = [], onClose } = {}) {
+    const closeBtn = h('button', {
+      class: 'pf-overlay-close',
+      type: 'button',
+      'aria-label': 'Close',
+      onClick: () => dismiss(),
+    }, ['×']);
+
+    const contentCol = h('div', { class: 'pf-overlay-content' }, children);
+
+    const scroll = h('div', {
+      class: 'pf-overlay-scroll',
+      // Click on the scroll container (outside the content column) dismisses
+      onClick: (ev) => { if (ev.target === scroll) dismiss(); },
+    }, [
+      closeBtn,
+      contentCol,
+    ]);
+
+    const root = h('div', {
+      class: 'pf-overlay',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': ariaLabel,
+      hidden: true,
+    }, [scroll]);
+
+    function dismiss() {
+      root.hide();
+      if (typeof onClose === 'function') onClose();
+    }
+
+    function onKeydown(ev) {
+      if (ev.key === 'Escape' && !root.hidden) {
+        ev.preventDefault();
+        dismiss();
+      }
+    }
+
+    root.show = function show() {
+      if (!root.parentNode) document.body.appendChild(root);
+      root.hidden = false;
+      document.addEventListener('keydown', onKeydown);
+      // Move focus into the dialog so screen readers pick it up and
+      // Tab is trapped inside the scroll container naturally.
+      setTimeout(() => { closeBtn.focus(); }, 0);
+    };
+
+    root.hide = function hide() {
+      root.hidden = true;
+      document.removeEventListener('keydown', onKeydown);
+    };
+
+    return root;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/section.js
+     ────────────────────────────────────────────────────────── */
+  // render/section.js
+  //
+  // Collapsible + blurrable section. Header has title + two toggle buttons:
+  // collapse (chevron) and blur (eye). Each section persists its display state
+  // under display.sections[sectionId] in the settings store.
+
+
+
+
+  /**
+   * @param {{
+   *   id: string,
+   *   title: string,
+   *   children: any,
+   *   initialState: { collapsed: boolean, blurred: boolean },
+   * }} opts
+   * @returns {HTMLElement}
+   */
+  function createSection({ id, title, children, initialState }) {
+    let collapsed = !!(initialState && initialState.collapsed);
+    let blurred   = !!(initialState && initialState.blurred);
+
+    const body = h('div', { class: 'pf-section-body' }, children);
+    const coverBtn = h('button', {
+      class: 'pf-section-cover',
+      type: 'button',
+      'aria-label': `Reveal ${title}`,
+      onClick: () => setBlurred(false),
+    }, ['👁  tap to reveal']);
+
+    const chevronBtn = h('button', {
+      class: 'pf-section-ctrl pf-section-chevron',
+      type: 'button',
+      title: 'Collapse / expand',
+      'aria-label': 'Collapse section',
+      onClick: () => setCollapsed(!collapsed),
+    }, ['▾']);
+
+    const eyeBtn = h('button', {
+      class: 'pf-section-ctrl pf-section-eye',
+      type: 'button',
+      title: 'Hide / show content',
+      'aria-label': 'Blur section',
+      onClick: () => setBlurred(!blurred),
+    }, ['👁']);
+
+    const bodyWrap = h('div', { class: 'pf-section-body-wrap' }, [body, coverBtn]);
+
+    const root = h('section', { class: 'pf-section', 'data-section-id': id }, [
+      h('header', { class: 'pf-section-header' }, [
+        h('h2', { class: 'pf-section-title' }, [title]),
+        h('div', { class: 'pf-section-ctrls' }, [eyeBtn, chevronBtn]),
+      ]),
+      bodyWrap,
+    ]);
+
+    function setCollapsed(val) {
+      collapsed = !!val;
+      root.classList.toggle('pf-section-collapsed', collapsed);
+      chevronBtn.setAttribute('aria-expanded', String(!collapsed));
+      chevronBtn.textContent = collapsed ? '▸' : '▾';
+      updateField(`display.sections.${id}.collapsed`, collapsed);
+    }
+
+    function setBlurred(val) {
+      blurred = !!val;
+      root.classList.toggle('pf-section-blurred', blurred);
+      eyeBtn.setAttribute('aria-pressed', String(blurred));
+      updateField(`display.sections.${id}.blurred`, blurred);
+    }
+
+    setCollapsed(collapsed);
+    setBlurred(blurred);
+
+    return root;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/splash.js
+     ────────────────────────────────────────────────────────── */
+  // render/splash.js
+  //
+  // Above-the-fold identity splash: avatar, display name, title, level + XP bar.
+  // This is the part people photograph and share. Everything below the fold
+  // is plainer by design.
+
+
+
+
+  /**
+   * @typedef {Object} SplashViewModel
+   * @property {string} displayName
+   * @property {string|null} avatarUrl
+   * @property {string} title
+   * @property {number} level
+   * @property {number} xpIntoLevel
+   * @property {number} xpForNextLevel
+   * @property {number} progress01
+   * @property {Array<{ id: string, name: string, icon: string }>} pinnedBadges
+   */
+
+  function createSplash() {
+    const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
+    const nameEl = h('h1', { class: 'pf-splash-name' });
+    const titleEl = h('div', { class: 'pf-splash-title' });
+    const levelChip = h('span', { class: 'pf-splash-level' });
+    const xpBarFill = h('div', { class: 'pf-splash-xpbar-fill' });
+    const xpLabel = h('span', { class: 'pf-splash-xp-label' });
+    const badgesRow = h('div', { class: 'pf-splash-badges' });
+
+    const root = h('div', { class: 'pf-splash' }, [
+      h('div', { class: 'pf-splash-top' }, [
+        avatar,
+        h('div', { class: 'pf-splash-ident' }, [
+          nameEl,
+          titleEl,
+        ]),
+      ]),
+      h('div', { class: 'pf-splash-levelrow' }, [
+        levelChip,
+        h('div', { class: 'pf-splash-xpbar' }, [xpBarFill]),
+        xpLabel,
+      ]),
+      badgesRow,
+    ]);
+
+    root.update = function update(vm) {
+      vm = vm || {};
+
+      // Avatar — either a background-image or a monogram fallback
+      if (vm.avatarUrl) {
+        avatar.style.backgroundImage = `url("${escapeCssUrl(vm.avatarUrl)}")`;
+        replaceContents(avatar, []);
+        avatar.classList.remove('pf-splash-avatar-text');
+      } else {
+        avatar.style.backgroundImage = '';
+        avatar.classList.add('pf-splash-avatar-text');
+        replaceContents(avatar, [getInitialFromName(vm.displayName)]);
+      }
+
+      replaceContents(nameEl, [vm.displayName || 'Chronicler']);
+      replaceContents(titleEl, [vm.title ? `— ${vm.title} —` : '— Newcomer —']);
+
+      replaceContents(levelChip, [
+        h('span', { class: 'pf-splash-level-word' }, ['Lv']),
+        ' ',
+        h('strong', {}, [String(vm.level || 1)]),
+      ]);
+
+      const pct = formatPercent(vm.progress01 || 0);
+      xpBarFill.style.width = pct;
+      replaceContents(xpLabel, [
+        `${formatNumber(vm.xpIntoLevel)} / ${formatNumber(vm.xpForNextLevel)} XP  ·  ${pct}`,
+      ]);
+
+      // Pinned badges — up to 6. Locked slots get a dimmed lock glyph.
+      const badges = Array.isArray(vm.pinnedBadges) ? vm.pinnedBadges.slice(0, 6) : [];
+      const rendered = [];
+      for (let i = 0; i < 6; i++) {
+        const b = badges[i];
+        if (b) {
+          rendered.push(h('span', {
+            class: 'pf-splash-badge',
+            title: b.name || '',
+            'aria-label': b.name || 'Achievement',
+          }, [b.icon || '◆']));
+        } else {
+          rendered.push(h('span', {
+            class: 'pf-splash-badge pf-splash-badge-locked',
+            title: 'Locked',
+            'aria-hidden': 'true',
+          }, ['·']));
+        }
+      }
+      replaceContents(badgesRow, rendered);
+    };
+
+    return root;
+  }
+
+  function escapeCssUrl(url) {
+    return String(url || '').replace(/["\\]/g, '\\$&');
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/gender_square.js
+     ────────────────────────────────────────────────────────── */
+  // render/gender_square.js
+  //
+  // A 2D draggable picker, per the brief's ASCII sketch:
+  //
+  //   Male ─────────── Non-Binary
+  //   │                          │
+  //   │              ●           │
+  //   │                          │
+  //   Other ──────────── Female
+  //
+  // Label positions match the user's drawing:
+  //   top-left: Male, top-right: Non-Binary
+  //   bottom-left: Other, bottom-right: Female
+  //
+  // Dot position is stored as { x01, y01 } normalized to [0, 1].
+  // Value is saved on pointer release (drag end), not during drag, to avoid
+  // hammering localStorage.
+
+
+
+
+  /**
+   * @param {{ initialValue?: { x01: number, y01: number } }} opts
+   * @returns {HTMLElement}
+   */
+  function createGenderSquare({ initialValue } = {}) {
+    const start = clamp01ish(initialValue) || { x01: 0.5, y01: 0.5 };
+
+    const dot = h('div', {
+      class: 'pf-gs-dot',
+      'aria-hidden': 'true',
+    });
+
+    const field = h('div', {
+      class: 'pf-gs-field',
+      role: 'slider',
+      tabindex: '0',
+      'aria-label': 'Gender position — 2D picker. Drag the dot anywhere inside the square.',
+      'aria-valuetext': formatAria(start),
+    }, [dot]);
+
+    const root = h('div', { class: 'pf-gs' }, [
+      h('div', { class: 'pf-gs-labels' }, [
+        h('span', { class: 'pf-gs-label pf-gs-label-tl' }, ['Male']),
+        h('span', { class: 'pf-gs-label pf-gs-label-tr' }, ['Non-Binary']),
+        h('span', { class: 'pf-gs-label pf-gs-label-bl' }, ['Other']),
+        h('span', { class: 'pf-gs-label pf-gs-label-br' }, ['Female']),
+        field,
+      ]),
+    ]);
+
+    let current = { ...start };
+    applyDotPosition(current);
+
+    // ---- pointer handling ----
+
+    let activePointerId = null;
+
+    field.addEventListener('pointerdown', (ev) => {
+      if (activePointerId !== null) return;
+      activePointerId = ev.pointerId;
+      try { field.setPointerCapture(ev.pointerId); } catch {}
+      updateFromEvent(ev);
+    });
+
+    field.addEventListener('pointermove', (ev) => {
+      if (ev.pointerId !== activePointerId) return;
+      updateFromEvent(ev);
+    });
+
+    const endPointer = (ev) => {
+      if (ev.pointerId !== activePointerId) return;
+      activePointerId = null;
+      try { field.releasePointerCapture(ev.pointerId); } catch {}
+      updateField('profile.genderPos', current);
+    };
+    field.addEventListener('pointerup', endPointer);
+    field.addEventListener('pointercancel', endPointer);
+
+    // Keyboard: arrow keys nudge the dot 5% per press; persists immediately
+    field.addEventListener('keydown', (ev) => {
+      const step = 0.05;
+      let dx = 0, dy = 0;
+      if (ev.key === 'ArrowLeft')  dx = -step;
+      if (ev.key === 'ArrowRight') dx =  step;
+      if (ev.key === 'ArrowUp')    dy = -step;
+      if (ev.key === 'ArrowDown')  dy =  step;
+      if (dx === 0 && dy === 0) return;
+      ev.preventDefault();
+      current = {
+        x01: clamp01(current.x01 + dx),
+        y01: clamp01(current.y01 + dy),
+      };
+      applyDotPosition(current);
+      field.setAttribute('aria-valuetext', formatAria(current));
+      updateField('profile.genderPos', current);
+    });
+
+    function updateFromEvent(ev) {
+      const rect = field.getBoundingClientRect();
+      const x = clamp01((ev.clientX - rect.left) / Math.max(1, rect.width));
+      const y = clamp01((ev.clientY - rect.top) / Math.max(1, rect.height));
+      current = { x01: x, y01: y };
+      applyDotPosition(current);
+      field.setAttribute('aria-valuetext', formatAria(current));
+    }
+
+    function applyDotPosition({ x01, y01 }) {
+      dot.style.left = `${(x01 * 100).toFixed(2)}%`;
+      dot.style.top  = `${(y01 * 100).toFixed(2)}%`;
+    }
+
+    return root;
+  }
+
+  function clamp01(v) { return Math.max(0, Math.min(1, Number(v) || 0)); }
+  function clamp01ish(v) {
+    if (!v || typeof v !== 'object') return null;
+    return { x01: clamp01(v.x01), y01: clamp01(v.y01) };
+  }
+  function formatAria({ x01, y01 }) {
+    // Describe position in rough terms for screen readers
+    const x = Math.round(x01 * 100);
+    const y = Math.round(y01 * 100);
+    return `horizontal ${x}%, vertical ${y}%`;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/about_section.js
+     ────────────────────────────────────────────────────────── */
+  // render/about_section.js
+  //
+  // Freeform bio textarea. Auto-saves on blur.
+
+
+
+
+  const MAX_LEN = 4000; // generous but bounded
+
+  function createAboutBody({ initialValue = '' }) {
+    const ta = h('textarea', {
+      class: 'pf-about-textarea',
+      maxlength: String(MAX_LEN),
+      rows: '6',
+      placeholder: 'Tell your chronicle — who you are as a storyteller, ' +
+                   'what kinds of stories you love, whatever you want to share.',
+      onBlur: (ev) => {
+        updateField('profile.bio', ev.target.value);
+      },
+    });
+    ta.value = String(initialValue || '');
+
+    const counter = h('div', { class: 'pf-about-counter', 'aria-hidden': 'true' });
+    const updateCounter = () => {
+      counter.textContent = `${ta.value.length.toLocaleString()} / ${MAX_LEN.toLocaleString()}`;
+    };
+    ta.addEventListener('input', updateCounter);
+    updateCounter();
+
+    return h('div', { class: 'pf-about' }, [ta, counter]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/details_form.js
+     ────────────────────────────────────────────────────────── */
+  // render/details_form.js
+  //
+  // The "Details" section body: username, age range, gender square,
+  // optional free-text self-description. All fields are optional and
+  // auto-save on blur.
+
+
+
+
+
+  function createDetailsBody({ profile = {} }) {
+    // ---- display name ----
+    const displayNameInput = h('input', {
+      class: 'pf-field-input',
+      type: 'text',
+      maxlength: '40',
+      placeholder: 'How your name appears on your profile',
+      onBlur: (ev) => updateField('profile.displayName', ev.target.value.trim()),
+    });
+    displayNameInput.value = String(profile.displayName || '');
+
+    // ---- username (separate from display name — short handle) ----
+    const usernameInput = h('input', {
+      class: 'pf-field-input',
+      type: 'text',
+      maxlength: '30',
+      placeholder: '@yourhandle',
+      onBlur: (ev) => updateField('profile.username', ev.target.value.trim()),
+    });
+    usernameInput.value = String(profile.username || '');
+
+    // ---- age range ----
+    const ageSelect = h('select', {
+      class: 'pf-field-input',
+      onBlur: (ev) => updateField('profile.ageRange', ev.target.value),
+      onChange: (ev) => updateField('profile.ageRange', ev.target.value),
+    }, AGE_RANGE_OPTIONS.map(opt =>
+      h('option', { value: opt.value, selected: opt.value === (profile.ageRange || '') }, [opt.label])
+    ));
+
+    // ---- gender square ----
+    const genderSquare = createGenderSquare({ initialValue: profile.genderPos });
+
+    // ---- gender free-text ----
+    const genderCustomInput = h('input', {
+      class: 'pf-field-input',
+      type: 'text',
+      maxlength: '80',
+      placeholder: 'in your own words (optional)',
+      onBlur: (ev) => updateField('profile.genderCustom', ev.target.value.trim()),
+    });
+    genderCustomInput.value = String(profile.genderCustom || '');
+
+    return h('div', { class: 'pf-details' }, [
+      row('Display name', displayNameInput),
+      row('Username',     usernameInput),
+      row('Age range',    ageSelect),
+      row('Gender',       h('div', { class: 'pf-field-stack' }, [
+        genderSquare,
+        genderCustomInput,
+      ])),
+      h('p', { class: 'pf-details-note' }, [
+        'All fields optional. Data stays in your browser.',
+      ]),
+    ]);
+  }
+
+  function row(labelText, control) {
+    return h('label', { class: 'pf-field-row' }, [
+      h('span', { class: 'pf-field-label' }, [labelText]),
+      control,
+    ]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/chronicle_grid.js
+     ────────────────────────────────────────────────────────── */
+  // render/chronicle_grid.js
+  //
+  // Read-only grid of fraction-style stats. Each stat shows either:
+  //   - "value / next_tier"   with a progress bar toward that tier
+  //   - raw "value"           if past the last configured tier
+  // Grid is responsive via CSS auto-fit minmax.
+
+
+
+
+  /**
+   * Stat → tier thresholds. The next unpassed threshold becomes the
+   * fraction denominator; past the last, we just show the raw number.
+   */
+  const TIERS = Object.freeze({
+    wordsWritten:   [100, 1000, 10_000, 50_000, 100_000],
+    characterCount: [1, 5, 20, 50],
+    threadCount:    [1, 5, 25, 100],
+    loreCount:      [10, 50, 100, 500],
+    daysActive:     [7, 30, 100, 365],
+    longestThread:  [100, 500, 1000, 5000],
+  });
+
+  const STATS_TO_SHOW = [
+    { key: 'wordsWritten',   label: 'Words written' },
+    { key: 'characterCount', label: 'Characters' },
+    { key: 'threadCount',    label: 'Stories told' },
+    { key: 'loreCount',      label: 'Lore entries' },
+    { key: 'daysActive',     label: 'Active days' },
+    { key: 'longestThread',  label: 'Longest arc' },
+  ];
+
+  /**
+   * @param {{ stats: import('../stats/queries.js').Stats }} opts
+   */
+  function createChronicleGrid({ stats }) {
+    const cards = STATS_TO_SHOW.map(({ key, label }) =>
+      createStatCard(label, Number(stats[key]) || 0, TIERS[key] || [])
+    );
+    return h('div', { class: 'pf-chron-grid' }, cards);
+  }
+
+  function createStatCard(label, value, thresholds) {
+    const nextTier = thresholds.find(t => value < t);
+
+    const valueEl = nextTier != null
+      ? h('div', { class: 'pf-chron-value' }, [
+          h('span', { class: 'pf-chron-num' }, [formatNumber(value)]),
+          h('span', { class: 'pf-chron-denom' }, [` / ${formatNumber(nextTier)}`]),
+        ])
+      : h('div', { class: 'pf-chron-value pf-chron-value-maxed' }, [
+          h('span', { class: 'pf-chron-num' }, [formatNumber(value)]),
+          h('span', { class: 'pf-chron-denom' }, [' ✓']),
+        ]);
+
+    const progress = nextTier != null ? Math.min(1, value / nextTier) : 1;
+    const bar = h('div', { class: 'pf-chron-bar' }, [
+      h('div', {
+        class: 'pf-chron-bar-fill',
+        style: { width: `${(progress * 100).toFixed(1)}%` },
+      }),
+    ]);
+
+    return h('div', { class: 'pf-chron-card' }, [
+      h('div', { class: 'pf-chron-label' }, [label]),
+      valueEl,
+      bar,
+    ]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/achievements_grid.js
+     ────────────────────────────────────────────────────────── */
+  // render/achievements_grid.js
+  //
+  // Grid showing every achievement. Unlocked ones are tier-colored;
+  // locked ones are dimmed. Hovering / focusing shows name + description.
+
+
+
+
+  const TIER_ICON = {
+    common:    '●',
+    uncommon:  '◆',
+    rare:      '★',
+    epic:      '✦',
+    legendary: '⚜',
+  };
+
+
+  /**
+   * @param {{ unlockedIds: string[] }} opts
+   */
+  function createAchievementsGrid({ unlockedIds }) {
+    const unlocked = new Set(unlockedIds || []);
+
+    const cards = ACHIEVEMENTS.map(a => {
+      const isUnlocked = unlocked.has(a.id);
+      const icon = TIER_ICON[a.tier] || '◆';
+      return h('div', {
+        class: [
+          'pf-ach-card',
+          `pf-ach-tier-${a.tier}`,
+          isUnlocked ? 'pf-ach-unlocked' : 'pf-ach-locked',
+        ].join(' '),
+        title: `${a.name} — ${a.description}`,
+        tabindex: '0',
+        'aria-label': `${a.name}. ${a.description}. ${isUnlocked ? 'Unlocked.' : 'Locked.'}`,
+      }, [
+        h('div', { class: 'pf-ach-icon', 'aria-hidden': 'true' }, [icon]),
+        h('div', { class: 'pf-ach-name' }, [a.name]),
+        h('div', { class: 'pf-ach-tier' }, [a.tier]),
+      ]);
+    });
+
+    // Small summary at the top of the grid
+    const total = ACHIEVEMENTS.length;
+    const unlockedCount = cards.filter((_, i) => unlocked.has(ACHIEVEMENTS[i].id)).length;
+
+    return h('div', { class: 'pf-ach-wrap' }, [
+      h('div', { class: 'pf-ach-summary' }, [
+        `${unlockedCount} of ${total} unlocked`,
+      ]),
+      h('div', { class: 'pf-ach-grid' }, cards),
+    ]);
+  }
 
   /* ──────────────────────────────────────────────────────────
      module: render/mini_card.js
@@ -14641,6 +15944,150 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: profile/full_page.js
+     ────────────────────────────────────────────────────────── */
+  // profile/full_page.js
+  //
+  // Orchestrates the full-screen hero profile page. Called from the mini-card's
+  // onOpen handler. Reads fresh stats + current settings, builds the overlay,
+  // wires auto-save through each section.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
+  /**
+   * Given unlocked achievement IDs, pick up to N to show as pinned badges
+   * on the splash. Highest tier first; within a tier, registry order.
+   */
+  function pickPinnedBadges(unlockedIds, n = 6) {
+    const unlocked = unlockedIds
+      .map(id => getAchievementById(id))
+      .filter(Boolean)
+      .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
+    return unlocked.slice(0, n).map(a => ({
+      id: a.id,
+      name: a.name,
+      icon: TIER_ICON[a.tier] || '◆',
+    }));
+  }
+
+  /**
+   * Derive a title string: override > rarest unlocked achievement's name > default.
+   */
+  function deriveTitle(unlockedIds, settings) {
+    const override = settings && settings.profile && settings.profile.titleOverride;
+    if (override && override.trim()) return override.trim();
+
+    const unlocked = unlockedIds
+      .map(id => getAchievementById(id))
+      .filter(Boolean)
+      .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
+
+    return unlocked[0] ? unlocked[0].name : 'Newcomer';
+  }
+
+  /**
+   * Build and open the full-screen profile page.
+   */
+  async function openFullPage() {
+    // Fresh data + settings on every open
+    let stats, unlockedIds, settings;
+    try {
+      const data = await readAllStores();
+      stats = computeStats(data);
+    } catch {
+      stats = computeStats({});
+    }
+    try {
+      settings = loadSettings();
+    } catch {
+      settings = null;
+    }
+    try {
+      unlockedIds = computeUnlockedIds(stats);
+    } catch {
+      unlockedIds = [];
+    }
+
+    const profile = (settings && settings.profile) || {};
+    const displayState = (settings && settings.display && settings.display.sections) || {};
+
+    // ---- splash ----
+    const xp = xpFromStats(stats);
+    const lvl = levelFromXP(xp);
+
+    const splash = createSplash();
+    splash.update({
+      displayName: profile.displayName || profile.username || 'Chronicler',
+      avatarUrl: profile.avatarUrl || null,
+      title: deriveTitle(unlockedIds, settings),
+      level: lvl.level,
+      xpIntoLevel: lvl.xpIntoLevel,
+      xpForNextLevel: lvl.xpForNextLevel,
+      progress01: lvl.progress01,
+      pinnedBadges: pickPinnedBadges(unlockedIds, 6),
+    });
+
+    // ---- sections ----
+    const aboutSection = createSection({
+      id: 'about',
+      title: 'About',
+      children: createAboutBody({ initialValue: profile.bio }),
+      initialState: displayState.about,
+    });
+
+    const detailsSection = createSection({
+      id: 'details',
+      title: 'Details',
+      children: createDetailsBody({ profile }),
+      initialState: displayState.details,
+    });
+
+    const chronicleSection = createSection({
+      id: 'chronicle',
+      title: 'Chronicle',
+      children: createChronicleGrid({ stats }),
+      initialState: displayState.chronicle,
+    });
+
+    const achievementsSection = createSection({
+      id: 'achievements',
+      title: 'Achievements',
+      children: createAchievementsGrid({ unlockedIds }),
+      initialState: displayState.achievements,
+    });
+
+    // ---- overlay ----
+    const overlay = createOverlay({
+      ariaLabel: 'Your profile',
+      children: [
+        splash,
+        aboutSection,
+        detailsSection,
+        chronicleSection,
+        achievementsSection,
+      ],
+    });
+
+    overlay.show();
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: profile/index.js
      ────────────────────────────────────────────────────────── */
   // profile/index.js
@@ -14662,23 +16109,9 @@ Use this template for your response:
 
 
 
-  const LS_PROFILE_KEY = 'pf:profile';
-  const REFRESH_INTERVAL_MS = 30_000;
 
-  /**
-   * Read user profile settings (display name, avatar URL) from localStorage.
-   * Returns defaults if nothing is saved yet.
-   */
-  function loadProfileSettings() {
-    try {
-      const raw = localStorage.getItem(LS_PROFILE_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
+
+  const REFRESH_INTERVAL_MS = 30_000;
 
   /**
    * Build a mini-card view model from current stats + profile settings.
@@ -14704,10 +16137,9 @@ Use this template for your response:
     try {
       const data = await readAllStores();
       const stats = computeStats(data);
-      const profile = loadProfileSettings();
-      card.update(buildViewModel(stats, profile));
+      const settings = loadSettings();
+      card.update(buildViewModel(stats, settings && settings.profile));
     } catch (e) {
-      // Leave the last-good view model in place. Log once for debugging.
       if (!refresh._warned) {
         refresh._warned = true;
         console.warn('[pf] profile refresh failed:', e && e.message);
@@ -14722,16 +16154,15 @@ Use this template for your response:
     if (start._started) return;
     start._started = true;
 
-    let cardRef = null;
-
     const card = await mountMiniCard({
       buildElement: () => createMiniCard({
         onOpen: () => {
-          // Full hero-card modal lives in a later commit.
-          console.info('[pf] profile clicked — full card modal is coming soon');
+          openFullPage().catch(e => {
+            console.warn('[pf] failed to open profile page:', e && e.message);
+          });
         },
       }),
-      onMounted: (el) => { cardRef = el; },
+      onMounted: () => {},
     });
 
     if (!card) {

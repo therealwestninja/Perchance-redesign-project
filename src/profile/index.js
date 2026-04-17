@@ -16,24 +16,10 @@ import { computeStats } from '../stats/queries.js';
 import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { createMiniCard } from '../render/mini_card.js';
 import { mountMiniCard } from './mount.js';
+import { openFullPage } from './full_page.js';
+import { loadSettings } from './settings_store.js';
 
-const LS_PROFILE_KEY = 'pf:profile';
 const REFRESH_INTERVAL_MS = 30_000;
-
-/**
- * Read user profile settings (display name, avatar URL) from localStorage.
- * Returns defaults if nothing is saved yet.
- */
-function loadProfileSettings() {
-  try {
-    const raw = localStorage.getItem(LS_PROFILE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Build a mini-card view model from current stats + profile settings.
@@ -59,10 +45,9 @@ async function refresh(card) {
   try {
     const data = await readAllStores();
     const stats = computeStats(data);
-    const profile = loadProfileSettings();
-    card.update(buildViewModel(stats, profile));
+    const settings = loadSettings();
+    card.update(buildViewModel(stats, settings && settings.profile));
   } catch (e) {
-    // Leave the last-good view model in place. Log once for debugging.
     if (!refresh._warned) {
       refresh._warned = true;
       console.warn('[pf] profile refresh failed:', e && e.message);
@@ -77,16 +62,15 @@ export async function start() {
   if (start._started) return;
   start._started = true;
 
-  let cardRef = null;
-
   const card = await mountMiniCard({
     buildElement: () => createMiniCard({
       onOpen: () => {
-        // Full hero-card modal lives in a later commit.
-        console.info('[pf] profile clicked — full card modal is coming soon');
+        openFullPage().catch(e => {
+          console.warn('[pf] failed to open profile page:', e && e.message);
+        });
       },
     }),
-    onMounted: (el) => { cardRef = el; },
+    onMounted: () => {},
   });
 
   if (!card) {
