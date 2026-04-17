@@ -13,6 +13,7 @@
 
 import { readAllStores } from '../stats/db.js';
 import { computeStats } from '../stats/queries.js';
+import { computePromptStats } from '../stats/prompt_stats.js';
 import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { createMiniCard } from '../render/mini_card.js';
@@ -48,7 +49,10 @@ function buildViewModel(stats, profile, pendingCount = 0) {
 async function refresh(card) {
   try {
     const data = await readAllStores();
-    const stats = computeStats(data);
+    const settings = loadSettings();
+    // Merge IDB-derived stats with settings-derived prompt stats so
+    // achievement criteria can read both from one stat bundle.
+    const stats = { ...computeStats(data), ...computePromptStats(settings) };
     const unlockedIds = computeUnlockedIds(stats);
 
     // First deploy: treat current unlocks as "already seen" so this commit
@@ -62,7 +66,6 @@ async function refresh(card) {
     const newWeekPrompts = hasNewWeekPending();
     const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
 
-    const settings = loadSettings();
     card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
   } catch (e) {
     if (!refresh._warned) {

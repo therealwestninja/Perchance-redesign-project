@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 30 };
+  NS.__meta = { modules: 31 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14093,6 +14093,48 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: stats/prompt_stats.js
+     ────────────────────────────────────────────────────────── */
+  // stats/prompt_stats.js
+  //
+  // Derive prompt-completion metrics from the persisted settings blob.
+  // Pure: pass in a settings object (from loadSettings()), get back a
+  // merge-able stats bundle. Separate from stats/queries.js because that
+  // module works on IDB data, whereas prompt state lives in localStorage.
+  //
+  // The returned shape merges cleanly into the main stats bundle so
+  // achievement criteria can read it alongside words / characters / threads.
+
+  /**
+   * @typedef {Object} PromptStats
+   * @property {number} promptsCompletedTotal  Sum across all weeks of completed prompt IDs
+   * @property {number} promptsWeeksActive     Number of distinct weeks with ≥1 completion
+   */
+
+  /**
+   * @param {object} settings  Output of loadSettings()
+   * @returns {PromptStats}
+   */
+  function computePromptStats(settings) {
+    const byWeek = (settings && settings.prompts && settings.prompts.completedByWeek) || {};
+
+    let total = 0;
+    let weeksActive = 0;
+
+    for (const weekKey of Object.keys(byWeek)) {
+      const list = byWeek[weekKey];
+      if (!Array.isArray(list) || list.length === 0) continue;
+      total += list.length;
+      weeksActive += 1;
+    }
+
+    return {
+      promptsCompletedTotal: total,
+      promptsWeeksActive: weeksActive,
+    };
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: achievements/tiers.js
      ────────────────────────────────────────────────────────── */
   // achievements/tiers.js
@@ -14312,6 +14354,46 @@ Use this template for your response:
       description: 'Write in your chats on 100 different days.',
       tier: 'rare',
       criteria: (s) => (s.daysActive || 0) >= 100,
+    },
+
+    // --- Prompt engagement (weekly writing prompts — self-reported) ---
+    {
+      id: 'first_prompt',
+      name: 'First Prompt',
+      description: 'Completed your first writing prompt.',
+      tier: 'common',
+      criteria: (s) => (s.promptsCompletedTotal || 0) >= 1,
+    },
+    {
+      id: 'prompt_curious',
+      name: 'Prompt Curious',
+      description: 'Tried 5 writing prompts.',
+      tier: 'common',
+      criteria: (s) => (s.promptsCompletedTotal || 0) >= 5,
+    },
+    {
+      id: 'prompt_seasoned',
+      name: 'Prompt Seasoned',
+      description: 'Tried 25 writing prompts.',
+      tier: 'uncommon',
+      criteria: (s) => (s.promptsCompletedTotal || 0) >= 25,
+    },
+    {
+      id: 'prompt_explorer',
+      name: 'Prompt Explorer',
+      description: 'Tried 50 writing prompts.',
+      tier: 'rare',
+      criteria: (s) => (s.promptsCompletedTotal || 0) >= 50,
+    },
+    {
+      // Non-consecutive, deliberately. We do NOT reward streaks — showing up
+      // over time on your own schedule is what matters, not a chain that can
+      // guilt-trip you when broken.
+      id: 'weekly_regular',
+      name: 'Weekly Regular',
+      description: 'Tried a prompt in 10 different weeks (no streak required).',
+      tier: 'uncommon',
+      criteria: (s) => (s.promptsWeeksActive || 0) >= 10,
     },
   ]);
 
@@ -16928,6 +17010,7 @@ Use this template for your response:
 
 
 
+
   const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
   /**
@@ -16968,15 +17051,17 @@ Use this template for your response:
     // Fresh data + settings on every open
     let stats, unlockedIds, settings;
     try {
-      const data = await readAllStores();
-      stats = computeStats(data);
-    } catch {
-      stats = computeStats({});
-    }
-    try {
       settings = loadSettings();
     } catch {
       settings = null;
+    }
+    try {
+      const data = await readAllStores();
+      // Merge IDB-derived stats with settings-derived prompt stats so
+      // achievement criteria can read both from one bundle.
+      stats = { ...computeStats(data), ...computePromptStats(settings) };
+    } catch {
+      stats = { ...computeStats({}), ...computePromptStats(settings) };
     }
     try {
       unlockedIds = computeUnlockedIds(stats);
@@ -17010,7 +17095,16 @@ Use this template for your response:
       let freshSettings = settings;
       try { freshSettings = loadSettings(); } catch { /* keep stale */ }
       const p = (freshSettings && freshSettings.profile) || {};
-      const freshUnlocked = unlockedIds;
+
+      // Re-compute unlocks with current prompt stats — completing a prompt
+      // mid-overlay-session should update pinned badges and title if it
+      // crossed an achievement threshold.
+      let freshUnlocked = unlockedIds;
+      try {
+        const freshStats = { ...stats, ...computePromptStats(freshSettings) };
+        freshUnlocked = computeUnlockedIds(freshStats);
+      } catch { /* fall back to initial unlock list */ }
+
       splash.update({
         displayName: p.displayName || p.username || 'Chronicler',
         avatarUrl: p.avatarUrl || null,
@@ -17112,6 +17206,7 @@ Use this template for your response:
 
 
 
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -17138,7 +17233,10 @@ Use this template for your response:
   async function refresh(card) {
     try {
       const data = await readAllStores();
-      const stats = computeStats(data);
+      const settings = loadSettings();
+      // Merge IDB-derived stats with settings-derived prompt stats so
+      // achievement criteria can read both from one stat bundle.
+      const stats = { ...computeStats(data), ...computePromptStats(settings) };
       const unlockedIds = computeUnlockedIds(stats);
 
       // First deploy: treat current unlocks as "already seen" so this commit
@@ -17152,7 +17250,6 @@ Use this template for your response:
       const newWeekPrompts = hasNewWeekPending();
       const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
 
-      const settings = loadSettings();
       card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
     } catch (e) {
       if (!refresh._warned) {

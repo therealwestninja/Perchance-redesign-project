@@ -15,6 +15,7 @@ import { createPromptsBody } from '../render/prompts_section.js';
 
 import { readAllStores } from '../stats/db.js';
 import { computeStats } from '../stats/queries.js';
+import { computePromptStats } from '../stats/prompt_stats.js';
 import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { ACHIEVEMENTS, getAchievementById } from '../achievements/registry.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
@@ -64,15 +65,17 @@ export async function openFullPage() {
   // Fresh data + settings on every open
   let stats, unlockedIds, settings;
   try {
-    const data = await readAllStores();
-    stats = computeStats(data);
-  } catch {
-    stats = computeStats({});
-  }
-  try {
     settings = loadSettings();
   } catch {
     settings = null;
+  }
+  try {
+    const data = await readAllStores();
+    // Merge IDB-derived stats with settings-derived prompt stats so
+    // achievement criteria can read both from one bundle.
+    stats = { ...computeStats(data), ...computePromptStats(settings) };
+  } catch {
+    stats = { ...computeStats({}), ...computePromptStats(settings) };
   }
   try {
     unlockedIds = computeUnlockedIds(stats);
@@ -106,7 +109,16 @@ export async function openFullPage() {
     let freshSettings = settings;
     try { freshSettings = loadSettings(); } catch { /* keep stale */ }
     const p = (freshSettings && freshSettings.profile) || {};
-    const freshUnlocked = unlockedIds;
+
+    // Re-compute unlocks with current prompt stats — completing a prompt
+    // mid-overlay-session should update pinned badges and title if it
+    // crossed an achievement threshold.
+    let freshUnlocked = unlockedIds;
+    try {
+      const freshStats = { ...stats, ...computePromptStats(freshSettings) };
+      freshUnlocked = computeUnlockedIds(freshStats);
+    } catch { /* fall back to initial unlock list */ }
+
     splash.update({
       displayName: p.displayName || p.username || 'Chronicler',
       avatarUrl: p.avatarUrl || null,

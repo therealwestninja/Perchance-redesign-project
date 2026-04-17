@@ -132,6 +132,46 @@ export const ACHIEVEMENTS = Object.freeze([
     tier: 'rare',
     criteria: (s) => (s.daysActive || 0) >= 100,
   },
+
+  // --- Prompt engagement (weekly writing prompts — self-reported) ---
+  {
+    id: 'first_prompt',
+    name: 'First Prompt',
+    description: 'Completed your first writing prompt.',
+    tier: 'common',
+    criteria: (s) => (s.promptsCompletedTotal || 0) >= 1,
+  },
+  {
+    id: 'prompt_curious',
+    name: 'Prompt Curious',
+    description: 'Tried 5 writing prompts.',
+    tier: 'common',
+    criteria: (s) => (s.promptsCompletedTotal || 0) >= 5,
+  },
+  {
+    id: 'prompt_seasoned',
+    name: 'Prompt Seasoned',
+    description: 'Tried 25 writing prompts.',
+    tier: 'uncommon',
+    criteria: (s) => (s.promptsCompletedTotal || 0) >= 25,
+  },
+  {
+    id: 'prompt_explorer',
+    name: 'Prompt Explorer',
+    description: 'Tried 50 writing prompts.',
+    tier: 'rare',
+    criteria: (s) => (s.promptsCompletedTotal || 0) >= 50,
+  },
+  {
+    // Non-consecutive, deliberately. We do NOT reward streaks — showing up
+    // over time on your own schedule is what matters, not a chain that can
+    // guilt-trip you when broken.
+    id: 'weekly_regular',
+    name: 'Weekly Regular',
+    description: 'Tried a prompt in 10 different weeks (no streak required).',
+    tier: 'uncommon',
+    criteria: (s) => (s.promptsWeeksActive || 0) >= 10,
+  },
 ]);
 
 /**
