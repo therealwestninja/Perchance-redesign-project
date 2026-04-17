@@ -16,6 +16,7 @@ import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
+import { createActivitySparkline } from '../render/activity_sparkline.js';
 import { h } from '../utils/dom.js';
 
 import { readAllStores } from '../stats/db.js';
@@ -173,6 +174,9 @@ export async function openFullPage() {
     shareChips.topRow,
     createWritingRadar({ stats }),
     shareChips.bottomRow,
+    createActivitySparkline({
+      currentWeekCompletedCount: completedIds.size,
+    }),
   ]);
 
   // ---- sections ----

@@ -561,6 +561,43 @@ export const CSS = `
 .pf-share-chip-icon-epic      { color: #b67ad8; }
 .pf-share-chip-icon-legendary { color: #d8b36a; }
 
+/* Activity sparkline — last 12 weeks of completions, Focus mode only */
+.pf-sparkline {
+  display: none; /* hidden in normal profile; only shown in focus mode */
+  width: 100%;
+  padding: 4px 0 0;
+}
+.pf-overlay-focused .pf-sparkline {
+  display: block;
+}
+.pf-sparkline-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.pf-sparkline-track {
+  fill: rgba(255, 255, 255, 0.04);
+}
+.pf-sparkline-bar {
+  fill: rgba(216, 179, 106, 0.55);
+}
+.pf-sparkline-bar-current {
+  fill: #d8b36a;
+}
+.pf-sparkline-label {
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--text-color);
+  opacity: 0.55;
+}
+.pf-sparkline-label-right {
+  fill: #d8b36a;
+  opacity: 1;
+}
+
 /* Hide the close × and the share button in focus mode — keep it clean
    for the screenshot. Exit is via tap or Esc, hinted at bottom. */
 .pf-overlay-focused .pf-overlay-close,

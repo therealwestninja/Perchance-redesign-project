@@ -34,6 +34,7 @@
     "render/achievements_grid.js",
     "render/writing_radar.js",
     "render/share_chips.js",
+    "render/activity_sparkline.js",
     "render/backup_section.js",
     "render/mini_card.js",
     "profile/styles_install.js",
