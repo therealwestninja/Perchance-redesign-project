@@ -54,23 +54,29 @@ export function createSection({ id, title, children, initialState }) {
     bodyWrap,
   ]);
 
-  function setCollapsed(val) {
+  function setCollapsed(val, { persist = true } = {}) {
     collapsed = !!val;
     root.classList.toggle('pf-section-collapsed', collapsed);
     chevronBtn.setAttribute('aria-expanded', String(!collapsed));
     chevronBtn.textContent = collapsed ? '▸' : '▾';
-    updateField(`display.sections.${id}.collapsed`, collapsed);
+    if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
   }
 
-  function setBlurred(val) {
+  function setBlurred(val, { persist = true } = {}) {
     blurred = !!val;
     root.classList.toggle('pf-section-blurred', blurred);
     eyeBtn.setAttribute('aria-pressed', String(blurred));
-    updateField(`display.sections.${id}.blurred`, blurred);
+    if (persist) updateField(`display.sections.${id}.blurred`, blurred);
   }
 
-  setCollapsed(collapsed);
-  setBlurred(blurred);
+  // Initial render: set DOM state to match the hydrated settings, but
+  // don't re-persist what we just loaded. Without { persist: false } here,
+  // every profile open would fire 2 updateField calls per section (14
+  // total across the 7 sections), each triggering a localStorage write
+  // AND a pub/sub broadcast that causes every listener — including the
+  // mini-card — to re-refresh. Expensive no-op.
+  setCollapsed(collapsed, { persist: false });
+  setBlurred(blurred,   { persist: false });
 
   return root;
 }

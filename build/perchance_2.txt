@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 35 };
+  NS.__meta = { modules: 38 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -15475,32 +15475,117 @@ Use this template for your response:
     background: rgba(0, 0, 0, 0.92);
   }
 
-  /* Hide everything in the content column except the splash when focused */
-  .pf-overlay-focused .pf-overlay-content > :not(.pf-splash) {
+  /* Hide everything in the content column except the splash and the
+     focus-extras (the radar card) when focused */
+  .pf-overlay-focused .pf-overlay-content > :not(.pf-splash):not(.pf-focus-extras) {
     display: none;
   }
 
-  /* Center the splash vertically in the viewport when focused */
+  /* Center vertically in the viewport when focused; stack splash and
+     extras with breathing room between */
   .pf-overlay-focused .pf-overlay-scroll {
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow-y: auto;            /* fall back to scroll on short viewports */
     padding: 40px 16px;
   }
   .pf-overlay-focused .pf-overlay-content {
     width: 100%;
     max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
-  /* Make the splash card-like when focused — slightly bigger, extra glow */
-  .pf-overlay-focused .pf-splash {
+  /* Splash and focus-extras both get the "card" treatment in focus mode —
+     soft shadow ring, a little extra padding, so they read as a unified
+     two-card share artifact in a screenshot. */
+  .pf-overlay-focused .pf-splash,
+  .pf-overlay-focused .pf-focus-extras {
     box-shadow:
       0 0 0 1px rgba(216, 179, 106, 0.15),
       0 20px 60px -10px rgba(0, 0, 0, 0.65),
       0 4px 20px rgba(216, 179, 106, 0.08);
+  }
+  .pf-overlay-focused .pf-splash {
     padding: 36px 32px 28px;
   }
+
+  /* Focus extras — hidden by default, card-styled in focus mode */
+  .pf-focus-extras {
+    display: none;
+  }
+  .pf-overlay-focused .pf-focus-extras {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 18px 20px 16px;
+  }
+  /* The radar inside focus-extras: slightly smaller than the in-profile
+     version so the two cards share the same width comfortably */
+  .pf-overlay-focused .pf-focus-extras .pf-radar-svg {
+    max-width: 380px;
+  }
+
+  /* Corner stat chips for the share card (Focus mode only).
+     Two rows, one above radar and one below. justify-content space-between
+     anchors the chips to left/right corners visually. */
+  .pf-share-chips-row {
+    display: none; /* hidden in normal profile; only shown in focus mode */
+  }
+  .pf-overlay-focused .pf-share-chips-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .pf-share-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 8px 14px 9px;
+    border-radius: var(--border-radius);
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--border-color);
+  }
+  .pf-share-chip-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 2px;
+  }
+  .pf-share-chip-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pf-share-chip-icon {
+    font-size: 15px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .pf-share-chip-value-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Tier-colored icons for the rarest-unlock chip */
+  .pf-share-chip-icon-common    { color: #9aa0a6; }
+  .pf-share-chip-icon-uncommon  { color: #6aa66a; }
+  .pf-share-chip-icon-rare      { color: #6aa0d8; }
+  .pf-share-chip-icon-epic      { color: #b67ad8; }
+  .pf-share-chip-icon-legendary { color: #d8b36a; }
 
   /* Hide the close × and the share button in focus mode — keep it clean
      for the screenshot. Exit is via tap or Esc, hinted at bottom. */
@@ -16081,6 +16166,131 @@ Use this template for your response:
   }
 
   /* ============================================================
+     Backup section — export/import of profile settings as JSON
+     ============================================================ */
+  .pf-backup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pf-backup-intro {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+  }
+  .pf-backup-intro-soft {
+    opacity: 0.7;
+  }
+  .pf-backup-buttonrow {
+    display: flex;
+    gap: 10px;
+  }
+  .pf-backup-btn {
+    flex: 1;
+    padding: 10px 16px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-backup-btn:hover {
+    background: rgba(216, 179, 106, 0.08);
+    border-color: rgba(216, 179, 106, 0.45);
+  }
+  .pf-backup-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+  }
+  .pf-backup-hint {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    opacity: 0.75;
+  }
+  .pf-backup-textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 10px 12px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    background: var(--box-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .pf-backup-textarea:focus {
+    outline: none;
+    border-color: rgba(216, 179, 106, 0.55);
+  }
+  .pf-backup-actionbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .pf-backup-action {
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+  }
+  .pf-backup-action:hover {
+    background: rgba(216, 179, 106, 0.1);
+    border-color: rgba(216, 179, 106, 0.45);
+  }
+  .pf-backup-action-danger {
+    border-color: rgba(220, 80, 80, 0.45);
+    color: rgba(230, 160, 160, 0.95);
+  }
+  .pf-backup-action-danger:hover {
+    background: rgba(220, 80, 80, 0.12);
+  }
+  .pf-backup-status {
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.85;
+  }
+  .pf-backup-status-ok   { color: rgba(150, 210, 150, 0.95); }
+  .pf-backup-status-warn { color: rgba(230, 200, 120, 0.95); }
+  .pf-backup-status-err  { color: rgba(230, 140, 140, 0.95); }
+  .pf-backup-confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background: rgba(220, 80, 80, 0.06);
+    border: 1px solid rgba(220, 80, 80, 0.30);
+    border-radius: var(--border-radius);
+  }
+  .pf-backup-confirm-text {
+    flex: 1 1 auto;
+    font-size: 12px;
+  }
+
+  /* ============================================================
      Achievements grid
      ============================================================ */
   .pf-ach-summary {
@@ -16151,7 +16361,7 @@ Use this template for your response:
   const KEY = 'pf:settings';
   const OLD_KEY = 'pf:profile';
 
-  const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'style', 'achievements'];
+  const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'style', 'achievements', 'backup'];
 
   /**
    * Default shape. Every read path falls back through this, so any missing
@@ -16178,6 +16388,7 @@ Use this template for your response:
           chronicle:    { collapsed: false, blurred: false },
           style:        { collapsed: false, blurred: false },
           achievements: { collapsed: false, blurred: false },
+          backup:       { collapsed: true,  blurred: false }, // utility — collapsed by default
         },
       },
       notifications: {
@@ -16471,6 +16682,115 @@ Use this template for your response:
     if (!Array.isArray(currentlyActiveIds)) return;
     const nextSet = currentlyActiveIds.filter(id => typeof id === 'string');
     updateField('notifications.seenEventIds', nextSet);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: profile/backup.js
+     ────────────────────────────────────────────────────────── */
+  // profile/backup.js
+  //
+  // Export/import of the user's profile settings as portable JSON.
+  //
+  // Protects against subdomain churn (every Perchance generator has its own
+  // random subdomain → own localStorage namespace), browser data clearing,
+  // device migration, or experimenting with settings the user might want to
+  // undo later.
+  //
+  // Export produces a wrapped payload:
+  //   { schema: 1, exportedAt: <ISO>, settings: {...} }
+  // Import accepts that shape OR a raw settings object (forgiving, in case
+  // the user manually constructed something or pasted just the settings part).
+
+
+
+  /**
+   * Bump this if the settings shape changes in a way that old exports can't
+   * be safely restored. Never needs to be decremented — import always tries
+   * to handle older schemas gracefully via saveSettings's deep-merge with
+   * defaultSettings.
+   */
+  const BACKUP_SCHEMA_VERSION = 1;
+
+  /**
+   * Serialize current settings as pretty-printed JSON for display or copy.
+   *
+   * @returns {string}
+   */
+  function exportSettingsAsJson() {
+    const settings = loadSettings();
+    const payload = {
+      schema: BACKUP_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      settings,
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  /**
+   * Validate and apply an imported backup. Returns a result object rather
+   * than throwing, so callers can render a user-visible error message.
+   *
+   * @param {string} jsonText
+   * @returns {{ success: boolean, error?: string, schema?: number }}
+   */
+  function importSettingsFromJson(jsonText) {
+    if (typeof jsonText !== 'string' || !jsonText.trim()) {
+      return { success: false, error: 'No backup text provided.' };
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      return { success: false, error: 'Not valid JSON — check for typos or missing braces.' };
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { success: false, error: 'Backup is not a JSON object.' };
+    }
+
+    // Accept both shapes: wrapped payload OR raw settings
+    let settings;
+    let schema;
+    if ('schema' in parsed && 'settings' in parsed && parsed.settings && typeof parsed.settings === 'object') {
+      settings = parsed.settings;
+      schema = Number(parsed.schema) || 1;
+    } else {
+      // Raw settings — check for at least one recognized top-level key so
+      // we don't accept a random object
+      if (!('profile' in parsed) && !('display' in parsed) && !('prompts' in parsed) && !('notifications' in parsed)) {
+        return { success: false, error: 'Backup does not look like profile settings data.' };
+      }
+      settings = parsed;
+      schema = 0;
+    }
+
+    try {
+      saveSettings(settings);
+      return { success: true, schema };
+    } catch (err) {
+      return { success: false, error: (err && err.message) || 'Could not save settings.' };
+    }
+  }
+
+  /**
+   * Attempt to copy text to the clipboard. Returns a promise that resolves
+   * to true on success, false if the Clipboard API is unavailable or the
+   * request is denied (e.g. insecure context, no user gesture).
+   *
+   * @param {string} text
+   * @returns {Promise<boolean>}
+   */
+  async function copyToClipboard(text) {
+    try {
+      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      /* fall through to false */
+    }
+    return false;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -16770,23 +17090,29 @@ Use this template for your response:
       bodyWrap,
     ]);
 
-    function setCollapsed(val) {
+    function setCollapsed(val, { persist = true } = {}) {
       collapsed = !!val;
       root.classList.toggle('pf-section-collapsed', collapsed);
       chevronBtn.setAttribute('aria-expanded', String(!collapsed));
       chevronBtn.textContent = collapsed ? '▸' : '▾';
-      updateField(`display.sections.${id}.collapsed`, collapsed);
+      if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
     }
 
-    function setBlurred(val) {
+    function setBlurred(val, { persist = true } = {}) {
       blurred = !!val;
       root.classList.toggle('pf-section-blurred', blurred);
       eyeBtn.setAttribute('aria-pressed', String(blurred));
-      updateField(`display.sections.${id}.blurred`, blurred);
+      if (persist) updateField(`display.sections.${id}.blurred`, blurred);
     }
 
-    setCollapsed(collapsed);
-    setBlurred(blurred);
+    // Initial render: set DOM state to match the hydrated settings, but
+    // don't re-persist what we just loaded. Without { persist: false } here,
+    // every profile open would fire 2 updateField calls per section (14
+    // total across the 7 sections), each triggering a localStorage write
+    // AND a pub/sub broadcast that causes every listener — including the
+    // mini-card — to re-refresh. Expensive no-op.
+    setCollapsed(collapsed, { persist: false });
+    setBlurred(blurred,   { persist: false });
 
     return root;
   }
@@ -17713,16 +18039,309 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/share_chips.js
+     ────────────────────────────────────────────────────────── */
+  // render/share_chips.js
+  //
+  // Four compact stat callouts shown at the corners of the radar card in
+  // Focus mode. Chosen to NOT duplicate what's in the splash card or the
+  // radar's own readout, so the share screenshot gains new information
+  // rather than repeating it.
+  //
+  // Layout: two flex rows — one above the radar, one below. Chips within
+  // each row are justified space-between, so they anchor visually to the
+  // left and right corners of the card.
+
+
+
+
+  const TIER_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+  /**
+   * @param {{
+   *   level: number,
+   *   unlockedIds: string[],
+   *   achievements: Array<{ id: string, name: string, tier: string }>,
+   *   promptsCompleted: number,
+   * }} opts
+   * @returns {{ topRow: HTMLElement, bottomRow: HTMLElement }}
+   */
+  function createShareChips({ level, unlockedIds, achievements, promptsCompleted }) {
+    const unlockedCount = unlockedIds.length;
+    const totalAch = achievements.length;
+    const rarest = findRarestUnlocked(unlockedIds, achievements);
+
+    const topRow = h('div', { class: 'pf-share-chips-row pf-share-chips-top' }, [
+      chip({
+        label: 'Level',
+        value: 'LV ' + formatInt(level),
+      }),
+      chip({
+        label: 'Unlocks',
+        value: formatInt(unlockedCount) + ' / ' + formatInt(totalAch),
+      }),
+    ]);
+
+    const bottomRow = h('div', { class: 'pf-share-chips-row pf-share-chips-bottom' }, [
+      chip({
+        label: 'Prompts',
+        value: formatInt(promptsCompleted),
+      }),
+      chip({
+        label: 'Rarest',
+        value: rarest ? rarest.name : '—',
+        icon:  rarest ? (TIER_ICON[rarest.tier] || '◆') : null,
+        tier:  rarest ? rarest.tier : null,
+      }),
+    ]);
+
+    return { topRow, bottomRow };
+  }
+
+  function chip({ label, value, icon, tier }) {
+    const valueChildren = [];
+    if (icon) {
+      valueChildren.push(h('span', {
+        class: 'pf-share-chip-icon pf-share-chip-icon-' + (tier || 'common'),
+        'aria-hidden': 'true',
+      }, [icon]));
+    }
+    valueChildren.push(h('span', { class: 'pf-share-chip-value-text' }, [String(value)]));
+
+    return h('div', { class: 'pf-share-chip' }, [
+      h('div', { class: 'pf-share-chip-label' }, [String(label)]),
+      h('div', { class: 'pf-share-chip-value' }, valueChildren),
+    ]);
+  }
+
+  /**
+   * Find the rarest unlocked achievement for highlight. "Rarest" = highest
+   * tier in TIER_ORDER among the user's unlocks. Ties broken by registry
+   * order (first seen wins). Returns null if nothing is unlocked or if
+   * every unlocked id is unknown to the registry.
+   */
+  function findRarestUnlocked(unlockedIds, achievements) {
+    if (!Array.isArray(unlockedIds) || unlockedIds.length === 0) return null;
+    if (!Array.isArray(achievements)) return null;
+    const unlockedSet = new Set(unlockedIds);
+    const unlocked = achievements.filter(a => a && unlockedSet.has(a.id));
+    if (unlocked.length === 0) return null;
+    // Stable sort: higher tier first; within a tier, preserve registry order
+    const indexed = unlocked.map((a, i) => ({ a, i }));
+    indexed.sort((x, y) => {
+      const tierDiff = tierRank(y.a.tier) - tierRank(x.a.tier);
+      if (tierDiff !== 0) return tierDiff;
+      return x.i - y.i;
+    });
+    return indexed[0].a;
+  }
+
+  function tierRank(tier) {
+    const idx = TIER_ORDER.indexOf(tier);
+    return idx < 0 ? 0 : idx;
+  }
+
+  function formatInt(n) {
+    const v = Number(n) || 0;
+    return String(Math.round(v));
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/backup_section.js
+     ────────────────────────────────────────────────────────── */
+  // render/backup_section.js
+  //
+  // Body of the "Backup" section: Export and Import affordances for the
+  // user's profile settings. Each button reveals its own textarea inline;
+  // nothing is modal. No destructive action without explicit confirmation.
+
+
+
+
+  function createBackupBody() {
+    // Panels — each is hidden by default, revealed by its respective button
+    const exportPanel = h('div', { class: 'pf-backup-panel', hidden: true });
+    const importPanel = h('div', { class: 'pf-backup-panel', hidden: true });
+
+    const exportBtn = h('button', {
+      class: 'pf-backup-btn',
+      type: 'button',
+      onClick: () => toggleExport(),
+    }, ['Export']);
+
+    const importBtn = h('button', {
+      class: 'pf-backup-btn',
+      type: 'button',
+      onClick: () => toggleImport(),
+    }, ['Import']);
+
+    function toggleExport() {
+      if (!exportPanel.hidden) { exportPanel.hidden = true; return; }
+      importPanel.hidden = true;
+      renderExportPanel();
+      exportPanel.hidden = false;
+    }
+
+    function toggleImport() {
+      if (!importPanel.hidden) { importPanel.hidden = true; return; }
+      exportPanel.hidden = true;
+      renderImportPanel();
+      importPanel.hidden = false;
+    }
+
+    function renderExportPanel() {
+      const json = exportSettingsAsJson();
+
+      const textarea = h('textarea', {
+        class: 'pf-backup-textarea',
+        readonly: true,
+        rows: 10,
+        spellcheck: 'false',
+        'aria-label': 'Profile backup as JSON',
+      });
+      textarea.value = json;
+
+      const status = h('span', { class: 'pf-backup-status' });
+
+      const copyBtn = h('button', {
+        class: 'pf-backup-action',
+        type: 'button',
+        onClick: async () => {
+          const ok = await copyToClipboard(json);
+          if (ok) {
+            showStatus(status, 'Copied to clipboard ✓', 'ok');
+          } else {
+            showStatus(status, 'Clipboard blocked — select all and copy manually (⌘/Ctrl+C)', 'warn');
+            textarea.focus();
+            textarea.select();
+          }
+        },
+      }, ['Copy']);
+
+      replaceContents(exportPanel, [
+        h('p', { class: 'pf-backup-hint' }, [
+          'Your full profile as JSON — avatar, bio, section states, prompt completions, everything. Save this text somewhere safe.',
+        ]),
+        textarea,
+        h('div', { class: 'pf-backup-actionbar' }, [copyBtn, status]),
+      ]);
+    }
+
+    function renderImportPanel() {
+      const textarea = h('textarea', {
+        class: 'pf-backup-textarea',
+        rows: 10,
+        spellcheck: 'false',
+        placeholder: 'Paste your exported backup JSON here…',
+        'aria-label': 'Paste backup JSON to restore',
+      });
+
+      const status = h('span', { class: 'pf-backup-status' });
+      const confirmRow = h('div', { class: 'pf-backup-confirm-row', hidden: true });
+
+      const applyBtn = h('button', {
+        class: 'pf-backup-action',
+        type: 'button',
+        onClick: () => {
+          const text = textarea.value;
+          if (!text.trim()) {
+            showStatus(status, 'Paste your backup JSON first.', 'warn');
+            return;
+          }
+          // Show confirm row — two-step so accidental click doesn't nuke data
+          replaceContents(confirmRow, [
+            h('span', { class: 'pf-backup-confirm-text' }, [
+              'This will overwrite your current profile data. Continue?',
+            ]),
+            h('button', {
+              class: 'pf-backup-action pf-backup-action-danger',
+              type: 'button',
+              onClick: () => doApply(text),
+            }, ['Yes, replace']),
+            h('button', {
+              class: 'pf-backup-action',
+              type: 'button',
+              onClick: () => {
+                confirmRow.hidden = true;
+                clearStatus(status);
+              },
+            }, ['Cancel']),
+          ]);
+          confirmRow.hidden = false;
+        },
+      }, ['Restore from backup']);
+
+      function doApply(text) {
+        const result = importSettingsFromJson(text);
+        confirmRow.hidden = true;
+        if (result.success) {
+          showStatus(
+            status,
+            'Restored. Reloading profile…',
+            'ok'
+          );
+          // Close the overlay so the next open picks up fresh settings.
+          // A full page reload is overkill; settings change events will
+          // propagate on the next open of the profile.
+          setTimeout(() => {
+            const overlay = document.querySelector('.pf-overlay');
+            if (overlay && typeof overlay.hide === 'function') overlay.hide();
+          }, 800);
+        } else {
+          showStatus(status, result.error || 'Could not restore backup.', 'err');
+        }
+      }
+
+      replaceContents(importPanel, [
+        h('p', { class: 'pf-backup-hint' }, [
+          'Paste a previously exported backup to restore. This will overwrite your current profile.',
+        ]),
+        textarea,
+        h('div', { class: 'pf-backup-actionbar' }, [applyBtn, status]),
+        confirmRow,
+      ]);
+    }
+
+    return h('div', { class: 'pf-backup' }, [
+      h('p', { class: 'pf-backup-intro' }, [
+        'Save a portable copy of your profile as JSON, or restore from one. ',
+        h('span', { class: 'pf-backup-intro-soft' }, [
+          'Useful if your browser clears storage, you switch devices, or you just want a safety net.',
+        ]),
+      ]),
+      h('div', { class: 'pf-backup-buttonrow' }, [exportBtn, importBtn]),
+      exportPanel,
+      importPanel,
+    ]);
+  }
+
+  /** Transient status with color-coded variant, auto-clears after 4s for success/warn. */
+  function showStatus(el, text, kind) {
+    el.textContent = text;
+    el.className = 'pf-backup-status pf-backup-status-' + (kind || 'info');
+    if (kind !== 'err') {
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => clearStatus(el), 4000);
+    }
+  }
+
+  function clearStatus(el) {
+    el.textContent = '';
+    el.className = 'pf-backup-status';
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/mini_card.js
      ────────────────────────────────────────────────────────── */
   // render/mini_card.js
   //
   // Builds the compact sidebar mini-card: avatar, display name, level chip,
-  // XP progress bar. Clicking the card fires an onOpen callback (for the
-  // future full-hero-card modal).
+  // XP progress bar. Clicking the card fires an onOpen callback — the
+  // callers hooks this up to openFullPage() to open the hero profile overlay.
   //
   // This module only produces DOM. It does not read IDB, does not compute
-  // stats, does not persist state. Data flows in via updateMiniCard(el, viewModel).
+  // stats, does not persist state. Data flows in via the update(vm) method
+  // attached to the returned root element.
 
 
 
@@ -17967,7 +18586,9 @@ Use this template for your response:
 
 
 
-  const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+
+
+
 
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -17977,7 +18598,7 @@ Use this template for your response:
     const unlocked = unlockedIds
       .map(id => getAchievementById(id))
       .filter(Boolean)
-      .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
+      .sort((a, b) => tierRank(b.tier) - tierRank(a.tier));
     return unlocked.slice(0, n).map(a => ({
       id: a.id,
       name: a.name,
@@ -17991,13 +18612,8 @@ Use this template for your response:
   function deriveTitle(unlockedIds, settings) {
     const override = settings && settings.profile && settings.profile.titleOverride;
     if (override && override.trim()) return override.trim();
-
-    const unlocked = unlockedIds
-      .map(id => getAchievementById(id))
-      .filter(Boolean)
-      .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
-
-    return unlocked[0] ? unlocked[0].name : 'Newcomer';
+    const rarest = findRarestUnlocked(unlockedIds, ACHIEVEMENTS);
+    return rarest ? rarest.name : 'Newcomer';
   }
 
   /**
@@ -18086,6 +18702,22 @@ Use this template for your response:
     // name inside the Details form. Cleaned up when the overlay closes.
     const unsubscribe = onSettingsChange(refreshSplashFromSettings);
 
+    // Focus mode extras — rendered in the overlay flow but hidden by CSS
+    // until focus mode is entered. Splash on its own is generic; this card
+    // carries the user's "writing fingerprint" (radar) plus four corner
+    // stat chips so the screenshot has texture to read.
+    const shareChips = createShareChips({
+      level: lvl.level,
+      unlockedIds,
+      achievements: ACHIEVEMENTS,
+      promptsCompleted: stats.promptsCompletedTotal || 0,
+    });
+    const focusExtras = h('div', { class: 'pf-focus-extras' }, [
+      shareChips.topRow,
+      createWritingRadar({ stats }),
+      shareChips.bottomRow,
+    ]);
+
     // ---- sections ----
     const aboutSection = createSection({
       id: 'about',
@@ -18134,18 +18766,27 @@ Use this template for your response:
       initialState: displayState.achievements,
     });
 
+    const backupSection = createSection({
+      id: 'backup',
+      title: 'Backup',
+      children: createBackupBody(),
+      initialState: displayState.backup,
+    });
+
     // ---- overlay ----
     const overlay = createOverlay({
       ariaLabel: 'Your profile',
       onClose: () => { try { unsubscribe(); } catch {} },
       children: [
         splash,
+        focusExtras,
         aboutSection,
         detailsSection,
         promptsSection,
         chronicleSection,
         styleSection,
         achievementsSection,
+        backupSection,
       ],
     });
 

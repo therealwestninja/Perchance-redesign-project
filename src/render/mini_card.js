@@ -1,11 +1,12 @@
 // render/mini_card.js
 //
 // Builds the compact sidebar mini-card: avatar, display name, level chip,
-// XP progress bar. Clicking the card fires an onOpen callback (for the
-// future full-hero-card modal).
+// XP progress bar. Clicking the card fires an onOpen callback — the
+// callers hooks this up to openFullPage() to open the hero profile overlay.
 //
 // This module only produces DOM. It does not read IDB, does not compute
-// stats, does not persist state. Data flows in via updateMiniCard(el, viewModel).
+// stats, does not persist state. Data flows in via the update(vm) method
+// attached to the returned root element.
 
 import { h, replaceContents, escapeCssUrl } from '../utils/dom.js';
 import { formatNumber, formatPercent, getInitialFromName } from '../utils/format.js';

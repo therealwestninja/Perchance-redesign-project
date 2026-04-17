@@ -449,32 +449,117 @@ export const CSS = `
   background: rgba(0, 0, 0, 0.92);
 }
 
-/* Hide everything in the content column except the splash when focused */
-.pf-overlay-focused .pf-overlay-content > :not(.pf-splash) {
+/* Hide everything in the content column except the splash and the
+   focus-extras (the radar card) when focused */
+.pf-overlay-focused .pf-overlay-content > :not(.pf-splash):not(.pf-focus-extras) {
   display: none;
 }
 
-/* Center the splash vertically in the viewport when focused */
+/* Center vertically in the viewport when focused; stack splash and
+   extras with breathing room between */
 .pf-overlay-focused .pf-overlay-scroll {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow-y: auto;            /* fall back to scroll on short viewports */
   padding: 40px 16px;
 }
 .pf-overlay-focused .pf-overlay-content {
   width: 100%;
   max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-/* Make the splash card-like when focused — slightly bigger, extra glow */
-.pf-overlay-focused .pf-splash {
+/* Splash and focus-extras both get the "card" treatment in focus mode —
+   soft shadow ring, a little extra padding, so they read as a unified
+   two-card share artifact in a screenshot. */
+.pf-overlay-focused .pf-splash,
+.pf-overlay-focused .pf-focus-extras {
   box-shadow:
     0 0 0 1px rgba(216, 179, 106, 0.15),
     0 20px 60px -10px rgba(0, 0, 0, 0.65),
     0 4px 20px rgba(216, 179, 106, 0.08);
+}
+.pf-overlay-focused .pf-splash {
   padding: 36px 32px 28px;
 }
+
+/* Focus extras — hidden by default, card-styled in focus mode */
+.pf-focus-extras {
+  display: none;
+}
+.pf-overlay-focused .pf-focus-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--box-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 18px 20px 16px;
+}
+/* The radar inside focus-extras: slightly smaller than the in-profile
+   version so the two cards share the same width comfortably */
+.pf-overlay-focused .pf-focus-extras .pf-radar-svg {
+  max-width: 380px;
+}
+
+/* Corner stat chips for the share card (Focus mode only).
+   Two rows, one above radar and one below. justify-content space-between
+   anchors the chips to left/right corners visually. */
+.pf-share-chips-row {
+  display: none; /* hidden in normal profile; only shown in focus mode */
+}
+.pf-overlay-focused .pf-share-chips-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pf-share-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 8px 14px 9px;
+  border-radius: var(--border-radius);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border-color);
+}
+.pf-share-chip-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 2px;
+}
+.pf-share-chip-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pf-share-chip-icon {
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.pf-share-chip-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Tier-colored icons for the rarest-unlock chip */
+.pf-share-chip-icon-common    { color: #9aa0a6; }
+.pf-share-chip-icon-uncommon  { color: #6aa66a; }
+.pf-share-chip-icon-rare      { color: #6aa0d8; }
+.pf-share-chip-icon-epic      { color: #b67ad8; }
+.pf-share-chip-icon-legendary { color: #d8b36a; }
 
 /* Hide the close × and the share button in focus mode — keep it clean
    for the screenshot. Exit is via tap or Esc, hinted at bottom. */
@@ -1052,6 +1137,131 @@ export const CSS = `
 .pf-radar-readout-value {
   color: #d8b36a;
   font-weight: 600;
+}
+
+/* ============================================================
+   Backup section — export/import of profile settings as JSON
+   ============================================================ */
+.pf-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pf-backup-intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-color);
+}
+.pf-backup-intro-soft {
+  opacity: 0.7;
+}
+.pf-backup-buttonrow {
+  display: flex;
+  gap: 10px;
+}
+.pf-backup-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-backup-btn:hover {
+  background: rgba(216, 179, 106, 0.08);
+  border-color: rgba(216, 179, 106, 0.45);
+}
+.pf-backup-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+.pf-backup-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+.pf-backup-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 10px 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--box-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  resize: vertical;
+  box-sizing: border-box;
+}
+.pf-backup-textarea:focus {
+  outline: none;
+  border-color: rgba(216, 179, 106, 0.55);
+}
+.pf-backup-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pf-backup-action {
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+}
+.pf-backup-action:hover {
+  background: rgba(216, 179, 106, 0.1);
+  border-color: rgba(216, 179, 106, 0.45);
+}
+.pf-backup-action-danger {
+  border-color: rgba(220, 80, 80, 0.45);
+  color: rgba(230, 160, 160, 0.95);
+}
+.pf-backup-action-danger:hover {
+  background: rgba(220, 80, 80, 0.12);
+}
+.pf-backup-status {
+  font-size: 12px;
+  font-style: italic;
+  opacity: 0.85;
+}
+.pf-backup-status-ok   { color: rgba(150, 210, 150, 0.95); }
+.pf-backup-status-warn { color: rgba(230, 200, 120, 0.95); }
+.pf-backup-status-err  { color: rgba(230, 140, 140, 0.95); }
+.pf-backup-confirm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: rgba(220, 80, 80, 0.06);
+  border: 1px solid rgba(220, 80, 80, 0.30);
+  border-radius: var(--border-radius);
+}
+.pf-backup-confirm-text {
+  flex: 1 1 auto;
+  font-size: 12px;
 }
 
 /* ============================================================

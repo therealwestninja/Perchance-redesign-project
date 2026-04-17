@@ -13,6 +13,9 @@ import { createChronicleGrid } from '../render/chronicle_grid.js';
 import { createAchievementsGrid } from '../render/achievements_grid.js';
 import { createPromptsBody } from '../render/prompts_section.js';
 import { createWritingRadar } from '../render/writing_radar.js';
+import { createBackupBody } from '../render/backup_section.js';
+import { createShareChips } from '../render/share_chips.js';
+import { h } from '../utils/dom.js';
 
 import { readAllStores } from '../stats/db.js';
 import { computeStats } from '../stats/queries.js';
@@ -26,8 +29,7 @@ import { getCurrentWeekKey, getWeekPrompts } from '../prompts/scheduler.js';
 import { getCompletedIds, markWeekSeen } from '../prompts/completion.js';
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen } from './notifications.js';
-
-const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
+import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
 
 /**
  * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -37,7 +39,7 @@ function pickPinnedBadges(unlockedIds, n = 6) {
   const unlocked = unlockedIds
     .map(id => getAchievementById(id))
     .filter(Boolean)
-    .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
+    .sort((a, b) => tierRank(b.tier) - tierRank(a.tier));
   return unlocked.slice(0, n).map(a => ({
     id: a.id,
     name: a.name,
@@ -51,13 +53,8 @@ function pickPinnedBadges(unlockedIds, n = 6) {
 function deriveTitle(unlockedIds, settings) {
   const override = settings && settings.profile && settings.profile.titleOverride;
   if (override && override.trim()) return override.trim();
-
-  const unlocked = unlockedIds
-    .map(id => getAchievementById(id))
-    .filter(Boolean)
-    .sort((a, b) => (TIER_ORDER[b.tier] || 0) - (TIER_ORDER[a.tier] || 0));
-
-  return unlocked[0] ? unlocked[0].name : 'Newcomer';
+  const rarest = findRarestUnlocked(unlockedIds, ACHIEVEMENTS);
+  return rarest ? rarest.name : 'Newcomer';
 }
 
 /**
@@ -146,6 +143,22 @@ export async function openFullPage() {
   // name inside the Details form. Cleaned up when the overlay closes.
   const unsubscribe = onSettingsChange(refreshSplashFromSettings);
 
+  // Focus mode extras — rendered in the overlay flow but hidden by CSS
+  // until focus mode is entered. Splash on its own is generic; this card
+  // carries the user's "writing fingerprint" (radar) plus four corner
+  // stat chips so the screenshot has texture to read.
+  const shareChips = createShareChips({
+    level: lvl.level,
+    unlockedIds,
+    achievements: ACHIEVEMENTS,
+    promptsCompleted: stats.promptsCompletedTotal || 0,
+  });
+  const focusExtras = h('div', { class: 'pf-focus-extras' }, [
+    shareChips.topRow,
+    createWritingRadar({ stats }),
+    shareChips.bottomRow,
+  ]);
+
   // ---- sections ----
   const aboutSection = createSection({
     id: 'about',
@@ -194,18 +207,27 @@ export async function openFullPage() {
     initialState: displayState.achievements,
   });
 
+  const backupSection = createSection({
+    id: 'backup',
+    title: 'Backup',
+    children: createBackupBody(),
+    initialState: displayState.backup,
+  });
+
   // ---- overlay ----
   const overlay = createOverlay({
     ariaLabel: 'Your profile',
     onClose: () => { try { unsubscribe(); } catch {} },
     children: [
       splash,
+      focusExtras,
       aboutSection,
       detailsSection,
       promptsSection,
       chronicleSection,
       styleSection,
       achievementsSection,
+      backupSection,
     ],
   });
 
