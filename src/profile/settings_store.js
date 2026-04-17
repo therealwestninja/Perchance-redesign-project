@@ -45,6 +45,10 @@ export function defaultSettings() {
       // Prevents new deployments from pulsing for every pre-existing
       // achievement. See notifications.js#initSeenOnFirstRun.
       hasInitialized: false,
+      // Event IDs the user has been shown during their current active
+      // window. Auto-GC'd to the currently-active set on each acknowledgment
+      // so next year's window re-announces.
+      seenEventIds: [],
     },
     prompts: {
       // Per-week record of which prompts the user marked done.

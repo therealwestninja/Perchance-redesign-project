@@ -19,7 +19,10 @@ import { formatNumber, formatPercent, getInitialFromName } from '../utils/format
  * @property {Array<{ id: string, name: string, icon: string }>} pinnedBadges
  */
 
-export function createSplash() {
+/**
+ * @param {{ onShareClick?: () => void }} [opts]
+ */
+export function createSplash({ onShareClick } = {}) {
   const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
   const nameEl = h('h1', { class: 'pf-splash-name' });
   const titleEl = h('div', { class: 'pf-splash-title' });
@@ -28,7 +31,23 @@ export function createSplash() {
   const xpLabel = h('span', { class: 'pf-splash-xp-label' });
   const badgesRow = h('div', { class: 'pf-splash-badges' });
 
+  // Small "view for screenshot" button, top-right corner of the splash.
+  // Only rendered when onShareClick is supplied.
+  const shareBtn = typeof onShareClick === 'function'
+    ? h('button', {
+        class: 'pf-splash-share',
+        type: 'button',
+        title: 'View for screenshot',
+        'aria-label': 'Open a clean, screenshot-ready view of this card',
+        onClick: (ev) => { ev.stopPropagation(); onShareClick(); },
+      }, [
+        // Camera-ish glyph that works in system fonts without needing an icon font
+        h('span', { 'aria-hidden': 'true' }, ['◉']),
+      ])
+    : null;
+
   const root = h('div', { class: 'pf-splash' }, [
+    shareBtn,
     h('div', { class: 'pf-splash-top' }, [
       avatar,
       h('div', { class: 'pf-splash-ident' }, [

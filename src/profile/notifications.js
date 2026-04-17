@@ -97,3 +97,47 @@ function safeLoad() {
   try { return loadSettings(); }
   catch { return { notifications: { seenAchievements: [], hasInitialized: false } }; }
 }
+
+// ---- events ----
+//
+// "Seen" here means the user has opened the profile while an event was
+// active. Used to avoid pulsing repeatedly for the same event during its
+// whole multi-day window. When an event's window ends and later recurs
+// next year, it needs to be acknowledged again — but since the set is
+// small and windows are short, we just clear the set when no events are
+// currently active (handled in markEventsSeen).
+
+/**
+ * @returns {Set<string>} IDs of events the user has been shown.
+ */
+export function getSeenEventIds() {
+  const s = safeLoad();
+  const list = (s.notifications && s.notifications.seenEventIds) || [];
+  return new Set(Array.isArray(list) ? list : []);
+}
+
+/**
+ * Given the current list of active event IDs, return the subset the user
+ * hasn't yet been shown. Non-empty → mini-card pulses.
+ *
+ * @param {string[]} activeIds
+ * @returns {string[]}
+ */
+export function computePendingEvents(activeIds) {
+  if (!Array.isArray(activeIds) || activeIds.length === 0) return [];
+  const seen = getSeenEventIds();
+  return activeIds.filter(id => typeof id === 'string' && !seen.has(id));
+}
+
+/**
+ * Mark the given event IDs as seen. Also garbage-collects the seen set:
+ * we only keep IDs that are currently active, so next year when the same
+ * event window opens again we'll re-announce it.
+ *
+ * @param {string[]} currentlyActiveIds
+ */
+export function markEventsSeen(currentlyActiveIds) {
+  if (!Array.isArray(currentlyActiveIds)) return;
+  const nextSet = currentlyActiveIds.filter(id => typeof id === 'string');
+  updateField('notifications.seenEventIds', nextSet);
+}

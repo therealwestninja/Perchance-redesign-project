@@ -21,9 +21,10 @@ import { ACHIEVEMENTS, getAchievementById } from '../achievements/registry.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { TIER_ICON } from '../render/achievements_grid.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
-import { markAchievementsSeen } from './notifications.js';
 import { getCurrentWeekKey, getWeekPrompts } from '../prompts/scheduler.js';
 import { getCompletedIds, markWeekSeen } from '../prompts/completion.js';
+import { getActiveEvents, getActiveEventIds } from '../events/active.js';
+import { markAchievementsSeen, markEventsSeen } from './notifications.js';
 
 const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
@@ -89,6 +90,8 @@ export async function openFullPage() {
   // to the relevant section — opening is the acknowledgment.
   try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
   try { markWeekSeen(); } catch { /* non-fatal */ }
+  const activeEvents = getActiveEvents();
+  try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
   // Current week's prompts + completion state (read after markWeekSeen so
   // the section renders with fresh data).
@@ -103,7 +106,13 @@ export async function openFullPage() {
   const xp = xpFromStats(stats);
   const lvl = levelFromXP(xp);
 
-  const splash = createSplash();
+  const splash = createSplash({
+    onShareClick: () => {
+      if (overlay && typeof overlay.setFocused === 'function') {
+        overlay.setFocused(true);
+      }
+    },
+  });
 
   function refreshSplashFromSettings() {
     let freshSettings = settings;
@@ -158,6 +167,7 @@ export async function openFullPage() {
       weekKey,
       prompts: weekPrompts,
       completedIds,
+      activeEvents,
     }),
     initialState: displayState.prompts,
   });

@@ -20,8 +20,9 @@ import { createMiniCard } from '../render/mini_card.js';
 import { mountMiniCard } from './mount.js';
 import { openFullPage } from './full_page.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
-import { initSeenOnFirstRun, computePendingAchievements } from './notifications.js';
+import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents } from './notifications.js';
 import { initPromptsOnFirstRun, hasNewWeekPending } from '../prompts/completion.js';
+import { getActiveEventIds } from '../events/active.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -64,7 +65,12 @@ async function refresh(card) {
 
     const pendingIds = computePendingAchievements(unlockedIds);
     const newWeekPrompts = hasNewWeekPending();
-    const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
+    const activeEventIds = getActiveEventIds();
+    const pendingEvents = computePendingEvents(activeEventIds);
+    const pendingCount =
+      pendingIds.length +
+      (newWeekPrompts ? 1 : 0) +
+      pendingEvents.length;
 
     card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
   } catch (e) {

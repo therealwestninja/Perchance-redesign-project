@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 31 };
+  NS.__meta = { modules: 33 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14610,6 +14610,292 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: events/registry.js
+     ────────────────────────────────────────────────────────── */
+  // events/registry.js
+  //
+  // Calendar of events, most occurring on a single day, some spanning a
+  // short window. Dates are MM-DD, year-agnostic — each event recurs every year.
+  //
+  // This is deliberately an eclectic calendar: popular observances mixed
+  // with quirky or affectionate ones (Arbor Day, Flag Day, Betty White's
+  // birthday). Not trying to be a world calendar — just a handful of days
+  // with personality.
+  //
+  // An event is essentially a "bonus themed prompt pack" that shows up during
+  // its window. Event prompt IDs are namespaced with `e-<event>-<slug>` so
+  // they don't collide with regular weekly prompts (`p-<slug>`).
+  //
+  // Rules:
+  //   - Never rename an event id after shipping (breaks user's seen-set).
+  //   - Never rename a prompt id after shipping (breaks user's completion history).
+  //   - Windows must not cross a year boundary. If you need something spanning
+  //     Dec 31 → Jan 1, split it into two events.
+
+  const EVENTS = Object.freeze([
+    {
+      id: 'e-new-year',
+      name: 'New Year\'s Day',
+      icon: '✨',
+      tagline: 'Fresh starts, in whatever form they come.',
+      startMonth: 1, startDay: 1,
+      endMonth: 1,   endDay: 1,
+      prompts: [
+        { id: 'e-new-year-fresh-start',    text: 'Write a character beginning something.' },
+        { id: 'e-new-year-changed-mind',   text: 'Write a scene where someone decides to change.' },
+        { id: 'e-new-year-old-self',       text: 'Write a character reflecting on who they used to be.' },
+      ],
+    },
+    {
+      id: 'e-betty-white',
+      name: 'Betty White\'s Birthday',
+      icon: '🌷',
+      tagline: 'A character who is loved for being exactly who they are.',
+      startMonth: 1, startDay: 17,
+      endMonth: 1,   endDay: 17,
+      prompts: [
+        { id: 'e-betty-white-unexpected-warmth', text: 'Write a character who is unexpectedly warm.' },
+        { id: 'e-betty-white-gentle-humor',      text: 'Write a scene with gentle, kind humor.' },
+        { id: 'e-betty-white-beloved',           text: 'Write someone who is beloved — and let the reader feel why.' },
+      ],
+    },
+    {
+      id: 'e-valentines',
+      name: 'Valentine\'s Day',
+      icon: '❤️',
+      tagline: 'Love in any of its forms.',
+      startMonth: 2, startDay: 14,
+      endMonth: 2,   endDay: 14,
+      prompts: [
+        { id: 'e-valentines-complicated-love', text: 'Write a love that\'s complicated.' },
+        { id: 'e-valentines-friendship',       text: 'Write a friendship as deep as any romance.' },
+        { id: 'e-valentines-quiet-affection',  text: 'Write affection without anyone saying it out loud.' },
+      ],
+    },
+    {
+      id: 'e-pi-day',
+      name: 'Pi Day',
+      icon: '🥧',
+      tagline: 'Patterns, obsession, and the beauty of the particular.',
+      startMonth: 3, startDay: 14,
+      endMonth: 3,   endDay: 14,
+      prompts: [
+        { id: 'e-pi-day-obsession',   text: 'Write a character with an obsession.' },
+        { id: 'e-pi-day-patterns',    text: 'Write a scene about noticing a pattern.' },
+        { id: 'e-pi-day-beauty',      text: 'Write a character who finds beauty in something others overlook.' },
+      ],
+    },
+    {
+      id: 'e-poetry-day',
+      name: 'World Poetry Day',
+      icon: '📜',
+      tagline: 'Attention to rhythm and the weight of small words.',
+      startMonth: 3, startDay: 21,
+      endMonth: 3,   endDay: 21,
+      prompts: [
+        { id: 'e-poetry-day-rhythm',   text: 'Write a scene paying attention to the rhythm of speech.' },
+        { id: 'e-poetry-day-plain',    text: 'Write a moment where someone speaks plainly from the heart.' },
+        { id: 'e-poetry-day-one-thing',text: 'Describe one thing thoroughly, as if it were a poem.' },
+      ],
+    },
+    {
+      id: 'e-arbor-day',
+      name: 'Around Arbor Day',
+      icon: '🌳',
+      tagline: 'Trees. Slow growth. Things that outlast us.',
+      // Arbor Day is traditionally the last Friday of April; pinning to
+      // a short window to catch it regardless of year.
+      startMonth: 4, startDay: 24,
+      endMonth: 4,   endDay: 26,
+      prompts: [
+        { id: 'e-arbor-day-under-tree',  text: 'Write a scene under or involving a tree.' },
+        { id: 'e-arbor-day-slow-growth', text: 'Write about something that grows slowly over time.' },
+        { id: 'e-arbor-day-planting',    text: 'Write a character who plants something — literally or figuratively.' },
+      ],
+    },
+    {
+      id: 'e-star-wars-day',
+      name: 'Star Wars Day',
+      icon: '⚔️',
+      tagline: 'Epic scale, small moments of destiny.',
+      startMonth: 5, startDay: 4,
+      endMonth: 5,   endDay: 4,
+      prompts: [
+        { id: 'e-star-wars-day-destiny',  text: 'Write a moment that feels like destiny.' },
+        { id: 'e-star-wars-day-mentor',   text: 'Write a mentor and the moment a student surpasses them.' },
+        { id: 'e-star-wars-day-larger',   text: 'Write a scene that feels bigger than its setting.' },
+      ],
+    },
+    {
+      id: 'e-flag-day',
+      name: 'Flag Day',
+      icon: '🚩',
+      tagline: 'Symbols, identity, and what a character stands for.',
+      startMonth: 6, startDay: 14,
+      endMonth: 6,   endDay: 14,
+      prompts: [
+        { id: 'e-flag-day-stands-for',    text: 'Write a scene about what a character stands for.' },
+        { id: 'e-flag-day-symbol',        text: 'Write about a symbol that means different things to different people.' },
+        { id: 'e-flag-day-chosen-id',     text: 'Write a character choosing who they want to be.' },
+      ],
+    },
+    {
+      id: 'e-literacy-day',
+      name: 'International Literacy Day',
+      icon: '📖',
+      tagline: 'The power of reading and writing.',
+      startMonth: 9, startDay: 8,
+      endMonth: 9,   endDay: 8,
+      prompts: [
+        { id: 'e-literacy-day-changed-by-book', text: 'Write a scene where someone reads something that changes them.' },
+        { id: 'e-literacy-day-learning',        text: 'Write a character learning to write.' },
+        { id: 'e-literacy-day-about-a-book',    text: 'Write a conversation about a book.' },
+      ],
+    },
+    {
+      id: 'e-pirate-day',
+      name: 'Talk Like a Pirate Day',
+      icon: '🏴‍☠️',
+      tagline: 'Distinctive voice. Speech as character.',
+      startMonth: 9, startDay: 19,
+      endMonth: 9,   endDay: 19,
+      prompts: [
+        { id: 'e-pirate-day-voice',       text: 'Write a scene where each character has a distinct speech pattern.' },
+        { id: 'e-pirate-day-accent',      text: 'Write a character whose accent tells you where they\'re from.' },
+        { id: 'e-pirate-day-tone-carries',text: 'Write a scene where tone carries the meaning.' },
+      ],
+    },
+    {
+      id: 'e-halloween',
+      name: 'Halloween Week',
+      icon: '🎃',
+      tagline: 'Something just slightly wrong. The thin veil.',
+      startMonth: 10, startDay: 27,
+      endMonth: 11,   endDay: 1,
+      prompts: [
+        { id: 'e-halloween-slightly-off', text: 'Write a scene where something is subtly wrong, and the characters can feel it.' },
+        { id: 'e-halloween-ghost',        text: 'Write a ghost story — literal or otherwise.' },
+        { id: 'e-halloween-unknown',      text: 'Write about fear of what can\'t quite be named.' },
+      ],
+    },
+    {
+      id: 'e-kindness-day',
+      name: 'World Kindness Day',
+      icon: '🕊️',
+      tagline: 'Small decencies between people.',
+      startMonth: 11, startDay: 13,
+      endMonth: 11,   endDay: 13,
+      prompts: [
+        { id: 'e-kindness-day-strangers',  text: 'Write a small act of kindness between strangers.' },
+        { id: 'e-kindness-day-gratitude',  text: 'Write a moment of gratitude that surprises the one receiving it.' },
+        { id: 'e-kindness-day-patience',   text: 'Write a character choosing patience when they could have chosen otherwise.' },
+      ],
+    },
+    {
+      id: 'e-winter-solstice',
+      name: 'Winter Solstice',
+      icon: '🌌',
+      tagline: 'The longest night. Quiet. Waiting.',
+      startMonth: 12, startDay: 21,
+      endMonth: 12,   endDay: 21,
+      prompts: [
+        { id: 'e-winter-solstice-cold-quiet', text: 'Write a scene set in deep cold or deep quiet.' },
+        { id: 'e-winter-solstice-long-night', text: 'Write about the longest night of something — a season, a relationship, a feeling.' },
+        { id: 'e-winter-solstice-stillness',  text: 'Write a moment of stillness before a change.' },
+      ],
+    },
+    {
+      id: 'e-year-end',
+      name: 'Year\'s End',
+      icon: '🔔',
+      tagline: 'Endings, reflection, gatherings of all kinds.',
+      startMonth: 12, startDay: 25,
+      endMonth: 12,   endDay: 31,
+      prompts: [
+        { id: 'e-year-end-ending',        text: 'Write a scene about an ending.' },
+        { id: 'e-year-end-looking-back',  text: 'Write a character looking back over a long stretch of time.' },
+        { id: 'e-year-end-gathering',     text: 'Write a gathering — any kind, any scale.' },
+      ],
+    },
+  ]);
+
+  /**
+   * Look up an event by id.
+   */
+  function getEventById(id) {
+    return EVENTS.find(e => e.id === id) || null;
+  }
+
+  /**
+   * Look up an event prompt by id across all events (O(n*m) but n*m is small).
+   */
+  function getEventPromptById(promptId) {
+    for (const ev of EVENTS) {
+      for (const p of ev.prompts) {
+        if (p.id === promptId) return { event: ev, prompt: p };
+      }
+    }
+    return null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: events/active.js
+     ────────────────────────────────────────────────────────── */
+  // events/active.js
+  //
+  // Given a date, return the events whose window is currently active.
+  // Pure — no I/O, no localStorage. Uses UTC to keep timezone handling
+  // consistent with the weekly scheduler.
+  //
+  // Each event's window is expressed as (startMonth, startDay) to
+  // (endMonth, endDay), inclusive on both ends, year-agnostic.
+  // Windows never cross a year boundary (enforced by registry discipline).
+
+
+
+  /**
+   * @param {Date} [date=new Date()]
+   * @returns {Array<object>}  events currently within their window
+   */
+  function getActiveEvents(date = new Date()) {
+    const month = date.getUTCMonth() + 1;  // 1..12
+    const day = date.getUTCDate();          // 1..31
+    const today = month * 100 + day;        // e.g. 424 for April 24 — numeric compare
+
+    return EVENTS.filter(ev => {
+      const start = ev.startMonth * 100 + ev.startDay;
+      const end   = ev.endMonth   * 100 + ev.endDay;
+      return today >= start && today <= end;
+    });
+  }
+
+  /**
+   * @param {Date} [date=new Date()]
+   * @returns {string[]} IDs of currently-active events
+   */
+  function getActiveEventIds(date = new Date()) {
+    return getActiveEvents(date).map(ev => ev.id);
+  }
+
+  /**
+   * Flatten all prompt objects from the currently-active events, tagged
+   * with their event metadata so the renderer can group them visually.
+   *
+   * @param {Date} [date=new Date()]
+   * @returns {Array<{ event: object, prompt: {id: string, text: string} }>}
+   */
+  function getActiveEventPrompts(date = new Date()) {
+    const active = getActiveEvents(date);
+    const out = [];
+    for (const ev of active) {
+      for (const p of ev.prompts) {
+        out.push({ event: ev, prompt: p });
+      }
+    }
+    return out;
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/styles.js
      ────────────────────────────────────────────────────────── */
   // render/styles.js
@@ -14993,6 +15279,110 @@ Use this template for your response:
     opacity: 0.22;
   }
 
+  /* Share/screenshot button — small, top-right corner of the splash */
+  .pf-splash {
+    position: relative; /* anchor for the share button's absolute positioning */
+  }
+  .pf-splash-share {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.5;
+    transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+  }
+  .pf-splash-share:hover {
+    opacity: 1;
+    border-color: rgba(216, 179, 106, 0.55);
+    transform: scale(1.05);
+  }
+  .pf-splash-share:focus-visible {
+    outline: 2px solid rgba(216, 179, 106, 0.55);
+    outline-offset: 1px;
+    opacity: 1;
+  }
+
+  /* ============================================================
+     Overlay focus mode — "view for screenshot"
+     - Hides everything except the splash
+     - Centers splash vertically + horizontally
+     - Clean backdrop so the screenshot has no chrome
+     ============================================================ */
+  .pf-overlay-focus-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--text-color);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    z-index: 10002;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .pf-overlay-focused .pf-overlay-focus-hint {
+    opacity: 0.7;
+  }
+  .pf-overlay-focused .pf-overlay-focus-hint-fading {
+    opacity: 0;
+  }
+
+  .pf-overlay-focused {
+    background: rgba(0, 0, 0, 0.92);
+  }
+
+  /* Hide everything in the content column except the splash when focused */
+  .pf-overlay-focused .pf-overlay-content > :not(.pf-splash) {
+    display: none;
+  }
+
+  /* Center the splash vertically in the viewport when focused */
+  .pf-overlay-focused .pf-overlay-scroll {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 40px 16px;
+  }
+  .pf-overlay-focused .pf-overlay-content {
+    width: 100%;
+    max-width: 560px;
+  }
+
+  /* Make the splash card-like when focused — slightly bigger, extra glow */
+  .pf-overlay-focused .pf-splash {
+    box-shadow:
+      0 0 0 1px rgba(216, 179, 106, 0.15),
+      0 20px 60px -10px rgba(0, 0, 0, 0.65),
+      0 4px 20px rgba(216, 179, 106, 0.08);
+    padding: 36px 32px 28px;
+  }
+
+  /* Hide the close × and the share button in focus mode — keep it clean
+     for the screenshot. Exit is via tap or Esc, hinted at bottom. */
+  .pf-overlay-focused .pf-overlay-close,
+  .pf-overlay-focused .pf-splash-share {
+    display: none;
+  }
+
   /* ============================================================
      Section — collapsible + blurrable wrapper used below the fold
      ============================================================ */
@@ -15320,7 +15710,60 @@ Use this template for your response:
   /* ============================================================
      Prompts section — this week's writing ideas
      ============================================================ */
-  .pf-prompts { display: flex; flex-direction: column; gap: 10px; }
+  .pf-prompts { display: flex; flex-direction: column; gap: 14px; }
+
+  /* Event groups (active holidays/observances) appear above regular prompts.
+     Each event gets a subtle gold-tinted banner to distinguish it from the
+     weekly rotation. */
+  .pf-event-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pf-event-group {
+    background: linear-gradient(180deg, rgba(216, 179, 106, 0.07) 0%, rgba(216, 179, 106, 0.03) 100%);
+    border: 1px solid rgba(216, 179, 106, 0.30);
+    border-radius: var(--border-radius);
+    padding: 12px 14px;
+  }
+  .pf-event-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .pf-event-icon {
+    flex-shrink: 0;
+    font-size: 24px;
+    line-height: 1;
+    margin-top: 1px;
+  }
+  .pf-event-titlebar {
+    flex: 1;
+    min-width: 0;
+  }
+  .pf-event-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #d8b36a;
+    margin-bottom: 2px;
+  }
+  .pf-event-tagline {
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.75;
+    line-height: 1.4;
+  }
+  .pf-event-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
 
   .pf-prompts-intro {
     margin: 0;
@@ -15538,6 +15981,10 @@ Use this template for your response:
         // Prevents new deployments from pulsing for every pre-existing
         // achievement. See notifications.js#initSeenOnFirstRun.
         hasInitialized: false,
+        // Event IDs the user has been shown during their current active
+        // window. Auto-GC'd to the currently-active set on each acknowledgment
+        // so next year's window re-announces.
+        seenEventIds: [],
       },
       prompts: {
         // Per-week record of which prompts the user marked done.
@@ -15775,6 +16222,50 @@ Use this template for your response:
     catch { return { notifications: { seenAchievements: [], hasInitialized: false } }; }
   }
 
+  // ---- events ----
+  //
+  // "Seen" here means the user has opened the profile while an event was
+  // active. Used to avoid pulsing repeatedly for the same event during its
+  // whole multi-day window. When an event's window ends and later recurs
+  // next year, it needs to be acknowledged again — but since the set is
+  // small and windows are short, we just clear the set when no events are
+  // currently active (handled in markEventsSeen).
+
+  /**
+   * @returns {Set<string>} IDs of events the user has been shown.
+   */
+  function getSeenEventIds() {
+    const s = safeLoad();
+    const list = (s.notifications && s.notifications.seenEventIds) || [];
+    return new Set(Array.isArray(list) ? list : []);
+  }
+
+  /**
+   * Given the current list of active event IDs, return the subset the user
+   * hasn't yet been shown. Non-empty → mini-card pulses.
+   *
+   * @param {string[]} activeIds
+   * @returns {string[]}
+   */
+  function computePendingEvents(activeIds) {
+    if (!Array.isArray(activeIds) || activeIds.length === 0) return [];
+    const seen = getSeenEventIds();
+    return activeIds.filter(id => typeof id === 'string' && !seen.has(id));
+  }
+
+  /**
+   * Mark the given event IDs as seen. Also garbage-collects the seen set:
+   * we only keep IDs that are currently active, so next year when the same
+   * event window opens again we'll re-announce it.
+   *
+   * @param {string[]} currentlyActiveIds
+   */
+  function markEventsSeen(currentlyActiveIds) {
+    if (!Array.isArray(currentlyActiveIds)) return;
+    const nextSet = currentlyActiveIds.filter(id => typeof id === 'string');
+    updateField('notifications.seenEventIds', nextSet);
+  }
+
   /* ──────────────────────────────────────────────────────────
      module: prompts/completion.js
      ────────────────────────────────────────────────────────── */
@@ -15890,6 +16381,10 @@ Use this template for your response:
   // Full-screen overlay used by the hero profile. Fixed positioning, fills
   // the viewport, dark backdrop, centered content column with max-width,
   // scrolls internally. Close via: close button, ESC key, click on backdrop.
+  //
+  // Focus mode: a "clean view for screenshot" state. Called via setFocused(true).
+  // Hides everything except the splash, centers it, keeps a discreet exit.
+  // ESC has staged behavior — if focused, ESC exits focus; otherwise dismisses.
 
 
 
@@ -15901,7 +16396,11 @@ Use this template for your response:
    *   children?: any,
    *   onClose?: () => void,
    * }} opts
-   * @returns {HTMLElement & { show: () => void, hide: () => void }}
+   * @returns {HTMLElement & {
+   *   show: () => void,
+   *   hide: () => void,
+   *   setFocused: (focused: boolean) => void,
+   * }}
    */
   function createOverlay({ ariaLabel = 'Overlay', children = [], onClose } = {}) {
     const closeBtn = h('button', {
@@ -15913,13 +16412,30 @@ Use this template for your response:
 
     const contentCol = h('div', { class: 'pf-overlay-content' }, children);
 
+    // Hint that shows up only in focus mode to tell the user how to get out.
+    // Fades itself after a moment so it doesn't clutter their screenshot
+    // if they're slow to click the shutter.
+    const focusHint = h('div', {
+      class: 'pf-overlay-focus-hint',
+      'aria-hidden': 'true',
+    }, ['Tap anywhere or press Esc to exit']);
+
     const scroll = h('div', {
       class: 'pf-overlay-scroll',
-      // Click on the scroll container (outside the content column) dismisses
-      onClick: (ev) => { if (ev.target === scroll) dismiss(); },
+      onClick: (ev) => {
+        if (isFocused && ev.target !== closeBtn) {
+          // In focus mode, a click anywhere returns you to the full profile.
+          // Convenient — matches how most photo/lightbox apps behave.
+          setFocused(false);
+          return;
+        }
+        // Normal mode: click on the scroll container (outside the content column) dismisses
+        if (ev.target === scroll) dismiss();
+      },
     }, [
       closeBtn,
       contentCol,
+      focusHint,
     ]);
 
     const root = h('div', {
@@ -15930,15 +16446,43 @@ Use this template for your response:
       hidden: true,
     }, [scroll]);
 
+    let isFocused = false;
+    let hintFadeTimer = null;
+
     function dismiss() {
+      // Clean up focus state so reopening the overlay isn't in focus mode
+      if (isFocused) setFocused(false);
       root.hide();
       if (typeof onClose === 'function') onClose();
     }
 
     function onKeydown(ev) {
-      if (ev.key === 'Escape' && !root.hidden) {
+      if (root.hidden) return;
+      if (ev.key === 'Escape') {
         ev.preventDefault();
-        dismiss();
+        // Staged dismiss: Esc in focus mode exits focus, Esc again closes
+        if (isFocused) setFocused(false);
+        else           dismiss();
+      }
+    }
+
+    function setFocused(focused) {
+      isFocused = !!focused;
+      root.classList.toggle('pf-overlay-focused', isFocused);
+
+      // Cancel any pending hint fade
+      if (hintFadeTimer) { clearTimeout(hintFadeTimer); hintFadeTimer = null; }
+
+      if (isFocused) {
+        // Scroll to top so the splash is centered, no leftover scroll offset
+        try { scroll.scrollTop = 0; } catch {}
+        // Show hint, then fade after a few seconds so screenshots are clean
+        focusHint.classList.remove('pf-overlay-focus-hint-fading');
+        hintFadeTimer = setTimeout(() => {
+          focusHint.classList.add('pf-overlay-focus-hint-fading');
+        }, 3500);
+      } else {
+        focusHint.classList.remove('pf-overlay-focus-hint-fading');
       }
     }
 
@@ -15946,15 +16490,16 @@ Use this template for your response:
       if (!root.parentNode) document.body.appendChild(root);
       root.hidden = false;
       document.addEventListener('keydown', onKeydown);
-      // Move focus into the dialog so screen readers pick it up and
-      // Tab is trapped inside the scroll container naturally.
       setTimeout(() => { closeBtn.focus(); }, 0);
     };
 
     root.hide = function hide() {
       root.hidden = true;
       document.removeEventListener('keydown', onKeydown);
+      if (hintFadeTimer) { clearTimeout(hintFadeTimer); hintFadeTimer = null; }
     };
+
+    root.setFocused = setFocused;
 
     return root;
   }
@@ -16063,7 +16608,10 @@ Use this template for your response:
    * @property {Array<{ id: string, name: string, icon: string }>} pinnedBadges
    */
 
-  function createSplash() {
+  /**
+   * @param {{ onShareClick?: () => void }} [opts]
+   */
+  function createSplash({ onShareClick } = {}) {
     const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
     const nameEl = h('h1', { class: 'pf-splash-name' });
     const titleEl = h('div', { class: 'pf-splash-title' });
@@ -16072,7 +16620,23 @@ Use this template for your response:
     const xpLabel = h('span', { class: 'pf-splash-xp-label' });
     const badgesRow = h('div', { class: 'pf-splash-badges' });
 
+    // Small "view for screenshot" button, top-right corner of the splash.
+    // Only rendered when onShareClick is supplied.
+    const shareBtn = typeof onShareClick === 'function'
+      ? h('button', {
+          class: 'pf-splash-share',
+          type: 'button',
+          title: 'View for screenshot',
+          'aria-label': 'Open a clean, screenshot-ready view of this card',
+          onClick: (ev) => { ev.stopPropagation(); onShareClick(); },
+        }, [
+          // Camera-ish glyph that works in system fonts without needing an icon font
+          h('span', { 'aria-hidden': 'true' }, ['◉']),
+        ])
+      : null;
+
     const root = h('div', { class: 'pf-splash' }, [
+      shareBtn,
       h('div', { class: 'pf-splash-top' }, [
         avatar,
         h('div', { class: 'pf-splash-ident' }, [
@@ -16546,14 +17110,10 @@ Use this template for your response:
      ────────────────────────────────────────────────────────── */
   // render/prompts_section.js
   //
-  // Body of the "Prompts" section on the full profile. Shows this week's
-  // selection as a list of checkboxes. Toggling a checkbox persists the
-  // completion state and visually crosses out the prompt.
-  //
-  // Layout:
-  //   - Intro line ("this week's writing ideas, etc.")
-  //   - Outstanding prompts (unchecked, top)
-  //   - Completed prompts (checked, strike-through, bottom)
+  // Body of the "Prompts" section. When a holiday / observance is active, its
+  // themed prompts appear as a banner-marked group ABOVE the regular weekly
+  // prompts. Completion tracking is shared — event prompt IDs go into the
+  // same completedByWeek record, just with `e-` prefixed IDs instead of `p-`.
 
 
 
@@ -16563,12 +17123,14 @@ Use this template for your response:
    *   weekKey: string,
    *   prompts: Array<{id: string, text: string}>,
    *   completedIds: Set<string>,
+   *   activeEvents?: Array<object>,
    * }} opts
    */
-  function createPromptsBody({ weekKey, prompts, completedIds }) {
+  function createPromptsBody({ weekKey, prompts, completedIds, activeEvents = [] }) {
     const completed = new Set(completedIds);
 
-    const list = h('ul', { class: 'pf-prompts-list' });
+    const eventGroupsEl = h('div', { class: 'pf-event-groups' });
+    const weeklyList = h('ul', { class: 'pf-prompts-list' });
 
     const intro = h('p', { class: 'pf-prompts-intro' }, [
       'This week\'s writing ideas. Try any that call to you. ',
@@ -16577,22 +17139,34 @@ Use this template for your response:
       ]),
     ]);
 
-    function render() {
+    function renderAll() {
+      // ---- event groups (if any) ----
+      const eventChildren = [];
+      for (const ev of activeEvents) {
+        eventChildren.push(createEventGroup(ev, completed, (id, done) => toggle(id, done)));
+      }
+      replaceContents(eventGroupsEl, eventChildren);
+
+      // ---- regular weekly prompts ----
       const ordered = orderForDisplay(prompts, completed);
       const items = ordered.map(p => createPromptItem(p, completed.has(p.id), toggle));
-      replaceContents(list, items);
+      replaceContents(weeklyList, items);
     }
 
     function toggle(id, completedNow) {
       if (completedNow) completed.add(id);
       else              completed.delete(id);
       setCompleted(weekKey, id, completedNow);
-      render();
+      renderAll();
     }
 
-    render();
+    renderAll();
 
-    return h('div', { class: 'pf-prompts' }, [intro, list]);
+    return h('div', { class: 'pf-prompts' }, [
+      eventGroupsEl,
+      intro,
+      weeklyList,
+    ]);
   }
 
   /**
@@ -16625,6 +17199,30 @@ Use this template for your response:
         checkbox,
         h('span', { class: 'pf-prompt-text' }, [prompt.text]),
       ]),
+    ]);
+  }
+
+  /**
+   * One event's themed group: icon + name + tagline header, then its prompts.
+   */
+  function createEventGroup(ev, completed, onToggle) {
+    const list = h('ul', { class: 'pf-event-list' });
+    const ordered = orderForDisplay(ev.prompts, completed);
+    const items = ordered.map(p => createPromptItem(p, completed.has(p.id), onToggle));
+    replaceContents(list, items);
+
+    return h('div', {
+      class: 'pf-event-group',
+      'data-event-id': ev.id,
+    }, [
+      h('div', { class: 'pf-event-header' }, [
+        h('span', { class: 'pf-event-icon', 'aria-hidden': 'true' }, [ev.icon || '✦']),
+        h('div', { class: 'pf-event-titlebar' }, [
+          h('div', { class: 'pf-event-name' }, [ev.name || 'Event']),
+          ev.tagline ? h('div', { class: 'pf-event-tagline' }, [ev.tagline]) : null,
+        ]),
+      ]),
+      list,
     ]);
   }
 
@@ -17011,6 +17609,7 @@ Use this template for your response:
 
 
 
+
   const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
   /**
@@ -17075,6 +17674,8 @@ Use this template for your response:
     // to the relevant section — opening is the acknowledgment.
     try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
     try { markWeekSeen(); } catch { /* non-fatal */ }
+    const activeEvents = getActiveEvents();
+    try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
     // Current week's prompts + completion state (read after markWeekSeen so
     // the section renders with fresh data).
@@ -17089,7 +17690,13 @@ Use this template for your response:
     const xp = xpFromStats(stats);
     const lvl = levelFromXP(xp);
 
-    const splash = createSplash();
+    const splash = createSplash({
+      onShareClick: () => {
+        if (overlay && typeof overlay.setFocused === 'function') {
+          overlay.setFocused(true);
+        }
+      },
+    });
 
     function refreshSplashFromSettings() {
       let freshSettings = settings;
@@ -17144,6 +17751,7 @@ Use this template for your response:
         weekKey,
         prompts: weekPrompts,
         completedIds,
+        activeEvents,
       }),
       initialState: displayState.prompts,
     });
@@ -17207,6 +17815,7 @@ Use this template for your response:
 
 
 
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -17248,7 +17857,12 @@ Use this template for your response:
 
       const pendingIds = computePendingAchievements(unlockedIds);
       const newWeekPrompts = hasNewWeekPending();
-      const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
+      const activeEventIds = getActiveEventIds();
+      const pendingEvents = computePendingEvents(activeEventIds);
+      const pendingCount =
+        pendingIds.length +
+        (newWeekPrompts ? 1 : 0) +
+        pendingEvents.length;
 
       card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
     } catch (e) {

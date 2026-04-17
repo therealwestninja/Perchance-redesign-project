@@ -379,6 +379,110 @@ export const CSS = `
   opacity: 0.22;
 }
 
+/* Share/screenshot button — small, top-right corner of the splash */
+.pf-splash {
+  position: relative; /* anchor for the share button's absolute positioning */
+}
+.pf-splash-share {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+}
+.pf-splash-share:hover {
+  opacity: 1;
+  border-color: rgba(216, 179, 106, 0.55);
+  transform: scale(1.05);
+}
+.pf-splash-share:focus-visible {
+  outline: 2px solid rgba(216, 179, 106, 0.55);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* ============================================================
+   Overlay focus mode — "view for screenshot"
+   - Hides everything except the splash
+   - Centers splash vertically + horizontally
+   - Clean backdrop so the screenshot has no chrome
+   ============================================================ */
+.pf-overlay-focus-hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text-color);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  z-index: 10002;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pf-overlay-focused .pf-overlay-focus-hint {
+  opacity: 0.7;
+}
+.pf-overlay-focused .pf-overlay-focus-hint-fading {
+  opacity: 0;
+}
+
+.pf-overlay-focused {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+/* Hide everything in the content column except the splash when focused */
+.pf-overlay-focused .pf-overlay-content > :not(.pf-splash) {
+  display: none;
+}
+
+/* Center the splash vertically in the viewport when focused */
+.pf-overlay-focused .pf-overlay-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 40px 16px;
+}
+.pf-overlay-focused .pf-overlay-content {
+  width: 100%;
+  max-width: 560px;
+}
+
+/* Make the splash card-like when focused — slightly bigger, extra glow */
+.pf-overlay-focused .pf-splash {
+  box-shadow:
+    0 0 0 1px rgba(216, 179, 106, 0.15),
+    0 20px 60px -10px rgba(0, 0, 0, 0.65),
+    0 4px 20px rgba(216, 179, 106, 0.08);
+  padding: 36px 32px 28px;
+}
+
+/* Hide the close × and the share button in focus mode — keep it clean
+   for the screenshot. Exit is via tap or Esc, hinted at bottom. */
+.pf-overlay-focused .pf-overlay-close,
+.pf-overlay-focused .pf-splash-share {
+  display: none;
+}
+
 /* ============================================================
    Section — collapsible + blurrable wrapper used below the fold
    ============================================================ */
@@ -706,7 +810,60 @@ export const CSS = `
 /* ============================================================
    Prompts section — this week's writing ideas
    ============================================================ */
-.pf-prompts { display: flex; flex-direction: column; gap: 10px; }
+.pf-prompts { display: flex; flex-direction: column; gap: 14px; }
+
+/* Event groups (active holidays/observances) appear above regular prompts.
+   Each event gets a subtle gold-tinted banner to distinguish it from the
+   weekly rotation. */
+.pf-event-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pf-event-group {
+  background: linear-gradient(180deg, rgba(216, 179, 106, 0.07) 0%, rgba(216, 179, 106, 0.03) 100%);
+  border: 1px solid rgba(216, 179, 106, 0.30);
+  border-radius: var(--border-radius);
+  padding: 12px 14px;
+}
+.pf-event-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pf-event-icon {
+  flex-shrink: 0;
+  font-size: 24px;
+  line-height: 1;
+  margin-top: 1px;
+}
+.pf-event-titlebar {
+  flex: 1;
+  min-width: 0;
+}
+.pf-event-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d8b36a;
+  margin-bottom: 2px;
+}
+.pf-event-tagline {
+  font-size: 12px;
+  font-style: italic;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+.pf-event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 
 .pf-prompts-intro {
   margin: 0;

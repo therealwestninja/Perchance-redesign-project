@@ -13,6 +13,8 @@
     "achievements/unlocks.js",
     "prompts/registry.js",
     "prompts/scheduler.js",
+    "events/registry.js",
+    "events/active.js",
     "render/styles.js",
     "profile/settings_store.js",
     "profile/notifications.js",
