@@ -21,10 +21,18 @@ export function createPromptArchive() {
   function render() {
     const entries = computeArchiveEntries({ weeksBack });
 
-    if (entries.length === 0) {
+    // Empty state: when no past week has any completions. The archive
+    // always returns N week entries regardless (calendar-derived), so a
+    // zero-entry check would never fire. Counting actual completions is
+    // what surfaces the friendly message for fresh users.
+    const hasAnyCompletions = entries.some(e => e.completedCount > 0);
+    if (entries.length === 0 || !hasAnyCompletions) {
       replaceContents(container, [
         h('p', { class: 'pf-archive-empty' }, [
-          'No past weeks yet — the first archive entry appears next Monday.',
+          'No past completions yet. ',
+          h('span', { class: 'pf-archive-empty-soft' }, [
+            'Check off any prompt this week and it\u2019ll appear here next Monday.',
+          ]),
         ]),
       ]);
       return;

@@ -72,10 +72,11 @@ export function createOverlay({ ariaLabel = 'Overlay', children = [], onClose } 
   let hintFadeTimer = null;
 
   function dismiss() {
-    // Clean up focus state so reopening the overlay isn't in focus mode
-    if (isFocused) setFocused(false);
+    // dismiss() and hide() are now equivalent — hide() does full teardown
+    // including onClose. Kept as a separate name for callsites that
+    // semantically mean "the user wants to close this" (× button, Esc,
+    // backdrop click) vs imperative dismissal from a downstream action.
     root.hide();
-    if (typeof onClose === 'function') onClose();
   }
 
   function onKeydown(ev) {
@@ -115,10 +116,25 @@ export function createOverlay({ ariaLabel = 'Overlay', children = [], onClose } 
     setTimeout(() => { closeBtn.focus(); }, 0);
   };
 
+  // hide() does the full teardown — fires onClose so callers' cleanup
+  // (settings-change unsubscribes, in particular) runs no matter HOW
+  // the overlay was closed (×, Esc, click backdrop, or imperative
+  // hide() from cadence toggle / Import / Clear). Also removes the
+  // overlay element from the DOM so repeated openFullPage() calls
+  // don't accumulate stale overlay DOM trees in document.body.
   root.hide = function hide() {
+    if (root.hidden && !root.parentNode) return; // already cleaned up
     root.hidden = true;
     document.removeEventListener('keydown', onKeydown);
     if (hintFadeTimer) { clearTimeout(hintFadeTimer); hintFadeTimer = null; }
+    if (isFocused) {
+      isFocused = false;
+      root.classList.remove('pf-overlay-focused');
+    }
+    if (root.parentNode) root.parentNode.removeChild(root);
+    if (typeof onClose === 'function') {
+      try { onClose(); } catch { /* don't let a callback error block other cleanup */ }
+    }
   };
 
   root.setFocused = setFocused;

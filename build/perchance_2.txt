@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 41 };
+  NS.__meta = { modules: 42 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14142,6 +14142,12 @@ Use this template for your response:
   //
   // The returned shape merges cleanly into the main stats bundle so
   // achievement criteria can read it alongside words / characters / threads.
+  //
+  // Lifetime totals include both:
+  //   - current completedByWeek entries (up to RETENTION_WEEKS back)
+  //   - historicalTotals accumulated by GC when old entries were pruned
+  // So achievement signals ("100 prompts completed") never regress when
+  // GC runs — the count is preserved in historicalTotals before deletion.
 
   /**
    * @typedef {Object} PromptStats
@@ -14154,10 +14160,12 @@ Use this template for your response:
    * @returns {PromptStats}
    */
   function computePromptStats(settings) {
-    const byWeek = (settings && settings.prompts && settings.prompts.completedByWeek) || {};
+    const prompts = (settings && settings.prompts) || {};
+    const byWeek = prompts.completedByWeek || {};
+    const hist   = prompts.historicalTotals || {};
 
-    let total = 0;
-    let weeksActive = 0;
+    let total = Number(hist.total) || 0;
+    let weeksActive = Number(hist.weeksActive) || 0;
 
     for (const weekKey of Object.keys(byWeek)) {
       const list = byWeek[weekKey];
@@ -14935,6 +14943,162 @@ Use this template for your response:
    * @property {number} completedCount
    * @property {number} totalCount
    */
+
+  /* ──────────────────────────────────────────────────────────
+     module: prompts/gc.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/gc.js
+  //
+  // Manual "Clear history" action for prompt completions. User-initiated
+  // from the Backup section — never runs automatically.
+  //
+  // Design rationale: automatic GC is a black box. A visible button the
+  // user controls is more honest. Storage is cheap either way (~10 KB per
+  // year), so there's no forcing function behind silent pruning.
+  //
+  // Preserves lifetime progress: before deleting completedByWeek entries,
+  // their counts accumulate into prompts.historicalTotals. computePromptStats
+  // folds historicalTotals into lifetime sums, so achievements earned via
+  // past completions stay earned even after clearing.
+  //
+  // The partition helpers (partitionWeekKeys, weekKeyToOrdinal) are still
+  // exported — they'd be useful for any future "Clear last year only" or
+  // other scoped-clear feature. Unused publicly today.
+
+
+
+
+  /**
+   * Retention window used by any scoped-clear variants. Currently unused
+   * by the default Clear action (which clears everything before the
+   * current week), but left in place for future scoped-clear options.
+   */
+  const RETENTION_WEEKS = 104;
+
+  /**
+   * Clear all past completion history, preserving lifetime counts in
+   * historicalTotals so achievements don't regress. Spares the current
+   * week (the live Prompts section shouldn't lose its checkmarks).
+   *
+   * User-initiated: invoked by the "Clear history" button in the Backup
+   * section. Never runs automatically.
+   *
+   * @param {{ now?: Date }} [opts]
+   * @returns {{
+   *   droppedWeeks: number,
+   *   droppedCompletions: number,
+   *   kept: { currentWeekKey: string }
+   * }}
+   */
+  function clearCompletionHistory({ now = new Date() } = {}) {
+    let settings;
+    try { settings = loadSettings(); }
+    catch { return { droppedWeeks: 0, droppedCompletions: 0, kept: { currentWeekKey: null } }; }
+
+    const byWeek = (settings.prompts && settings.prompts.completedByWeek) || {};
+    const keys = Object.keys(byWeek);
+    const currentKey = getCurrentWeekKey(now);
+
+    // Drop everything except the current week. Current week keeps its
+    // checkmarks — the live Prompts section would feel wrong if opening
+    // the Clear button visibly unticked your in-progress items.
+    const drop = keys.filter(k => k !== currentKey);
+    if (drop.length === 0) {
+      return { droppedWeeks: 0, droppedCompletions: 0, kept: { currentWeekKey: currentKey } };
+    }
+
+    let droppedCompletions = 0;
+    let droppedActiveWeeks = 0;
+    for (const key of drop) {
+      const list = byWeek[key];
+      if (!Array.isArray(list)) continue;
+      droppedCompletions += list.length;
+      if (list.length > 0) droppedActiveWeeks += 1;
+    }
+
+    const nextByWeek = {};
+    if (Array.isArray(byWeek[currentKey])) {
+      nextByWeek[currentKey] = byWeek[currentKey];
+    }
+
+    const prevHist = (settings.prompts && settings.prompts.historicalTotals) || {};
+    const prevTotal = Number(prevHist.total) || 0;
+    const prevWeeks = Number(prevHist.weeksActive) || 0;
+
+    const nextSettings = {
+      ...settings,
+      prompts: {
+        ...(settings.prompts || {}),
+        completedByWeek: nextByWeek,
+        historicalTotals: {
+          total: prevTotal + droppedCompletions,
+          weeksActive: prevWeeks + droppedActiveWeeks,
+        },
+      },
+    };
+    saveSettings(nextSettings);
+
+    return {
+      droppedWeeks: drop.length,
+      droppedCompletions,
+      kept: { currentWeekKey: currentKey },
+    };
+  }
+
+  // ---- Scoped partitioning helpers — kept for potential future scoped-clear
+  // ---- variants. Not used by the default Clear History action (which
+  // ---- clears everything before the current week).
+
+  /**
+   * Split a set of week keys into "keep" (within retention) and "drop"
+   * (older than retention). Pure — no I/O, no side effects.
+   *
+   * @param {string[]} weekKeys          e.g., ['2024-W01', '2025-W52', ...]
+   * @param {string}   currentWeekKey    e.g., '2026-W16'
+   * @param {number}   retentionWeeks
+   * @returns {{ keep: string[], drop: string[] }}
+   */
+  function partitionWeekKeys(weekKeys, currentWeekKey, retentionWeeks = RETENTION_WEEKS) {
+    const currentOrdinal = weekKeyToOrdinal(currentWeekKey);
+    if (currentOrdinal == null) return { keep: [...(weekKeys || [])], drop: [] };
+
+    const cutoff = currentOrdinal - retentionWeeks;
+    const keep = [];
+    const drop = [];
+
+    for (const key of (weekKeys || [])) {
+      const ord = weekKeyToOrdinal(key);
+      if (ord == null) {
+        // Malformed key — keep it (we don't know how to reason about it
+        // and dropping silently would feel worse than a speck of dust)
+        keep.push(key);
+        continue;
+      }
+      if (ord < cutoff) drop.push(key);
+      else              keep.push(key);
+    }
+    return { keep, drop };
+  }
+
+  /**
+   * Convert 'YYYY-Www' to a monotonically increasing integer for comparison.
+   * Returns null if the key doesn't match the expected format.
+   *
+   *   '2024-W01' → 2024 * 53 + 1
+   *   '2026-W16' → 2026 * 53 + 16
+   *
+   * Why *53 not *52? ISO 8601 weeks can go up to W53 in some years. Using
+   * 53 as the multiplier avoids overlap between year N's W53 and year N+1's
+   * W01. Not a calendar-exact mapping, just an ordering function.
+   */
+  function weekKeyToOrdinal(weekKey) {
+    const m = /^(\d{4})-W(\d{1,2})$/.exec(String(weekKey || ''));
+    if (!m) return null;
+    const year = parseInt(m[1], 10);
+    const week = parseInt(m[2], 10);
+    if (!Number.isFinite(year) || !Number.isFinite(week)) return null;
+    return year * 53 + week;
+  }
 
   /* ──────────────────────────────────────────────────────────
      module: events/registry.js
@@ -16474,6 +16638,12 @@ Use this template for your response:
     border: 1px dashed var(--border-color);
     border-radius: var(--border-radius);
   }
+  .pf-archive-empty-soft {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    opacity: 0.75;
+  }
   .pf-archive-week {
     display: flex;
     flex-direction: column;
@@ -16846,6 +17016,10 @@ Use this template for your response:
         // Per-week record of which prompts the user marked done.
         //   { '2026-W16': ['p-quiet-moment', 'p-apology'], ... }
         completedByWeek: {},
+        // Lifetime sums preserved when GC prunes old completedByWeek
+        // entries. Added to the current-entries sum when computing stats
+        // so achievements don't regress across the retention boundary.
+        historicalTotals: { total: 0, weeksActive: 0 },
         // Last week the user opened the profile. Drives the "new week"
         // pulse on the mini-card.
         lastSeenWeek: null,
@@ -17447,10 +17621,11 @@ Use this template for your response:
     let hintFadeTimer = null;
 
     function dismiss() {
-      // Clean up focus state so reopening the overlay isn't in focus mode
-      if (isFocused) setFocused(false);
+      // dismiss() and hide() are now equivalent — hide() does full teardown
+      // including onClose. Kept as a separate name for callsites that
+      // semantically mean "the user wants to close this" (× button, Esc,
+      // backdrop click) vs imperative dismissal from a downstream action.
       root.hide();
-      if (typeof onClose === 'function') onClose();
     }
 
     function onKeydown(ev) {
@@ -17490,10 +17665,25 @@ Use this template for your response:
       setTimeout(() => { closeBtn.focus(); }, 0);
     };
 
+    // hide() does the full teardown — fires onClose so callers' cleanup
+    // (settings-change unsubscribes, in particular) runs no matter HOW
+    // the overlay was closed (×, Esc, click backdrop, or imperative
+    // hide() from cadence toggle / Import / Clear). Also removes the
+    // overlay element from the DOM so repeated openFullPage() calls
+    // don't accumulate stale overlay DOM trees in document.body.
     root.hide = function hide() {
+      if (root.hidden && !root.parentNode) return; // already cleaned up
       root.hidden = true;
       document.removeEventListener('keydown', onKeydown);
       if (hintFadeTimer) { clearTimeout(hintFadeTimer); hintFadeTimer = null; }
+      if (isFocused) {
+        isFocused = false;
+        root.classList.remove('pf-overlay-focused');
+      }
+      if (root.parentNode) root.parentNode.removeChild(root);
+      if (typeof onClose === 'function') {
+        try { onClose(); } catch { /* don't let a callback error block other cleanup */ }
+      }
     };
 
     root.setFocused = setFocused;
@@ -18311,10 +18501,18 @@ Use this template for your response:
     function render() {
       const entries = computeArchiveEntries({ weeksBack });
 
-      if (entries.length === 0) {
+      // Empty state: when no past week has any completions. The archive
+      // always returns N week entries regardless (calendar-derived), so a
+      // zero-entry check would never fire. Counting actual completions is
+      // what surfaces the friendly message for fresh users.
+      const hasAnyCompletions = entries.some(e => e.completedCount > 0);
+      if (entries.length === 0 || !hasAnyCompletions) {
         replaceContents(container, [
           h('p', { class: 'pf-archive-empty' }, [
-            'No past weeks yet — the first archive entry appears next Monday.',
+            'No past completions yet. ',
+            h('span', { class: 'pf-archive-empty-soft' }, [
+              'Check off any prompt this week and it\u2019ll appear here next Monday.',
+            ]),
           ]),
         ]);
         return;
@@ -18904,10 +19102,12 @@ Use this template for your response:
 
 
 
+
   function createBackupBody() {
     // Panels — each is hidden by default, revealed by its respective button
     const exportPanel = h('div', { class: 'pf-backup-panel', hidden: true });
     const importPanel = h('div', { class: 'pf-backup-panel', hidden: true });
+    const clearPanel  = h('div', { class: 'pf-backup-panel', hidden: true });
 
     const exportBtn = h('button', {
       class: 'pf-backup-btn',
@@ -18921,18 +19121,37 @@ Use this template for your response:
       onClick: () => toggleImport(),
     }, ['Import']);
 
+    const clearBtn = h('button', {
+      class: 'pf-backup-btn',
+      type: 'button',
+      onClick: () => toggleClear(),
+    }, ['Clear history']);
+
+    function hideAllPanels() {
+      exportPanel.hidden = true;
+      importPanel.hidden = true;
+      clearPanel.hidden = true;
+    }
+
     function toggleExport() {
       if (!exportPanel.hidden) { exportPanel.hidden = true; return; }
-      importPanel.hidden = true;
+      hideAllPanels();
       renderExportPanel();
       exportPanel.hidden = false;
     }
 
     function toggleImport() {
       if (!importPanel.hidden) { importPanel.hidden = true; return; }
-      exportPanel.hidden = true;
+      hideAllPanels();
       renderImportPanel();
       importPanel.hidden = false;
+    }
+
+    function toggleClear() {
+      if (!clearPanel.hidden) { clearPanel.hidden = true; return; }
+      hideAllPanels();
+      renderClearPanel();
+      clearPanel.hidden = false;
     }
 
     function renderExportPanel() {
@@ -19048,6 +19267,66 @@ Use this template for your response:
       ]);
     }
 
+    function renderClearPanel() {
+      const status = h('span', { class: 'pf-backup-status' });
+      const confirmRow = h('div', { class: 'pf-backup-confirm-row', hidden: true });
+
+      const clearActionBtn = h('button', {
+        class: 'pf-backup-action',
+        type: 'button',
+        onClick: () => {
+          replaceContents(confirmRow, [
+            h('span', { class: 'pf-backup-confirm-text' }, [
+              'This clears your Prompt Archive but preserves your lifetime completion counts. Continue?',
+            ]),
+            h('button', {
+              class: 'pf-backup-action pf-backup-action-danger',
+              type: 'button',
+              onClick: () => doClear(),
+            }, ['Yes, clear history']),
+            h('button', {
+              class: 'pf-backup-action',
+              type: 'button',
+              onClick: () => {
+                confirmRow.hidden = true;
+                clearStatus(status);
+              },
+            }, ['Cancel']),
+          ]);
+          confirmRow.hidden = false;
+        },
+      }, ['Clear past weeks']);
+
+      function doClear() {
+        const result = clearCompletionHistory();
+        confirmRow.hidden = true;
+        if (result.droppedWeeks === 0) {
+          showStatus(status, 'Nothing to clear — no past history yet.', 'warn');
+          return;
+        }
+        showStatus(
+          status,
+          `Cleared ${result.droppedWeeks} past ${result.droppedWeeks === 1 ? 'week' : 'weeks'}. Reloading…`,
+          'ok'
+        );
+        // Close the overlay so the next open picks up fresh state.
+        setTimeout(() => {
+          const overlay = document.querySelector('.pf-overlay');
+          if (overlay && typeof overlay.hide === 'function') overlay.hide();
+        }, 800);
+      }
+
+      replaceContents(clearPanel, [
+        h('p', { class: 'pf-backup-hint' }, [
+          'Clear the Prompt Archive\u2019s history of past weeks. Your current week stays intact, and your ',
+          h('em', {}, ['lifetime']),
+          ' completion counts are preserved so achievements don\u2019t regress. Useful if you want a fresh-looking archive without losing earned progress.',
+        ]),
+        h('div', { class: 'pf-backup-actionbar' }, [clearActionBtn, status]),
+        confirmRow,
+      ]);
+    }
+
     return h('div', { class: 'pf-backup' }, [
       h('p', { class: 'pf-backup-intro' }, [
         'Save a portable copy of your profile as JSON, or restore from one. ',
@@ -19055,9 +19334,10 @@ Use this template for your response:
           'Useful if your browser clears storage, you switch devices, or you just want a safety net.',
         ]),
       ]),
-      h('div', { class: 'pf-backup-buttonrow' }, [exportBtn, importBtn]),
+      h('div', { class: 'pf-backup-buttonrow' }, [exportBtn, importBtn, clearBtn]),
       exportPanel,
       importPanel,
+      clearPanel,
     ]);
   }
 
@@ -19375,6 +19655,7 @@ Use this template for your response:
     } catch {
       settings = null;
     }
+
     try {
       const data = await readAllStores();
       // Merge IDB-derived stats with settings-derived prompt stats so

@@ -1247,6 +1247,12 @@ export const CSS = `
   border: 1px dashed var(--border-color);
   border-radius: var(--border-radius);
 }
+.pf-archive-empty-soft {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.75;
+}
 .pf-archive-week {
   display: flex;
   flex-direction: column;
