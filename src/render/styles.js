@@ -134,6 +134,59 @@ export const CSS = `
 }
 
 /* ============================================================
+   Mini-card pending indicator — the "friendly wave"
+   - Gentle breathing glow while there's anything unseen
+   - Small gold dot in the avatar corner as a permanent marker
+     (survives prefers-reduced-motion, colorblind-friendly)
+   - Cleared when the full profile is opened (mark-seen)
+   ============================================================ */
+
+@keyframes pf-mini-pending-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(216, 179, 106, 0); }
+  50%      { box-shadow: 0 0 10px 1px rgba(216, 179, 106, 0.28); }
+}
+
+@keyframes pf-mini-pending-dot-pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.95; }
+  50%      { transform: scale(1.18); opacity: 0.70; }
+}
+
+.pf-mini-card-pending {
+  animation: pf-mini-pending-pulse 3.5s ease-in-out infinite;
+  border-color: rgba(216, 179, 106, 0.35);
+}
+.pf-mini-card-pending:hover {
+  /* On hover, settle the glow — we've got their attention, stop waving */
+  animation: none;
+  border-color: rgba(216, 179, 106, 0.55);
+}
+
+.pf-mini-avatar-has-dot {
+  position: relative;
+}
+.pf-mini-avatar-has-dot::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d8b36a;
+  border: 2px solid var(--box-color, var(--background));
+  box-shadow: 0 0 4px 1px rgba(216, 179, 106, 0.5);
+  animation: pf-mini-pending-dot-pulse 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Respect users who've asked for reduced motion — kill the animations
+   but keep the dot + border so the state is still conveyed visually. */
+@media (prefers-reduced-motion: reduce) {
+  .pf-mini-card-pending          { animation: none; }
+  .pf-mini-avatar-has-dot::after { animation: none; }
+}
+
+/* ============================================================
    Full-screen profile overlay
    ============================================================ */
 
@@ -170,7 +223,10 @@ export const CSS = `
 .pf-overlay-close {
   position: fixed;
   top: 12px;
-  right: 12px;
+  /* Align to the right edge of the 800px-max content column on wide viewports.
+     Falls back to the viewport edge (+12px gutter) on screens narrow enough
+     that the content column is already flush against the sides. */
+  right: max(12px, calc(50% - 400px - 44px));
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -494,6 +550,92 @@ export const CSS = `
   font-size: 11px;
   opacity: 0.55;
   font-style: italic;
+}
+
+/* ============================================================
+   Avatar upload control
+   ============================================================ */
+.pf-avatar-control {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  gap: 10px 14px;
+  align-items: center;
+}
+.pf-avatar-preview {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--button-bg);
+  border: 2px solid #d8b36a;
+  box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.pf-avatar-preview-text {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  color: #d8b36a;
+}
+.pf-avatar-buttons {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pf-avatar-btn {
+  padding: 6px 12px;
+  background: var(--button-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.pf-avatar-btn:hover {
+  border-color: rgba(216, 179, 106, 0.55);
+}
+.pf-avatar-btn:focus-visible {
+  outline: 2px solid rgba(216, 179, 106, 0.55);
+  outline-offset: 1px;
+}
+.pf-avatar-btn-secondary {
+  opacity: 0.75;
+}
+.pf-avatar-btn-disabled,
+.pf-avatar-btn[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.pf-avatar-status {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 11px;
+  min-height: 14px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+.pf-avatar-status-error {
+  color: #d8796a;
+  opacity: 1;
+}
+.pf-avatar-status-info {
+  color: #d8b36a;
+  opacity: 1;
 }
 
 /* ============================================================

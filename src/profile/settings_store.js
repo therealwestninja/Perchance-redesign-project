@@ -36,6 +36,15 @@ export function defaultSettings() {
         achievements: { collapsed: false, blurred: false },
       },
     },
+    notifications: {
+      // Achievements the user has been shown (opened the profile at least
+      // once while they were unlocked). Anything unlocked but not listed
+      // here counts as "pending" and triggers the mini-card pulse.
+      seenAchievements: [],
+      // Prevents new deployments from pulsing for every pre-existing
+      // achievement. See notifications.js#initSeenOnFirstRun.
+      hasInitialized: false,
+    },
   };
 }
 
@@ -92,13 +101,38 @@ export function loadSettings() {
 }
 
 /**
- * Write settings. Never throws.
+ * Write settings. Never throws. Notifies listeners so live UI (mini-card,
+ * splash) can refresh without waiting for the 30s refresh tick.
  */
 export function saveSettings(settings) {
   try {
     localStorage.setItem(KEY, JSON.stringify(settings));
   } catch {
     // Storage full or disabled — we can't do anything useful; silently drop.
+  }
+  notifyListeners();
+}
+
+// ---- change-notification ----
+
+const listeners = new Set();
+
+/**
+ * Subscribe to settings changes. Returns a function to unsubscribe.
+ * The callback receives no arguments — call loadSettings() to read fresh data.
+ *
+ * @param {() => void} fn
+ * @returns {() => void}
+ */
+export function onSettingsChange(fn) {
+  if (typeof fn !== 'function') return () => {};
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+function notifyListeners() {
+  for (const fn of listeners) {
+    try { fn(); } catch { /* keep other listeners alive */ }
   }
 }
 

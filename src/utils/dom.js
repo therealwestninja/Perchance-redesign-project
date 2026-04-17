@@ -77,3 +77,16 @@ export function replaceContents(el, newChildren) {
   }
   appendChildren(el, newChildren);
 }
+
+/**
+ * Escape a string for use inside a CSS `url("...")` expression.
+ * Escapes backslashes and double quotes per CSS string-token rules.
+ * Anything non-string becomes an empty string — callers don't need to
+ * check for null themselves.
+ *
+ * Example:
+ *   el.style.backgroundImage = `url("${escapeCssUrl(avatarDataUrl)}")`;
+ */
+export function escapeCssUrl(url) {
+  return String(url || '').replace(/["\\]/g, '\\$&');
+}

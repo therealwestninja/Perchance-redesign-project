@@ -18,7 +18,8 @@ import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { ACHIEVEMENTS, getAchievementById } from '../achievements/registry.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { TIER_ICON } from '../render/achievements_grid.js';
-import { loadSettings } from './settings_store.js';
+import { loadSettings, onSettingsChange } from './settings_store.js';
+import { markAchievementsSeen } from './notifications.js';
 
 const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
@@ -76,6 +77,12 @@ export async function openFullPage() {
     unlockedIds = [];
   }
 
+  // Opening the profile counts as acknowledgment of any pending notifications.
+  // This fires the settings-changed event, which causes the mini-card to
+  // re-render without its pulse state. We don't require the user to scroll
+  // to the Achievements section — opening is the acknowledgment.
+  try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
+
   const profile = (settings && settings.profile) || {};
   const displayState = (settings && settings.display && settings.display.sections) || {};
 
@@ -84,16 +91,28 @@ export async function openFullPage() {
   const lvl = levelFromXP(xp);
 
   const splash = createSplash();
-  splash.update({
-    displayName: profile.displayName || profile.username || 'Chronicler',
-    avatarUrl: profile.avatarUrl || null,
-    title: deriveTitle(unlockedIds, settings),
-    level: lvl.level,
-    xpIntoLevel: lvl.xpIntoLevel,
-    xpForNextLevel: lvl.xpForNextLevel,
-    progress01: lvl.progress01,
-    pinnedBadges: pickPinnedBadges(unlockedIds, 6),
-  });
+
+  function refreshSplashFromSettings() {
+    let freshSettings = settings;
+    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+    const p = (freshSettings && freshSettings.profile) || {};
+    const freshUnlocked = unlockedIds;
+    splash.update({
+      displayName: p.displayName || p.username || 'Chronicler',
+      avatarUrl: p.avatarUrl || null,
+      title: deriveTitle(freshUnlocked, freshSettings),
+      level: lvl.level,
+      xpIntoLevel: lvl.xpIntoLevel,
+      xpForNextLevel: lvl.xpForNextLevel,
+      progress01: lvl.progress01,
+      pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
+    });
+  }
+  refreshSplashFromSettings();
+
+  // Live-refresh the splash when the user changes avatar / title / display
+  // name inside the Details form. Cleaned up when the overlay closes.
+  const unsubscribe = onSettingsChange(refreshSplashFromSettings);
 
   // ---- sections ----
   const aboutSection = createSection({
@@ -127,6 +146,7 @@ export async function openFullPage() {
   // ---- overlay ----
   const overlay = createOverlay({
     ariaLabel: 'Your profile',
+    onClose: () => { try { unsubscribe(); } catch {} },
     children: [
       splash,
       aboutSection,

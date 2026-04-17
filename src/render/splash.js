@@ -4,7 +4,7 @@
 // This is the part people photograph and share. Everything below the fold
 // is plainer by design.
 
-import { h, replaceContents } from '../utils/dom.js';
+import { h, replaceContents, escapeCssUrl } from '../utils/dom.js';
 import { formatNumber, formatPercent, getInitialFromName } from '../utils/format.js';
 
 /**
@@ -96,8 +96,4 @@ export function createSplash() {
   };
 
   return root;
-}
-
-function escapeCssUrl(url) {
-  return String(url || '').replace(/["\\]/g, '\\$&');
 }

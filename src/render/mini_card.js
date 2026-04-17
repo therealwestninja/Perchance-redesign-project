@@ -7,7 +7,7 @@
 // This module only produces DOM. It does not read IDB, does not compute
 // stats, does not persist state. Data flows in via updateMiniCard(el, viewModel).
 
-import { h, replaceContents } from '../utils/dom.js';
+import { h, replaceContents, escapeCssUrl } from '../utils/dom.js';
 import { formatNumber, formatPercent, getInitialFromName } from '../utils/format.js';
 
 /**
@@ -86,6 +86,21 @@ export function createMiniCard({ onOpen } = {}) {
     ]);
 
     barFillEl.style.width = pct;
+
+    // Pulse / indicator dot when there are unseen noteworthy events
+    // (achievement unlocks for now — will cover quests/events later).
+    const hasPending = Number(vm.pendingCount) > 0;
+    root.classList.toggle('pf-mini-card-pending', hasPending);
+    avatarEl.classList.toggle('pf-mini-avatar-has-dot', hasPending);
+
+    // aria-label gets the count so screen readers announce it.
+    if (hasPending) {
+      const n = Number(vm.pendingCount);
+      const noun = n === 1 ? 'thing' : 'things';
+      root.setAttribute('aria-label', `Open profile — ${n} new ${noun} to see`);
+    } else {
+      root.setAttribute('aria-label', 'Open profile');
+    }
   };
 
   // Initial render with empty-but-safe values
@@ -96,15 +111,8 @@ export function createMiniCard({ onOpen } = {}) {
     xpIntoLevel: 0,
     xpForNextLevel: 100,
     progress01: 0,
+    pendingCount: 0,
   });
 
   return root;
-}
-
-/**
- * Minimal escaping for a value that goes into a CSS url(...). Blocks
- * the two characters that could break out of the quoted URL.
- */
-function escapeCssUrl(url) {
-  return String(url || '').replace(/["\\]/g, '\\$&');
 }
