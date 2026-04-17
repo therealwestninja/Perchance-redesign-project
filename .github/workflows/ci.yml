@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: test + build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Project has zero runtime or dev dependencies, so no install step
+      # is needed. If dependencies are added later, add:
+      #   - run: npm ci
+      # (which will require committing package-lock.json).
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify build output matches committed state
+        run: npm run build:check

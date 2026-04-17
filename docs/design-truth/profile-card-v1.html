@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile Card — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:      #0d1117;
+    --ink-2:    #161b22;
+    --ink-3:    #1f2630;
+    --vellum:   #e8dcc4;
+    --vellum-2: #c9b892;
+    --gold:     #d4a855;
+    --gold-hi:  #e8c97a;
+    --crimson:  #a83232;
+    --crimson-hi:#c94545;
+    --silver:   #8b95a3;
+    --stroke:   rgba(212, 168, 85, 0.25);
+    --stroke-hi:rgba(212, 168, 85, 0.55);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #05080c;
+    background-image:
+      radial-gradient(ellipse at top, #1a1410 0%, #05080c 55%);
+    min-height: 100vh;
+    font-family: 'EB Garamond', Georgia, serif;
+    color: var(--vellum);
+    display: flex;
+    justify-content: center;
+    padding: 24px 12px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  /* ---------- CARD ---------- */
+  .card {
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(232, 220, 196, 0.02) 0%, transparent 20%),
+      linear-gradient(180deg, var(--ink-2) 0%, var(--ink) 100%);
+    border: 1px solid var(--stroke);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow:
+      0 24px 50px -20px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(232, 220, 196, 0.03) inset,
+      0 1px 0 rgba(232, 220, 196, 0.05) inset;
+  }
+
+  /* subtle noise overlay using inline svg data-uri */
+  .card::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' /></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.35'/></svg>");
+    opacity: 0.06;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+
+  /* ---------- HERO (above the fold) ---------- */
+  .hero {
+    position: relative;
+    padding: 22px 22px 20px;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(212, 168, 85, 0.10) 0%, transparent 60%),
+      linear-gradient(180deg, rgba(168, 50, 50, 0.04) 0%, transparent 70%);
+    border-bottom: 1px solid var(--stroke);
+  }
+
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .avatar-frame {
+    position: relative;
+    flex-shrink: 0;
+    width: 92px; height: 92px;
+  }
+  .avatar-frame::before {
+    /* ornate ring */
+    content: "";
+    position: absolute; inset: -4px;
+    border-radius: 50%;
+    background: conic-gradient(from 140deg,
+      var(--gold) 0deg, var(--gold-hi) 90deg,
+      var(--gold) 180deg, #8a6a2c 260deg, var(--gold) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+  }
+  .avatar {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Cinzel', serif;
+    font-size: 38px;
+    font-weight: 600;
+    color: var(--gold-hi);
+    text-shadow: 0 2px 8px rgba(212, 168, 85, 0.4);
+    border: 2px solid var(--ink);
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-ident {
+    flex: 1;
+    min-width: 0;
+    padding-top: 2px;
+  }
+  .name {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--vellum);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .title {
+    font-family: 'EB Garamond', serif;
+    font-style: italic;
+    font-size: 15px;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+  .level-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .level-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
+    border: 1px solid var(--stroke-hi);
+    border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--gold-hi);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .level-chip strong {
+    color: var(--vellum);
+    font-weight: 500;
+  }
+  .xp-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(212, 168, 85, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(212, 168, 85, 0.15);
+  }
+  .xp-fill {
+    height: 100%;
+    width: 62%;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-hi) 100%);
+    box-shadow: 0 0 8px rgba(212, 168, 85, 0.5);
+  }
+  .xp-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--silver);
+  }
+
+  /* ---------- BADGE ROW ---------- */
+  .badges {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-start;
+  }
+  .badge {
+    width: 38px; height: 42px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      linear-gradient(180deg, #2a1f0e 0%, #0f0a04 100%);
+    border: 1px solid var(--stroke-hi);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    font-size: 18px;
+    color: var(--gold-hi);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    transition: transform 0.2s;
+  }
+  .badge:hover { transform: translateY(-2px); }
+  .badge.dimmed {
+    opacity: 0.35;
+    color: var(--silver);
+  }
+
+  /* ---------- FEATURED ACHIEVEMENT ---------- */
+  .featured {
+    margin-top: 18px;
+    padding: 14px 14px 14px 16px;
+    background:
+      linear-gradient(180deg, rgba(168, 50, 50, 0.12) 0%, rgba(168, 50, 50, 0.04) 100%);
+    border: 1px solid rgba(168, 50, 50, 0.35);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .featured-icon {
+    width: 42px; height: 42px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--crimson-hi) 0%, var(--crimson) 60%, #5a1818 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 0 12px rgba(201, 69, 69, 0.4), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  .featured-text { flex: 1; min-width: 0; }
+  .featured-kicker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--crimson-hi);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .featured-name {
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--vellum);
+    line-height: 1.2;
+    margin-bottom: 2px;
+  }
+  .featured-date {
+    font-family: 'EB Garamond', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--silver);
+  }
+
+  /* ---------- FRACTION STATS ---------- */
+  .section {
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--stroke);
+  }
+  .section-heading {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-heading::before, .section-heading::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--stroke-hi), transparent);
+  }
+
+  .fraction-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 16px;
+  }
+  .frac {
+    position: relative;
+  }
+  .frac-label {
+    font-family: 'EB Garamond', serif;
+    font-size: 12px;
+    color: var(--silver);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  .frac-value {
+    font-family: 'Cinzel', serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--vellum);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .frac-value .denom {
+    color: var(--silver);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .frac-value .raw {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--gold-hi);
+  }
+  .frac-bar {
+    height: 3px;
+    background: rgba(212, 168, 85, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .frac-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-hi) 100%);
+    border-radius: 2px;
+  }
+
+  /* ---------- STAR RATINGS ---------- */
+  .ratings { display: grid; gap: 10px; }
+  .rating {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .rating-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    color: var(--vellum);
+  }
+  .stars { display: inline-flex; gap: 2px; }
+  .star {
+    width: 14px; height: 14px;
+  }
+
+  /* ---------- RECENT ACHIEVEMENTS LIST ---------- */
+  .achievement-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dashed rgba(212, 168, 85, 0.12);
+  }
+  .achievement-row:last-child { border-bottom: 0; }
+  .ach-icon {
+    width: 36px; height: 36px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: linear-gradient(180deg, var(--ink-3) 0%, var(--ink) 100%);
+    border: 1px solid var(--stroke-hi);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+  .ach-text { flex: 1; min-width: 0; }
+  .ach-name {
+    font-family: 'Cinzel', serif;
+    font-size: 13px;
+    color: var(--vellum);
+    margin-bottom: 2px;
+  }
+  .ach-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--silver);
+    letter-spacing: 0.05em;
+  }
+  .ach-rarity {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid var(--stroke-hi);
+    border-radius: 3px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .ach-rarity.rare { color: var(--crimson-hi); border-color: rgba(201, 69, 69, 0.4); }
+
+  /* ---------- FOOTER ---------- */
+  .card-footer {
+    padding: 14px 22px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(0,0,0,0.3);
+  }
+  .member-since {
+    font-family: 'EB Garamond', serif;
+    font-style: italic;
+    font-size: 11px;
+    color: var(--silver);
+  }
+  .site-mark {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--gold);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  /* ---------- SAVE BUTTON ---------- */
+  .save-btn {
+    display: block;
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px;
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 100%);
+    border: 1px solid #8a6a2c;
+    color: var(--ink);
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 0 #6b5220, 0 8px 14px rgba(0,0,0,0.4);
+  }
+  .save-btn:hover { box-shadow: 0 5px 0 #6b5220, 0 10px 18px rgba(0,0,0,0.5); }
+  .save-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.4); }
+
+  .mock-label {
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--silver);
+    margin-bottom: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  /* fold indicator */
+  .fold-marker {
+    position: relative;
+    margin: 8px 22px;
+    height: 0;
+    border-top: 1px dashed rgba(212, 168, 85, 0.2);
+  }
+  .fold-marker span {
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink-2);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    color: var(--silver);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="mock-label">— mockup · fake data —</div>
+
+  <div class="card" id="card">
+
+    <!-- HERO: above-the-fold -->
+    <div class="hero">
+      <div class="hero-top">
+        <div class="avatar-frame">
+          <div class="avatar">A</div>
+        </div>
+        <div class="hero-ident">
+          <div class="name">Aria Moonweaver</div>
+          <div class="title">— Worldbuilder of the Hollow Reach —</div>
+          <div class="level-row">
+            <span class="level-chip">Lvl <strong>14</strong></span>
+            <div class="xp-bar" title="2,410 / 3,900 XP to next level">
+              <div class="xp-fill"></div>
+            </div>
+            <span class="xp-label">62%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- pinned badges -->
+      <div class="badges">
+        <div class="badge" title="First Conversation">🕯️</div>
+        <div class="badge" title="10k Words">✒️</div>
+        <div class="badge" title="Worldbuilder">🗺️</div>
+        <div class="badge" title="Marathon Arc">⚔️</div>
+        <div class="badge dimmed" title="Locked">🔒</div>
+        <div class="badge dimmed" title="Locked">🔒</div>
+      </div>
+
+      <!-- featured / showcase -->
+      <div class="featured">
+        <div class="featured-icon">✒️</div>
+        <div class="featured-text">
+          <div class="featured-kicker">◆ Showcase Achievement</div>
+          <div class="featured-name">Master of the Quill</div>
+          <div class="featured-date">Crossed 50,000 words — 3 days ago</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fold-marker"><span>fold</span></div>
+
+    <!-- Fraction-style stats -->
+    <div class="section">
+      <div class="section-heading">Chronicle</div>
+      <div class="fraction-grid">
+        <div class="frac">
+          <div class="frac-label">Stories Told</div>
+          <div class="frac-value">23<span class="denom">/50</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:46%"></div></div>
+        </div>
+        <div class="frac">
+          <div class="frac-label">Words Written</div>
+          <div class="frac-value"><span class="raw">47,291</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:47%"></div></div>
+        </div>
+        <div class="frac">
+          <div class="frac-label">Characters Created</div>
+          <div class="frac-value">8<span class="denom">/20</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:40%"></div></div>
+        </div>
+        <div class="frac">
+          <div class="frac-label">Worlds Built</div>
+          <div class="frac-value">3<span class="denom">/10</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:30%"></div></div>
+        </div>
+        <div class="frac">
+          <div class="frac-label">Days Active</div>
+          <div class="frac-value"><span class="raw">47</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:66%"></div></div>
+        </div>
+        <div class="frac">
+          <div class="frac-label">Longest Arc</div>
+          <div class="frac-value"><span class="raw">184</span></div>
+          <div class="frac-bar"><div class="frac-bar-fill" style="width:73%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Star ratings -->
+    <div class="section">
+      <div class="section-heading">Craft</div>
+      <div class="ratings">
+        <div class="rating">
+          <span class="rating-name">Narrative Voice</span>
+          <span class="stars" data-filled="4"></span>
+        </div>
+        <div class="rating">
+          <span class="rating-name">Character Depth</span>
+          <span class="stars" data-filled="3"></span>
+        </div>
+        <div class="rating">
+          <span class="rating-name">World Consistency</span>
+          <span class="stars" data-filled="5"></span>
+        </div>
+        <div class="rating">
+          <span class="rating-name">Dialogue Flow</span>
+          <span class="stars" data-filled="4"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent achievements -->
+    <div class="section">
+      <div class="section-heading">Recent Unlocks</div>
+      <div class="achievement-row">
+        <div class="ach-icon">✒️</div>
+        <div class="ach-text">
+          <div class="ach-name">Master of the Quill</div>
+          <div class="ach-date">3 days ago</div>
+        </div>
+        <span class="ach-rarity rare">Rare</span>
+      </div>
+      <div class="achievement-row">
+        <div class="ach-icon">🗺️</div>
+        <div class="ach-text">
+          <div class="ach-name">Cartographer</div>
+          <div class="ach-date">1 week ago</div>
+        </div>
+        <span class="ach-rarity">Uncommon</span>
+      </div>
+      <div class="achievement-row">
+        <div class="ach-icon">⚔️</div>
+        <div class="ach-text">
+          <div class="ach-name">The Long March</div>
+          <div class="ach-date">2 weeks ago</div>
+        </div>
+        <span class="ach-rarity">Common</span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card-footer">
+      <span class="member-since">Keeping chronicles since March 2025</span>
+      <span class="site-mark">perchance</span>
+    </div>
+
+  </div>
+
+  <button class="save-btn">✦ Save as Image ✦</button>
+
+</div>
+
+<script>
+  // render stars as SVG so they screenshot cleanly
+  const starTemplate = (filled) => `
+    <svg class="star" viewBox="0 0 24 24" fill="${filled ? 'var(--gold-hi)' : 'none'}" stroke="${filled ? 'var(--gold)' : 'var(--silver)'}" stroke-width="1.5">
+      <path d="M12 2l2.9 6.9 7.5.6-5.7 4.9 1.8 7.3L12 17.8l-6.5 3.9 1.8-7.3L1.6 9.5l7.5-.6z" stroke-linejoin="round"/>
+    </svg>`;
+  document.querySelectorAll('.stars').forEach(el => {
+    const filled = parseInt(el.dataset.filled, 10);
+    for (let i = 0; i < 5; i++) el.insertAdjacentHTML('beforeend', starTemplate(i < filled));
+  });
+</script>
+
+</body>
+</html>

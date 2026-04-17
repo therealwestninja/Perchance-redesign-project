@@ -1,0 +1,16 @@
+{
+  "name": "perchance-redesign-project",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A fork of Perchance AI Character Chat with a profile system and narrative-focused gamification",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build/build.mjs",
+    "build:check": "node build/build.mjs --check",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

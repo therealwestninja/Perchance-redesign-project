@@ -1,0 +1,34 @@
+# Dependencies (once build tooling lands)
+node_modules/
+package-lock.json.bak
+
+# Build artifacts — committed builds live in /build, but intermediate temp files shouldn't
+*.tmp
+*.bak
+.cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Patch files — produced by Claude during development,
+# not meant to be committed to the repo
+*.patch
+*.diff
+
+# Local notes / scratch space (use docs/scratch/ for anything you want to commit)
+scratch/
+TODO.local
+NOTES.local
+
+# Test output
+coverage/
+.nyc_output/
