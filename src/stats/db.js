@@ -1,72 +1,18 @@
 // stats/db.js
 //
-// Read-only IndexedDB access for the `chatbot-ui-v1` database (the store
-// upstream AI Character Chat writes to). We never write to this DB.
+// Read upstream's chat data via the Dexie instance that Perchance's own code
+// sets up at window.db. We do NOT open our own IndexedDB connection — doing
+// that in parallel with Dexie's version/upgrade handling corrupts Dexie's
+// view of the DB schema and causes "storeNames parameter was empty" errors
+// later on transaction calls.
 //
-// Uses raw IndexedDB rather than Dexie so we have zero dependency surface
-// and can't be broken by upstream swapping out their ORM.
-//
-// Returns plain JS arrays that the pure `stats/queries.js` layer can consume,
-// keeping this file the only place in the codebase that touches browser APIs
-// for data access.
+// Returns plain JS arrays so the pure `stats/queries.js` layer can consume
+// them. Defensive: if window.db isn't ready, any table is missing, or any
+// read fails, we return empty arrays rather than throw.
 
-/**
- * Name of the IndexedDB database to read. Upstream exposes window.dbName
- * if available; we fall back to the well-known name.
- */
-function getDbName() {
-  return (typeof window !== 'undefined' && window.dbName) || 'chatbot-ui-v1';
-}
-
-/**
- * Object stores we try to read. Missing stores are silently skipped so
- * we work even on fresh installs or upstream schema changes.
- */
 const STORES_TO_READ = ['characters', 'threads', 'messages', 'lore', 'misc'];
 
 /**
- * Open the upstream DB in read-only mode.
- * @returns {Promise<IDBDatabase>}
- */
-function openDb() {
-  return new Promise((resolve, reject) => {
-    let req;
-    try {
-      req = indexedDB.open(getDbName());
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
-    req.onblocked = () => reject(new Error('IndexedDB open blocked by another tab'));
-    // We intentionally do NOT handle onupgradeneeded — if upstream hasn't
-    // created the DB yet, opening with no version number creates an empty
-    // one at version 1, which has no object stores. That's fine: we just
-    // return empty arrays below.
-  });
-}
-
-/**
- * Promise wrapper for IDBObjectStore.getAll().
- */
-function getAllFromStore(store) {
-  return new Promise((resolve, reject) => {
-    let req;
-    try {
-      req = store.getAll();
-    } catch (e) {
-      reject(e);
-      return;
-    }
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error || new Error('getAll failed'));
-  });
-}
-
-/**
- * Read every record from every relevant store.
- *
  * @returns {Promise<{
  *   characters: Array, threads: Array, messages: Array,
  *   lore: Array, misc: Array
@@ -75,31 +21,47 @@ function getAllFromStore(store) {
 export async function readAllStores() {
   const empty = { characters: [], threads: [], messages: [], lore: [], misc: [] };
 
-  let db;
-  try {
-    db = await openDb();
-  } catch {
-    return empty;
-  }
+  if (typeof window === 'undefined') return empty;
+  const db = window.db;
+  if (!db || typeof db !== 'object') return empty;
 
   try {
-    const available = STORES_TO_READ.filter(n => db.objectStoreNames.contains(n));
-    if (available.length === 0) return empty;
-
-    const tx = db.transaction(available, 'readonly');
-    const reads = available.map(name =>
-      getAllFromStore(tx.objectStore(name)).then(records => [name, records])
-    );
-    const results = await Promise.all(reads);
-
+    const results = await Promise.all(STORES_TO_READ.map(async (name) => {
+      const table = db[name];
+      if (!table || typeof table.toArray !== 'function') return [name, []];
+      try {
+        const rows = await table.toArray();
+        return [name, Array.isArray(rows) ? rows : []];
+      } catch {
+        return [name, []];
+      }
+    }));
     const out = { ...empty };
-    for (const [name, records] of results) {
-      out[name] = records;
-    }
+    for (const [name, rows] of results) out[name] = rows;
     return out;
   } catch {
     return empty;
-  } finally {
-    try { db.close(); } catch { /* ignore */ }
   }
+}
+
+/**
+ * Poll until upstream's Dexie instance is ready AND has the expected tables.
+ * Resolves with the Dexie instance once ready, or null on timeout.
+ *
+ * @param {number} timeoutMs
+ * @returns {Promise<object|null>}
+ */
+export async function waitForUpstreamDb(timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (typeof window !== 'undefined' &&
+        window.db &&
+        typeof window.db === 'object' &&
+        window.db.characters &&
+        typeof window.db.characters.toArray === 'function') {
+      return window.db;
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return null;
 }

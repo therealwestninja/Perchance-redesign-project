@@ -79,6 +79,8 @@ export async function start() {
     return;
   }
 
+  console.info('[pf] profile fork active — mini-card mounted');
+
   // Initial fetch
   await refresh(card);
 
