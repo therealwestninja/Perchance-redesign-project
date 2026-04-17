@@ -14187,17 +14187,32 @@ Use this template for your response:
   //   having already earned two tier-up milestones. Tier-based normalization
   //   makes each earned tier represent equal visual progress (1/N of the
   //   radar), so the shape is meaningful at every stage.
+  //
+  // Why the radar has its OWN tier ladders (different from Chronicle's)?
+  //   The Chronicle's tiers are achievement milestones — reasonable progression
+  //   goals that top out where a dedicated user would expect to earn their
+  //   last badge in a category. Using those same thresholds for the radar
+  //   ceiling means experienced Perchance users (who easily pass things like
+  //   "50 characters" or "500 lore entries") peg multiple axes at max with no
+  //   visual headroom left, making their shape a meaningless shaped-against-
+  //   the-ceiling triangle. The radar's tiers are set higher — designed for
+  //   visual range, not progression milestones — so the shape keeps evolving
+  //   as you grow, no matter how far you go.
 
   /**
-   * Tier thresholds per axis. Keep in sync with chronicle_grid.js — these
-   * are the same progression ladders Chronicle uses.
+   * Tier thresholds per radar axis. Tuned for VISUAL RANGE: the top tier
+   * represents "monumental user" territory that most people will never
+   * reach. 5 tiers per axis keeps the normalization granularity consistent.
+   *
+   * These are intentionally different from the Chronicle's achievement
+   * tiers. See the comment block at the top of this file.
    */
   const AXES = Object.freeze([
-    { key: 'wordsWritten',   label: 'Words',       tiers: [100, 1000, 10_000, 50_000, 100_000] },
-    { key: 'characterCount', label: 'Cast',        tiers: [1, 5, 20, 50] },
-    { key: 'longestThread',  label: 'Depth',       tiers: [100, 500, 1000, 5000] },
-    { key: 'loreCount',      label: 'Lore',        tiers: [10, 50, 100, 500] },
-    { key: 'daysActive',     label: 'Regularity',  tiers: [7, 30, 100, 365] },
+    { key: 'wordsWritten',   label: 'Words',      tiers: [100,   1_000, 10_000, 100_000, 1_000_000] },
+    { key: 'characterCount', label: 'Cast',       tiers: [1,     5,     20,     100,     500] },
+    { key: 'longestThread',  label: 'Depth',      tiers: [50,    200,   1_000,  5_000,   20_000] },
+    { key: 'loreCount',      label: 'Lore',       tiers: [10,    50,    250,    1_000,   5_000] },
+    { key: 'daysActive',     label: 'Regularity', tiers: [7,     30,    100,    365,     1_825] },
   ]);
 
   /**
@@ -15997,7 +16012,7 @@ Use this template for your response:
   }
   .pf-radar-svg {
     width: 100%;
-    max-width: 360px;
+    max-width: 460px;
     height: auto;
     overflow: visible; /* labels can reach outside the viewBox */
   }
@@ -17561,8 +17576,10 @@ Use this template for your response:
 
 
 
-  const VIEWBOX = 400;
-  const CENTER  = VIEWBOX / 2;
+  const VIEWBOX_W = 500;
+  const VIEWBOX_H = 400;
+  const CENTER_X  = VIEWBOX_W / 2;
+  const CENTER_Y  = VIEWBOX_H / 2;
   const RADIUS  = 140;       // max data radius
   const LABEL_OFFSET = 28;   // labels sit this far outside the data polygon
   const GRID_RINGS = 4;      // number of concentric guide rings
@@ -17598,10 +17615,10 @@ Use this template for your response:
     for (const a of axes) {
       svgChildren.push(hSVG('line', {
         class: 'pf-radar-axis-line',
-        x1: CENTER,
-        y1: CENTER,
-        x2: CENTER + a.unit.x * RADIUS,
-        y2: CENTER + a.unit.y * RADIUS,
+        x1: CENTER_X,
+        y1: CENTER_Y,
+        x2: CENTER_X + a.unit.x * RADIUS,
+        y2: CENTER_Y + a.unit.y * RADIUS,
       }));
     }
 
@@ -17617,16 +17634,16 @@ Use this template for your response:
       const r = RADIUS * a.normalized;
       svgChildren.push(hSVG('circle', {
         class: 'pf-radar-value-dot',
-        cx: CENTER + a.unit.x * r,
-        cy: CENTER + a.unit.y * r,
+        cx: CENTER_X + a.unit.x * r,
+        cy: CENTER_Y + a.unit.y * r,
         r: 3.5,
       }));
     }
 
     // Axis labels at the outer end of each axis
     for (const a of axes) {
-      const lx = CENTER + a.unit.x * (RADIUS + LABEL_OFFSET);
-      const ly = CENTER + a.unit.y * (RADIUS + LABEL_OFFSET);
+      const lx = CENTER_X + a.unit.x * (RADIUS + LABEL_OFFSET);
+      const ly = CENTER_Y + a.unit.y * (RADIUS + LABEL_OFFSET);
       svgChildren.push(hSVG('text', {
         class: 'pf-radar-label',
         x: lx,
@@ -17638,7 +17655,11 @@ Use this template for your response:
 
     const svg = hSVG('svg', {
       class: 'pf-radar-svg',
-      viewBox: `0 0 ${VIEWBOX} ${VIEWBOX}`,
+      viewBox: `0 0 ${VIEWBOX_W} ${VIEWBOX_H}`,
+      // Explicit attribute (not just CSS) — some browsers are inconsistent
+      // about allowing text labels to extend past the SVG's logical bounds
+      // if only the CSS overflow is set.
+      overflow: 'visible',
       role: 'img',
       'aria-label': describeShape(values),
     }, svgChildren);
@@ -17664,8 +17685,8 @@ Use this template for your response:
   function makePolygon(axes, constantR, attrs) {
     const points = axes.map(a => {
       const r = constantR != null ? constantR : a._r;
-      const x = CENTER + a.unit.x * r;
-      const y = CENTER + a.unit.y * r;
+      const x = CENTER_X + a.unit.x * r;
+      const y = CENTER_Y + a.unit.y * r;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     }).join(' ');
     return hSVG('polygon', { ...attrs, points });

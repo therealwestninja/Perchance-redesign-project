@@ -10,17 +10,32 @@
 //   having already earned two tier-up milestones. Tier-based normalization
 //   makes each earned tier represent equal visual progress (1/N of the
 //   radar), so the shape is meaningful at every stage.
+//
+// Why the radar has its OWN tier ladders (different from Chronicle's)?
+//   The Chronicle's tiers are achievement milestones — reasonable progression
+//   goals that top out where a dedicated user would expect to earn their
+//   last badge in a category. Using those same thresholds for the radar
+//   ceiling means experienced Perchance users (who easily pass things like
+//   "50 characters" or "500 lore entries") peg multiple axes at max with no
+//   visual headroom left, making their shape a meaningless shaped-against-
+//   the-ceiling triangle. The radar's tiers are set higher — designed for
+//   visual range, not progression milestones — so the shape keeps evolving
+//   as you grow, no matter how far you go.
 
 /**
- * Tier thresholds per axis. Keep in sync with chronicle_grid.js — these
- * are the same progression ladders Chronicle uses.
+ * Tier thresholds per radar axis. Tuned for VISUAL RANGE: the top tier
+ * represents "monumental user" territory that most people will never
+ * reach. 5 tiers per axis keeps the normalization granularity consistent.
+ *
+ * These are intentionally different from the Chronicle's achievement
+ * tiers. See the comment block at the top of this file.
  */
 const AXES = Object.freeze([
-  { key: 'wordsWritten',   label: 'Words',       tiers: [100, 1000, 10_000, 50_000, 100_000] },
-  { key: 'characterCount', label: 'Cast',        tiers: [1, 5, 20, 50] },
-  { key: 'longestThread',  label: 'Depth',       tiers: [100, 500, 1000, 5000] },
-  { key: 'loreCount',      label: 'Lore',        tiers: [10, 50, 100, 500] },
-  { key: 'daysActive',     label: 'Regularity',  tiers: [7, 30, 100, 365] },
+  { key: 'wordsWritten',   label: 'Words',      tiers: [100,   1_000, 10_000, 100_000, 1_000_000] },
+  { key: 'characterCount', label: 'Cast',       tiers: [1,     5,     20,     100,     500] },
+  { key: 'longestThread',  label: 'Depth',      tiers: [50,    200,   1_000,  5_000,   20_000] },
+  { key: 'loreCount',      label: 'Lore',       tiers: [10,    50,    250,    1_000,   5_000] },
+  { key: 'daysActive',     label: 'Regularity', tiers: [7,     30,    100,    365,     1_825] },
 ]);
 
 /**

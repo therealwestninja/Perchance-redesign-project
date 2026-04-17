@@ -986,7 +986,7 @@ export const CSS = `
 }
 .pf-radar-svg {
   width: 100%;
-  max-width: 360px;
+  max-width: 460px;
   height: auto;
   overflow: visible; /* labels can reach outside the viewBox */
 }

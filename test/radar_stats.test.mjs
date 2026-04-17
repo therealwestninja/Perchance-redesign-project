@@ -93,12 +93,13 @@ test('computeRadarValues: empty stats yield all zeros', () => {
 });
 
 test('computeRadarValues: fully-maxed user yields all 1.0', () => {
+  // Values past the new (higher) top tier on every axis
   const maxStats = {
-    wordsWritten:   500_000,
-    characterCount: 100,
-    longestThread:  10_000,
-    loreCount:      1_000,
-    daysActive:     1_000,
+    wordsWritten:   2_000_000,   // past 1M
+    characterCount: 1_000,        // past 500
+    longestThread:  50_000,       // past 20k
+    loreCount:      10_000,       // past 5k
+    daysActive:     3_000,        // past 1825
   };
   const r = computeRadarValues(maxStats);
   for (const v of r) {
@@ -153,4 +154,30 @@ test('a dedicated-prompt-explorer shape has high Regularity, moderate Words', ()
   assert.ok(byKey.daysActive > byKey.loreCount);
   assert.ok(byKey.daysActive > byKey.longestThread);
   assert.equal(byKey.loreCount, 0);
+});
+
+// Regression: the first deploy of the radar sized its tiers from the
+// Chronicle's achievement ladder, which meant an experienced Perchance
+// user pegged multiple axes at 1.0 with no visual room left for further
+// growth ("going nuts"). The radar now has its own more ambitious tier
+// ladders — this test locks in that experienced users retain headroom.
+test('experienced user does not plateau at 1.0 on every axis', () => {
+  const stats = {
+    wordsWritten: 0,
+    characterCount: 61,     // would have maxed at old tier 50
+    longestThread: 36,
+    loreCount: 585,          // would have maxed at old tier 500
+    daysActive: 0,
+  };
+  const r = computeRadarValues(stats);
+  const byKey = Object.fromEntries(r.map(v => [v.key, v.normalized]));
+
+  assert.ok(byKey.characterCount < 1,
+    'Cast should have headroom above 61 characters');
+  assert.ok(byKey.loreCount < 1,
+    'Lore should have headroom above 585 entries');
+
+  // But these values should still register as high-ish (past tier 3)
+  assert.ok(byKey.characterCount > 0.6);
+  assert.ok(byKey.loreCount > 0.6);
 });

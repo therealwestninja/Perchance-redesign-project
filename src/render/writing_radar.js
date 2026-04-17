@@ -8,8 +8,10 @@ import { h, hSVG } from '../utils/dom.js';
 import { computeRadarValues } from '../stats/radar_stats.js';
 import { formatNumber } from '../utils/format.js';
 
-const VIEWBOX = 400;
-const CENTER  = VIEWBOX / 2;
+const VIEWBOX_W = 500;
+const VIEWBOX_H = 400;
+const CENTER_X  = VIEWBOX_W / 2;
+const CENTER_Y  = VIEWBOX_H / 2;
 const RADIUS  = 140;       // max data radius
 const LABEL_OFFSET = 28;   // labels sit this far outside the data polygon
 const GRID_RINGS = 4;      // number of concentric guide rings
@@ -45,10 +47,10 @@ export function createWritingRadar({ stats }) {
   for (const a of axes) {
     svgChildren.push(hSVG('line', {
       class: 'pf-radar-axis-line',
-      x1: CENTER,
-      y1: CENTER,
-      x2: CENTER + a.unit.x * RADIUS,
-      y2: CENTER + a.unit.y * RADIUS,
+      x1: CENTER_X,
+      y1: CENTER_Y,
+      x2: CENTER_X + a.unit.x * RADIUS,
+      y2: CENTER_Y + a.unit.y * RADIUS,
     }));
   }
 
@@ -64,16 +66,16 @@ export function createWritingRadar({ stats }) {
     const r = RADIUS * a.normalized;
     svgChildren.push(hSVG('circle', {
       class: 'pf-radar-value-dot',
-      cx: CENTER + a.unit.x * r,
-      cy: CENTER + a.unit.y * r,
+      cx: CENTER_X + a.unit.x * r,
+      cy: CENTER_Y + a.unit.y * r,
       r: 3.5,
     }));
   }
 
   // Axis labels at the outer end of each axis
   for (const a of axes) {
-    const lx = CENTER + a.unit.x * (RADIUS + LABEL_OFFSET);
-    const ly = CENTER + a.unit.y * (RADIUS + LABEL_OFFSET);
+    const lx = CENTER_X + a.unit.x * (RADIUS + LABEL_OFFSET);
+    const ly = CENTER_Y + a.unit.y * (RADIUS + LABEL_OFFSET);
     svgChildren.push(hSVG('text', {
       class: 'pf-radar-label',
       x: lx,
@@ -85,7 +87,11 @@ export function createWritingRadar({ stats }) {
 
   const svg = hSVG('svg', {
     class: 'pf-radar-svg',
-    viewBox: `0 0 ${VIEWBOX} ${VIEWBOX}`,
+    viewBox: `0 0 ${VIEWBOX_W} ${VIEWBOX_H}`,
+    // Explicit attribute (not just CSS) — some browsers are inconsistent
+    // about allowing text labels to extend past the SVG's logical bounds
+    // if only the CSS overflow is set.
+    overflow: 'visible',
     role: 'img',
     'aria-label': describeShape(values),
   }, svgChildren);
@@ -111,8 +117,8 @@ export function createWritingRadar({ stats }) {
 function makePolygon(axes, constantR, attrs) {
   const points = axes.map(a => {
     const r = constantR != null ? constantR : a._r;
-    const x = CENTER + a.unit.x * r;
-    const y = CENTER + a.unit.y * r;
+    const x = CENTER_X + a.unit.x * r;
+    const y = CENTER_Y + a.unit.y * r;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(' ');
   return hSVG('polygon', { ...attrs, points });
