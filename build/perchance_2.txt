@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 38 };
+  NS.__meta = { modules: 40 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14734,6 +14734,176 @@ Use this template for your response:
       const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
     }
   }
+
+  /* ──────────────────────────────────────────────────────────
+     module: prompts/archive.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/archive.js
+  //
+  // Compute a historical record of past weeks' prompts — what was offered,
+  // what the user completed. Pure: reads stored completions from settings,
+  // recomputes offerings via the deterministic scheduler + event calendar.
+  //
+  // No new storage. completedByWeek already exists in pf:settings (that's
+  // how weekly completions persist across days). Past offerings are
+  // recreated on demand — same week key + same registry always yields the
+  // same prompts.
+
+
+
+
+
+  const DEFAULT_WEEKS_BACK = 8;
+  const MAX_WEEKS_BACK = 52;
+
+  /**
+   * Returns past-week archive entries in reverse chronological order
+   * (newest first). Does NOT include the current week — that lives in the
+   * live Prompts section. Each entry carries enough data to render the
+   * offerings, completion state, and associated events.
+   *
+   * @param {{ weeksBack?: number, now?: Date }} [opts]
+   * @returns {Array<ArchiveEntry>}
+   */
+  function computeArchiveEntries({ weeksBack = DEFAULT_WEEKS_BACK, now = new Date() } = {}) {
+    const bound = Math.max(0, Math.min(weeksBack, MAX_WEEKS_BACK));
+    const s = safeLoadSettings();
+    const completedByWeek = (s && s.prompts && s.prompts.completedByWeek) || {};
+
+    const entries = [];
+    for (let i = 1; i <= bound; i++) {
+      const weekDate = new Date(now);
+      weekDate.setUTCDate(weekDate.getUTCDate() - i * 7);
+      const weekKey = getCurrentWeekKey(weekDate);
+
+      entries.push(buildWeekEntry(weekKey, completedByWeek[weekKey] || []));
+    }
+    return entries;
+  }
+
+  function buildWeekEntry(weekKey, completedIds) {
+    const completedSet = new Set(Array.isArray(completedIds) ? completedIds : []);
+    const monday = weekKeyToMondayDate(weekKey);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+
+    const regularPrompts = getWeekPrompts(weekKey).map(p => ({
+      id: p.id,
+      text: p.text,
+      completed: completedSet.has(p.id),
+    }));
+
+    // Events active on ANY day in this week (union across 7 days)
+    const eventsInWeek = getEventsInWeekRange(monday, sunday);
+    const eventGroups = eventsInWeek.map(ev => ({
+      eventId: ev.id,
+      eventName: ev.name,
+      eventIcon: ev.icon,
+      prompts: ev.prompts.map(p => ({
+        id: p.id,
+        text: p.text,
+        completed: completedSet.has(p.id),
+      })),
+    }));
+
+    const regularCompleted = regularPrompts.filter(p => p.completed).length;
+    const eventCompleted = eventGroups.reduce(
+      (acc, g) => acc + g.prompts.filter(p => p.completed).length, 0
+    );
+    const eventTotal = eventGroups.reduce((acc, g) => acc + g.prompts.length, 0);
+
+    return {
+      weekKey,
+      monday,
+      sunday,
+      dateRange: formatDateRange(monday, sunday),
+      regularPrompts,
+      eventGroups,
+      completedCount: regularCompleted + eventCompleted,
+      totalCount: regularPrompts.length + eventTotal,
+    };
+  }
+
+  /**
+   * Map an ISO week key like "2026-W16" back to the Date of its Monday (UTC).
+   * Uses the canonical ISO definition: week 1 is the week containing Jan 4.
+   *
+   * @param {string} weekKey
+   * @returns {Date}
+   */
+  function weekKeyToMondayDate(weekKey) {
+    const match = /^(\d{4})-W(\d{1,2})$/.exec(String(weekKey || ''));
+    if (!match) return new Date(NaN);
+    const year = parseInt(match[1], 10);
+    const weekNo = parseInt(match[2], 10);
+
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const jan4DayOfWeek = jan4.getUTCDay() || 7;   // Sun=0 → 7 (ISO treats Sun as end-of-week)
+    const week1Monday = new Date(jan4);
+    week1Monday.setUTCDate(jan4.getUTCDate() - (jan4DayOfWeek - 1));
+
+    const monday = new Date(week1Monday);
+    monday.setUTCDate(week1Monday.getUTCDate() + (weekNo - 1) * 7);
+    return monday;
+  }
+
+  /**
+   * Iterate each day from `start` to `end` (inclusive, UTC), return the
+   * union of events that were active on any of them. Deduplicated by event id.
+   */
+  function getEventsInWeekRange(start, end) {
+    const found = new Map();
+    const day = new Date(start);
+    const last = new Date(end);
+    // Safety bound — an ISO week is always exactly 7 days but don't trust inputs
+    let guard = 14;
+    while (day.getTime() <= last.getTime() && guard > 0) {
+      for (const ev of getActiveEvents(day)) {
+        if (!found.has(ev.id)) found.set(ev.id, ev);
+      }
+      day.setUTCDate(day.getUTCDate() + 1);
+      guard--;
+    }
+    return Array.from(found.values());
+  }
+
+  /**
+   * Compact, human-readable week range — "Apr 7–13" or "Apr 28 – May 4".
+   * Always UTC, en-US month names (consistent with the app's existing
+   * UTC-based week boundaries).
+   */
+  function formatDateRange(start, end) {
+    const startM = UTC_MONTHS[start.getUTCMonth()];
+    const endM   = UTC_MONTHS[end.getUTCMonth()];
+    const startD = start.getUTCDate();
+    const endD   = end.getUTCDate();
+    if (startM === endM) return `${startM} ${startD}–${endD}`;
+    return `${startM} ${startD} – ${endM} ${endD}`;
+  }
+
+  const UTC_MONTHS = Object.freeze([
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ]);
+
+  function safeLoadSettings() {
+    try { return loadSettings(); }
+    catch { return null; }
+  }
+
+  /**
+   * @typedef {Object} ArchiveEntry
+   * @property {string} weekKey
+   * @property {Date}   monday
+   * @property {Date}   sunday
+   * @property {string} dateRange       "Apr 7–13" or "Apr 28 – May 4"
+   * @property {Array<{id: string, text: string, completed: boolean}>} regularPrompts
+   * @property {Array<{eventId: string, eventName: string, eventIcon: string,
+   *                   prompts: Array<{id: string, text: string, completed: boolean}>}>}
+   *          eventGroups
+   * @property {number} completedCount
+   * @property {number} totalCount
+   */
 
   /* ──────────────────────────────────────────────────────────
      module: events/registry.js
@@ -16166,6 +16336,163 @@ Use this template for your response:
   }
 
   /* ============================================================
+     Prompt Archive — read-only view of past weeks
+     ============================================================ */
+  .pf-archive {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .pf-archive-intro {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+    opacity: 0.9;
+  }
+  .pf-archive-intro-soft {
+    opacity: 0.7;
+  }
+  .pf-archive-empty {
+    margin: 0;
+    padding: 14px;
+    text-align: center;
+    font-size: 13px;
+    font-style: italic;
+    opacity: 0.7;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--border-radius);
+  }
+  .pf-archive-week {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+  }
+  .pf-archive-week-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .pf-archive-week-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+  .pf-archive-week-key {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: #d8b36a;
+    font-weight: 600;
+  }
+  .pf-archive-week-range {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+  .pf-archive-week-count {
+    font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    color: #d8b36a;
+    flex-shrink: 0;
+  }
+  .pf-archive-week-count-none {
+    color: var(--text-color);
+    opacity: 0.4;
+  }
+  .pf-archive-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .pf-archive-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px 4px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .pf-archive-check {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    opacity: 0.4;
+  }
+  .pf-archive-item-done .pf-archive-check {
+    color: #d8b36a;
+    opacity: 1;
+    font-weight: 600;
+  }
+  .pf-archive-text {
+    flex: 1;
+  }
+  .pf-archive-item-done .pf-archive-text {
+    opacity: 0.75;
+  }
+
+  /* Event subgroup within a week */
+  .pf-archive-event-group {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-color);
+  }
+  .pf-archive-event-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #d8b36a;
+    opacity: 0.85;
+  }
+  .pf-archive-event-icon {
+    font-size: 14px;
+  }
+
+  .pf-archive-load-more {
+    align-self: center;
+    padding: 8px 18px;
+    margin-top: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-archive-load-more:hover {
+    background: rgba(216, 179, 106, 0.08);
+    border-color: rgba(216, 179, 106, 0.45);
+  }
+  .pf-archive-end {
+    align-self: center;
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-style: italic;
+    opacity: 0.5;
+  }
+
+  /* ============================================================
      Backup section — export/import of profile settings as JSON
      ============================================================ */
   .pf-backup {
@@ -16361,7 +16688,7 @@ Use this template for your response:
   const KEY = 'pf:settings';
   const OLD_KEY = 'pf:profile';
 
-  const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'style', 'achievements', 'backup'];
+  const SECTION_IDS = ['about', 'details', 'prompts', 'archive', 'chronicle', 'style', 'achievements', 'backup'];
 
   /**
    * Default shape. Every read path falls back through this, so any missing
@@ -16385,6 +16712,7 @@ Use this template for your response:
           about:        { collapsed: false, blurred: false },
           details:      { collapsed: false, blurred: true   }, // private by default
           prompts:      { collapsed: false, blurred: false },
+          archive:      { collapsed: true,  blurred: false }, // review tool — collapsed by default
           chronicle:    { collapsed: false, blurred: false },
           style:        { collapsed: false, blurred: false },
           achievements: { collapsed: false, blurred: false },
@@ -17760,6 +18088,114 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/prompt_archive.js
+     ────────────────────────────────────────────────────────── */
+  // render/prompt_archive.js
+  //
+  // Read-only view of past weeks' prompts. Groups per week: week label,
+  // date range, completion count, list of offered prompts with ✓ or · for
+  // completion state. Event-themed prompts appear in their own subgroup
+  // inside each week, matching the current Prompts section's layout.
+  //
+  // This is not interactive — no checkboxes. Past is past. The live Prompts
+  // section remains the place for editing the current week.
+
+
+
+
+  const INITIAL_WEEKS = 8;
+  const STEP_WEEKS    = 8;
+
+  function createPromptArchive() {
+    const container = h('div', { class: 'pf-archive' });
+    let weeksBack = INITIAL_WEEKS;
+
+    function render() {
+      const entries = computeArchiveEntries({ weeksBack });
+
+      if (entries.length === 0) {
+        replaceContents(container, [
+          h('p', { class: 'pf-archive-empty' }, [
+            'No past weeks yet — the first archive entry appears next Monday.',
+          ]),
+        ]);
+        return;
+      }
+
+      const children = [
+        h('p', { class: 'pf-archive-intro' }, [
+          'A record of past weeks. ',
+          h('span', { class: 'pf-archive-intro-soft' }, [
+            'Read-only — completions here reflect what you marked at the time.',
+          ]),
+        ]),
+        ...entries.map(renderWeekEntry),
+      ];
+
+      if (weeksBack < MAX_WEEKS_BACK) {
+        children.push(h('button', {
+          class: 'pf-archive-load-more',
+          type: 'button',
+          onClick: () => {
+            weeksBack = Math.min(MAX_WEEKS_BACK, weeksBack + STEP_WEEKS);
+            render();
+          },
+        }, ['Show earlier weeks']));
+      } else {
+        children.push(h('p', { class: 'pf-archive-end' }, [
+          `Showing the past ${MAX_WEEKS_BACK} weeks.`,
+        ]));
+      }
+
+      replaceContents(container, children);
+    }
+
+    render();
+    return container;
+  }
+
+  function renderWeekEntry(entry) {
+    const eventChildren = entry.eventGroups.map(eg =>
+      h('div', { class: 'pf-archive-event-group' }, [
+        h('div', { class: 'pf-archive-event-head' }, [
+          h('span', { class: 'pf-archive-event-icon', 'aria-hidden': 'true' }, [eg.eventIcon || '✦']),
+          h('span', { class: 'pf-archive-event-name' }, [eg.eventName]),
+        ]),
+        h('ul', { class: 'pf-archive-list' }, eg.prompts.map(renderPromptItem)),
+      ])
+    );
+
+    return h('div', { class: 'pf-archive-week' }, [
+      h('div', { class: 'pf-archive-week-head' }, [
+        h('div', { class: 'pf-archive-week-title' }, [
+          h('span', { class: 'pf-archive-week-key' }, [entry.weekKey]),
+          h('span', { class: 'pf-archive-week-range' }, [entry.dateRange]),
+        ]),
+        h('div', {
+          class: 'pf-archive-week-count' +
+            (entry.completedCount === 0 ? ' pf-archive-week-count-none' : ''),
+        }, [
+          `${entry.completedCount} of ${entry.totalCount}`,
+        ]),
+      ]),
+      h('ul', { class: 'pf-archive-list' }, entry.regularPrompts.map(renderPromptItem)),
+      ...eventChildren,
+    ]);
+  }
+
+  function renderPromptItem(p) {
+    return h('li', {
+      class: 'pf-archive-item' + (p.completed ? ' pf-archive-item-done' : ''),
+    }, [
+      h('span', {
+        class: 'pf-archive-check',
+        'aria-label': p.completed ? 'Completed' : 'Not completed',
+      }, [p.completed ? '✓' : '·']),
+      h('span', { class: 'pf-archive-text' }, [p.text]),
+    ]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/chronicle_grid.js
      ────────────────────────────────────────────────────────── */
   // render/chronicle_grid.js
@@ -18590,6 +19026,7 @@ Use this template for your response:
 
 
 
+
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
    * on the splash. Highest tier first; within a tier, registry order.
@@ -18745,6 +19182,13 @@ Use this template for your response:
       initialState: displayState.prompts,
     });
 
+    const archiveSection = createSection({
+      id: 'archive',
+      title: 'Prompt Archive',
+      children: createPromptArchive(),
+      initialState: displayState.archive,
+    });
+
     const chronicleSection = createSection({
       id: 'chronicle',
       title: 'Chronicle',
@@ -18783,6 +19227,7 @@ Use this template for your response:
         aboutSection,
         detailsSection,
         promptsSection,
+        archiveSection,
         chronicleSection,
         styleSection,
         achievementsSection,

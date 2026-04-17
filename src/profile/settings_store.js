@@ -9,7 +9,7 @@
 const KEY = 'pf:settings';
 const OLD_KEY = 'pf:profile';
 
-const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'style', 'achievements', 'backup'];
+const SECTION_IDS = ['about', 'details', 'prompts', 'archive', 'chronicle', 'style', 'achievements', 'backup'];
 
 /**
  * Default shape. Every read path falls back through this, so any missing
@@ -33,6 +33,7 @@ export function defaultSettings() {
         about:        { collapsed: false, blurred: false },
         details:      { collapsed: false, blurred: true   }, // private by default
         prompts:      { collapsed: false, blurred: false },
+        archive:      { collapsed: true,  blurred: false }, // review tool — collapsed by default
         chronicle:    { collapsed: false, blurred: false },
         style:        { collapsed: false, blurred: false },
         achievements: { collapsed: false, blurred: false },

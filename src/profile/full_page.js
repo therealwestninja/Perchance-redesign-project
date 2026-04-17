@@ -12,6 +12,7 @@ import { createDetailsBody } from '../render/details_form.js';
 import { createChronicleGrid } from '../render/chronicle_grid.js';
 import { createAchievementsGrid } from '../render/achievements_grid.js';
 import { createPromptsBody } from '../render/prompts_section.js';
+import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
@@ -186,6 +187,13 @@ export async function openFullPage() {
     initialState: displayState.prompts,
   });
 
+  const archiveSection = createSection({
+    id: 'archive',
+    title: 'Prompt Archive',
+    children: createPromptArchive(),
+    initialState: displayState.archive,
+  });
+
   const chronicleSection = createSection({
     id: 'chronicle',
     title: 'Chronicle',
@@ -224,6 +232,7 @@ export async function openFullPage() {
       aboutSection,
       detailsSection,
       promptsSection,
+      archiveSection,
       chronicleSection,
       styleSection,
       achievementsSection,

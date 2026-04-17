@@ -1140,6 +1140,163 @@ export const CSS = `
 }
 
 /* ============================================================
+   Prompt Archive — read-only view of past weeks
+   ============================================================ */
+.pf-archive {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pf-archive-intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-color);
+  opacity: 0.9;
+}
+.pf-archive-intro-soft {
+  opacity: 0.7;
+}
+.pf-archive-empty {
+  margin: 0;
+  padding: 14px;
+  text-align: center;
+  font-size: 13px;
+  font-style: italic;
+  opacity: 0.7;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--border-radius);
+}
+.pf-archive-week {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+.pf-archive-week-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.pf-archive-week-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.pf-archive-week-key {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #d8b36a;
+  font-weight: 600;
+}
+.pf-archive-week-range {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.pf-archive-week-count {
+  font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color: #d8b36a;
+  flex-shrink: 0;
+}
+.pf-archive-week-count-none {
+  color: var(--text-color);
+  opacity: 0.4;
+}
+.pf-archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pf-archive-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.pf-archive-check {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  opacity: 0.4;
+}
+.pf-archive-item-done .pf-archive-check {
+  color: #d8b36a;
+  opacity: 1;
+  font-weight: 600;
+}
+.pf-archive-text {
+  flex: 1;
+}
+.pf-archive-item-done .pf-archive-text {
+  opacity: 0.75;
+}
+
+/* Event subgroup within a week */
+.pf-archive-event-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-color);
+}
+.pf-archive-event-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #d8b36a;
+  opacity: 0.85;
+}
+.pf-archive-event-icon {
+  font-size: 14px;
+}
+
+.pf-archive-load-more {
+  align-self: center;
+  padding: 8px 18px;
+  margin-top: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-archive-load-more:hover {
+  background: rgba(216, 179, 106, 0.08);
+  border-color: rgba(216, 179, 106, 0.45);
+}
+.pf-archive-end {
+  align-self: center;
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-style: italic;
+  opacity: 0.5;
+}
+
+/* ============================================================
    Backup section — export/import of profile settings as JSON
    ============================================================ */
 .pf-backup {
