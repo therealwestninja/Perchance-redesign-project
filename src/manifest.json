@@ -1,0 +1,19 @@
+{
+  "_comment": "Ordered list of source modules to bundle into build/perchance_2.txt. Each path is relative to src/. Order matters — later modules can reference earlier ones, since they all share the same IIFE scope in the bundled output. bootstrap.js must be last — it invokes start(). For Node tests, ESM imports work directly and manifest order doesn't apply.",
+  "modules": [
+    "utils/escape.js",
+    "utils/dom.js",
+    "utils/format.js",
+    "stats/queries.js",
+    "stats/db.js",
+    "achievements/tiers.js",
+    "achievements/registry.js",
+    "achievements/unlocks.js",
+    "render/styles.js",
+    "render/mini_card.js",
+    "profile/styles_install.js",
+    "profile/mount.js",
+    "profile/index.js",
+    "bootstrap.js"
+  ]
+}
