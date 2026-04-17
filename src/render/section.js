@@ -59,6 +59,10 @@ export function createSection({ id, title, children, initialState }) {
     root.classList.toggle('pf-section-collapsed', collapsed);
     chevronBtn.setAttribute('aria-expanded', String(!collapsed));
     chevronBtn.textContent = collapsed ? '▸' : '▾';
+    // Keep a11y labels in sync — they describe the ACTION the button
+    // performs, not the current state, so they flip as state flips.
+    chevronBtn.setAttribute('aria-label', collapsed ? `Expand ${title}` : `Collapse ${title}`);
+    chevronBtn.setAttribute('title', collapsed ? 'Expand' : 'Collapse');
     if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
   }
 
@@ -66,6 +70,8 @@ export function createSection({ id, title, children, initialState }) {
     blurred = !!val;
     root.classList.toggle('pf-section-blurred', blurred);
     eyeBtn.setAttribute('aria-pressed', String(blurred));
+    eyeBtn.setAttribute('aria-label', blurred ? `Show ${title}` : `Hide ${title}`);
+    eyeBtn.setAttribute('title', blurred ? 'Show content' : 'Hide content');
     if (persist) updateField(`display.sections.${id}.blurred`, blurred);
   }
 

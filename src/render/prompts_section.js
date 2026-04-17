@@ -104,7 +104,9 @@ function createCadenceToggle(current) {
     updateField('prompts.cadence', next);
     // Close the overlay; re-opening reads the new cadence. Avoids
     // having to tear down + rebuild the entire Prompts tree in place.
-    const overlay = document.querySelector('.pf-overlay');
+    // Use closest() instead of document.querySelector so we close THIS
+    // overlay and not some other one that might exist.
+    const overlay = wklBtn.closest('.pf-overlay');
     if (overlay && typeof overlay.hide === 'function') overlay.hide();
   }
 

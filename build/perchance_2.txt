@@ -13957,6 +13957,12 @@ Use this template for your response:
     canvas.width = maxDim;
     canvas.height = maxDim;
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      // Extremely rare — some privacy modes / headless environments return null.
+      // Better to throw a clear message than let the next line fail with a
+      // cryptic "Cannot set properties of null" TypeError.
+      throw new Error('Canvas unavailable — cannot process image.');
+    }
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, maxDim, maxDim);
 
@@ -17769,6 +17775,10 @@ Use this template for your response:
       root.classList.toggle('pf-section-collapsed', collapsed);
       chevronBtn.setAttribute('aria-expanded', String(!collapsed));
       chevronBtn.textContent = collapsed ? '▸' : '▾';
+      // Keep a11y labels in sync — they describe the ACTION the button
+      // performs, not the current state, so they flip as state flips.
+      chevronBtn.setAttribute('aria-label', collapsed ? `Expand ${title}` : `Collapse ${title}`);
+      chevronBtn.setAttribute('title', collapsed ? 'Expand' : 'Collapse');
       if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
     }
 
@@ -17776,6 +17786,8 @@ Use this template for your response:
       blurred = !!val;
       root.classList.toggle('pf-section-blurred', blurred);
       eyeBtn.setAttribute('aria-pressed', String(blurred));
+      eyeBtn.setAttribute('aria-label', blurred ? `Show ${title}` : `Hide ${title}`);
+      eyeBtn.setAttribute('title', blurred ? 'Show content' : 'Hide content');
       if (persist) updateField(`display.sections.${id}.blurred`, blurred);
     }
 
@@ -17995,7 +18007,22 @@ Use this template for your response:
     field.addEventListener('pointerup', endPointer);
     field.addEventListener('pointercancel', endPointer);
 
-    // Keyboard: arrow keys nudge the dot 5% per press; persists immediately
+    // Debounced persist for keyboard arrows — holding an arrow would
+    // otherwise fire updateField 20+ times per second, each triggering a
+    // localStorage write plus pub/sub broadcast (which kicks the mini-card
+    // into an IDB re-read). Visual updates still happen on every keystroke;
+    // only the persistence is debounced.
+    let persistTimer = null;
+    function schedulePersist() {
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
+        persistTimer = null;
+        updateField('profile.genderPos', current);
+      }, 250);
+    }
+
+    // Keyboard: arrow keys nudge the dot 5% per press; visual is immediate,
+    // persistence is debounced so a held arrow isn't a write-storm.
     field.addEventListener('keydown', (ev) => {
       const step = 0.05;
       let dx = 0, dy = 0;
@@ -18011,7 +18038,7 @@ Use this template for your response:
       };
       applyDotPosition(current);
       field.setAttribute('aria-valuetext', formatAria(current));
-      updateField('profile.genderPos', current);
+      schedulePersist();
     });
 
     function updateFromEvent(ev) {
@@ -18421,7 +18448,9 @@ Use this template for your response:
       updateField('prompts.cadence', next);
       // Close the overlay; re-opening reads the new cadence. Avoids
       // having to tear down + rebuild the entire Prompts tree in place.
-      const overlay = document.querySelector('.pf-overlay');
+      // Use closest() instead of document.querySelector so we close THIS
+      // overlay and not some other one that might exist.
+      const overlay = wklBtn.closest('.pf-overlay');
       if (overlay && typeof overlay.hide === 'function') overlay.hide();
     }
 
@@ -19259,12 +19288,14 @@ Use this template for your response:
             'Restored. Reloading profile…',
             'ok'
           );
-          // Close the overlay so the next open picks up fresh settings.
-          // A full page reload is overkill; settings change events will
-          // propagate on the next open of the profile.
+          // Capture the overlay reference NOW rather than via
+          // document.querySelector inside the setTimeout. See doClear
+          // for the full rationale — same concern here.
+          const overlay = importPanel.closest('.pf-overlay');
           setTimeout(() => {
-            const overlay = document.querySelector('.pf-overlay');
-            if (overlay && typeof overlay.hide === 'function') overlay.hide();
+            if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+              overlay.hide();
+            }
           }, 800);
         } else {
           showStatus(status, result.error || 'Could not restore backup.', 'err');
@@ -19323,10 +19354,16 @@ Use this template for your response:
           `Cleared ${result.droppedWeeks} past ${result.droppedWeeks === 1 ? 'week' : 'weeks'}. Reloading…`,
           'ok'
         );
-        // Close the overlay so the next open picks up fresh state.
+        // Capture the overlay reference NOW rather than via document.
+        // querySelector inside the setTimeout. If the user dismisses
+        // manually and reopens before 800ms elapses, we'd otherwise
+        // close their fresh overlay. closest() walks up from clearPanel
+        // which is inside this very overlay.
+        const overlay = clearPanel.closest('.pf-overlay');
         setTimeout(() => {
-          const overlay = document.querySelector('.pf-overlay');
-          if (overlay && typeof overlay.hide === 'function') overlay.hide();
+          if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+            overlay.hide();
+          }
         }, 800);
       }
 
@@ -19463,8 +19500,9 @@ Use this template for your response:
 
       barFillEl.style.width = pct;
 
-      // Pulse / indicator dot when there are unseen noteworthy events
-      // (achievement unlocks for now — will cover quests/events later).
+      // Pulse / indicator dot when there are unseen noteworthy events.
+      // Covers: newly-unlocked achievements, a new week's prompts the user
+      // hasn't acknowledged, and active holiday/observance events.
       const hasPending = Number(vm.pendingCount) > 0;
       root.classList.toggle('pf-mini-card-pending', hasPending);
       avatarEl.classList.toggle('pf-mini-avatar-has-dot', hasPending);

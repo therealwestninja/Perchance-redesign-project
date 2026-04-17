@@ -10,11 +10,13 @@ import {
   importSettingsFromJson,
   copyToClipboard,
 } from '../profile/backup.js';
+import { clearCompletionHistory } from '../prompts/gc.js';
 
 export function createBackupBody() {
   // Panels — each is hidden by default, revealed by its respective button
   const exportPanel = h('div', { class: 'pf-backup-panel', hidden: true });
   const importPanel = h('div', { class: 'pf-backup-panel', hidden: true });
+  const clearPanel  = h('div', { class: 'pf-backup-panel', hidden: true });
 
   const exportBtn = h('button', {
     class: 'pf-backup-btn',
@@ -28,18 +30,37 @@ export function createBackupBody() {
     onClick: () => toggleImport(),
   }, ['Import']);
 
+  const clearBtn = h('button', {
+    class: 'pf-backup-btn',
+    type: 'button',
+    onClick: () => toggleClear(),
+  }, ['Clear history']);
+
+  function hideAllPanels() {
+    exportPanel.hidden = true;
+    importPanel.hidden = true;
+    clearPanel.hidden = true;
+  }
+
   function toggleExport() {
     if (!exportPanel.hidden) { exportPanel.hidden = true; return; }
-    importPanel.hidden = true;
+    hideAllPanels();
     renderExportPanel();
     exportPanel.hidden = false;
   }
 
   function toggleImport() {
     if (!importPanel.hidden) { importPanel.hidden = true; return; }
-    exportPanel.hidden = true;
+    hideAllPanels();
     renderImportPanel();
     importPanel.hidden = false;
+  }
+
+  function toggleClear() {
+    if (!clearPanel.hidden) { clearPanel.hidden = true; return; }
+    hideAllPanels();
+    renderClearPanel();
+    clearPanel.hidden = false;
   }
 
   function renderExportPanel() {
@@ -133,12 +154,14 @@ export function createBackupBody() {
           'Restored. Reloading profile…',
           'ok'
         );
-        // Close the overlay so the next open picks up fresh settings.
-        // A full page reload is overkill; settings change events will
-        // propagate on the next open of the profile.
+        // Capture the overlay reference NOW rather than via
+        // document.querySelector inside the setTimeout. See doClear
+        // for the full rationale — same concern here.
+        const overlay = importPanel.closest('.pf-overlay');
         setTimeout(() => {
-          const overlay = document.querySelector('.pf-overlay');
-          if (overlay && typeof overlay.hide === 'function') overlay.hide();
+          if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+            overlay.hide();
+          }
         }, 800);
       } else {
         showStatus(status, result.error || 'Could not restore backup.', 'err');
@@ -155,6 +178,72 @@ export function createBackupBody() {
     ]);
   }
 
+  function renderClearPanel() {
+    const status = h('span', { class: 'pf-backup-status' });
+    const confirmRow = h('div', { class: 'pf-backup-confirm-row', hidden: true });
+
+    const clearActionBtn = h('button', {
+      class: 'pf-backup-action',
+      type: 'button',
+      onClick: () => {
+        replaceContents(confirmRow, [
+          h('span', { class: 'pf-backup-confirm-text' }, [
+            'This clears your Prompt Archive but preserves your lifetime completion counts. Continue?',
+          ]),
+          h('button', {
+            class: 'pf-backup-action pf-backup-action-danger',
+            type: 'button',
+            onClick: () => doClear(),
+          }, ['Yes, clear history']),
+          h('button', {
+            class: 'pf-backup-action',
+            type: 'button',
+            onClick: () => {
+              confirmRow.hidden = true;
+              clearStatus(status);
+            },
+          }, ['Cancel']),
+        ]);
+        confirmRow.hidden = false;
+      },
+    }, ['Clear past weeks']);
+
+    function doClear() {
+      const result = clearCompletionHistory();
+      confirmRow.hidden = true;
+      if (result.droppedWeeks === 0) {
+        showStatus(status, 'Nothing to clear — no past history yet.', 'warn');
+        return;
+      }
+      showStatus(
+        status,
+        `Cleared ${result.droppedWeeks} past ${result.droppedWeeks === 1 ? 'week' : 'weeks'}. Reloading…`,
+        'ok'
+      );
+      // Capture the overlay reference NOW rather than via document.
+      // querySelector inside the setTimeout. If the user dismisses
+      // manually and reopens before 800ms elapses, we'd otherwise
+      // close their fresh overlay. closest() walks up from clearPanel
+      // which is inside this very overlay.
+      const overlay = clearPanel.closest('.pf-overlay');
+      setTimeout(() => {
+        if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+          overlay.hide();
+        }
+      }, 800);
+    }
+
+    replaceContents(clearPanel, [
+      h('p', { class: 'pf-backup-hint' }, [
+        'Clear the Prompt Archive\u2019s history of past weeks. Your current week stays intact, and your ',
+        h('em', {}, ['lifetime']),
+        ' completion counts are preserved so achievements don\u2019t regress. Useful if you want a fresh-looking archive without losing earned progress.',
+      ]),
+      h('div', { class: 'pf-backup-actionbar' }, [clearActionBtn, status]),
+      confirmRow,
+    ]);
+  }
+
   return h('div', { class: 'pf-backup' }, [
     h('p', { class: 'pf-backup-intro' }, [
       'Save a portable copy of your profile as JSON, or restore from one. ',
@@ -162,9 +251,10 @@ export function createBackupBody() {
         'Useful if your browser clears storage, you switch devices, or you just want a safety net.',
       ]),
     ]),
-    h('div', { class: 'pf-backup-buttonrow' }, [exportBtn, importBtn]),
+    h('div', { class: 'pf-backup-buttonrow' }, [exportBtn, importBtn, clearBtn]),
     exportPanel,
     importPanel,
+    clearPanel,
   ]);
 }
 
