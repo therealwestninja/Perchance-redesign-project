@@ -21,7 +21,7 @@ import { mountMiniCard } from './mount.js';
 import { openFullPage } from './full_page.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
 import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents } from './notifications.js';
-import { initPromptsOnFirstRun, hasNewWeekPending } from '../prompts/completion.js';
+import { initPromptsOnFirstRun, hasNewWeekPending, hasNewDayPending } from '../prompts/completion.js';
 import { getActiveEventIds } from '../events/active.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -64,12 +64,13 @@ async function refresh(card) {
     initPromptsOnFirstRun();
 
     const pendingIds = computePendingAchievements(unlockedIds);
-    const newWeekPrompts = hasNewWeekPending();
+    const cadence = (settings && settings.prompts && settings.prompts.cadence) || 'weekly';
+    const newPromptsPending = cadence === 'daily' ? hasNewDayPending() : hasNewWeekPending();
     const activeEventIds = getActiveEventIds();
     const pendingEvents = computePendingEvents(activeEventIds);
     const pendingCount =
       pendingIds.length +
-      (newWeekPrompts ? 1 : 0) +
+      (newPromptsPending ? 1 : 0) +
       pendingEvents.length;
 
     card.update(buildViewModel(stats, settings && settings.profile, pendingCount));

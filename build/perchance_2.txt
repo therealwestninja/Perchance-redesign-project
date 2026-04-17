@@ -14677,6 +14677,37 @@ Use this template for your response:
   }
 
   /**
+   * Day key — "YYYY-MM-DD" UTC. Used by the daily cadence mode. Just a
+   * simple date identifier; no ISO calendar gymnastics required here.
+   *
+   * @param {Date} [date=new Date()]
+   * @returns {string}
+   */
+  function getCurrentDayKey(date = new Date()) {
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Deterministically select ONE prompt for the given day. Same dayKey
+   * always returns the same prompt. Built on the same seeded shuffle as
+   * the weekly scheduler — different seed input, single result.
+   *
+   * @param {string} dayKey   e.g., "2026-04-17"
+   * @param {{ pool?: Array }} [opts]
+   * @returns {{ id: string, text: string } | null}
+   */
+  function getDayPrompt(dayKey, opts = {}) {
+    const pool = opts.pool ?? PROMPTS;
+    if (!pool || pool.length === 0) return null;
+    const indices = Array.from({ length: pool.length }, (_, i) => i);
+    seededShuffleInPlace(indices, hashWeekKey(dayKey));
+    return pool[indices[0]];
+  }
+
+  /**
    * Deterministically select N prompts for the given week.
    * Same weekKey always returns the same prompts, same order.
    *
@@ -16093,6 +16124,48 @@ Use this template for your response:
      ============================================================ */
   .pf-prompts { display: flex; flex-direction: column; gap: 14px; }
 
+  /* Header row: intro text on the left, cadence toggle on the right */
+  .pf-prompts-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  /* Cadence toggle — segmented-control style pill */
+  .pf-cadence-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 2px;
+  }
+  .pf-cadence-btn {
+    padding: 4px 12px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--text-color);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: background 0.15s, opacity 0.15s, color 0.15s;
+  }
+  .pf-cadence-btn:hover {
+    opacity: 0.9;
+  }
+  .pf-cadence-btn-active {
+    background: rgba(216, 179, 106, 0.18);
+    color: #d8b36a;
+    opacity: 1;
+  }
+
   /* Event groups (active holidays/observances) appear above regular prompts.
      Each event gets a subtle gold-tinted banner to distinguish it from the
      weekly rotation. */
@@ -16741,6 +16814,11 @@ Use this template for your response:
         lastSeenWeek: null,
         // Prevents the first-ever load of the prompts feature from pulsing.
         hasInitialized: false,
+        // Cadence: 'weekly' shows 4 prompts at a time that rotate each
+        // Monday. 'daily' shows 1 prompt per day. Switching is free and
+        // doesn't affect completion history — completions are always
+        // bucketed by containing-week under the hood.
+        cadence: 'weekly',
       },
     };
   }
@@ -17201,10 +17279,35 @@ Use this template for your response:
     updateField('prompts.lastSeenWeek', weekKey);
   }
 
+  // ---- "new day pending" — parallel feed for daily-cadence users ----
+
+  /**
+   * Has the day rolled over since the user last acknowledged prompts?
+   * Drives the mini-card pulse when cadence is set to 'daily'.
+   *
+   * @param {string} [currentDayKey]   defaults to today's YYYY-MM-DD
+   * @returns {boolean}
+   */
+  function hasNewDayPending(currentDayKey = getCurrentDayKey()) {
+    const s = safeLoad();
+    const lastSeen = (s.prompts && s.prompts.lastSeenDay) || null;
+    return lastSeen !== currentDayKey;
+  }
+
+  /**
+   * Acknowledge today's prompt. Called alongside markWeekSeen when the
+   * profile opens so BOTH caches stay fresh regardless of cadence.
+   */
+  function markDaySeen(dayKey = getCurrentDayKey()) {
+    if (typeof dayKey !== 'string') return;
+    updateField('prompts.lastSeenDay', dayKey);
+  }
+
   /**
    * First-run initialization. On first ever load, mark the current week
-   * as already seen — so the pulse doesn't fire just because the feature
-   * is new to the user. Next week's rollover will correctly pulse.
+   * AND day as already seen — so the pulse doesn't fire just because the
+   * feature is new to the user. Next week's (or day's) rollover will
+   * correctly pulse.
    *
    * @returns {boolean} true iff this call performed the initialization
    */
@@ -17216,7 +17319,9 @@ Use this template for your response:
     updateField('prompts', {
       completedByWeek: (s.prompts && s.prompts.completedByWeek) || {},
       lastSeenWeek: getCurrentWeekKey(),
+      lastSeenDay: getCurrentDayKey(),
       hasInitialized: true,
+      cadence: (s.prompts && s.prompts.cadence) || 'weekly',
     });
     return true;
   }
@@ -17972,9 +18077,14 @@ Use this template for your response:
   // render/prompts_section.js
   //
   // Body of the "Prompts" section. When a holiday / observance is active, its
-  // themed prompts appear as a banner-marked group ABOVE the regular weekly
-  // prompts. Completion tracking is shared — event prompt IDs go into the
-  // same completedByWeek record, just with `e-` prefixed IDs instead of `p-`.
+  // themed prompts appear as a banner-marked group ABOVE the current prompts.
+  // Completion tracking is shared — event prompt IDs go into the same
+  // completedByWeek record, just with `e-` prefixed IDs instead of `p-`.
+  //
+  // Cadence: 'weekly' shows 4 rotating prompts (Monday refresh). 'daily'
+  // shows 1 prompt for today. Toggle at the top of the section. Completion
+  // storage is the same in both modes (bucketed by containing week).
+
 
 
 
@@ -17985,30 +18095,43 @@ Use this template for your response:
    *   prompts: Array<{id: string, text: string}>,
    *   completedIds: Set<string>,
    *   activeEvents?: Array<object>,
+   *   cadence?: 'weekly' | 'daily',
    * }} opts
    */
-  function createPromptsBody({ weekKey, prompts, completedIds, activeEvents = [] }) {
+  function createPromptsBody({ weekKey, prompts, completedIds, activeEvents = [], cadence = 'weekly' }) {
     const completed = new Set(completedIds);
+    const isDaily = cadence === 'daily';
 
     const eventGroupsEl = h('div', { class: 'pf-event-groups' });
     const weeklyList = h('ul', { class: 'pf-prompts-list' });
 
+    const introText = isDaily
+      ? 'Today\'s writing idea. '
+      : 'This week\'s writing ideas. Try any that call to you. ';
+    const introSoft = isDaily
+      ? 'A fresh prompt each day — no pressure to check it off.'
+      : 'New set every Monday — you can leave any unchecked.';
+
     const intro = h('p', { class: 'pf-prompts-intro' }, [
-      'This week\'s writing ideas. Try any that call to you. ',
-      h('span', { class: 'pf-prompts-intro-soft' }, [
-        'New set every Monday — you can leave any unchecked.',
-      ]),
+      introText,
+      h('span', { class: 'pf-prompts-intro-soft' }, [introSoft]),
     ]);
 
+    // Cadence toggle — two small pill buttons at the top-right of the
+    // section body. Clicking either stashes the choice and fires a
+    // settings-changed notification; the profile re-reads on next open.
+    // We don't live-swap the DOM in place because the toggle affects
+    // which prompts are *shown* (not just style), and the cleanest way
+    // to get that right is a fresh re-render.
+    const cadenceToggle = createCadenceToggle(cadence);
+
     function renderAll() {
-      // ---- event groups (if any) ----
       const eventChildren = [];
       for (const ev of activeEvents) {
         eventChildren.push(createEventGroup(ev, completed, (id, done) => toggle(id, done)));
       }
       replaceContents(eventGroupsEl, eventChildren);
 
-      // ---- regular weekly prompts ----
       const ordered = orderForDisplay(prompts, completed);
       const items = ordered.map(p => createPromptItem(p, completed.has(p.id), toggle));
       replaceContents(weeklyList, items);
@@ -18024,10 +18147,48 @@ Use this template for your response:
     renderAll();
 
     return h('div', { class: 'pf-prompts' }, [
+      h('div', { class: 'pf-prompts-header' }, [intro, cadenceToggle]),
       eventGroupsEl,
-      intro,
       weeklyList,
     ]);
+  }
+
+  /**
+   * Segmented-control style toggle. Persists the choice and closes the
+   * overlay so the next profile open re-reads with the new cadence — the
+   * cleanest way to get everything downstream (archive, pulse, event
+   * group rendering) in sync without live-rewiring the DOM.
+   */
+  function createCadenceToggle(current) {
+    const wklBtn = h('button', {
+      type: 'button',
+      class: 'pf-cadence-btn' + (current === 'weekly' ? ' pf-cadence-btn-active' : ''),
+      'aria-pressed': String(current === 'weekly'),
+      title: 'Four prompts per week',
+      onClick: () => pick('weekly'),
+    }, ['Weekly']);
+    const dayBtn = h('button', {
+      type: 'button',
+      class: 'pf-cadence-btn' + (current === 'daily' ? ' pf-cadence-btn-active' : ''),
+      'aria-pressed': String(current === 'daily'),
+      title: 'One prompt per day',
+      onClick: () => pick('daily'),
+    }, ['Daily']);
+
+    function pick(next) {
+      if (next === current) return;
+      updateField('prompts.cadence', next);
+      // Close the overlay; re-opening reads the new cadence. Avoids
+      // having to tear down + rebuild the entire Prompts tree in place.
+      const overlay = document.querySelector('.pf-overlay');
+      if (overlay && typeof overlay.hide === 'function') overlay.hide();
+    }
+
+    return h('div', {
+      class: 'pf-cadence-toggle',
+      role: 'group',
+      'aria-label': 'Prompt cadence',
+    }, [wklBtn, dayBtn]);
   }
 
   /**
@@ -19083,14 +19244,29 @@ Use this template for your response:
     // re-render without its pulse state. We don't require the user to scroll
     // to the relevant section — opening is the acknowledgment.
     try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
+    // Acknowledge BOTH week and day — the user is seeing the current state,
+    // and if they toggle cadence later we don't want stale pulse-pending on
+    // the mode they weren't using.
     try { markWeekSeen(); } catch { /* non-fatal */ }
+    try { markDaySeen(); } catch { /* non-fatal */ }
     const activeEvents = getActiveEvents();
     try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
-    // Current week's prompts + completion state (read after markWeekSeen so
-    // the section renders with fresh data).
+    // Current prompts + completion state. Cadence determines how many
+    // prompts show and what key drives selection. Either way, completions
+    // bucket into the containing week (stored under completedByWeek) so
+    // cadence switching leaves history intact.
     const weekKey = getCurrentWeekKey();
-    const weekPrompts = getWeekPrompts(weekKey);
+    const cadence = (settings && settings.prompts && settings.prompts.cadence) || 'weekly';
+    let livePrompts;
+    let dayKey = null;
+    if (cadence === 'daily') {
+      dayKey = getCurrentDayKey();
+      const dayPrompt = getDayPrompt(dayKey);
+      livePrompts = dayPrompt ? [dayPrompt] : [];
+    } else {
+      livePrompts = getWeekPrompts(weekKey);
+    }
     const completedIds = getCompletedIds(weekKey);
 
     const profile = (settings && settings.profile) || {};
@@ -19175,9 +19351,10 @@ Use this template for your response:
       title: 'Prompts',
       children: createPromptsBody({
         weekKey,
-        prompts: weekPrompts,
+        prompts: livePrompts,
         completedIds,
         activeEvents,
+        cadence,
       }),
       initialState: displayState.prompts,
     });
@@ -19307,12 +19484,13 @@ Use this template for your response:
       initPromptsOnFirstRun();
 
       const pendingIds = computePendingAchievements(unlockedIds);
-      const newWeekPrompts = hasNewWeekPending();
+      const cadence = (settings && settings.prompts && settings.prompts.cadence) || 'weekly';
+      const newPromptsPending = cadence === 'daily' ? hasNewDayPending() : hasNewWeekPending();
       const activeEventIds = getActiveEventIds();
       const pendingEvents = computePendingEvents(activeEventIds);
       const pendingCount =
         pendingIds.length +
-        (newWeekPrompts ? 1 : 0) +
+        (newPromptsPending ? 1 : 0) +
         pendingEvents.length;
 
       card.update(buildViewModel(stats, settings && settings.profile, pendingCount));

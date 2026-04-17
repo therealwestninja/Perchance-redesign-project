@@ -11,7 +11,7 @@
 //   }
 
 import { loadSettings, updateField } from '../profile/settings_store.js';
-import { getCurrentWeekKey } from './scheduler.js';
+import { getCurrentWeekKey, getCurrentDayKey } from './scheduler.js';
 
 // ---- completion get/set ----
 
@@ -75,10 +75,35 @@ export function markWeekSeen(weekKey = getCurrentWeekKey()) {
   updateField('prompts.lastSeenWeek', weekKey);
 }
 
+// ---- "new day pending" — parallel feed for daily-cadence users ----
+
+/**
+ * Has the day rolled over since the user last acknowledged prompts?
+ * Drives the mini-card pulse when cadence is set to 'daily'.
+ *
+ * @param {string} [currentDayKey]   defaults to today's YYYY-MM-DD
+ * @returns {boolean}
+ */
+export function hasNewDayPending(currentDayKey = getCurrentDayKey()) {
+  const s = safeLoad();
+  const lastSeen = (s.prompts && s.prompts.lastSeenDay) || null;
+  return lastSeen !== currentDayKey;
+}
+
+/**
+ * Acknowledge today's prompt. Called alongside markWeekSeen when the
+ * profile opens so BOTH caches stay fresh regardless of cadence.
+ */
+export function markDaySeen(dayKey = getCurrentDayKey()) {
+  if (typeof dayKey !== 'string') return;
+  updateField('prompts.lastSeenDay', dayKey);
+}
+
 /**
  * First-run initialization. On first ever load, mark the current week
- * as already seen — so the pulse doesn't fire just because the feature
- * is new to the user. Next week's rollover will correctly pulse.
+ * AND day as already seen — so the pulse doesn't fire just because the
+ * feature is new to the user. Next week's (or day's) rollover will
+ * correctly pulse.
  *
  * @returns {boolean} true iff this call performed the initialization
  */
@@ -90,7 +115,9 @@ export function initPromptsOnFirstRun() {
   updateField('prompts', {
     completedByWeek: (s.prompts && s.prompts.completedByWeek) || {},
     lastSeenWeek: getCurrentWeekKey(),
+    lastSeenDay: getCurrentDayKey(),
     hasInitialized: true,
+    cadence: (s.prompts && s.prompts.cadence) || 'weekly',
   });
   return true;
 }

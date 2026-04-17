@@ -26,8 +26,8 @@ import { ACHIEVEMENTS, getAchievementById } from '../achievements/registry.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { TIER_ICON } from '../render/achievements_grid.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
-import { getCurrentWeekKey, getWeekPrompts } from '../prompts/scheduler.js';
-import { getCompletedIds, markWeekSeen } from '../prompts/completion.js';
+import { getCurrentWeekKey, getCurrentDayKey, getWeekPrompts, getDayPrompt } from '../prompts/scheduler.js';
+import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completion.js';
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
@@ -88,14 +88,29 @@ export async function openFullPage() {
   // re-render without its pulse state. We don't require the user to scroll
   // to the relevant section — opening is the acknowledgment.
   try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
+  // Acknowledge BOTH week and day — the user is seeing the current state,
+  // and if they toggle cadence later we don't want stale pulse-pending on
+  // the mode they weren't using.
   try { markWeekSeen(); } catch { /* non-fatal */ }
+  try { markDaySeen(); } catch { /* non-fatal */ }
   const activeEvents = getActiveEvents();
   try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
-  // Current week's prompts + completion state (read after markWeekSeen so
-  // the section renders with fresh data).
+  // Current prompts + completion state. Cadence determines how many
+  // prompts show and what key drives selection. Either way, completions
+  // bucket into the containing week (stored under completedByWeek) so
+  // cadence switching leaves history intact.
   const weekKey = getCurrentWeekKey();
-  const weekPrompts = getWeekPrompts(weekKey);
+  const cadence = (settings && settings.prompts && settings.prompts.cadence) || 'weekly';
+  let livePrompts;
+  let dayKey = null;
+  if (cadence === 'daily') {
+    dayKey = getCurrentDayKey();
+    const dayPrompt = getDayPrompt(dayKey);
+    livePrompts = dayPrompt ? [dayPrompt] : [];
+  } else {
+    livePrompts = getWeekPrompts(weekKey);
+  }
   const completedIds = getCompletedIds(weekKey);
 
   const profile = (settings && settings.profile) || {};
@@ -180,9 +195,10 @@ export async function openFullPage() {
     title: 'Prompts',
     children: createPromptsBody({
       weekKey,
-      prompts: weekPrompts,
+      prompts: livePrompts,
       completedIds,
       activeEvents,
+      cadence,
     }),
     initialState: displayState.prompts,
   });

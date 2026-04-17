@@ -1,12 +1,17 @@
 // render/prompts_section.js
 //
 // Body of the "Prompts" section. When a holiday / observance is active, its
-// themed prompts appear as a banner-marked group ABOVE the regular weekly
-// prompts. Completion tracking is shared — event prompt IDs go into the
-// same completedByWeek record, just with `e-` prefixed IDs instead of `p-`.
+// themed prompts appear as a banner-marked group ABOVE the current prompts.
+// Completion tracking is shared — event prompt IDs go into the same
+// completedByWeek record, just with `e-` prefixed IDs instead of `p-`.
+//
+// Cadence: 'weekly' shows 4 rotating prompts (Monday refresh). 'daily'
+// shows 1 prompt for today. Toggle at the top of the section. Completion
+// storage is the same in both modes (bucketed by containing week).
 
 import { h, replaceContents } from '../utils/dom.js';
 import { setCompleted } from '../prompts/completion.js';
+import { updateField } from '../profile/settings_store.js';
 
 /**
  * @param {{
@@ -14,30 +19,43 @@ import { setCompleted } from '../prompts/completion.js';
  *   prompts: Array<{id: string, text: string}>,
  *   completedIds: Set<string>,
  *   activeEvents?: Array<object>,
+ *   cadence?: 'weekly' | 'daily',
  * }} opts
  */
-export function createPromptsBody({ weekKey, prompts, completedIds, activeEvents = [] }) {
+export function createPromptsBody({ weekKey, prompts, completedIds, activeEvents = [], cadence = 'weekly' }) {
   const completed = new Set(completedIds);
+  const isDaily = cadence === 'daily';
 
   const eventGroupsEl = h('div', { class: 'pf-event-groups' });
   const weeklyList = h('ul', { class: 'pf-prompts-list' });
 
+  const introText = isDaily
+    ? 'Today\'s writing idea. '
+    : 'This week\'s writing ideas. Try any that call to you. ';
+  const introSoft = isDaily
+    ? 'A fresh prompt each day — no pressure to check it off.'
+    : 'New set every Monday — you can leave any unchecked.';
+
   const intro = h('p', { class: 'pf-prompts-intro' }, [
-    'This week\'s writing ideas. Try any that call to you. ',
-    h('span', { class: 'pf-prompts-intro-soft' }, [
-      'New set every Monday — you can leave any unchecked.',
-    ]),
+    introText,
+    h('span', { class: 'pf-prompts-intro-soft' }, [introSoft]),
   ]);
 
+  // Cadence toggle — two small pill buttons at the top-right of the
+  // section body. Clicking either stashes the choice and fires a
+  // settings-changed notification; the profile re-reads on next open.
+  // We don't live-swap the DOM in place because the toggle affects
+  // which prompts are *shown* (not just style), and the cleanest way
+  // to get that right is a fresh re-render.
+  const cadenceToggle = createCadenceToggle(cadence);
+
   function renderAll() {
-    // ---- event groups (if any) ----
     const eventChildren = [];
     for (const ev of activeEvents) {
       eventChildren.push(createEventGroup(ev, completed, (id, done) => toggle(id, done)));
     }
     replaceContents(eventGroupsEl, eventChildren);
 
-    // ---- regular weekly prompts ----
     const ordered = orderForDisplay(prompts, completed);
     const items = ordered.map(p => createPromptItem(p, completed.has(p.id), toggle));
     replaceContents(weeklyList, items);
@@ -53,10 +71,48 @@ export function createPromptsBody({ weekKey, prompts, completedIds, activeEvents
   renderAll();
 
   return h('div', { class: 'pf-prompts' }, [
+    h('div', { class: 'pf-prompts-header' }, [intro, cadenceToggle]),
     eventGroupsEl,
-    intro,
     weeklyList,
   ]);
+}
+
+/**
+ * Segmented-control style toggle. Persists the choice and closes the
+ * overlay so the next profile open re-reads with the new cadence — the
+ * cleanest way to get everything downstream (archive, pulse, event
+ * group rendering) in sync without live-rewiring the DOM.
+ */
+function createCadenceToggle(current) {
+  const wklBtn = h('button', {
+    type: 'button',
+    class: 'pf-cadence-btn' + (current === 'weekly' ? ' pf-cadence-btn-active' : ''),
+    'aria-pressed': String(current === 'weekly'),
+    title: 'Four prompts per week',
+    onClick: () => pick('weekly'),
+  }, ['Weekly']);
+  const dayBtn = h('button', {
+    type: 'button',
+    class: 'pf-cadence-btn' + (current === 'daily' ? ' pf-cadence-btn-active' : ''),
+    'aria-pressed': String(current === 'daily'),
+    title: 'One prompt per day',
+    onClick: () => pick('daily'),
+  }, ['Daily']);
+
+  function pick(next) {
+    if (next === current) return;
+    updateField('prompts.cadence', next);
+    // Close the overlay; re-opening reads the new cadence. Avoids
+    // having to tear down + rebuild the entire Prompts tree in place.
+    const overlay = document.querySelector('.pf-overlay');
+    if (overlay && typeof overlay.hide === 'function') overlay.hide();
+  }
+
+  return h('div', {
+    class: 'pf-cadence-toggle',
+    role: 'group',
+    'aria-label': 'Prompt cadence',
+  }, [wklBtn, dayBtn]);
 }
 
 /**

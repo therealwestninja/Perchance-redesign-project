@@ -37,6 +37,37 @@ export function getCurrentWeekKey(date = new Date()) {
 }
 
 /**
+ * Day key — "YYYY-MM-DD" UTC. Used by the daily cadence mode. Just a
+ * simple date identifier; no ISO calendar gymnastics required here.
+ *
+ * @param {Date} [date=new Date()]
+ * @returns {string}
+ */
+export function getCurrentDayKey(date = new Date()) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Deterministically select ONE prompt for the given day. Same dayKey
+ * always returns the same prompt. Built on the same seeded shuffle as
+ * the weekly scheduler — different seed input, single result.
+ *
+ * @param {string} dayKey   e.g., "2026-04-17"
+ * @param {{ pool?: Array }} [opts]
+ * @returns {{ id: string, text: string } | null}
+ */
+export function getDayPrompt(dayKey, opts = {}) {
+  const pool = opts.pool ?? PROMPTS;
+  if (!pool || pool.length === 0) return null;
+  const indices = Array.from({ length: pool.length }, (_, i) => i);
+  seededShuffleInPlace(indices, hashWeekKey(dayKey));
+  return pool[indices[0]];
+}
+
+/**
  * Deterministically select N prompts for the given week.
  * Same weekKey always returns the same prompts, same order.
  *

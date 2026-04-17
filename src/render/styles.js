@@ -897,6 +897,48 @@ export const CSS = `
    ============================================================ */
 .pf-prompts { display: flex; flex-direction: column; gap: 14px; }
 
+/* Header row: intro text on the left, cadence toggle on the right */
+.pf-prompts-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Cadence toggle — segmented-control style pill */
+.pf-cadence-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px;
+}
+.pf-cadence-btn {
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--text-color);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: background 0.15s, opacity 0.15s, color 0.15s;
+}
+.pf-cadence-btn:hover {
+  opacity: 0.9;
+}
+.pf-cadence-btn-active {
+  background: rgba(216, 179, 106, 0.18);
+  color: #d8b36a;
+  opacity: 1;
+}
+
 /* Event groups (active holidays/observances) appear above regular prompts.
    Each event gets a subtle gold-tinted banner to distinguish it from the
    weekly rotation. */

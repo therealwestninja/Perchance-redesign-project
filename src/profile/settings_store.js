@@ -62,6 +62,11 @@ export function defaultSettings() {
       lastSeenWeek: null,
       // Prevents the first-ever load of the prompts feature from pulsing.
       hasInitialized: false,
+      // Cadence: 'weekly' shows 4 prompts at a time that rotate each
+      // Monday. 'daily' shows 1 prompt per day. Switching is free and
+      // doesn't affect completion history — completions are always
+      // bucketed by containing-week under the hood.
+      cadence: 'weekly',
     },
   };
 }
