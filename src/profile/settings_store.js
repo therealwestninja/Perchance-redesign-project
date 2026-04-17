@@ -9,7 +9,7 @@
 const KEY = 'pf:settings';
 const OLD_KEY = 'pf:profile';
 
-const SECTION_IDS = ['about', 'details', 'chronicle', 'achievements'];
+const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'achievements'];
 
 /**
  * Default shape. Every read path falls back through this, so any missing
@@ -32,6 +32,7 @@ export function defaultSettings() {
       sections: {
         about:        { collapsed: false, blurred: false },
         details:      { collapsed: false, blurred: true   }, // private by default
+        prompts:      { collapsed: false, blurred: false },
         chronicle:    { collapsed: false, blurred: false },
         achievements: { collapsed: false, blurred: false },
       },
@@ -43,6 +44,16 @@ export function defaultSettings() {
       seenAchievements: [],
       // Prevents new deployments from pulsing for every pre-existing
       // achievement. See notifications.js#initSeenOnFirstRun.
+      hasInitialized: false,
+    },
+    prompts: {
+      // Per-week record of which prompts the user marked done.
+      //   { '2026-W16': ['p-quiet-moment', 'p-apology'], ... }
+      completedByWeek: {},
+      // Last week the user opened the profile. Drives the "new week"
+      // pulse on the mini-card.
+      lastSeenWeek: null,
+      // Prevents the first-ever load of the prompts feature from pulsing.
       hasInitialized: false,
     },
   };

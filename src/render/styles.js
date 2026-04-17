@@ -704,6 +704,76 @@ export const CSS = `
 .pf-gs-label-br { bottom: 4px; right: 0;    }
 
 /* ============================================================
+   Prompts section — this week's writing ideas
+   ============================================================ */
+.pf-prompts { display: flex; flex-direction: column; gap: 10px; }
+
+.pf-prompts-intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-color);
+  opacity: 0.85;
+}
+.pf-prompts-intro-soft {
+  display: inline;
+  opacity: 0.55;
+  font-size: 11px;
+}
+
+.pf-prompts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-prompt-item {
+  background: rgba(127, 127, 127, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  transition: background 0.15s, opacity 0.2s;
+}
+.pf-prompt-item:hover {
+  background: rgba(185, 137, 74, 0.06);
+  border-color: rgba(216, 179, 106, 0.25);
+}
+.pf-prompt-item-done {
+  opacity: 0.55;
+}
+
+.pf-prompt-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.pf-prompt-checkbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: #d8b36a;
+  cursor: pointer;
+}
+
+.pf-prompt-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-color);
+}
+.pf-prompt-item-done .pf-prompt-text {
+  text-decoration: line-through;
+  text-decoration-color: rgba(216, 179, 106, 0.5);
+  text-decoration-thickness: 1px;
+}
+
+/* ============================================================
    Chronicle stat grid
    ============================================================ */
 .pf-chron-grid {

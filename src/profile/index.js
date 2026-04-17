@@ -20,6 +20,7 @@ import { mountMiniCard } from './mount.js';
 import { openFullPage } from './full_page.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
 import { initSeenOnFirstRun, computePendingAchievements } from './notifications.js';
+import { initPromptsOnFirstRun, hasNewWeekPending } from '../prompts/completion.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -52,12 +53,17 @@ async function refresh(card) {
 
     // First deploy: treat current unlocks as "already seen" so this commit
     // doesn't pulse for every pre-existing achievement. Subsequent loads
-    // only pulse for actually-new ones.
+    // only pulse for actually-new ones. Same for prompts — don't pulse just
+    // because the feature is new to the user.
     initSeenOnFirstRun(unlockedIds);
+    initPromptsOnFirstRun();
+
     const pendingIds = computePendingAchievements(unlockedIds);
+    const newWeekPrompts = hasNewWeekPending();
+    const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
 
     const settings = loadSettings();
-    card.update(buildViewModel(stats, settings && settings.profile, pendingIds.length));
+    card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
   } catch (e) {
     if (!refresh._warned) {
       refresh._warned = true;

@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 26 };
+  NS.__meta = { modules: 30 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14363,6 +14363,171 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: prompts/registry.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/registry.js
+  //
+  // The pool of story prompts the weekly scheduler draws from. These are
+  // genre-agnostic creative-writing invitations, not task-completion gates.
+  //
+  // IDs use slugs (not array indices) so we can reorder or add new ones
+  // without invalidating existing users' completion history. Once an ID
+  // is shipped, it should never change or be removed (or old completion
+  // records orphan). Deprecations: comment out the entry but leave the ID
+  // reservation in a comment.
+
+  const PROMPTS = Object.freeze([
+    { id: 'p-new-character',         text: 'Write a scene with a character you haven\'t used before.' },
+    { id: 'p-unexpected-turn',       text: 'Let a conversation go somewhere unexpected.' },
+    { id: 'p-contradiction',         text: 'Give a character a contradiction — something they say they believe versus what they actually do.' },
+    { id: 'p-quiet-moment',          text: 'Write a moment of quiet. Nothing dramatic. Just atmosphere.' },
+    { id: 'p-new-setting',           text: 'Spend a session in a setting you haven\'t explored.' },
+    { id: 'p-unresolved-disagreement', text: 'Have two characters disagree, and don\'t resolve it.' },
+    { id: 'p-dramatic-lie',          text: 'Write a scene where someone lies, and the reader knows it.' },
+    { id: 'p-minor-spotlight',       text: 'Let a minor character steal the scene.' },
+    { id: 'p-place-by-absence',      text: 'Describe a place through what\'s missing from it.' },
+    { id: 'p-happy-goodbye',         text: 'Write a goodbye that isn\'t sad.' },
+    { id: 'p-changed-mind',          text: 'Let a character change their mind about something.' },
+    { id: 'p-real-time',             text: 'Write a scene that takes place in about ten minutes of real time.' },
+    { id: 'p-mid-argument',          text: 'Start a scene in the middle of an argument.' },
+    { id: 'p-stranger-moment',       text: 'Write a brief moment between strangers.' },
+    { id: 'p-admission',             text: 'Have a character admit they were wrong about something.' },
+    { id: 'p-self-surprise',         text: 'Let a character surprise themselves.' },
+    { id: 'p-a-meal',                text: 'Write a meal — grand feast, quiet breakfast, anything in between.' },
+    { id: 'p-story-within',          text: 'Let a character tell a story within the story.' },
+    { id: 'p-nothing-happens',       text: 'Write a scene where nothing much happens, and let that be okay.' },
+    { id: 'p-unexpected-skill',      text: 'Give a character an unexpected skill.' },
+    { id: 'p-before-change',         text: 'Write the moment just before something changes forever.' },
+    { id: 'p-shared-silence',        text: 'Have two characters share a silence.' },
+    { id: 'p-small-fear',            text: 'Let a character be afraid of something small.' },
+    { id: 'p-a-promise',             text: 'Write a promise — kept or broken, your call.' },
+    { id: 'p-worst-timing',          text: 'Set a scene at the worst possible time for one of the characters.' },
+    { id: 'p-forgotten-rediscovery', text: 'Let a character rediscover something they\'d forgotten.' },
+    { id: 'p-apology',               text: 'Write an apology.' },
+    { id: 'p-wrong-about',           text: 'Let a character be wrong about another character.' },
+    { id: 'p-reunion',               text: 'Write a reunion.' },
+    { id: 'p-revelation',            text: 'Have a character reveal something they\'ve been hiding.' },
+    { id: 'p-bad-news',              text: 'Write a scene where someone gets bad news.' },
+    { id: 'p-out-of-character',      text: 'Let a character do something out of character.' },
+    { id: 'p-small-kindness',        text: 'Write a moment of kindness between people who barely know each other.' },
+    { id: 'p-object-focused',        text: 'Set a scene that revolves around a specific object.' },
+    { id: 'p-graceful-failure',      text: 'Let a character fail gracefully.' },
+    { id: 'p-weather-matters',       text: 'Write a scene where the weather matters.' },
+    { id: 'p-small-notice',          text: 'Have a character notice something small but important.' },
+    { id: 'p-first-meeting-twist',   text: 'Write a first meeting that isn\'t what it seems.' },
+    { id: 'p-genuine-happiness',     text: 'Let a character be genuinely happy.' },
+    { id: 'p-a-question',            text: 'Write a scene that ends on a question.' },
+  ]);
+
+  /**
+   * Look up a prompt by ID. Returns null if not found (e.g., deprecated ID
+   * still sitting in a user's old completion list).
+   */
+  function getPromptById(id) {
+    return PROMPTS.find(p => p.id === id) || null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: prompts/scheduler.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/scheduler.js
+  //
+  // Given a date, produce the week's prompt selection deterministically.
+  // Same ISO week always yields the same prompts, across devices, without
+  // a server or shared database. Over many weeks the pool cycles through
+  // fairly (seeded shuffle, not same-N-modulo-pool).
+
+
+
+  const PROMPTS_PER_WEEK = 4;
+
+  /**
+   * ISO week key — "YYYY-Www" format (e.g., "2026-W16"). Week boundaries
+   * follow ISO 8601: weeks start Monday, week 1 is the week containing
+   * January 4th.
+   *
+   * We intentionally use UTC throughout so users in different timezones
+   * transition weeks at the same wall-clock moment (Monday 00:00 UTC).
+   * Minor timezone shift vs. local Monday is acceptable — this isn't a
+   * deadline system, just a freshness cadence.
+   *
+   * @param {Date} [date=new Date()]
+   * @returns {string}
+   */
+  function getCurrentWeekKey(date = new Date()) {
+    const d = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate()
+    ));
+    // Shift to the Thursday of this week (ISO week always contains the
+    // "representative" Thursday).
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86_400_000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+  }
+
+  /**
+   * Deterministically select N prompts for the given week.
+   * Same weekKey always returns the same prompts, same order.
+   *
+   * @param {string} weekKey     e.g., "2026-W16"
+   * @param {{count?: number, pool?: Array}} [opts]
+   * @returns {Array<{id: string, text: string}>}
+   */
+  function getWeekPrompts(weekKey, opts = {}) {
+    const count = Math.max(1, Math.min(opts.count ?? PROMPTS_PER_WEEK, PROMPTS.length));
+    const pool = opts.pool ?? PROMPTS;
+
+    const indices = Array.from({ length: pool.length }, (_, i) => i);
+    seededShuffleInPlace(indices, hashWeekKey(weekKey));
+    return indices.slice(0, count).map(i => pool[i]);
+  }
+
+  // ---- internals: seeded PRNG + shuffle ----
+
+  /**
+   * Hash a string to a 32-bit seed. Consistent cross-browser.
+   * We don't need cryptographic quality — just a seed that changes
+   * meaningfully across weeks.
+   */
+  function hashWeekKey(s) {
+    let h = 2166136261 >>> 0; // FNV-1a offset basis
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  /**
+   * Seeded PRNG — mulberry32. Produces a deterministic stream of
+   * floats in [0, 1) given an integer seed.
+   */
+  function makeRandom(seed) {
+    let t = seed >>> 0;
+    return function next() {
+      t = (t + 0x6D2B79F5) >>> 0;
+      let r = t;
+      r = Math.imul(r ^ (r >>> 15), r | 1);
+      r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Fisher-Yates shuffle using a seeded PRNG. Mutates in place.
+   */
+  function seededShuffleInPlace(arr, seed) {
+    const rand = makeRandom(seed);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/styles.js
      ────────────────────────────────────────────────────────── */
   // render/styles.js
@@ -15071,6 +15236,76 @@ Use this template for your response:
   .pf-gs-label-br { bottom: 4px; right: 0;    }
 
   /* ============================================================
+     Prompts section — this week's writing ideas
+     ============================================================ */
+  .pf-prompts { display: flex; flex-direction: column; gap: 10px; }
+
+  .pf-prompts-intro {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-color);
+    opacity: 0.85;
+  }
+  .pf-prompts-intro-soft {
+    display: inline;
+    opacity: 0.55;
+    font-size: 11px;
+  }
+
+  .pf-prompts-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pf-prompt-item {
+    background: rgba(127, 127, 127, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    transition: background 0.15s, opacity 0.2s;
+  }
+  .pf-prompt-item:hover {
+    background: rgba(185, 137, 74, 0.06);
+    border-color: rgba(216, 179, 106, 0.25);
+  }
+  .pf-prompt-item-done {
+    opacity: 0.55;
+  }
+
+  .pf-prompt-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+  }
+
+  .pf-prompt-checkbox {
+    flex-shrink: 0;
+    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    accent-color: #d8b36a;
+    cursor: pointer;
+  }
+
+  .pf-prompt-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-color);
+  }
+  .pf-prompt-item-done .pf-prompt-text {
+    text-decoration: line-through;
+    text-decoration-color: rgba(216, 179, 106, 0.5);
+    text-decoration-thickness: 1px;
+  }
+
+  /* ============================================================
      Chronicle stat grid
      ============================================================ */
   .pf-chron-grid {
@@ -15185,7 +15420,7 @@ Use this template for your response:
   const KEY = 'pf:settings';
   const OLD_KEY = 'pf:profile';
 
-  const SECTION_IDS = ['about', 'details', 'chronicle', 'achievements'];
+  const SECTION_IDS = ['about', 'details', 'prompts', 'chronicle', 'achievements'];
 
   /**
    * Default shape. Every read path falls back through this, so any missing
@@ -15208,6 +15443,7 @@ Use this template for your response:
         sections: {
           about:        { collapsed: false, blurred: false },
           details:      { collapsed: false, blurred: true   }, // private by default
+          prompts:      { collapsed: false, blurred: false },
           chronicle:    { collapsed: false, blurred: false },
           achievements: { collapsed: false, blurred: false },
         },
@@ -15219,6 +15455,16 @@ Use this template for your response:
         seenAchievements: [],
         // Prevents new deployments from pulsing for every pre-existing
         // achievement. See notifications.js#initSeenOnFirstRun.
+        hasInitialized: false,
+      },
+      prompts: {
+        // Per-week record of which prompts the user marked done.
+        //   { '2026-W16': ['p-quiet-moment', 'p-apology'], ... }
+        completedByWeek: {},
+        // Last week the user opened the profile. Drives the "new week"
+        // pulse on the mini-card.
+        lastSeenWeek: null,
+        // Prevents the first-ever load of the prompts feature from pulsing.
         hasInitialized: false,
       },
     };
@@ -15445,6 +15691,113 @@ Use this template for your response:
   function safeLoad() {
     try { return loadSettings(); }
     catch { return { notifications: { seenAchievements: [], hasInitialized: false } }; }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: prompts/completion.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/completion.js
+  //
+  // Per-week completion tracking for weekly prompts, plus the "new week has
+  // rolled over" detection that feeds the mini-card pulse.
+  //
+  // State shape inside pf:settings:
+  //   prompts: {
+  //     completedByWeek: { 'YYYY-Www': ['p-id-1', 'p-id-2', ...] },
+  //     lastSeenWeek: 'YYYY-Www',
+  //     hasInitialized: boolean,
+  //   }
+
+
+
+
+  // ---- completion get/set ----
+
+  /**
+   * Return the set of prompt IDs the user has marked done for the given week.
+   */
+  function getCompletedIds(weekKey) {
+    const s = safeLoad();
+    const byWeek = (s.prompts && s.prompts.completedByWeek) || {};
+    const list = byWeek[weekKey] || [];
+    return new Set(Array.isArray(list) ? list : []);
+  }
+
+  /**
+   * Toggle a prompt's completion state for the given week.
+   * Idempotent when already in the desired state.
+   *
+   * @param {string} weekKey
+   * @param {string} id
+   * @param {boolean} completed
+   */
+  function setCompleted(weekKey, id, completed) {
+    if (typeof weekKey !== 'string' || typeof id !== 'string') return;
+    const s = safeLoad();
+    const byWeek = { ...((s.prompts && s.prompts.completedByWeek) || {}) };
+    const current = new Set(Array.isArray(byWeek[weekKey]) ? byWeek[weekKey] : []);
+
+    if (completed) {
+      if (current.has(id)) return;
+      current.add(id);
+    } else {
+      if (!current.has(id)) return;
+      current.delete(id);
+    }
+
+    byWeek[weekKey] = [...current];
+    updateField('prompts.completedByWeek', byWeek);
+  }
+
+  // ---- "new week pending" — feeds the mini-card pulse ----
+
+  /**
+   * Has the week rolled over since the user last acknowledged prompts?
+   * Used to decide whether the mini-card should pulse.
+   *
+   * @param {string} [currentWeekKey]   defaults to today's
+   * @returns {boolean}
+   */
+  function hasNewWeekPending(currentWeekKey = getCurrentWeekKey()) {
+    const s = safeLoad();
+    const lastSeen = (s.prompts && s.prompts.lastSeenWeek) || null;
+    return lastSeen !== currentWeekKey;
+  }
+
+  /**
+   * Acknowledge the current week's prompts. Called when the user opens the
+   * full profile — same semantics as achievement mark-seen.
+   */
+  function markWeekSeen(weekKey = getCurrentWeekKey()) {
+    if (typeof weekKey !== 'string') return;
+    updateField('prompts.lastSeenWeek', weekKey);
+  }
+
+  /**
+   * First-run initialization. On first ever load, mark the current week
+   * as already seen — so the pulse doesn't fire just because the feature
+   * is new to the user. Next week's rollover will correctly pulse.
+   *
+   * @returns {boolean} true iff this call performed the initialization
+   */
+  function initPromptsOnFirstRun() {
+    const s = safeLoad();
+    const alreadyInited = !!(s.prompts && s.prompts.hasInitialized);
+    if (alreadyInited) return false;
+
+    updateField('prompts', {
+      completedByWeek: (s.prompts && s.prompts.completedByWeek) || {},
+      lastSeenWeek: getCurrentWeekKey(),
+      hasInitialized: true,
+    });
+    return true;
+  }
+
+  // ---- internals ----
+
+  function safeLoad() {
+    try { return loadSettings(); }
+    catch { return {}; }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -16107,6 +16460,93 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/prompts_section.js
+     ────────────────────────────────────────────────────────── */
+  // render/prompts_section.js
+  //
+  // Body of the "Prompts" section on the full profile. Shows this week's
+  // selection as a list of checkboxes. Toggling a checkbox persists the
+  // completion state and visually crosses out the prompt.
+  //
+  // Layout:
+  //   - Intro line ("this week's writing ideas, etc.")
+  //   - Outstanding prompts (unchecked, top)
+  //   - Completed prompts (checked, strike-through, bottom)
+
+
+
+
+  /**
+   * @param {{
+   *   weekKey: string,
+   *   prompts: Array<{id: string, text: string}>,
+   *   completedIds: Set<string>,
+   * }} opts
+   */
+  function createPromptsBody({ weekKey, prompts, completedIds }) {
+    const completed = new Set(completedIds);
+
+    const list = h('ul', { class: 'pf-prompts-list' });
+
+    const intro = h('p', { class: 'pf-prompts-intro' }, [
+      'This week\'s writing ideas. Try any that call to you. ',
+      h('span', { class: 'pf-prompts-intro-soft' }, [
+        'New set every Monday — you can leave any unchecked.',
+      ]),
+    ]);
+
+    function render() {
+      const ordered = orderForDisplay(prompts, completed);
+      const items = ordered.map(p => createPromptItem(p, completed.has(p.id), toggle));
+      replaceContents(list, items);
+    }
+
+    function toggle(id, completedNow) {
+      if (completedNow) completed.add(id);
+      else              completed.delete(id);
+      setCompleted(weekKey, id, completedNow);
+      render();
+    }
+
+    render();
+
+    return h('div', { class: 'pf-prompts' }, [intro, list]);
+  }
+
+  /**
+   * Outstanding first, completed below. Preserves original order within each group.
+   */
+  function orderForDisplay(prompts, completed) {
+    const out = [];
+    const done = [];
+    for (const p of prompts) {
+      if (completed.has(p.id)) done.push(p);
+      else out.push(p);
+    }
+    return [...out, ...done];
+  }
+
+  function createPromptItem(prompt, isCompleted, onToggle) {
+    const checkbox = h('input', {
+      type: 'checkbox',
+      class: 'pf-prompt-checkbox',
+      checked: isCompleted,
+      'aria-label': isCompleted ? 'Mark as incomplete' : 'Mark as completed',
+      onChange: (ev) => onToggle(prompt.id, !!ev.target.checked),
+    });
+
+    return h('li', {
+      class: 'pf-prompt-item' + (isCompleted ? ' pf-prompt-item-done' : ''),
+      'data-prompt-id': prompt.id,
+    }, [
+      h('label', { class: 'pf-prompt-label' }, [
+        checkbox,
+        h('span', { class: 'pf-prompt-text' }, [prompt.text]),
+      ]),
+    ]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/chronicle_grid.js
      ────────────────────────────────────────────────────────── */
   // render/chronicle_grid.js
@@ -16485,6 +16925,9 @@ Use this template for your response:
 
 
 
+
+
+
   const TIER_ORDER = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 };
 
   /**
@@ -16544,8 +16987,15 @@ Use this template for your response:
     // Opening the profile counts as acknowledgment of any pending notifications.
     // This fires the settings-changed event, which causes the mini-card to
     // re-render without its pulse state. We don't require the user to scroll
-    // to the Achievements section — opening is the acknowledgment.
+    // to the relevant section — opening is the acknowledgment.
     try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
+    try { markWeekSeen(); } catch { /* non-fatal */ }
+
+    // Current week's prompts + completion state (read after markWeekSeen so
+    // the section renders with fresh data).
+    const weekKey = getCurrentWeekKey();
+    const weekPrompts = getWeekPrompts(weekKey);
+    const completedIds = getCompletedIds(weekKey);
 
     const profile = (settings && settings.profile) || {};
     const displayState = (settings && settings.display && settings.display.sections) || {};
@@ -16593,6 +17043,17 @@ Use this template for your response:
       initialState: displayState.details,
     });
 
+    const promptsSection = createSection({
+      id: 'prompts',
+      title: 'Prompts',
+      children: createPromptsBody({
+        weekKey,
+        prompts: weekPrompts,
+        completedIds,
+      }),
+      initialState: displayState.prompts,
+    });
+
     const chronicleSection = createSection({
       id: 'chronicle',
       title: 'Chronicle',
@@ -16615,6 +17076,7 @@ Use this template for your response:
         splash,
         aboutSection,
         detailsSection,
+        promptsSection,
         chronicleSection,
         achievementsSection,
       ],
@@ -16638,6 +17100,7 @@ Use this template for your response:
   // This module is the one "main" for the project — everything else is a pure
   // helper. Keep it small: if logic lives here and it grows past ~100 lines,
   // extract it.
+
 
 
 
@@ -16680,12 +17143,17 @@ Use this template for your response:
 
       // First deploy: treat current unlocks as "already seen" so this commit
       // doesn't pulse for every pre-existing achievement. Subsequent loads
-      // only pulse for actually-new ones.
+      // only pulse for actually-new ones. Same for prompts — don't pulse just
+      // because the feature is new to the user.
       initSeenOnFirstRun(unlockedIds);
+      initPromptsOnFirstRun();
+
       const pendingIds = computePendingAchievements(unlockedIds);
+      const newWeekPrompts = hasNewWeekPending();
+      const pendingCount = pendingIds.length + (newWeekPrompts ? 1 : 0);
 
       const settings = loadSettings();
-      card.update(buildViewModel(stats, settings && settings.profile, pendingIds.length));
+      card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
     } catch (e) {
       if (!refresh._warned) {
         refresh._warned = true;
