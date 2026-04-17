@@ -17243,7 +17243,14 @@ Use this template for your response:
       ? currentUnlocked.filter(id => typeof id === 'string')
       : [];
 
+    // Merge rather than replace — preserve any other notifications subfields
+    // (e.g. seenEventIds, future additions) instead of clobbering them.
+    // Today these are all defaults at first-run anyway, but preemptively
+    // safe for any future code that touches notifications.* before this
+    // first-run init has had a chance to run.
+    const prevNotifications = s.notifications || {};
     updateField('notifications', {
+      ...prevNotifications,
       seenAchievements: ids,
       hasInitialized: true,
     });
@@ -17527,12 +17534,19 @@ Use this template for your response:
     const alreadyInited = !!(s.prompts && s.prompts.hasInitialized);
     if (alreadyInited) return false;
 
+    // Merge rather than replace — preserve any other prompts subfields
+    // (e.g. historicalTotals from a restored backup, or future fields)
+    // instead of clobbering them. Today these are usually defaults at
+    // first-run, but preemptively safe for code paths that might write
+    // prompt fields before this init has had a chance to run.
+    const prev = s.prompts || {};
     updateField('prompts', {
-      completedByWeek: (s.prompts && s.prompts.completedByWeek) || {},
+      ...prev,
+      completedByWeek: prev.completedByWeek || {},
       lastSeenWeek: getCurrentWeekKey(),
       lastSeenDay: getCurrentDayKey(),
       hasInitialized: true,
-      cadence: (s.prompts && s.prompts.cadence) || 'weekly',
+      cadence: prev.cadence || 'weekly',
     });
     return true;
   }

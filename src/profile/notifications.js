@@ -84,7 +84,14 @@ export function initSeenOnFirstRun(currentUnlocked) {
     ? currentUnlocked.filter(id => typeof id === 'string')
     : [];
 
+  // Merge rather than replace — preserve any other notifications subfields
+  // (e.g. seenEventIds, future additions) instead of clobbering them.
+  // Today these are all defaults at first-run anyway, but preemptively
+  // safe for any future code that touches notifications.* before this
+  // first-run init has had a chance to run.
+  const prevNotifications = s.notifications || {};
   updateField('notifications', {
+    ...prevNotifications,
     seenAchievements: ids,
     hasInitialized: true,
   });
