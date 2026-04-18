@@ -39,6 +39,30 @@ const UNGROUPED_LABEL = 'Ungrouped';
 const GENERIC_LABEL_PREFIX = 'Group';
 
 /**
+ * Generate non-colliding IDs for fresh free bubbles, given a set of IDs
+ * already taken by locked bubbles.
+ *
+ * Free bubble IDs use the form `bubble:free:N`. If any `bubble:free:N`
+ * is in the locked set (because a previously-free bubble got locked and
+ * kept its ID), we must skip that N when naming fresh free bubbles,
+ * or we'll render two bubbles with the same ID.
+ *
+ * @param {number} count     how many IDs we need
+ * @param {Set<string>} taken  IDs already in use (e.g., locked bubble IDs)
+ * @returns {string[]}  `count` unique `bubble:free:N` strings
+ */
+function freshFreeBubbleIds(count, taken) {
+  const ids = [];
+  let n = 0;
+  while (ids.length < count) {
+    const candidate = `bubble:free:${n}`;
+    if (!taken.has(candidate)) ids.push(candidate);
+    n++;
+  }
+  return ids;
+}
+
+/**
  * Group entries into bubbles by semantic similarity.
  *
  * @param {Object} opts
@@ -241,14 +265,18 @@ export function bubbleizeWithLocks({
   const rawFreeBubbles = bubbleize({ entries: freeEntries, k });
 
   // Rename free bubble IDs so they don't collide with any locked IDs.
-  // Locked bubble IDs come from a prior session and use `bubble:N`; fresh
-  // bubbleize also produces `bubble:N` starting from 0. Without renaming,
-  // a locked `bubble:0` and a fresh free `bubble:0` would both appear
-  // in the output, breaking downstream code that assumes unique IDs.
-  const freeBubbles = rawFreeBubbles.map((b, i) => ({
-    ...b,
-    id: b.isUngrouped ? b.id : `bubble:free:${i}`,
-  }));
+  // Locked bubble IDs come from a prior session: they can be `bubble:N`
+  // (from the initial clustering) OR `bubble:free:N` (if a bubble that
+  // was once a 'fresh free' bubble got locked later). Fresh bubbleize
+  // produces `bubble:N` starting from 0, so we rename those and skip
+  // any `bubble:free:N` that's already taken by a locked bubble.
+  const nonUngroupedFree = rawFreeBubbles.filter(b => !b.isUngrouped);
+  const freshIds = freshFreeBubbleIds(nonUngroupedFree.length, locks);
+  let idx = 0;
+  const freeBubbles = rawFreeBubbles.map((b) => {
+    if (b.isUngrouped) return b;
+    return { ...b, id: freshIds[idx++] };
+  });
 
   // Frozen first, free after. Stable ordering means the user sees their pinned
   // work at the top, and fresh clusters appear below.
@@ -302,11 +330,15 @@ export function rebucketWithLocks({ entries, prior, lockedBubbleIds, k } = {}) {
   const rawFreeBubbles = rebucket({ entries: freeEntries, prior: nonFrozenPrior, k });
 
   // Rename free bubble IDs to avoid collision with locked IDs (see
-  // bubbleizeWithLocks for why).
-  const freeBubbles = rawFreeBubbles.map((b, i) => ({
-    ...b,
-    id: b.isUngrouped ? b.id : `bubble:free:${i}`,
-  }));
+  // bubbleizeWithLocks for why — locked bubbles may already occupy some
+  // `bubble:free:N` slots).
+  const nonUngroupedFree = rawFreeBubbles.filter(b => !b.isUngrouped);
+  const freshIds = freshFreeBubbleIds(nonUngroupedFree.length, locks);
+  let idx = 0;
+  const freeBubbles = rawFreeBubbles.map((b) => {
+    if (b.isUngrouped) return b;
+    return { ...b, id: freshIds[idx++] };
+  });
 
   return [...frozenBubbles, ...freeBubbles];
 }
