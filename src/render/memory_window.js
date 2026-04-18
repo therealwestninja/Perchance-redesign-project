@@ -73,6 +73,12 @@ export function createMemoryWindow({
     onClick: () => { if (typeof handlers.onExport === 'function') handlers.onExport(); },
   }, ['Export…']);
 
+  const restoreBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn pf-mem-btn-secondary',
+    onClick: () => { if (typeof handlers.onRestore === 'function') handlers.onRestore(); },
+  }, ['Restore…']);
+
   const cancelBtn = h('button', {
     type: 'button',
     class: 'pf-mem-btn pf-mem-btn-neutral',
@@ -90,7 +96,7 @@ export function createMemoryWindow({
   }, ['Save']);
 
   const footer = h('footer', { class: 'pf-mem-footer' }, [
-    h('div', { class: 'pf-mem-footer-left' }, [exportBtn]),
+    h('div', { class: 'pf-mem-footer-left' }, [exportBtn, restoreBtn]),
     h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
   ]);
 

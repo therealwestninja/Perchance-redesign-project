@@ -177,7 +177,18 @@ lean.
   disambiguation. Multiple clusters with same top-noun now get compound
   labels ("Davie — walks", "Davie — cooking"). `bestLabelCandidates` in
   `ner.js` + `deriveLabels` in `bubbles.js`.
-- **Session-persistent locks** (this commit): Memory-scope locks persist
+- **Session-persistent locks** (commit `97bcf93`): Memory-scope locks persist
   per-thread via `settings_store`. Reconciles persisted stable-ids
   against fresh clustering using Jaccard similarity on open.
   `src/memory/lock_persistence.js`, wired in `window_open.js`.
+- **"What was used?" overlay** (commit `d8442bf`): teal dot on cards
+  and "used N×" pill on bubbles when the AI has referenced them in
+  the last 10 messages. `loadUsageHistogram` in `db.js`, rendered in
+  `memory_panels.js`.
+- **Snapshot + restore** (this commit): pre-save auto-snapshot + Restore…
+  button with dialog. Stores up to 10 recent snapshots per thread in
+  `settings_store`. Ring buffer drops oldest on overflow. Restore builds
+  a diff against current baseline and applies via `commitDiff`. Also
+  captures a "Before restore" snapshot so the restore itself is
+  reversible. `src/memory/snapshots.js`, wired in `window_open.js` and
+  `memory_window.js`.

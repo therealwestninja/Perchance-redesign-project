@@ -25,6 +25,7 @@ import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bu
 import { recommendK } from './clustering.js';
 import { createOverrides, toggleLock, applyOverrides, moveBubbleBefore, moveCardBefore, forgetCard, assignCardToBubble } from './bubble_overrides.js';
 import { loadLocks, persistLock, forgetLock, reconcileLocks } from './lock_persistence.js';
+import { loadSnapshots, captureSnapshot, deleteSnapshot, findSnapshot, buildRestoreDiff, formatSnapshotSummary } from './snapshots.js';
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
@@ -550,12 +551,25 @@ export async function openMemoryWindow() {
         ? '\n\nMemory order will be saved (proportional message remap). Locked bubbles keep their original messages.'
         : '';
       const confirmed = window.confirm(
-        summary + reorderNote + '\n\nThis action is permanent — there is no undo.'
+        summary + reorderNote + '\n\nA snapshot of the current state will be captured before saving. You can restore it from the Memory window if needed.'
       );
       if (!confirmed) return;
 
       overlay.setSaveLabel('Saving…');
       overlay.setSaveEnabled(false);
+
+      // Capture pre-save snapshot. This is a best-effort safety net —
+      // if storage fails (full, quota, etc.), we still proceed with the
+      // save. The user chose Save; we honor the intent either way.
+      if (activeThreadId != null) {
+        try {
+          captureSnapshot(activeThreadId, baseline, {
+            label: `Before save — ${formatDiffSummary(diff)}`,
+          });
+        } catch (e) {
+          console.warn('[pf] snapshot capture failed, proceeding with save:', e && e.message);
+        }
+      }
 
       const result = await commitDiff({
         baselineItems: baseline,
@@ -581,6 +595,66 @@ export async function openMemoryWindow() {
       };
       showExportDialog(JSON.stringify(state, null, 2));
     },
+
+    onRestore: () => {
+      if (activeThreadId == null) {
+        alert('No active thread — cannot restore.');
+        return;
+      }
+      const snaps = loadSnapshots(activeThreadId);
+      if (snaps.length === 0) {
+        alert(
+          'No snapshots yet for this thread.\n\n' +
+          'A snapshot is automatically captured before each Save. ' +
+          'Once you\u2019ve saved at least once from this tool, restore points become available here.'
+        );
+        return;
+      }
+      showRestoreDialog(snaps, async (snapshotId) => {
+        const snap = findSnapshot(activeThreadId, snapshotId);
+        if (!snap) {
+          alert('Snapshot not found. It may have been deleted.');
+          return;
+        }
+
+        const restoreDiff = buildRestoreDiff(baseline, snap.items);
+        if (restoreDiff.totalChanges === 0) {
+          alert('This snapshot matches the current state — nothing to restore.');
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Restore to snapshot from ${formatSnapshotSummary(snap)}?\n\n` +
+          `This will: add ${restoreDiff.added.length} entries, ` +
+          `delete ${restoreDiff.deleted.length} entries.\n\n` +
+          `Unsaved staged changes will be discarded. A new snapshot ` +
+          `of the current state will be captured before restoring.`
+        );
+        if (!confirmed) return;
+
+        // Capture CURRENT state before overwriting, so the user can
+        // undo the restore itself if they change their mind.
+        try {
+          captureSnapshot(activeThreadId, baseline, {
+            label: 'Before restore',
+          });
+        } catch (e) {
+          console.warn('[pf] pre-restore snapshot failed:', e && e.message);
+        }
+
+        const result = await commitDiff({
+          baselineItems: baseline,
+          diff: restoreDiff,
+        });
+        if (!result.ok) {
+          alert(`Restore failed: ${result.error}\n\nNo changes were applied.`);
+          return;
+        }
+        alert('Restore complete. Re-open the Memory window to see the restored state.');
+        overlay.hide();
+      });
+    },
+
     onCancel: () => {
       if (stage.hasChanges() || pendingDeletions.size > 0) {
         const ok = window.confirm('Discard all unsaved changes?');
@@ -671,6 +745,82 @@ function showExportDialog(jsonText) {
         ]),
         textarea,
         h('div', { class: 'pf-mem-export-actions' }, [copyBtn]),
+      ]),
+    ],
+  });
+  overlay.show();
+}
+
+/**
+ * Show a list of snapshots; user picks one and we call onPick(snapshotId).
+ * onPick is responsible for confirming and applying the restore — this
+ * function just handles list + pick + delete UI.
+ *
+ * Scaffolding-quality UI: plain list, text buttons. Styling to be passed
+ * over later.
+ */
+function showRestoreDialog(snapshots, onPick) {
+  let overlay;
+  const listHost = h('div', { class: 'pf-mem-restore-list' });
+
+  function render() {
+    const list = Array.isArray(snapshots) ? snapshots.slice() : [];
+    const rows = list.length === 0
+      ? [h('p', { class: 'pf-mem-notice-body' }, ['All snapshots have been deleted.'])]
+      : list.map(snap => buildSnapshotRow(snap));
+    while (listHost.firstChild) listHost.removeChild(listHost.firstChild);
+    for (const r of rows) listHost.appendChild(r);
+  }
+
+  function buildSnapshotRow(snap) {
+    const summary = formatSnapshotSummary(snap);
+    const pickBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      onClick: () => {
+        overlay.hide();
+        if (typeof onPick === 'function') onPick(snap.id);
+      },
+    }, ['Restore']);
+
+    const deleteBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      title: 'Delete this snapshot',
+      onClick: () => {
+        const ok = window.confirm(`Delete snapshot "${summary}"?\n\nThis cannot be undone.`);
+        if (!ok) return;
+        const threadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+        if (threadId != null) {
+          deleteSnapshot(threadId, snap.id);
+        }
+        // Remove from local array and re-render list
+        const idx = snapshots.findIndex(s => s.id === snap.id);
+        if (idx >= 0) snapshots.splice(idx, 1);
+        render();
+      },
+    }, ['Delete']);
+
+    return h('div', { class: 'pf-mem-restore-row' }, [
+      h('span', { class: 'pf-mem-restore-summary' }, [summary]),
+      pickBtn,
+      deleteBtn,
+    ]);
+  }
+
+  render();
+
+  overlay = createOverlay({
+    ariaLabel: 'Restore from snapshot',
+    children: [
+      h('div', { class: 'pf-mem-restore' }, [
+        h('h2', { class: 'pf-mem-title' }, ['Restore from snapshot']),
+        h('p', { class: 'pf-mem-notice-body' }, [
+          'Each save captures a snapshot of the pre-save state automatically. ',
+          'Pick one to roll back to. The current state will be snapshotted before restoring, ',
+          'so this action itself is also undoable.',
+        ]),
+        listHost,
       ]),
     ],
   });

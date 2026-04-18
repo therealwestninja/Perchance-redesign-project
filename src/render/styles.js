@@ -2209,6 +2209,43 @@ export const CSS = `
   justify-content: flex-end;
 }
 
+/* ---- restore dialog ---- */
+
+.pf-mem-restore {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pf-mem-restore-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.pf-mem-restore-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--border-radius);
+  background: var(--box-color);
+}
+
+.pf-mem-restore-summary {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-color);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 /* ---- inert notice ---- */
 
 .pf-mem-notice {
