@@ -19893,6 +19893,30 @@ Use this template for your response:
     opacity: 0.8;
   }
 
+  /* Drop-gap elements for reorder (7d). Thin horizontal strips between
+     sibling bubbles (in the Memory column) and between sibling cards
+     (inside an expanded Memory bubble body). Become visible on dragover
+     when a compatible reorder payload is hovering. */
+  .pf-mem-drop-gap {
+    height: 4px;
+    margin: 0;
+    border-radius: 2px;
+    pointer-events: auto;   /* must be true to receive dragover/drop */
+    transition: background 0.12s, height 0.12s, margin 0.12s;
+  }
+  .pf-mem-drop-gap-bubble {
+    height: 6px;            /* bubble-level gaps slightly taller for easier target */
+  }
+  .pf-mem-drop-gap-active {
+    background: rgba(216, 179, 106, 0.6);    /* gold accent */
+    height: 12px;
+    margin: 2px 0;
+    box-shadow: 0 0 8px rgba(216, 179, 106, 0.35);
+  }
+  .pf-mem-drop-gap-bubble.pf-mem-drop-gap-active {
+    height: 14px;
+  }
+
   /* Drag-reorder grip handle (7c). Rendered only on Memory-scope bubbles
      and Memory-scope cards within unlocked bubbles. 7c establishes the
      drag source; drops become functional in 7d. */
@@ -21179,7 +21203,10 @@ Use this template for your response:
       replaceContents(
         memoryList,
         memB.length > 0
-          ? memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers))
+          ? interleaveDropGaps(
+              memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers)),
+              memB, 'memory', 'bubble', handlers
+            )
           : [renderEmptyState('memory')]
       );
       replaceContents(
@@ -21460,13 +21487,19 @@ Use this template for your response:
     });
 
     // Body: hidden when collapsed, nested cards when expanded.
+    // For Memory/unlocked bubbles, interleave drop-gaps between cards
+    // to enable within-bubble reorder.
+    const cardNodes = isExpanded
+      ? bubble.entries.map(entry => renderCard(entry, { scope, bubbleId: bubble.id, isLocked }, handlers))
+      : [];
+    const bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
+      ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
+      : cardNodes;
+
     const body = h('div', {
       class: 'pf-mem-bubble-body',
       hidden: !isExpanded,
-    }, isExpanded
-      ? bubble.entries.map(entry => renderCard(entry, { scope, bubbleId: bubble.id, isLocked }, handlers))
-      : []
-    );
+    }, bodyChildren);
 
     return h('div', {
       class: `pf-mem-bubble ${bubble.isUngrouped ? 'pf-mem-bubble-ungrouped' : ''}`,
@@ -21637,6 +21670,100 @@ Use this template for your response:
   }
 
   // ---- helpers ----
+
+  /**
+   * Interleave drop-gap elements between sibling drag items.
+   * For N items, produces [gap, item0, gap, item1, gap, ..., itemN-1, gap]
+   * — gaps before every item AND one at the end (for "move to end" drops).
+   *
+   * @param {HTMLElement[]} nodes         rendered item nodes
+   * @param {Array} items                 the source items (for beforeId lookup)
+   * @param {'memory'|'lore'} scope
+   * @param {'bubble'|'card'} kind        what kind of reorder gap this is
+   * @param {Object} handlers
+   * @param {string} [parentBubbleId]     required when kind='card'
+   * @param {boolean} [parentBubbleLocked]  required when kind='card'; locked
+   *   bubbles reject incoming cross-bubble drops
+   * @returns {HTMLElement[]}
+   */
+  function interleaveDropGaps(nodes, items, scope, kind, handlers, parentBubbleId, parentBubbleLocked) {
+    if (scope !== 'memory') return nodes; // Lore has no reorder
+    const out = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const beforeId = items[i] && items[i].id;
+      out.push(createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parentBubbleLocked }));
+      out.push(nodes[i]);
+    }
+    // Trailing gap for "move to end" drops
+    out.push(createDropGap({ scope, kind, beforeId: null, handlers, parentBubbleId, parentBubbleLocked }));
+    return out;
+  }
+
+  /**
+   * Create one drop-gap element. It's a thin horizontal div that expands
+   * visually when a compatible reorder payload hovers over it. On drop,
+   * invokes the appropriate handler.
+   *
+   * kind='bubble': accepts 'reorder-bubble' payload; beforeId is the id
+   *   of the bubble that this gap sits before (null = end of list).
+   * kind='card': accepts 'reorder-card' payload; beforeId is the id of
+   *   the card this gap sits before (null = end of bubble); parentBubbleId
+   *   is the bubble that owns this card list. As of 7d.2, cross-bubble
+   *   drops are accepted (card relocates to target bubble) — EXCEPT when
+   *   the target bubble is locked (parentBubbleLocked=true), which seals
+   *   the target against incoming cards.
+   */
+  function createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parentBubbleLocked }) {
+    const gap = h('div', {
+      class: `pf-mem-drop-gap pf-mem-drop-gap-${kind}`,
+      'data-before-id': beforeId == null ? '' : String(beforeId),
+      'aria-hidden': 'true',
+    });
+
+    // Check whether this gap should accept the current drag payload.
+    function accepts() {
+      if (!dragPayload) return false;
+      if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
+      if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
+      if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
+      return true;
+    }
+
+    gap.addEventListener('dragover', (ev) => {
+      if (!accepts()) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      gap.classList.add('pf-mem-drop-gap-active');
+    });
+    gap.addEventListener('dragleave', () => {
+      gap.classList.remove('pf-mem-drop-gap-active');
+    });
+    gap.addEventListener('drop', (ev) => {
+      if (!accepts()) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      gap.classList.remove('pf-mem-drop-gap-active');
+
+      if (kind === 'bubble') {
+        if (typeof handlers.onReorderBubble === 'function') {
+          handlers.onReorderBubble(scope, dragPayload.bubbleId, beforeId);
+        }
+      } else if (kind === 'card') {
+        if (typeof handlers.onReorderCard === 'function') {
+          handlers.onReorderCard(
+            scope,
+            dragPayload.bubbleId,     // source bubble
+            dragPayload.cardId,
+            parentBubbleId,           // target bubble (may differ from source in 7d.2)
+            beforeId,
+          );
+        }
+      }
+      dragPayload = null;
+    });
+
+    return gap;
+  }
 
   function countEntries(bubbles) {
     let n = 0;
@@ -21942,6 +22069,13 @@ Use this template for your response:
         k: loreK,
       });
 
+      // Apply the user-override layer on top of the clustering output.
+      // This reconciles: bubble-order assertions, intra-bubble card-order
+      // assertions, cross-bubble membership assignments. Pure-logic tests
+      // in test/bubble_overrides.test.mjs cover the reconciliation rules.
+      memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
+      loreBubbles   = applyOverrides(loreOverrides,   loreBubbles);
+
       // Drop expanded ids that no longer correspond to an existing bubble.
       const memIds = new Set(memoryBubbles.map(b => b.id));
       const lorIds = new Set(loreBubbles.map(b => b.id));
@@ -22017,9 +22151,24 @@ Use this template for your response:
 
     const handlers = {
       // Entry-level
-      onPromote: (id) => { stage.promote(id); refresh(); },
-      onDemote:  (id) => { stage.demote(id);  refresh(); },
-      onDelete:  (id) => { queueForDeletion(id); stage.remove(id); refresh(); },
+      onPromote: (id) => {
+        stage.promote(id);
+        // Card moves to lore — forget its memory-side override
+        forgetCard(memoryOverrides, id);
+        refresh();
+      },
+      onDemote: (id) => {
+        stage.demote(id);
+        forgetCard(loreOverrides, id);
+        refresh();
+      },
+      onDelete: (id) => {
+        queueForDeletion(id);
+        stage.remove(id);
+        forgetCard(memoryOverrides, id);
+        forgetCard(loreOverrides, id);
+        refresh();
+      },
 
       // Bubble-level (batch the same op over all members).
       //
@@ -22036,19 +22185,22 @@ Use this template for your response:
       onBubblePromote: (bubbleId, entries) => {
         if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
         if (bubbleId) memoryOverrides.lockedBubbles.delete(String(bubbleId));
-        for (const e of entries) stage.promote(e.id);
+        for (const e of entries) {
+          stage.promote(e.id);
+          forgetCard(memoryOverrides, e.id);
+        }
         refresh();
       },
       onBubbleDemote: (bubbleId, entries) => {
         if (!confirmIfLocked('lore', bubbleId, `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`)) return;
         if (bubbleId) loreOverrides.lockedBubbles.delete(String(bubbleId));
-        for (const e of entries) stage.demote(e.id);
+        for (const e of entries) {
+          stage.demote(e.id);
+          forgetCard(loreOverrides, e.id);
+        }
         refresh();
       },
       onBubbleDelete: (bubbleId, entries) => {
-        // Delete is always destructive; confirm when the bubble is locked
-        // so a stray click on a pinned cluster doesn't wipe it silently.
-        // Infer scope from wherever the bubble lives now.
         const scope = locatedBubbleScope(bubbleId);
         if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
         if (bubbleId) {
@@ -22058,7 +22210,86 @@ Use this template for your response:
         for (const e of entries) {
           queueForDeletion(e.id);
           stage.remove(e.id);
+          forgetCard(memoryOverrides, e.id);
+          forgetCard(loreOverrides, e.id);
         }
+        refresh();
+      },
+
+      // Reorder gestures (7d). Lore has no reorder at all — these handlers
+      // short-circuit if called with scope='lore' (defense in depth; the
+      // renderer already gates grip rendering to Memory).
+      //
+      // onReorderBubble: move bubble `bubbleId` to the position just before
+      // `beforeBubbleId` (null = move to end). Locked bubbles resist — but
+      // the grip is disabled on them so this is theoretical. We still
+      // defensively refuse to reorder a locked bubble.
+      onReorderBubble: (scope, bubbleId, beforeBubbleId) => {
+        if (scope !== 'memory') return;
+        if (memoryOverrides.lockedBubbles.has(String(bubbleId))) return;
+        const currentOrder = memoryBubbles.map(b => b.id);
+        moveBubbleBefore(memoryOverrides, bubbleId, beforeBubbleId, currentOrder);
+        refresh();
+      },
+
+      // onReorderCard: move card `cardId` (which lives in `sourceBubbleId`)
+      // to the position just before `beforeCardId` in `targetBubbleId`.
+      //
+      // 7d.1 was within-bubble only (source == target). 7d.2 allows
+      // cross-bubble: when source != target, the card is RELOCATED to
+      // the target bubble. The move is recorded as a user-assertion via
+      // assignCardToBubble, so it survives re-clustering.
+      //
+      // Lock enforcement:
+      //   - Source locked → refuse (can't lift cards out of a locked bubble).
+      //     Normally the card has no grip inside a locked bubble, but
+      //     belt-and-suspenders here.
+      //   - Target locked → refuse. The UI normally doesn't render drop
+      //     gaps in locked bubbles, but belt-and-suspenders.
+      onReorderCard: (scope, sourceBubbleId, cardId, targetBubbleId, beforeCardId) => {
+        if (scope !== 'memory') return;
+        const sourceLocked = memoryOverrides.lockedBubbles.has(String(sourceBubbleId));
+        const targetLocked = memoryOverrides.lockedBubbles.has(String(targetBubbleId));
+        if (sourceLocked || targetLocked) return;
+
+        const sameBubble = String(sourceBubbleId) === String(targetBubbleId);
+
+        if (sameBubble) {
+          // Within-bubble reorder (7d.1 path, unchanged)
+          const source = memoryBubbles.find(b => String(b.id) === String(sourceBubbleId));
+          if (!source) return;
+          const currentCardOrder = source.entries.map(e => e.id);
+          moveCardBefore(memoryOverrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+        } else {
+          // Cross-bubble relocation (7d.2)
+          // 1. Assert the new membership — this is a user override that
+          //    survives re-clustering.
+          assignCardToBubble(memoryOverrides, cardId, targetBubbleId);
+
+          // 2. Position it within the target bubble's card order.
+          //    If the target had no user-order yet, we need to seed it
+          //    with the current order + insert. moveCardBefore already
+          //    handles the 'insert into current order' part — we just
+          //    need to give it the target bubble's current card order
+          //    (which does NOT yet include the incoming card, because
+          //    the card still lives in the source at this point).
+          const target = memoryBubbles.find(b => String(b.id) === String(targetBubbleId));
+          if (target) {
+            const currentTargetOrder = target.entries.map(e => e.id);
+            moveCardBefore(memoryOverrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
+          }
+
+          // 3. The card no longer belongs in the source's card-order list.
+          //    moveCardBefore won't clean it up because it thinks it's
+          //    ADDING the card to the target. Manually remove from source.
+          if (memoryOverrides.bubbleCardOrder.has(String(sourceBubbleId))) {
+            const srcOrder = memoryOverrides.bubbleCardOrder.get(String(sourceBubbleId));
+            const cleaned = srcOrder.filter(id => String(id) !== String(cardId));
+            if (cleaned.length === 0) memoryOverrides.bubbleCardOrder.delete(String(sourceBubbleId));
+            else memoryOverrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
+          }
+        }
+
         refresh();
       },
 
@@ -22078,6 +22309,7 @@ Use this template for your response:
             lockedBubbleIds: memoryOverrides.lockedBubbles,
             k: memoryK,
           });
+          memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
           // Preserve expanded state for locked bubbles (their ids survive).
           // Free bubbles get new ids, so drop those from expanded.
           for (const id of expandedMemoryIds) {
@@ -22104,6 +22336,7 @@ Use this template for your response:
             lockedBubbleIds: loreOverrides.lockedBubbles,
             k: loreK,
           });
+          loreBubbles = applyOverrides(loreOverrides, loreBubbles);
           for (const id of expandedLoreIds) {
             if (!loreOverrides.lockedBubbles.has(String(id))) {
               expandedLoreIds.delete(id);

@@ -144,7 +144,10 @@ export function createMemoryPanels({
     replaceContents(
       memoryList,
       memB.length > 0
-        ? memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers))
+        ? interleaveDropGaps(
+            memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers)),
+            memB, 'memory', 'bubble', handlers
+          )
         : [renderEmptyState('memory')]
     );
     replaceContents(
@@ -301,6 +304,53 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
     'aria-hidden': 'true',
   }, [isExpanded ? '▼' : '▶']);
 
+  // Drag-handle grip: rendered only on Memory bubbles (Lore has no
+  // reorder concept). Disabled look when the bubble is locked —
+  // visual affordance should match the behavior that 7d enforces.
+  //
+  // The grip is a SEPARATE drag source from the header itself. Header
+  // drag = cross-panel (promote/demote/delete). Grip drag = reorder.
+  // They emit different payload kinds ('bubble' vs 'reorder-bubble')
+  // so drop handlers can distinguish. 7c only sets up the source; 7d
+  // wires drops.
+  let grip = null;
+  if (scope === 'memory') {
+    grip = h('span', {
+      class: `pf-mem-bubble-grip ${isLocked ? 'pf-mem-bubble-grip-disabled' : ''}`,
+      title: isLocked ? 'Locked — reorder disabled' : 'Drag to reorder',
+      'aria-hidden': 'true',
+      draggable: isLocked ? 'false' : 'true',
+      onClick: (ev) => {
+        // Clicking the grip should not toggle expand/collapse.
+        ev.stopPropagation();
+      },
+    }, ['⋮⋮']);
+
+    if (!isLocked) {
+      grip.addEventListener('dragstart', (ev) => {
+        ev.stopPropagation();
+        dragPayload = {
+          kind: 'reorder-bubble',
+          scope,
+          bubbleId: bubble.id,
+          entries: bubble.entries.slice(),
+        };
+        try {
+          ev.dataTransfer.setData('text/plain', `reorder-bubble:${bubble.id}`);
+          ev.dataTransfer.effectAllowed = 'move';
+        } catch { /* defensive */ }
+      });
+      grip.addEventListener('dragend', () => {
+        // Clear payload only if it's still ours; a cross-panel drag
+        // started on the header would have already overwritten this,
+        // but defensive belt-and-suspenders.
+        if (dragPayload && dragPayload.kind === 'reorder-bubble') {
+          dragPayload = null;
+        }
+      });
+    }
+  }
+
   // Label sits on top; preview (first memory text, single-line, CSS-truncated
   // via ellipsis) sits underneath. Stacked in a flex-column that takes
   // remaining width between chevron and count/actions.
@@ -331,6 +381,10 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
 
   // Header is the drag source for the whole bubble, AND the click target
   // for expand/collapse. Actions (Promote, Lock, Delete) are inline.
+  const headerChildren = [];
+  if (grip) headerChildren.push(grip);
+  headerChildren.push(chevron, labelStack, countBadge, lockBtn, buildBubbleActions(bubble, scope, handlers));
+
   const header = h('div', {
     class: `pf-mem-bubble-header ${isLocked ? 'pf-mem-bubble-header-locked' : ''}`,
     role: 'button',
@@ -351,13 +405,7 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
         }
       }
     },
-  }, [
-    chevron,
-    labelStack,
-    countBadge,
-    lockBtn,
-    buildBubbleActions(bubble, scope, handlers),
-  ]);
+  }, headerChildren);
 
   // Drag source: drag the header = move the whole bubble
   header.addEventListener('dragstart', (ev) => {
@@ -380,13 +428,19 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
   });
 
   // Body: hidden when collapsed, nested cards when expanded.
+  // For Memory/unlocked bubbles, interleave drop-gaps between cards
+  // to enable within-bubble reorder.
+  const cardNodes = isExpanded
+    ? bubble.entries.map(entry => renderCard(entry, { scope, bubbleId: bubble.id, isLocked }, handlers))
+    : [];
+  const bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
+    ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
+    : cardNodes;
+
   const body = h('div', {
     class: 'pf-mem-bubble-body',
     hidden: !isExpanded,
-  }, isExpanded
-    ? bubble.entries.map(entry => renderCard(entry, handlers))
-    : []
-  );
+  }, bodyChildren);
 
   return h('div', {
     class: `pf-mem-bubble ${bubble.isUngrouped ? 'pf-mem-bubble-ungrouped' : ''}`,
@@ -438,20 +492,68 @@ function buildBubbleActions(bubble, scope, handlers) {
 
 // ---- card rendering (single entry within a bubble) ----
 
-function renderCard(item, handlers) {
+function renderCard(item, parent, handlers) {
+  // parent = { scope, bubbleId, isLocked }
+  const parentCtx = parent || {};
+
+  // Card-level grip: only when parent is Memory scope and unlocked.
+  // Lore cards and locked-bubble cards don't get a grip (no reorder).
+  let grip = null;
+  if (parentCtx.scope === 'memory' && !parentCtx.isLocked) {
+    grip = h('span', {
+      class: 'pf-mem-card-grip',
+      title: 'Drag to reorder',
+      'aria-hidden': 'true',
+      draggable: 'true',
+      onClick: (ev) => { ev.stopPropagation(); },
+    }, ['⋮⋮']);
+
+    grip.addEventListener('dragstart', (ev) => {
+      ev.stopPropagation();
+      dragPayload = {
+        kind: 'reorder-card',
+        scope: item.scope,
+        cardId: item.id,
+        bubbleId: parentCtx.bubbleId,
+      };
+      try {
+        ev.dataTransfer.setData('text/plain', `reorder-card:${item.id}`);
+        ev.dataTransfer.effectAllowed = 'move';
+      } catch { /* defensive */ }
+    });
+    grip.addEventListener('dragend', () => {
+      if (dragPayload && dragPayload.kind === 'reorder-card') {
+        dragPayload = null;
+      }
+    });
+  }
+
+  const cardChildren = [];
+  if (grip) cardChildren.push(grip);
+  cardChildren.push(
+    h('div', { class: 'pf-mem-card-text' }, [String(item.text || '')]),
+    buildCardActions(item, handlers),
+  );
+
   const card = h('div', {
     class: 'pf-mem-card pf-mem-card-nested',
     role: 'listitem',
     draggable: 'true',
     'data-item-id': String(item.id),
     'data-scope': item.scope,
-  }, [
-    h('div', { class: 'pf-mem-card-text' }, [String(item.text || '')]),
-    buildCardActions(item, handlers),
-  ]);
+  }, cardChildren);
 
+  // The card as a whole remains draggable for cross-panel 'entry' drags
+  // (promote/demote/delete). Grip emits 'reorder-card' separately.
   card.addEventListener('dragstart', (ev) => {
     ev.stopPropagation();
+    // Skip setting the payload if the grip already did — dragstart on
+    // the grip bubbles up to card, but the grip's handler ran first via
+    // stopPropagation. If grip had stopPropagation but the native dragstart
+    // fires on the card anyway, we'd overwrite a reorder-card payload.
+    if (dragPayload && dragPayload.kind === 'reorder-card' && String(dragPayload.cardId) === String(item.id)) {
+      return;
+    }
     dragPayload = { kind: 'entry', id: item.id, scope: item.scope };
     card.classList.add('pf-mem-card-dragging');
     try {
@@ -509,6 +611,100 @@ function buildCardActions(item, handlers) {
 }
 
 // ---- helpers ----
+
+/**
+ * Interleave drop-gap elements between sibling drag items.
+ * For N items, produces [gap, item0, gap, item1, gap, ..., itemN-1, gap]
+ * — gaps before every item AND one at the end (for "move to end" drops).
+ *
+ * @param {HTMLElement[]} nodes         rendered item nodes
+ * @param {Array} items                 the source items (for beforeId lookup)
+ * @param {'memory'|'lore'} scope
+ * @param {'bubble'|'card'} kind        what kind of reorder gap this is
+ * @param {Object} handlers
+ * @param {string} [parentBubbleId]     required when kind='card'
+ * @param {boolean} [parentBubbleLocked]  required when kind='card'; locked
+ *   bubbles reject incoming cross-bubble drops
+ * @returns {HTMLElement[]}
+ */
+function interleaveDropGaps(nodes, items, scope, kind, handlers, parentBubbleId, parentBubbleLocked) {
+  if (scope !== 'memory') return nodes; // Lore has no reorder
+  const out = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const beforeId = items[i] && items[i].id;
+    out.push(createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parentBubbleLocked }));
+    out.push(nodes[i]);
+  }
+  // Trailing gap for "move to end" drops
+  out.push(createDropGap({ scope, kind, beforeId: null, handlers, parentBubbleId, parentBubbleLocked }));
+  return out;
+}
+
+/**
+ * Create one drop-gap element. It's a thin horizontal div that expands
+ * visually when a compatible reorder payload hovers over it. On drop,
+ * invokes the appropriate handler.
+ *
+ * kind='bubble': accepts 'reorder-bubble' payload; beforeId is the id
+ *   of the bubble that this gap sits before (null = end of list).
+ * kind='card': accepts 'reorder-card' payload; beforeId is the id of
+ *   the card this gap sits before (null = end of bubble); parentBubbleId
+ *   is the bubble that owns this card list. As of 7d.2, cross-bubble
+ *   drops are accepted (card relocates to target bubble) — EXCEPT when
+ *   the target bubble is locked (parentBubbleLocked=true), which seals
+ *   the target against incoming cards.
+ */
+function createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parentBubbleLocked }) {
+  const gap = h('div', {
+    class: `pf-mem-drop-gap pf-mem-drop-gap-${kind}`,
+    'data-before-id': beforeId == null ? '' : String(beforeId),
+    'aria-hidden': 'true',
+  });
+
+  // Check whether this gap should accept the current drag payload.
+  function accepts() {
+    if (!dragPayload) return false;
+    if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
+    if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
+    if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
+    return true;
+  }
+
+  gap.addEventListener('dragover', (ev) => {
+    if (!accepts()) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    gap.classList.add('pf-mem-drop-gap-active');
+  });
+  gap.addEventListener('dragleave', () => {
+    gap.classList.remove('pf-mem-drop-gap-active');
+  });
+  gap.addEventListener('drop', (ev) => {
+    if (!accepts()) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    gap.classList.remove('pf-mem-drop-gap-active');
+
+    if (kind === 'bubble') {
+      if (typeof handlers.onReorderBubble === 'function') {
+        handlers.onReorderBubble(scope, dragPayload.bubbleId, beforeId);
+      }
+    } else if (kind === 'card') {
+      if (typeof handlers.onReorderCard === 'function') {
+        handlers.onReorderCard(
+          scope,
+          dragPayload.bubbleId,     // source bubble
+          dragPayload.cardId,
+          parentBubbleId,           // target bubble (may differ from source in 7d.2)
+          beforeId,
+        );
+      }
+    }
+    dragPayload = null;
+  });
+
+  return gap;
+}
 
 function countEntries(bubbles) {
   let n = 0;

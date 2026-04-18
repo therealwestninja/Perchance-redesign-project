@@ -1886,6 +1886,88 @@ export const CSS = `
   opacity: 0.8;
 }
 
+/* Drop-gap elements for reorder (7d). Thin horizontal strips between
+   sibling bubbles (in the Memory column) and between sibling cards
+   (inside an expanded Memory bubble body). Become visible on dragover
+   when a compatible reorder payload is hovering. */
+.pf-mem-drop-gap {
+  height: 4px;
+  margin: 0;
+  border-radius: 2px;
+  pointer-events: auto;   /* must be true to receive dragover/drop */
+  transition: background 0.12s, height 0.12s, margin 0.12s;
+}
+.pf-mem-drop-gap-bubble {
+  height: 6px;            /* bubble-level gaps slightly taller for easier target */
+}
+.pf-mem-drop-gap-active {
+  background: rgba(216, 179, 106, 0.6);    /* gold accent */
+  height: 12px;
+  margin: 2px 0;
+  box-shadow: 0 0 8px rgba(216, 179, 106, 0.35);
+}
+.pf-mem-drop-gap-bubble.pf-mem-drop-gap-active {
+  height: 14px;
+}
+
+/* Drag-reorder grip handle (7c). Rendered only on Memory-scope bubbles
+   and Memory-scope cards within unlocked bubbles. 7c establishes the
+   drag source; drops become functional in 7d. */
+.pf-mem-bubble-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 22px;
+  margin-right: -2px;                 /* tighten against chevron */
+  cursor: grab;
+  color: var(--text-color);
+  opacity: 0.35;
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
+  letter-spacing: -3px;               /* pull the two ⋮ columns closer */
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.pf-mem-bubble-grip:hover {
+  opacity: 0.8;
+}
+.pf-mem-bubble-grip:active {
+  cursor: grabbing;
+}
+.pf-mem-bubble-grip-disabled {
+  opacity: 0.15;
+  cursor: not-allowed;
+}
+.pf-mem-bubble-grip-disabled:hover {
+  opacity: 0.15;
+}
+
+.pf-mem-card-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  min-height: 100%;
+  margin-right: 2px;
+  cursor: grab;
+  color: var(--text-color);
+  opacity: 0.3;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+  letter-spacing: -3px;
+  flex-shrink: 0;
+  transition: opacity 0.1s;
+}
+.pf-mem-card-grip:hover {
+  opacity: 0.7;
+}
+.pf-mem-card-grip:active {
+  cursor: grabbing;
+}
+
 /* Lock toggle on bubble header */
 .pf-mem-bubble-lock {
   font-family: inherit;

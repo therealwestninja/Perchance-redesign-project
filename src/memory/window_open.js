@@ -23,7 +23,7 @@ import { probeSchema, loadBaseline, commitDiff, formatDiffSummary } from './db.j
 import { createStage } from './stage.js';
 import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
-import { createOverrides, toggleLock } from './bubble_overrides.js';
+import { createOverrides, toggleLock, applyOverrides, moveBubbleBefore, moveCardBefore, forgetCard, assignCardToBubble } from './bubble_overrides.js';
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
@@ -143,6 +143,13 @@ export async function openMemoryWindow() {
       k: loreK,
     });
 
+    // Apply the user-override layer on top of the clustering output.
+    // This reconciles: bubble-order assertions, intra-bubble card-order
+    // assertions, cross-bubble membership assignments. Pure-logic tests
+    // in test/bubble_overrides.test.mjs cover the reconciliation rules.
+    memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
+    loreBubbles   = applyOverrides(loreOverrides,   loreBubbles);
+
     // Drop expanded ids that no longer correspond to an existing bubble.
     const memIds = new Set(memoryBubbles.map(b => b.id));
     const lorIds = new Set(loreBubbles.map(b => b.id));
@@ -218,9 +225,24 @@ export async function openMemoryWindow() {
 
   const handlers = {
     // Entry-level
-    onPromote: (id) => { stage.promote(id); refresh(); },
-    onDemote:  (id) => { stage.demote(id);  refresh(); },
-    onDelete:  (id) => { queueForDeletion(id); stage.remove(id); refresh(); },
+    onPromote: (id) => {
+      stage.promote(id);
+      // Card moves to lore — forget its memory-side override
+      forgetCard(memoryOverrides, id);
+      refresh();
+    },
+    onDemote: (id) => {
+      stage.demote(id);
+      forgetCard(loreOverrides, id);
+      refresh();
+    },
+    onDelete: (id) => {
+      queueForDeletion(id);
+      stage.remove(id);
+      forgetCard(memoryOverrides, id);
+      forgetCard(loreOverrides, id);
+      refresh();
+    },
 
     // Bubble-level (batch the same op over all members).
     //
@@ -237,19 +259,22 @@ export async function openMemoryWindow() {
     onBubblePromote: (bubbleId, entries) => {
       if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
       if (bubbleId) memoryOverrides.lockedBubbles.delete(String(bubbleId));
-      for (const e of entries) stage.promote(e.id);
+      for (const e of entries) {
+        stage.promote(e.id);
+        forgetCard(memoryOverrides, e.id);
+      }
       refresh();
     },
     onBubbleDemote: (bubbleId, entries) => {
       if (!confirmIfLocked('lore', bubbleId, `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`)) return;
       if (bubbleId) loreOverrides.lockedBubbles.delete(String(bubbleId));
-      for (const e of entries) stage.demote(e.id);
+      for (const e of entries) {
+        stage.demote(e.id);
+        forgetCard(loreOverrides, e.id);
+      }
       refresh();
     },
     onBubbleDelete: (bubbleId, entries) => {
-      // Delete is always destructive; confirm when the bubble is locked
-      // so a stray click on a pinned cluster doesn't wipe it silently.
-      // Infer scope from wherever the bubble lives now.
       const scope = locatedBubbleScope(bubbleId);
       if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
       if (bubbleId) {
@@ -259,7 +284,86 @@ export async function openMemoryWindow() {
       for (const e of entries) {
         queueForDeletion(e.id);
         stage.remove(e.id);
+        forgetCard(memoryOverrides, e.id);
+        forgetCard(loreOverrides, e.id);
       }
+      refresh();
+    },
+
+    // Reorder gestures (7d). Lore has no reorder at all — these handlers
+    // short-circuit if called with scope='lore' (defense in depth; the
+    // renderer already gates grip rendering to Memory).
+    //
+    // onReorderBubble: move bubble `bubbleId` to the position just before
+    // `beforeBubbleId` (null = move to end). Locked bubbles resist — but
+    // the grip is disabled on them so this is theoretical. We still
+    // defensively refuse to reorder a locked bubble.
+    onReorderBubble: (scope, bubbleId, beforeBubbleId) => {
+      if (scope !== 'memory') return;
+      if (memoryOverrides.lockedBubbles.has(String(bubbleId))) return;
+      const currentOrder = memoryBubbles.map(b => b.id);
+      moveBubbleBefore(memoryOverrides, bubbleId, beforeBubbleId, currentOrder);
+      refresh();
+    },
+
+    // onReorderCard: move card `cardId` (which lives in `sourceBubbleId`)
+    // to the position just before `beforeCardId` in `targetBubbleId`.
+    //
+    // 7d.1 was within-bubble only (source == target). 7d.2 allows
+    // cross-bubble: when source != target, the card is RELOCATED to
+    // the target bubble. The move is recorded as a user-assertion via
+    // assignCardToBubble, so it survives re-clustering.
+    //
+    // Lock enforcement:
+    //   - Source locked → refuse (can't lift cards out of a locked bubble).
+    //     Normally the card has no grip inside a locked bubble, but
+    //     belt-and-suspenders here.
+    //   - Target locked → refuse. The UI normally doesn't render drop
+    //     gaps in locked bubbles, but belt-and-suspenders.
+    onReorderCard: (scope, sourceBubbleId, cardId, targetBubbleId, beforeCardId) => {
+      if (scope !== 'memory') return;
+      const sourceLocked = memoryOverrides.lockedBubbles.has(String(sourceBubbleId));
+      const targetLocked = memoryOverrides.lockedBubbles.has(String(targetBubbleId));
+      if (sourceLocked || targetLocked) return;
+
+      const sameBubble = String(sourceBubbleId) === String(targetBubbleId);
+
+      if (sameBubble) {
+        // Within-bubble reorder (7d.1 path, unchanged)
+        const source = memoryBubbles.find(b => String(b.id) === String(sourceBubbleId));
+        if (!source) return;
+        const currentCardOrder = source.entries.map(e => e.id);
+        moveCardBefore(memoryOverrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+      } else {
+        // Cross-bubble relocation (7d.2)
+        // 1. Assert the new membership — this is a user override that
+        //    survives re-clustering.
+        assignCardToBubble(memoryOverrides, cardId, targetBubbleId);
+
+        // 2. Position it within the target bubble's card order.
+        //    If the target had no user-order yet, we need to seed it
+        //    with the current order + insert. moveCardBefore already
+        //    handles the 'insert into current order' part — we just
+        //    need to give it the target bubble's current card order
+        //    (which does NOT yet include the incoming card, because
+        //    the card still lives in the source at this point).
+        const target = memoryBubbles.find(b => String(b.id) === String(targetBubbleId));
+        if (target) {
+          const currentTargetOrder = target.entries.map(e => e.id);
+          moveCardBefore(memoryOverrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
+        }
+
+        // 3. The card no longer belongs in the source's card-order list.
+        //    moveCardBefore won't clean it up because it thinks it's
+        //    ADDING the card to the target. Manually remove from source.
+        if (memoryOverrides.bubbleCardOrder.has(String(sourceBubbleId))) {
+          const srcOrder = memoryOverrides.bubbleCardOrder.get(String(sourceBubbleId));
+          const cleaned = srcOrder.filter(id => String(id) !== String(cardId));
+          if (cleaned.length === 0) memoryOverrides.bubbleCardOrder.delete(String(sourceBubbleId));
+          else memoryOverrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
+        }
+      }
+
       refresh();
     },
 
@@ -279,6 +383,7 @@ export async function openMemoryWindow() {
           lockedBubbleIds: memoryOverrides.lockedBubbles,
           k: memoryK,
         });
+        memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
         // Preserve expanded state for locked bubbles (their ids survive).
         // Free bubbles get new ids, so drop those from expanded.
         for (const id of expandedMemoryIds) {
@@ -305,6 +410,7 @@ export async function openMemoryWindow() {
           lockedBubbleIds: loreOverrides.lockedBubbles,
           k: loreK,
         });
+        loreBubbles = applyOverrides(loreOverrides, loreBubbles);
         for (const id of expandedLoreIds) {
           if (!loreOverrides.lockedBubbles.has(String(id))) {
             expandedLoreIds.delete(id);
