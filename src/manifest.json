@@ -23,6 +23,7 @@
     "memory/continuity.js",
     "memory/duplicates.js",
     "memory/stage.js",
+    "memory/db.js",
     "render/styles.js",
     "profile/settings_store.js",
     "profile/notifications.js",
