@@ -247,41 +247,6 @@ should be non-fatal. A deeper audit should:
 
 ---
 
-## Stale-baseline save bug (known issue)
-
-**Status: KNOWN, test skipped, fix pending.**
-
-`test/memory_db.test.mjs` has a `test.skip(...)` reproducer named
-"commitDiff reorder: external edit is overwritten by stale baseline."
-It documents this scenario:
-
-1. User opens our Memory window. Baseline snapshotted (text = "X").
-2. User edits the same memory externally via Perchance's `/mem` or
-   brain-icon (text now = "Y").
-3. User saves from our tool with reorder active (7e proportional remap).
-4. Our save writes the stale baseline text "X" back to Dexie,
-   silently overwriting "Y".
-
-**Severity:** data loss, but low likelihood — requires user to actively
-have both our tool AND Perchance's native mem editor open simultaneously.
-
-**Fix sketch:** in `db.js` `commitDiff`'s reorder block, re-read the
-CURRENT `memoriesEndingHere` for each affected message inside the
-transaction (before writing) and merge:
-  - Our baseline-tracked entries overwritten with our current text
-  - Entries present in the current DB but NOT in our baseline
-    preserved (they're external additions since we opened)
-  - Entries in our baseline but missing from current DB treated as
-    external deletions (don't re-add)
-
-Alternatively: compute a hash of `memoriesEndingHere` at baseline time,
-compare before write. Abort save with "thread was modified externally,
-reload?" prompt if different. Simpler but more intrusive.
-
-**Scope:** ~30 lines in `commitDiff` + unskip the existing test.
-
----
-
 ## Save stats / summary UI
 
 After a successful save, the window closes silently. The commitDiff
@@ -447,6 +412,51 @@ Should only be tackled AFTER:
   - Second-pass user-stats tracking (depends on richer stats being
     available to gamify)
   - Code-duplication refactor pass (don't build on duplicated code)
+
+---
+
+## Legacy Perchance code audit
+
+**Status: open.**
+
+We've been treating `vendor/perchance-ai-character-chat/perchance_1.txt`
+and `perchance_2.txt` as read-only scaffolding — the fork's promise is
+"upstream untouched, we only append." That discipline is correct for
+maintainability, but it means we've never actually READ much of the
+legacy code with an eye toward "is there low-hanging fruit we could
+fix?"
+
+**Plan:**
+1. Read through the legacy HTML panel and DSL parser — get a mental map
+   of what's there
+2. Note anything that looks like a bug, a slowdown, a UX wart, or a
+   missed-opportunity affordance
+3. For each, decide:
+   a. Fork-only fix (we patch it in our build pipeline as a post-
+      processing step, upstream untouched)
+   b. Contribute upstream (if Perchance accepts PRs)
+   c. Document and defer
+
+**Candidates worth checking:**
+- The `/mem` and `/lore` slash-command handlers — we already know these
+  overlap with our tool; see if their UI can be visually deprioritized
+  when our tool is installed
+- The memory retrieval logic — is it doing embedding similarity per
+  user message, per token, or what? Could our bubble-clustering
+  inform better retrieval?
+- The stage indicator / message UI — anything we could polish?
+- The character creation flow — first-run UX for new users
+- Performance on long threads — does the upstream code do anything
+  silly like re-rendering the whole chat on every message?
+
+**Scope:** investigation first (~1 day of reading), then per-finding
+commits. Likely 3–10 separate commits depending on what we find.
+
+**Risk:** we become the maintainers of a diverging fork. Worth weighing
+against the fork promise of "upstream untouched." One mitigation:
+build-time patches only (don't edit the vendor file, apply textual
+patches in `build/build.mjs` instead). That keeps the vendor file
+pristine in git but gives us latitude to fix stuff.
 
 ---
 

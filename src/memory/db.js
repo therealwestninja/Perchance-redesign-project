@@ -573,6 +573,17 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
 
             // Remove every toRemap entry from its current home.
             // Preserve frozen entries in place.
+            //
+            // CRUCIAL: while we have the current slot in hand, capture
+            // its text and embedding onto the item. This is the current
+            // on-disk state — reflecting (a) any edits applied earlier
+            // in this same commitDiff (diff.edited was applied above),
+            // and (b) any edits that happened EXTERNALLY since we
+            // loaded baseline (e.g. user used Perchance's /mem slash
+            // command in another window). If we don't capture here,
+            // the write loop below uses baseline text and silently
+            // overwrites both kinds of edits. (Pre-fix: stale-baseline
+            // bug — see test/memory_db.test.mjs reproducer.)
             for (const item of toRemap) {
               const coord = parseMemId(item.id);
               if (!coord) continue;
@@ -580,12 +591,27 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
               if (!m || !m.memoriesEndingHere) continue;
               const lvlArr = m.memoriesEndingHere[coord.level];
               if (!Array.isArray(lvlArr)) continue;
+
+              // Capture current on-disk state before tombstoning.
+              const currentEntry = lvlArr[coord.indexInLevel];
+              if (currentEntry && typeof currentEntry === 'object') {
+                if (typeof currentEntry.text === 'string') {
+                  item.__currentText = currentEntry.text;
+                }
+                if (currentEntry.embedding != null) {
+                  item.__currentEmbedding = currentEntry.embedding;
+                }
+              }
+
               // Tombstone the slot; we rebuild messages below so indices
               // don't actually matter, but this keeps the semantics clean.
               lvlArr[coord.indexInLevel] = null;
             }
 
             // Assign each toRemap entry to a target message by proportional rank.
+            // Use the CAPTURED current text/embedding (set above) in preference
+            // to the baseline's stale text. Baseline text remains the fallback
+            // for items whose current slot was somehow unreadable.
             const N = toRemap.length;
             const M = messages.length;
             for (let i = 0; i < N; i++) {
@@ -596,9 +622,15 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
                 targetMsg.memoriesEndingHere['1'] = [];
               }
               const item = toRemap[i];
+              const freshText = item.__currentText != null
+                ? item.__currentText
+                : item.text;
+              const freshEmbedding = item.__currentEmbedding != null
+                ? item.__currentEmbedding
+                : (item.__embedding ?? null);
               targetMsg.memoriesEndingHere['1'].push({
-                text: item.text,
-                embedding: item.__embedding ?? null,
+                text: freshText,
+                embedding: freshEmbedding,
               });
               stats.skippedMemoryReorder = 0; // replaces the old "skipped" tally
             }

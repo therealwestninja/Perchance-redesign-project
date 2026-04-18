@@ -679,16 +679,17 @@ test('loadUsageHistogram: malformed data does not throw', async () => {
 //
 // Scenario: user opens our tool (baseline snapshotted), user edits a
 // memory via /mem or brain-icon OUTSIDE our tool, then user triggers
-// a Save in our tool that involves reorder. Our proportional remap
-// writes the STALE baseline text back to Dexie, silently overwriting
-// the external edit.
+// a Save in our tool that involves reorder. Without the fix, our
+// proportional remap would write the STALE baseline text back to
+// Dexie, silently overwriting the external edit.
 //
-// TODO: fix this bug in a follow-up commit. Test is .skip'd until the
-// fix lands. The fix is to re-read affected messages at save time
-// inside the reorder block, using fresh Dexie data rather than stale
-// baseline text. Estimated ~30 lines in db.js commitDiff.
+// Fix (in db.js commitDiff reorder block): when tombstoning each
+// entry's current slot, capture the current text/embedding and use
+// it for the rewrite instead of the baseline text. This handles both
+// external edits (the case below) and internal edits where our tool
+// edited a memory AND reordered it in the same save.
 
-test.skip('commitDiff reorder: external edit is overwritten by stale baseline', async () => {
+test('commitDiff reorder: external edit is preserved through reorder', async () => {
   // Initial state: one message with one memory, text = "original"
   const db = createMockDb({
     messages: [
@@ -748,15 +749,87 @@ test.skip('commitDiff reorder: external edit is overwritten by stale baseline', 
     memoryOrder,
   });
 
-  // Step 4: check final DB state — if the bug is present, the remap
-  // wrote the STALE baseline text ("original") back, overwriting the
-  // external edit.
+  // Step 4: check final DB state — the fix captures the current
+  // on-disk text during tombstone, so the external edit survives.
   const current = origMessages.rows[0].memoriesEndingHere['1'];
   const texts = current.filter(e => e && e.text).map(e => e.text);
 
-  // This assertion CURRENTLY FAILS (bug exists). Once fixed, should pass.
   assert.ok(
     texts.includes('edited externally'),
     `stale-baseline bug: external edit was overwritten. Final texts: ${JSON.stringify(texts)}`
+  );
+});
+
+test('commitDiff reorder: internal edit + reorder on same memory preserves edit', async () => {
+  // Scenario variant: user edits a memory INSIDE our tool AND reorders
+  // it in the same save. Without the fix, the reorder block uses
+  // baseline text and overwrites the in-flight edit. With the fix,
+  // reorder captures the current on-disk text AFTER diff.edited was
+  // applied, so the edit survives.
+
+  const db = createMockDb({
+    messages: [
+      {
+        id: 1, threadId: 100,
+        memoriesEndingHere: { '1': [{ text: 'before edit', embedding: null }] },
+      },
+    ],
+  });
+  const origMessages = db.messages;
+  db.messages = {
+    ...origMessages,
+    where(idx) {
+      const orig = origMessages.where(idx);
+      return {
+        ...orig,
+        equals(val) {
+          const chain = orig.equals(val);
+          return {
+            ...chain,
+            sortBy: async (key) => {
+              const all = await chain.toArray();
+              return [...all].sort((a, b) => (a[key] || 0) - (b[key] || 0));
+            },
+          };
+        },
+      };
+    },
+  };
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  const baseline = await loadBaseline({ threadId: 100 });
+  const memId = baseline[0].id;
+
+  // User edits the memory in our tool, then reorders it. Both changes
+  // flow into commitDiff: one in diff.edited, both in memoryOrder.
+  const editedItem = { ...baseline[0], text: 'after edit by our tool' };
+  const diff = {
+    added: [],
+    deleted: [],
+    edited: [editedItem],
+    reordered: [{ id: memId, scope: 'memory' }],
+    totalChanges: 2,
+  };
+  const memoryOrder = [{ id: memId, locked: false }];
+
+  await commitDiff({
+    baselineItems: baseline,
+    diff,
+    threadId: 100,
+    memoryOrder,
+  });
+
+  const current = origMessages.rows[0].memoriesEndingHere['1'];
+  const texts = current.filter(e => e && e.text).map(e => e.text);
+
+  assert.ok(
+    texts.includes('after edit by our tool'),
+    `internal edit clobbered by reorder. Final texts: ${JSON.stringify(texts)}`
+  );
+  assert.ok(
+    !texts.includes('before edit'),
+    `baseline text leaked through. Final texts: ${JSON.stringify(texts)}`
   );
 });
