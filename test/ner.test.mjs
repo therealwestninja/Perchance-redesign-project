@@ -127,3 +127,63 @@ test('bestLabel: handles all-stopwords gracefully', () => {
   const text = 'The the and the to of';
   assert.equal(bestLabel(text), null);
 });
+
+// ---- bestLabelCandidates ----
+
+test('bestLabelCandidates: returns empty for empty text', async () => {
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  assert.deepEqual(bestLabelCandidates(''), []);
+  assert.deepEqual(bestLabelCandidates('   '), []);
+});
+
+test('bestLabelCandidates: ranks proper nouns by frequency', async () => {
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  const text = 'Elara met Vex. Vex waited. Elara smiled. Vex sighed. Elara Elara.';
+  const c = bestLabelCandidates(text, { minCount: 1 });
+  // Both proper nouns should appear; Elara (3+1 via adjacency) > Vex (3)
+  assert.ok(c.includes('Elara'));
+  assert.ok(c.includes('Vex'));
+  assert.ok(c.indexOf('Elara') < c.indexOf('Vex'));
+});
+
+test('bestLabelCandidates: proper nouns rank above salient words', async () => {
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  // Use mid-sentence occurrences so the proper-noun extractor detects Elara.
+  // (Sentence-start-only capitalized tokens are filtered out as possibly just
+  // being sentence-start artifacts.)
+  const text = 'The forest was vast. The forest was green. In the forest Elara walked.';
+  const c = bestLabelCandidates(text, { minCount: 1 });
+  const elaraIdx = c.indexOf('Elara');
+  const forestIdx = c.indexOf('Forest');
+  assert.ok(elaraIdx >= 0, `Elara should be detected, got ${JSON.stringify(c)}`);
+  assert.ok(forestIdx >= 0, `Forest should be detected, got ${JSON.stringify(c)}`);
+  assert.ok(elaraIdx < forestIdx, `proper noun should rank above salient word, got ${JSON.stringify(c)}`);
+});
+
+test('bestLabelCandidates: respects minCount', async () => {
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  const text = 'Elara Elara Vex';
+  // With minCount=2, only Elara qualifies
+  const c = bestLabelCandidates(text, { minCount: 2 });
+  assert.ok(c.includes('Elara'));
+  assert.ok(!c.includes('Vex'));
+});
+
+test('bestLabelCandidates: respects limit', async () => {
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  const text = 'Alice Bob Carol Dana Eve Frank Greg. Alice Bob Carol Dana Eve Frank Greg.';
+  const c = bestLabelCandidates(text, { minCount: 1, limit: 3 });
+  assert.equal(c.length, 3);
+});
+
+test('bestLabelCandidates: deduplicates across proper/salient tiers', async () => {
+  // Deliberately contrive a case where the same token could appear in
+  // both lists. Usually our extractors are disjoint, but this guards
+  // against future regressions where they might overlap.
+  const { bestLabelCandidates } = await import('../src/memory/ner.js');
+  const text = 'Moon moon moon. Moon rises. Moon falls.';
+  const c = bestLabelCandidates(text, { minCount: 1 });
+  // Moon and moon should resolve to one entry (case-insensitive dedup)
+  const moons = c.filter(x => x.toLowerCase() === 'moon');
+  assert.equal(moons.length, 1);
+});

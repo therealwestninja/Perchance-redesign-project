@@ -55,56 +55,41 @@ This distinction needs careful design.
 
 ---
 
-## Chat-UI entry-point button
-
-Currently `window.__perchance_fork__.openMemory()` has to be called from
-the DevTools console in the iframe context. No in-UI button exists.
-
-**What's needed:** A small button or link in Perchance's chat UI (maybe
-next to the chat input, or in the profile overlay we ship) that calls
-`openMemory()` directly. No keyboard shortcut unless the user specifies
-one — hotkey collision risk inside the iframe is high.
-
-**Scope:** ~40 lines. 1 commit.
-
----
-
 ## Hide upstream `/mem` and `/lore` commands
 
 Upstream ships `/mem` and `/lore` slash-commands in the chat input that
 open its own (simpler) memory editors. With our tool available, those
-commands are confusing. Hide them via CSS injection — their DOM lives
-under a predictable selector we can match.
+commands are confusing. The original plan was to hide them via CSS
+injection.
 
-**Scope:** ~10 lines of CSS. 1 commit.
+**Blocked on investigation:** We don't currently know where these
+commands appear in Perchance's DOM. Possibilities:
+- Menu items in a slash-command popup (typing "/" in chat shows a
+  menu) — CSS-hideable via predictable selectors
+- Buttons in a toolbar — CSS-hideable
+- Pure text commands interpreted by an input handler — CSS can't
+  help; would need to intercept the input
+- Some mix of the above
 
----
+Before we can implement, we need to:
+1. Open Perchance's chat input, type `/` and see what menu (if any)
+   appears. Find the upstream memory/lore items' DOM.
+2. Decide on intervention strategy based on what we find:
+   - Menu items → CSS `display: none` on matching selectors
+   - Input interception → monkey-patch the command dispatcher upstream
+     uses (riskier; upstream updates may break our patch)
+   - Both → hide the UI and either swallow or rewrite text commands
 
-## docs/architecture.md — document the iframe debugging lesson
+**Possible deeper improvements once we're in:**
+- Instead of hiding, INTERCEPT — show our Memory window when user
+  types `/mem` in chat, so the tool works regardless of how they
+  invoke it
+- If the upstream commands take arguments (e.g., `/mem add Some text`),
+  preserve or translate those arguments into our stage.add flow
+- Give the user a settings toggle: "Hide upstream's memory commands"
+  defaulting to on, so a user who wants both tools can flip it back
 
-During 7b's development we burned multiple debugging rounds because the
-Perchance output iframe is on a cross-origin subdomain. `window.__perchance_fork__`
-is only accessible from within the iframe's JS context — not from the
-parent page's console. DevTools' "context dropdown" (top-left of Console
-panel) needs to be switched to `outputIframeEl` before any of our fork's
-debugging surface is available.
-
-Journal this in docs/architecture.md so future contributors (or future
-Claude sessions) don't re-learn it the hard way.
-
----
-
-## Davie-label redundancy fix
-
-When multiple bubbles share the same most-frequent proper noun, the
-labeler emits the same label for all of them ("Davie", "Davie", "Davie").
-Fix: diversify via second-most-frequent term per cluster.
-- Bubble with "Davie + walks": label "Davie — walks"
-- Bubble with "Davie + bath": label "Davie — bath"
-
-Already discussed during 7b development, not yet acted on.
-
-**Scope:** ~30 lines in `ner.js` / `bubbles.js` + a few tests. 1 commit.
+**Scope after investigation:** 10-100 lines depending on what we find.
 
 ---
 
@@ -130,3 +115,69 @@ users spin off ancillary characters from a main thread.
 Requires coordination with the profile system we built earlier.
 
 **Scope:** unclear, high. ~500+ lines.
+
+---
+
+## Lore reorder via invented order field
+
+**Status:** Rejected during 7-series planning ("If order doesn't matter
+for Lore, then it doesn't need to be sorted"). Keeping on the roadmap
+in case the opinion shifts once other features land.
+
+Upstream's lore schema has no order column. Adding one means our fork
+diverges: our writes include an `order` field that upstream silently
+ignores. Our reads would honor it. This creates a "lore order" that
+only exists inside our tool — fine for cosmetic sorting, weird for
+anything else.
+
+**Scope:** ~80 lines in db.js (migration + read/write honoring order)
++ UI wiring to enable Lore grips (currently hardcoded off).
+
+---
+
+## Save stats / summary UI
+
+After a successful save, the window closes silently. The commitDiff
+return value includes stats (`stats.addedMemory`, `stats.reorderedMemory`,
+etc.) but they're discarded. Could show a small toast or modal:
+"Saved: 3 memories edited, 2 promoted to lore, 15 reordered."
+
+Especially valuable for 7e's reorder-on-save — user wants to know
+their reorder actually hit disk, not just "the window closed."
+
+**Scope:** ~60 lines + UI.
+
+---
+
+## "Confirm all destructive batch actions" option
+
+During 7b.3 design, the full-guard option was "confirm delete AND
+promote AND demote when any of those are done on a locked bubble."
+User chose the middle option (just delete + promote + demote confirm
+as currently shipped). The full-guard variant could become a user
+preference toggle in settings.
+
+**Scope:** ~20 lines + settings wiring.
+
+---
+
+## Shipped (historical)
+
+For context on what's been built. If a roadmap item moves from pending
+to shipped, summarize and move it here so the active roadmap stays
+lean.
+
+- **Chat-UI entry-point button** (commit `08cac28`): button below the
+  profile mini-card opens the Memory window. `src/render/memory_button.js`,
+  `src/profile/index.js`.
+- **docs/architecture.md — iframe debugging lesson** (commit `f7eccca`):
+  "Debugging in the Perchance iframe" section covers context switching,
+  what-context-switching-doesn't-fix.
+- **Davie-label redundancy fix** (commit `b30b6ab`): global label
+  disambiguation. Multiple clusters with same top-noun now get compound
+  labels ("Davie — walks", "Davie — cooking"). `bestLabelCandidates` in
+  `ner.js` + `deriveLabels` in `bubbles.js`.
+- **Session-persistent locks** (this commit): Memory-scope locks persist
+  per-thread via `settings_store`. Reconciles persisted stable-ids
+  against fresh clustering using Jaccard similarity on open.
+  `src/memory/lock_persistence.js`, wired in `window_open.js`.

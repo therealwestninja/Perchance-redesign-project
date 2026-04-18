@@ -238,13 +238,22 @@ function buildColumn({
     const payload = dragPayload;
     dragPayload = null;
 
-    if (payload.kind === 'entry') {
+    // Unified behavior (per design): a card dropped on a cross-panel
+    // column gets promoted/demoted regardless of WHERE on the card the
+    // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
+    // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
+    // for whole-bubble drags.
+    const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+
+    if (isCardPayload) {
+      const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
       if (scope === 'memory' && typeof handlers.onDemote === 'function') {
-        handlers.onDemote(payload.id);
+        handlers.onDemote(cardId);
       } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
-        handlers.onPromote(payload.id);
+        handlers.onPromote(cardId);
       }
-    } else if (payload.kind === 'bubble') {
+    } else if (isBubblePayload) {
       if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
         handlers.onBubbleDemote(payload.bubbleId, payload.entries);
       } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
@@ -285,9 +294,16 @@ function buildDeletePanel({ countEl, handlers }) {
     const payload = dragPayload;
     dragPayload = null;
 
-    if (payload.kind === 'entry' && typeof handlers.onDelete === 'function') {
-      handlers.onDelete(payload.id);
-    } else if (payload.kind === 'bubble' && typeof handlers.onBubbleDelete === 'function') {
+    // Same unified behavior as cross-panel columns (see buildColumn):
+    // accept both body-drag and grip-drag payloads. Delete doesn't care
+    // where you grabbed.
+    const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+
+    if (isCardPayload && typeof handlers.onDelete === 'function') {
+      const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+      handlers.onDelete(cardId);
+    } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
       handlers.onBubbleDelete(payload.bubbleId, payload.entries);
     }
   });

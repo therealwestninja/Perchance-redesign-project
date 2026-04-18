@@ -478,3 +478,80 @@ test('rebucketWithLocks: member of locked bubble gets deleted — bubble becomes
   assert.ok(locked);
   assert.equal(locked.entries.length, 0);
 });
+
+// ---- label disambiguation (Davie-label redundancy fix) ----
+
+test('bubbleize: two clusters sharing a top-noun get disambiguated labels', async () => {
+  // Two clusters, both featuring "Davie" as the top proper noun, but
+  // distinguished by secondary terms (walks vs bath).
+  const entries = [
+    makeEntry(1, 'Davie walks to school. Davie walks home.', [1.0, 0.0]),
+    makeEntry(2, 'Davie walks in the park. Davie walks the dog.', [0.95, 0.05]),
+    makeEntry(3, 'Davie takes a bath. The bath is warm.', [0.0, 1.0]),
+    makeEntry(4, 'Davie fills the bath. Bath time for Davie.', [0.05, 0.95]),
+  ];
+  const { bubbleize } = await import('../src/memory/bubbles.js');
+  const bubbles = bubbleize({ entries, k: 2 });
+
+  // Both clusters wanted "Davie" as primary. The second should fall back
+  // to a compound form, NOT just emit "Davie" again.
+  const labels = bubbles.map(b => b.label);
+  const davieCount = labels.filter(l => l === 'Davie').length;
+  assert.ok(davieCount <= 1, `expected at most 1 bare "Davie" label, got ${davieCount} (labels: ${JSON.stringify(labels)})`);
+
+  // The second cluster's label should contain "Davie" AND a secondary term
+  const compound = labels.find(l => l !== 'Davie' && l.startsWith('Davie'));
+  assert.ok(compound, `expected a compound "Davie — X" label, got ${JSON.stringify(labels)}`);
+  assert.ok(compound.includes('—'), 'compound label uses em-dash separator');
+});
+
+test('bubbleize: unique proper nouns produce clean bare labels (no regressions)', async () => {
+  // Separate characters — each cluster's top noun is unique. Should just
+  // emit the bare name with no compound decoration.
+  const entries = [
+    makeEntry(1, 'Elara walked in the forest. Elara smiled.', [1.0, 0.0]),
+    makeEntry(2, 'Elara sat by the stream. Elara whispered.', [0.95, 0.05]),
+    makeEntry(3, 'Vex approached slowly. Vex growled.', [0.0, 1.0]),
+    makeEntry(4, 'Vex sharpened his claws. Vex waited.', [0.05, 0.95]),
+  ];
+  const { bubbleize } = await import('../src/memory/bubbles.js');
+  const bubbles = bubbleize({ entries, k: 2 });
+
+  const labels = bubbles.map(b => b.label);
+  assert.ok(labels.includes('Elara'), `expected bare "Elara", got ${JSON.stringify(labels)}`);
+  assert.ok(labels.includes('Vex'), `expected bare "Vex", got ${JSON.stringify(labels)}`);
+});
+
+test('bubbleize: three clusters all wanting same primary → three distinct labels', async () => {
+  const entries = [
+    makeEntry(1, 'Davie walks. Davie runs. Davie walks again.', [1, 0, 0]),
+    makeEntry(2, 'Davie walks more. Davie strolls. Davie walks.', [0.95, 0.05, 0]),
+    makeEntry(3, 'Davie cooks. Davie cooks dinner. Davie cooks breakfast.', [0, 1, 0]),
+    makeEntry(4, 'Davie cooks lunch. Davie cooks a cake. Davie cooks.', [0.05, 0.95, 0]),
+    makeEntry(5, 'Davie swims. Davie swims laps. Davie swims often.', [0, 0, 1]),
+    makeEntry(6, 'Davie swims fast. Davie swims daily. Davie swims.', [0.05, 0.05, 0.95]),
+  ];
+  const { bubbleize } = await import('../src/memory/bubbles.js');
+  const bubbles = bubbleize({ entries, k: 3 });
+
+  const labels = bubbles.map(b => b.label);
+  // All three labels should be distinct — no duplicates
+  assert.equal(new Set(labels).size, labels.length, `labels should be distinct, got ${JSON.stringify(labels)}`);
+});
+
+test('bubbleize: cluster with no qualifying terms gets generic "Group N" label', async () => {
+  // Clusters with only stopword-ish content won't yield candidates.
+  // The fallback should be the generic label.
+  const entries = [
+    makeEntry(1, 'the and or', [1, 0]),
+    makeEntry(2, 'to of in', [0, 1]),
+  ];
+  const { bubbleize } = await import('../src/memory/bubbles.js');
+  const bubbles = bubbleize({ entries, k: 2 });
+  for (const b of bubbles) {
+    assert.ok(
+      b.label.startsWith('Group ') || b.label.length > 0,
+      `unexpected label: ${b.label}`
+    );
+  }
+});

@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 56 };
+  NS.__meta = { modules: 58 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -16309,26 +16309,53 @@ Use this template for your response:
    * @returns {string | null} the chosen label, or null if text is empty
    */
   function bestLabel(text, { minCount = 1 } = {}) {
-    if (!text || !text.trim()) return null;
+    const candidates = bestLabelCandidates(text, { minCount });
+    return candidates.length > 0 ? candidates[0] : null;
+  }
 
-    // 1) Proper nouns
+  /**
+   * Returns a ranked list of candidate labels for the given text. Used by
+   * the bubble labeler when multiple bubbles share a top-frequency term
+   * and the caller needs to disambiguate (e.g., "Davie — walks" vs
+   * "Davie — kitchen") rather than emitting duplicate labels.
+   *
+   * Ranking:
+   *   1. All qualifying proper nouns in descending frequency order
+   *   2. All qualifying salient words (title-cased) in descending frequency
+   *
+   * Proper nouns always rank above salient words — even a rare proper noun
+   * reads as a more meaningful label than a frequent common word.
+   *
+   * @param {string} text
+   * @param {{ minCount?: number, limit?: number }} [opts]
+   *   minCount: term must appear at least this many times (default 1)
+   *   limit: maximum candidates to return (default 6)
+   * @returns {string[]}  ranked candidate labels; may be empty
+   */
+  function bestLabelCandidates(text, { minCount = 1, limit = 6 } = {}) {
+    if (!text || !text.trim()) return [];
+    const out = [];
+
     const propers = tally(extractProperNouns(text));
-    // Prefer the highest-frequency proper noun that meets minCount
     for (const [term, count] of propers) {
-      if (count >= minCount) return term;
+      if (count >= minCount) out.push(term);
+      if (out.length >= limit) return out;
     }
 
-    // 2) Fallback: most-frequent salient word that meets minCount,
-    //    title-cased for display
     const salients = tally(extractSalientWords(text));
     for (const [term, count] of salients) {
       if (count >= minCount) {
-        return term.charAt(0).toUpperCase() + term.slice(1);
+        const titled = term.charAt(0).toUpperCase() + term.slice(1);
+        // Avoid duplicating a label we already emitted as a proper noun.
+        // Case-insensitive check since proper-noun casing may vary.
+        if (!out.some(x => x.toLowerCase() === titled.toLowerCase())) {
+          out.push(titled);
+        }
       }
+      if (out.length >= limit) return out;
     }
 
-    // 3) Nothing qualifies → null, caller uses a generic label
-    return null;
+    return out;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -16439,15 +16466,27 @@ Use this template for your response:
         clusterIndices[assignments[i]].push(i);
       }
 
-      // Emit non-empty bubbles in cluster-index order (stable for a given k)
+      // Collect cluster entries first, then derive disambiguated labels
+      // in a second pass (see deriveLabels — needs visibility into what
+      // OTHER clusters are claiming, to avoid emitting the same label
+      // multiple times when different clusters share a top-frequency term).
+      const nonEmptyClusters = [];
       for (let c = 0; c < effectiveK; c++) {
         const idxList = clusterIndices[c];
         if (idxList.length === 0) continue;
-        const clusterEntries = idxList.map(i => embedded[i]);
-        const label = deriveLabel(clusterEntries, c);
+        nonEmptyClusters.push({
+          clusterIndex: c,
+          entries: idxList.map(i => embedded[i]),
+        });
+      }
+
+      const labels = deriveLabels(nonEmptyClusters);
+
+      for (let j = 0; j < nonEmptyClusters.length; j++) {
+        const { clusterIndex, entries: clusterEntries } = nonEmptyClusters[j];
         bubbles.push({
-          id: `bubble:${c}`,
-          label,
+          id: `bubble:${clusterIndex}`,
+          label: labels[j],
           entries: clusterEntries,
           isUngrouped: false,
         });
@@ -16700,15 +16739,81 @@ Use this template for your response:
     return dst;
   }
 
-  function deriveLabel(entries, clusterIndex) {
-    const text = entries.map(e => e.text || '').join('\n');
-    // Small clusters benefit from minCount=1; large clusters benefit from
-    // requiring repeated mention to avoid picking one-off trivia.
-    const minCount = entries.length >= 4 ? 2 : 1;
-    const label = bestLabel(text, { minCount })
-      || bestLabel(text, { minCount: 1 })
-      || `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
-    return label;
+  /**
+   * Assign a label to each cluster, with disambiguation across clusters.
+   *
+   * Given the full list of non-empty clusters to be rendered, each cluster
+   * supplies a ranked list of candidate terms. We then greedily assign:
+   *
+   *   1. If the cluster's top candidate isn't already claimed, use it
+   *   2. Else use the compound form "{top} — {next unclaimed secondary}"
+   *   3. Else fall back to "Group N" (based on clusterIndex)
+   *
+   * The "claimed" set tracks only bare-form primary labels. A cluster
+   * labeled "Davie" claims "Davie"; a later cluster that would also
+   * want "Davie" can use "Davie — walks" without conflicting.
+   *
+   * This replaces the earlier per-cluster deriveLabel which had no
+   * visibility into neighboring clusters and produced duplicates like
+   * "Davie / Davie / Davie / Davie's" when a prolific character appeared
+   * across many sub-contexts.
+   *
+   * @param {Array<{ clusterIndex: number, entries: BubbleEntry[] }>} clusters
+   * @returns {string[]} labels, parallel to input clusters
+   */
+  function deriveLabels(clusters) {
+    // First pass: gather candidates per cluster.
+    const perCluster = clusters.map(({ clusterIndex, entries }) => {
+      const text = entries.map(e => e.text || '').join('\n');
+      // Small clusters benefit from minCount=1; larger ones filter trivia.
+      const minCount = entries.length >= 4 ? 2 : 1;
+      // Try the strict minCount first; if it yields nothing, loosen.
+      let candidates = bestLabelCandidates(text, { minCount });
+      if (candidates.length === 0 && minCount > 1) {
+        candidates = bestLabelCandidates(text, { minCount: 1 });
+      }
+      return { clusterIndex, candidates };
+    });
+
+    // Second pass: greedy assignment with disambiguation. Track which
+    // primary labels are already claimed. Order of assignment follows the
+    // cluster order — earlier clusters get first pick of their primary.
+    const claimed = new Set();
+    const labels = new Array(clusters.length);
+
+    for (let i = 0; i < perCluster.length; i++) {
+      const { clusterIndex, candidates } = perCluster[i];
+
+      if (candidates.length === 0) {
+        labels[i] = `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
+        continue;
+      }
+
+      const primary = candidates[0];
+      if (!claimed.has(primary)) {
+        labels[i] = primary;
+        claimed.add(primary);
+        continue;
+      }
+
+      // Primary is taken. Build a compound with the best unclaimed secondary.
+      let secondary = null;
+      for (let j = 1; j < candidates.length; j++) {
+        const c = candidates[j];
+        // Accept any not-yet-used secondary, but prefer ones that also
+        // haven't been claimed as someone else's primary (less confusing).
+        if (!claimed.has(c)) { secondary = c; break; }
+      }
+      // If nothing works, fall back to generic.
+      if (secondary == null) {
+        labels[i] = `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
+      } else {
+        labels[i] = `${primary} — ${secondary}`;
+        claimed.add(secondary);
+      }
+    }
+
+    return labels;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -17108,6 +17213,217 @@ Use this template for your response:
    */
   function rememberUserBubble(state, bubbleId, label) {
     state.userCreatedBubbles.set(String(bubbleId), String(label));
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/lock_persistence.js
+     ────────────────────────────────────────────────────────── */
+  // memory/lock_persistence.js
+  //
+  // Persistent per-thread bubble-lock storage.
+  //
+  // Bubble IDs from clustering (`bubble:0`, `bubble:1`, ...) are NOT stable
+  // across sessions: re-clustering generates fresh IDs. To persist locks,
+  // we store each locked bubble's STABLE identity — a hash of its member
+  // card IDs (see `stableBubbleId` in bubble_overrides.js). On the next
+  // open, we match persisted stable IDs against current clustering output
+  // and transfer the lock to whichever current bubble best matches.
+  //
+  // Storage shape:
+  //   settings.memory.lockedBubblesByThread: {
+  //     [threadId]: {
+  //       [stableBubbleId]: {
+  //         memberIds: string[],   // card ids that were locked together
+  //         createdAt: number,
+  //       }
+  //     }
+  //   }
+  //
+  // We store the ORIGINAL member IDs (not just the hash) so reconciliation
+  // can compute Jaccard similarity against current bubbles. This costs a
+  // bit of storage per lock but makes reconciliation deterministic.
+
+
+
+
+  /**
+   * Load persisted locks for a thread.
+   *
+   * @param {string|number} threadId
+   * @returns {Record<string, {memberIds: string[], createdAt: number}>}
+   */
+  function loadLocks(threadId) {
+    if (threadId == null) return {};
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.lockedBubblesByThread) || {};
+      const forThread = all[String(threadId)];
+      return (forThread && typeof forThread === 'object') ? forThread : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Replace the persisted lock map for a thread.
+   *
+   * @param {string|number} threadId
+   * @param {Record<string, {memberIds: string[], createdAt: number}>} locks
+   */
+  function saveLocks(threadId, locks) {
+    if (threadId == null) return;
+    try {
+      const s = loadSettings();
+      const all = (s && s.memory && s.memory.lockedBubblesByThread) || {};
+      all[String(threadId)] = locks || {};
+      updateField('memory.lockedBubblesByThread', all);
+    } catch { /* persist best-effort */ }
+  }
+
+  /**
+   * Record a lock for a bubble. Uses its current member IDs to derive
+   * the stable identity, then stores member IDs so reconciliation can
+   * fuzzy-match across sessions.
+   *
+   * @param {string|number} threadId
+   * @param {string[]} memberIds
+   * @returns {string} stable ID of the newly-persisted lock
+   */
+  function persistLock(threadId, memberIds) {
+    const stableId = stableBubbleId(memberIds);
+    const locks = loadLocks(threadId);
+    locks[stableId] = {
+      memberIds: memberIds.map(String),
+      createdAt: Date.now(),
+    };
+    saveLocks(threadId, locks);
+    return stableId;
+  }
+
+  /**
+   * Remove a lock by its stable ID.
+   *
+   * @param {string|number} threadId
+   * @param {string} stableId
+   */
+  function forgetLock(threadId, stableId) {
+    const locks = loadLocks(threadId);
+    if (stableId in locks) {
+      delete locks[stableId];
+      saveLocks(threadId, locks);
+    }
+  }
+
+  /**
+   * Remove all locks for a thread. Useful for debugging or when the user
+   * wants to reset.
+   *
+   * @param {string|number} threadId
+   */
+  function clearLocks(threadId) {
+    saveLocks(threadId, {});
+  }
+
+  /**
+   * Given a set of bubbles from fresh clustering and a map of persisted
+   * locks (stableId → {memberIds, createdAt}), reconcile: for each
+   * persisted lock, find the CURRENT bubble whose members best overlap
+   * with the persisted memberIds, and mark it as locked.
+   *
+   * Match quality: Jaccard similarity (|intersection| / |union|). We
+   * require similarity ≥ threshold (default 0.5) to avoid transferring
+   * a lock to a bubble that barely resembles the original. Below the
+   * threshold, the lock is dropped silently — user can re-lock manually.
+   *
+   * Each current bubble can receive at most ONE lock (the best match).
+   * Each persisted lock can land on at most ONE current bubble.
+   *
+   * @param {import('./bubbles.js').Bubble[]} freshBubbles
+   * @param {Record<string, {memberIds: string[]}>} persistedLocks
+   * @param {{ threshold?: number }} [opts]
+   * @returns {{
+   *   lockedBubbleIds: Set<string>,   // current bubble IDs to lock
+   *   orphanedStableIds: string[],    // persisted locks that couldn't be matched
+   *   transferredIds: Array<{stableId: string, newBubbleId: string, jaccard: number}>
+   * }}
+   */
+  function reconcileLocks(freshBubbles, persistedLocks, { threshold = 0.5 } = {}) {
+    const bubbleList = Array.isArray(freshBubbles) ? freshBubbles : [];
+    const persisted = persistedLocks || {};
+
+    const lockedBubbleIds = new Set();
+    const orphanedStableIds = [];
+    const transferredIds = [];
+
+    // Pre-compute member-ID sets per fresh bubble for faster Jaccard
+    const freshSets = bubbleList.map(b => ({
+      id: b.id,
+      ids: new Set(b.entries.map(e => String(e.id))),
+    }));
+
+    // Track which fresh bubbles have already been claimed by a lock so
+    // we don't double-assign.
+    const claimed = new Set();
+
+    // Process persisted locks in ORDER that prefers larger original
+    // bubbles first (so a big "Alice/Bob" lock gets first pick against
+    // a small "Alice" lock).
+    const persistedEntries = Object.entries(persisted).sort((a, b) => {
+      return (b[1].memberIds?.length || 0) - (a[1].memberIds?.length || 0);
+    });
+
+    for (const [stableId, lockData] of persistedEntries) {
+      const persistedSet = new Set((lockData.memberIds || []).map(String));
+      if (persistedSet.size === 0) {
+        orphanedStableIds.push(stableId);
+        continue;
+      }
+
+      // Find best-match fresh bubble by Jaccard
+      let bestMatch = null;
+      let bestJaccard = 0;
+      for (const fresh of freshSets) {
+        if (claimed.has(fresh.id)) continue;
+        const j = jaccard(persistedSet, fresh.ids);
+        if (j > bestJaccard) {
+          bestJaccard = j;
+          bestMatch = fresh;
+        }
+      }
+
+      if (bestMatch && bestJaccard >= threshold) {
+        lockedBubbleIds.add(bestMatch.id);
+        claimed.add(bestMatch.id);
+        transferredIds.push({
+          stableId,
+          newBubbleId: bestMatch.id,
+          jaccard: bestJaccard,
+        });
+      } else {
+        orphanedStableIds.push(stableId);
+      }
+    }
+
+    return { lockedBubbleIds, orphanedStableIds, transferredIds };
+  }
+
+  /**
+   * Jaccard similarity between two sets: |A ∩ B| / |A ∪ B|.
+   *
+   * @param {Set<string>} a
+   * @param {Set<string>} b
+   * @returns {number} in [0, 1]
+   */
+  function jaccard(a, b) {
+    if (a.size === 0 && b.size === 0) return 1;
+    let intersection = 0;
+    const smaller = a.size <= b.size ? a : b;
+    const larger  = a.size <= b.size ? b : a;
+    for (const x of smaller) {
+      if (larger.has(x)) intersection++;
+    }
+    const unionSize = a.size + b.size - intersection;
+    return unionSize === 0 ? 0 : intersection / unionSize;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -18144,6 +18460,48 @@ Use this template for your response:
   .pf-mini-card:focus-visible {
     outline: 2px solid var(--link-color, #4a90e2);
     outline-offset: 1px;
+  }
+
+  /* Memory & Lore open-button sitting below the mini-card. Sized to match
+     the mini-card's padding/border so the two read as a single sidebar
+     group. Gold-accented to match the Bubble tool's visual language. */
+  .pf-memory-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    margin-bottom: 0.5rem;
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-color);
+    cursor: pointer;
+    user-select: none;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .pf-memory-button:hover {
+    background: var(--box-color-hover, var(--box-color));
+    border-color: rgba(216, 179, 106, 0.4);
+  }
+  .pf-memory-button:active {
+    transform: translateY(1px);
+  }
+  .pf-memory-button:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 1px;
+  }
+  .pf-memory-button-icon {
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .pf-memory-button-label {
+    flex: 1;
+    font-weight: 500;
   }
 
   .pf-mini-avatar {
@@ -21395,13 +21753,22 @@ Use this template for your response:
       const payload = dragPayload;
       dragPayload = null;
 
-      if (payload.kind === 'entry') {
+      // Unified behavior (per design): a card dropped on a cross-panel
+      // column gets promoted/demoted regardless of WHERE on the card the
+      // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
+      // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
+      // for whole-bubble drags.
+      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+
+      if (isCardPayload) {
+        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
         if (scope === 'memory' && typeof handlers.onDemote === 'function') {
-          handlers.onDemote(payload.id);
+          handlers.onDemote(cardId);
         } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
-          handlers.onPromote(payload.id);
+          handlers.onPromote(cardId);
         }
-      } else if (payload.kind === 'bubble') {
+      } else if (isBubblePayload) {
         if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
           handlers.onBubbleDemote(payload.bubbleId, payload.entries);
         } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
@@ -21442,9 +21809,16 @@ Use this template for your response:
       const payload = dragPayload;
       dragPayload = null;
 
-      if (payload.kind === 'entry' && typeof handlers.onDelete === 'function') {
-        handlers.onDelete(payload.id);
-      } else if (payload.kind === 'bubble' && typeof handlers.onBubbleDelete === 'function') {
+      // Same unified behavior as cross-panel columns (see buildColumn):
+      // accept both body-drag and grip-drag payloads. Delete doesn't care
+      // where you grabbed.
+      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+
+      if (isCardPayload && typeof handlers.onDelete === 'function') {
+        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+        handlers.onDelete(cardId);
+      } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
         handlers.onBubbleDelete(payload.bubbleId, payload.entries);
       }
     });
@@ -22052,6 +22426,7 @@ Use this template for your response:
 
 
 
+
   // ---- entry-point exposure ----
   if (typeof window !== 'undefined') {
     const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
@@ -22120,10 +22495,27 @@ Use this template for your response:
     // Override state (lock toggles, bubble order, cross-bubble assignments,
     // intra-bubble card order). Separate instance per scope — Memory and
     // Lore are independent bubble universes, so their overrides don't
-    // share namespaces. Currently only lock toggles are wired (commit 7b);
-    // the rest comes online in 7d.
+    // share namespaces.
     const memoryOverrides = createOverrides();
     const loreOverrides   = createOverrides();
+
+    // Reconcile persisted Memory-scope locks against the initial clustering.
+    // Lore locks aren't persisted (Lore has no lock UI that matters in
+    // practice since Lore has no reorder, but we'd extend the same shape
+    // here if we ever did).
+    const activeThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+    // Map from stable-id to its persisted lock record, needed so we can
+    // forget a persisted lock when the user unlocks its current-session
+    // counterpart. Populated during reconciliation below.
+    const stableIdByCurrentBubble = new Map(); // bubbleId → stableId
+    if (activeThreadId != null) {
+      const persistedMemLocks = loadLocks(activeThreadId);
+      const { lockedBubbleIds, transferredIds } = reconcileLocks(memoryBubbles, persistedMemLocks);
+      for (const id of lockedBubbleIds) memoryOverrides.lockedBubbles.add(String(id));
+      for (const t of transferredIds) {
+        stableIdByCurrentBubble.set(String(t.newBubbleId), t.stableId);
+      }
+    }
 
     // ---- refresh: recompute from current stage + current k, re-render ----
 
@@ -22236,6 +22628,21 @@ Use this template for your response:
     }
 
     /**
+     * When a locked memory bubble is about to be destroyed (contents
+     * promoted, demoted, or deleted), remove its stable-id from persisted
+     * storage so the lock doesn't reappear next session on a different
+     * bubble that happens to overlap.
+     */
+    function forgetPersistedLockForBubble(bubbleId) {
+      if (activeThreadId == null) return;
+      const stableId = stableIdByCurrentBubble.get(String(bubbleId));
+      if (stableId) {
+        forgetLock(activeThreadId, stableId);
+        stableIdByCurrentBubble.delete(String(bubbleId));
+      }
+    }
+
+    /**
      * Returns 'memory' | 'lore' | null based on which panel's current
      * bubble layout contains the given bubbleId. Used by onBubbleDelete
      * (which doesn't know the scope from its call site in the DOM).
@@ -22300,7 +22707,10 @@ Use this template for your response:
       // tedious.
       onBubblePromote: (bubbleId, entries) => {
         if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
-        if (bubbleId) memoryOverrides.lockedBubbles.delete(String(bubbleId));
+        if (bubbleId) {
+          memoryOverrides.lockedBubbles.delete(String(bubbleId));
+          forgetPersistedLockForBubble(bubbleId);
+        }
         for (const e of entries) {
           stage.promote(e.id);
           forgetCard(memoryOverrides, e.id);
@@ -22322,6 +22732,7 @@ Use this template for your response:
         if (bubbleId) {
           memoryOverrides.lockedBubbles.delete(String(bubbleId));
           loreOverrides.lockedBubbles.delete(String(bubbleId));
+          forgetPersistedLockForBubble(bubbleId);
         }
         for (const e of entries) {
           queueForDeletion(e.id);
@@ -22482,11 +22893,33 @@ Use this template for your response:
         });
       },
 
-      // Lock toggle — session-scoped. In 7b this only affects the visual
-      // indicator; 7d wires it to actually prevent reorder operations.
+      // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
+      // and for Memory scope only, mirrored to persistent per-thread storage.
+      // Lore locks don't persist — Lore has no reorder semantics that care.
       onToggleLock: (scope, bubbleId) => {
         const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
-        toggleLock(overrides, bubbleId);
+        const nowLocked = toggleLock(overrides, bubbleId);
+
+        // Persist (Memory scope only) — find the current bubble's members
+        // and record the lock against their stable hash.
+        if (scope === 'memory' && activeThreadId != null) {
+          if (nowLocked) {
+            const b = memoryBubbles.find(x => String(x.id) === String(bubbleId));
+            if (b) {
+              const memberIds = b.entries.map(e => String(e.id));
+              const stableId = persistLock(activeThreadId, memberIds);
+              stableIdByCurrentBubble.set(String(bubbleId), stableId);
+            }
+          } else {
+            // Unlock — find the stable id that was recorded and forget it
+            const stableId = stableIdByCurrentBubble.get(String(bubbleId));
+            if (stableId) {
+              forgetLock(activeThreadId, stableId);
+              stableIdByCurrentBubble.delete(String(bubbleId));
+            }
+          }
+        }
+
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,
@@ -24467,6 +24900,39 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/memory_button.js
+     ────────────────────────────────────────────────────────── */
+  // render/memory_button.js
+  //
+  // Small sidebar button that opens the Memory & Lore window. Sits
+  // below the mini-card as a separate element, so clicking it doesn't
+  // interact with the profile-open behavior.
+  //
+  // Pure DOM. Wired to openMemoryWindow by the caller.
+
+
+
+  /**
+   * @param {{ onClick?: () => void }} [opts]
+   * @returns {HTMLElement}
+   */
+  function createMemoryButton({ onClick } = {}) {
+    const btn = h('button', {
+      type: 'button',
+      class: 'pf-memory-button',
+      'aria-label': 'Open Memory & Lore',
+      onClick: (ev) => {
+        ev.stopPropagation();
+        if (typeof onClick === 'function') onClick();
+      },
+    }, [
+      h('span', { class: 'pf-memory-button-icon', 'aria-hidden': 'true' }, ['🧠']),
+      h('span', { class: 'pf-memory-button-label' }, ['Memory & Lore']),
+    ]);
+    return btn;
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: profile/styles_install.js
      ────────────────────────────────────────────────────────── */
   // profile/styles_install.js
@@ -24865,6 +25331,8 @@ Use this template for your response:
 
 
 
+
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -24938,7 +25406,19 @@ Use this template for your response:
           });
         },
       }),
-      onMounted: () => {},
+      onMounted: (cardEl) => {
+        // Inject the Memory & Lore button directly after the mini-card so
+        // it lives in the same sidebar slot. Stop-propagation inside the
+        // button prevents click bubbling into the card's open-profile handler.
+        const btn = createMemoryButton({
+          onClick: () => {
+            openMemoryWindow().catch(e => {
+              console.warn('[pf] failed to open memory window:', e && e.message);
+            });
+          },
+        });
+        cardEl.parentNode.appendChild(btn);
+      },
     });
 
     if (!card) {

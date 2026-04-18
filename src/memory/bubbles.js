@@ -16,7 +16,7 @@
 // embeddings on-the-fly (via window.embedTexts) before calling bubbleize.
 
 import { kmeans, recommendK, l2Normalize } from './clustering.js';
-import { bestLabel } from './ner.js';
+import { bestLabel, bestLabelCandidates } from './ner.js';
 
 /**
  * @typedef {Object} BubbleEntry
@@ -103,15 +103,27 @@ export function bubbleize({ entries, k } = {}) {
       clusterIndices[assignments[i]].push(i);
     }
 
-    // Emit non-empty bubbles in cluster-index order (stable for a given k)
+    // Collect cluster entries first, then derive disambiguated labels
+    // in a second pass (see deriveLabels — needs visibility into what
+    // OTHER clusters are claiming, to avoid emitting the same label
+    // multiple times when different clusters share a top-frequency term).
+    const nonEmptyClusters = [];
     for (let c = 0; c < effectiveK; c++) {
       const idxList = clusterIndices[c];
       if (idxList.length === 0) continue;
-      const clusterEntries = idxList.map(i => embedded[i]);
-      const label = deriveLabel(clusterEntries, c);
+      nonEmptyClusters.push({
+        clusterIndex: c,
+        entries: idxList.map(i => embedded[i]),
+      });
+    }
+
+    const labels = deriveLabels(nonEmptyClusters);
+
+    for (let j = 0; j < nonEmptyClusters.length; j++) {
+      const { clusterIndex, entries: clusterEntries } = nonEmptyClusters[j];
       bubbles.push({
-        id: `bubble:${c}`,
-        label,
+        id: `bubble:${clusterIndex}`,
+        label: labels[j],
         entries: clusterEntries,
         isUngrouped: false,
       });
@@ -364,13 +376,79 @@ function copyVector(src) {
   return dst;
 }
 
-function deriveLabel(entries, clusterIndex) {
-  const text = entries.map(e => e.text || '').join('\n');
-  // Small clusters benefit from minCount=1; large clusters benefit from
-  // requiring repeated mention to avoid picking one-off trivia.
-  const minCount = entries.length >= 4 ? 2 : 1;
-  const label = bestLabel(text, { minCount })
-    || bestLabel(text, { minCount: 1 })
-    || `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
-  return label;
+/**
+ * Assign a label to each cluster, with disambiguation across clusters.
+ *
+ * Given the full list of non-empty clusters to be rendered, each cluster
+ * supplies a ranked list of candidate terms. We then greedily assign:
+ *
+ *   1. If the cluster's top candidate isn't already claimed, use it
+ *   2. Else use the compound form "{top} — {next unclaimed secondary}"
+ *   3. Else fall back to "Group N" (based on clusterIndex)
+ *
+ * The "claimed" set tracks only bare-form primary labels. A cluster
+ * labeled "Davie" claims "Davie"; a later cluster that would also
+ * want "Davie" can use "Davie — walks" without conflicting.
+ *
+ * This replaces the earlier per-cluster deriveLabel which had no
+ * visibility into neighboring clusters and produced duplicates like
+ * "Davie / Davie / Davie / Davie's" when a prolific character appeared
+ * across many sub-contexts.
+ *
+ * @param {Array<{ clusterIndex: number, entries: BubbleEntry[] }>} clusters
+ * @returns {string[]} labels, parallel to input clusters
+ */
+function deriveLabels(clusters) {
+  // First pass: gather candidates per cluster.
+  const perCluster = clusters.map(({ clusterIndex, entries }) => {
+    const text = entries.map(e => e.text || '').join('\n');
+    // Small clusters benefit from minCount=1; larger ones filter trivia.
+    const minCount = entries.length >= 4 ? 2 : 1;
+    // Try the strict minCount first; if it yields nothing, loosen.
+    let candidates = bestLabelCandidates(text, { minCount });
+    if (candidates.length === 0 && minCount > 1) {
+      candidates = bestLabelCandidates(text, { minCount: 1 });
+    }
+    return { clusterIndex, candidates };
+  });
+
+  // Second pass: greedy assignment with disambiguation. Track which
+  // primary labels are already claimed. Order of assignment follows the
+  // cluster order — earlier clusters get first pick of their primary.
+  const claimed = new Set();
+  const labels = new Array(clusters.length);
+
+  for (let i = 0; i < perCluster.length; i++) {
+    const { clusterIndex, candidates } = perCluster[i];
+
+    if (candidates.length === 0) {
+      labels[i] = `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
+      continue;
+    }
+
+    const primary = candidates[0];
+    if (!claimed.has(primary)) {
+      labels[i] = primary;
+      claimed.add(primary);
+      continue;
+    }
+
+    // Primary is taken. Build a compound with the best unclaimed secondary.
+    let secondary = null;
+    for (let j = 1; j < candidates.length; j++) {
+      const c = candidates[j];
+      // Accept any not-yet-used secondary, but prefer ones that also
+      // haven't been claimed as someone else's primary (less confusing).
+      if (!claimed.has(c)) { secondary = c; break; }
+    }
+    // If nothing works, fall back to generic.
+    if (secondary == null) {
+      labels[i] = `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
+    } else {
+      labels[i] = `${primary} — ${secondary}`;
+      claimed.add(secondary);
+    }
+  }
+
+  return labels;
 }

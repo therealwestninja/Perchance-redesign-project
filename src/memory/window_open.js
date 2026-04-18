@@ -24,6 +24,7 @@ import { createStage } from './stage.js';
 import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
 import { createOverrides, toggleLock, applyOverrides, moveBubbleBefore, moveCardBefore, forgetCard, assignCardToBubble } from './bubble_overrides.js';
+import { loadLocks, persistLock, forgetLock, reconcileLocks } from './lock_persistence.js';
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
@@ -96,10 +97,27 @@ export async function openMemoryWindow() {
   // Override state (lock toggles, bubble order, cross-bubble assignments,
   // intra-bubble card order). Separate instance per scope — Memory and
   // Lore are independent bubble universes, so their overrides don't
-  // share namespaces. Currently only lock toggles are wired (commit 7b);
-  // the rest comes online in 7d.
+  // share namespaces.
   const memoryOverrides = createOverrides();
   const loreOverrides   = createOverrides();
+
+  // Reconcile persisted Memory-scope locks against the initial clustering.
+  // Lore locks aren't persisted (Lore has no lock UI that matters in
+  // practice since Lore has no reorder, but we'd extend the same shape
+  // here if we ever did).
+  const activeThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+  // Map from stable-id to its persisted lock record, needed so we can
+  // forget a persisted lock when the user unlocks its current-session
+  // counterpart. Populated during reconciliation below.
+  const stableIdByCurrentBubble = new Map(); // bubbleId → stableId
+  if (activeThreadId != null) {
+    const persistedMemLocks = loadLocks(activeThreadId);
+    const { lockedBubbleIds, transferredIds } = reconcileLocks(memoryBubbles, persistedMemLocks);
+    for (const id of lockedBubbleIds) memoryOverrides.lockedBubbles.add(String(id));
+    for (const t of transferredIds) {
+      stableIdByCurrentBubble.set(String(t.newBubbleId), t.stableId);
+    }
+  }
 
   // ---- refresh: recompute from current stage + current k, re-render ----
 
@@ -212,6 +230,21 @@ export async function openMemoryWindow() {
   }
 
   /**
+   * When a locked memory bubble is about to be destroyed (contents
+   * promoted, demoted, or deleted), remove its stable-id from persisted
+   * storage so the lock doesn't reappear next session on a different
+   * bubble that happens to overlap.
+   */
+  function forgetPersistedLockForBubble(bubbleId) {
+    if (activeThreadId == null) return;
+    const stableId = stableIdByCurrentBubble.get(String(bubbleId));
+    if (stableId) {
+      forgetLock(activeThreadId, stableId);
+      stableIdByCurrentBubble.delete(String(bubbleId));
+    }
+  }
+
+  /**
    * Returns 'memory' | 'lore' | null based on which panel's current
    * bubble layout contains the given bubbleId. Used by onBubbleDelete
    * (which doesn't know the scope from its call site in the DOM).
@@ -276,7 +309,10 @@ export async function openMemoryWindow() {
     // tedious.
     onBubblePromote: (bubbleId, entries) => {
       if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
-      if (bubbleId) memoryOverrides.lockedBubbles.delete(String(bubbleId));
+      if (bubbleId) {
+        memoryOverrides.lockedBubbles.delete(String(bubbleId));
+        forgetPersistedLockForBubble(bubbleId);
+      }
       for (const e of entries) {
         stage.promote(e.id);
         forgetCard(memoryOverrides, e.id);
@@ -298,6 +334,7 @@ export async function openMemoryWindow() {
       if (bubbleId) {
         memoryOverrides.lockedBubbles.delete(String(bubbleId));
         loreOverrides.lockedBubbles.delete(String(bubbleId));
+        forgetPersistedLockForBubble(bubbleId);
       }
       for (const e of entries) {
         queueForDeletion(e.id);
@@ -458,11 +495,33 @@ export async function openMemoryWindow() {
       });
     },
 
-    // Lock toggle — session-scoped. In 7b this only affects the visual
-    // indicator; 7d wires it to actually prevent reorder operations.
+    // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
+    // and for Memory scope only, mirrored to persistent per-thread storage.
+    // Lore locks don't persist — Lore has no reorder semantics that care.
     onToggleLock: (scope, bubbleId) => {
       const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
-      toggleLock(overrides, bubbleId);
+      const nowLocked = toggleLock(overrides, bubbleId);
+
+      // Persist (Memory scope only) — find the current bubble's members
+      // and record the lock against their stable hash.
+      if (scope === 'memory' && activeThreadId != null) {
+        if (nowLocked) {
+          const b = memoryBubbles.find(x => String(x.id) === String(bubbleId));
+          if (b) {
+            const memberIds = b.entries.map(e => String(e.id));
+            const stableId = persistLock(activeThreadId, memberIds);
+            stableIdByCurrentBubble.set(String(bubbleId), stableId);
+          }
+        } else {
+          // Unlock — find the stable id that was recorded and forget it
+          const stableId = stableIdByCurrentBubble.get(String(bubbleId));
+          if (stableId) {
+            forgetLock(activeThreadId, stableId);
+            stableIdByCurrentBubble.delete(String(bubbleId));
+          }
+        }
+      }
+
       overlay.updatePanels({
         memoryBubbles, loreBubbles, memoryK, loreK,
         expandedMemoryIds, expandedLoreIds,

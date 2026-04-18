@@ -162,24 +162,51 @@ function tally(terms) {
  * @returns {string | null} the chosen label, or null if text is empty
  */
 export function bestLabel(text, { minCount = 1 } = {}) {
-  if (!text || !text.trim()) return null;
+  const candidates = bestLabelCandidates(text, { minCount });
+  return candidates.length > 0 ? candidates[0] : null;
+}
 
-  // 1) Proper nouns
+/**
+ * Returns a ranked list of candidate labels for the given text. Used by
+ * the bubble labeler when multiple bubbles share a top-frequency term
+ * and the caller needs to disambiguate (e.g., "Davie — walks" vs
+ * "Davie — kitchen") rather than emitting duplicate labels.
+ *
+ * Ranking:
+ *   1. All qualifying proper nouns in descending frequency order
+ *   2. All qualifying salient words (title-cased) in descending frequency
+ *
+ * Proper nouns always rank above salient words — even a rare proper noun
+ * reads as a more meaningful label than a frequent common word.
+ *
+ * @param {string} text
+ * @param {{ minCount?: number, limit?: number }} [opts]
+ *   minCount: term must appear at least this many times (default 1)
+ *   limit: maximum candidates to return (default 6)
+ * @returns {string[]}  ranked candidate labels; may be empty
+ */
+export function bestLabelCandidates(text, { minCount = 1, limit = 6 } = {}) {
+  if (!text || !text.trim()) return [];
+  const out = [];
+
   const propers = tally(extractProperNouns(text));
-  // Prefer the highest-frequency proper noun that meets minCount
   for (const [term, count] of propers) {
-    if (count >= minCount) return term;
+    if (count >= minCount) out.push(term);
+    if (out.length >= limit) return out;
   }
 
-  // 2) Fallback: most-frequent salient word that meets minCount,
-  //    title-cased for display
   const salients = tally(extractSalientWords(text));
   for (const [term, count] of salients) {
     if (count >= minCount) {
-      return term.charAt(0).toUpperCase() + term.slice(1);
+      const titled = term.charAt(0).toUpperCase() + term.slice(1);
+      // Avoid duplicating a label we already emitted as a proper noun.
+      // Case-insensitive check since proper-noun casing may vary.
+      if (!out.some(x => x.toLowerCase() === titled.toLowerCase())) {
+        out.push(titled);
+      }
     }
+    if (out.length >= limit) return out;
   }
 
-  // 3) Nothing qualifies → null, caller uses a generic label
-  return null;
+  return out;
 }
