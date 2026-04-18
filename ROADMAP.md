@@ -135,6 +135,118 @@ anything else.
 
 ---
 
+## Light audit findings (Apr 18) — needs deeper pass
+
+**Status: notes from a surface-level sweep.** A deeper audit is owed
+before the code-duplication refactor pass lands. These are things that
+looked suspicious or worth a closer look; most are not bugs, some are.
+
+### Potentially-stale code
+
+- `src/utils/escape.js` exports `escapeHtml` which is referenced from
+  zero files in `src/`. Either it's dead code (delete) or it was
+  meant to be used in places that now do direct `textContent`
+  assignment (keep, find the right callers, or explicitly document as
+  "kept for future HTML-building paths"). **Action:** decide in the
+  refactor pass.
+
+- `src/bootstrap.js` correctly has no importers (it's the entry point
+  invoked by the manifest). Noted here so it doesn't get accidentally
+  flagged as dead later.
+
+### Residual memory/lore duplication after byScope
+
+The byScope dispatch handled the obvious hotspots (onChangeK,
+onReorderBubble, etc.) but `src/memory/window_open.js` still has many
+direct `memoryOverrides.` and `loreOverrides.` references in:
+
+  - `recomputeBubbles` — direct refs for lockedBubbles
+  - `onDeletePanelDrop` — direct deletion of lockedBubbles entries
+  - `hasReorderChanged` — only checks `memoryOverrides`; should also
+    check loreOverrides for the new Lore reorder-in-session state,
+    OR explicitly document that Lore reorder doesn't participate in
+    save-dirty tracking
+  - `panelsState()` builder — directly references memoryOverrides,
+    loreOverrides, memoryBubbles, loreBubbles
+  - `onSave` — entirely Memory-specific; fine, but worth a comment
+
+**Similar in `src/render/memory_panels.js`** — scope gates still
+exist in 9 places for features like per-card → Lore/→ Memory buttons
+and the empty-state text. Most of those are correct (cross-panel
+actions are asymmetric by nature) but a pass through them would
+confirm each remaining gate is intentional.
+
+**Action:** tackle as part of the code-duplication refactor pass.
+
+### Possibly-hollow listener cleanup
+
+`grep addEventListener / removeEventListener` across src/:
+
+  - memory_panels.js: 23 adds, 0 removes
+  - gender_square.js: 5 adds, 0 removes
+  - dom.js: 3 adds, 0 removes
+  - about_section.js: 1 add, 0 removes
+  - profile/index.js: 1 add, 0 removes
+  - bootstrap.js: 1 add, 0 removes
+
+For the panels / gender_square / form inputs, the listeners live on
+elements that get replaced wholesale by `replaceContents` on every
+render — so the DOM nodes disappear and their listeners go with them
+(no leak, since we don't retain references elsewhere). That's
+probably fine but WORTH VERIFYING in the deeper audit. If any
+element persists across renders and gets listeners re-added, we have
+an accumulating leak.
+
+The profile and bootstrap additions are one-shot on mount; those are fine.
+
+**Action:** deeper audit to verify DOM-replacement path really does
+discard old listeners, and instrument in dev-mode if uncertain.
+
+### Timers
+
+  - `setInterval` in `profile/index.js` refreshes profile card
+    periodically — never cleared. On profile close, still running.
+    Probably harmless (refreshes a detached DOM node), but
+    leak-shaped.
+  - Several `setTimeout`s across details_form, overlay,
+    gender_square for debounce/focus — these are one-shot and
+    don't leak.
+
+**Action:** add clearInterval on profile close.
+
+### Sparse test coverage on render/ modules
+
+None of the `src/render/*.js` files have unit tests. Rendering is
+historically harder to unit-test — we've leaned on the real
+Perchance integration for confidence. Reasonable for now, but means
+a regression in render code only surfaces when user hits Save or
+similar. Worth a conversation about whether we want a jsdom-based
+test harness for panels/overlay.
+
+**Action:** design decision for future. Not blocking.
+
+### Empty / best-effort error swallows
+
+15+ `catch { /* best-effort */ }` blocks across the codebase. Most
+wrap a localStorage.setItem or an analytics-like call that genuinely
+should be non-fatal. A deeper audit should:
+
+  - Confirm each is genuinely "should never crash the app"
+  - Verify that swallowed errors aren't hiding a real bug by logging
+    them (even at debug level) in a dev build
+
+**Action:** per-catch review in the refactor pass.
+
+### What I did NOT find
+
+- No TODO/FIXME/XXX/HACK markers in source code. Clean.
+- No unused `import` statements detected by the quick heuristic.
+- No obvious infinite-loop or recursion hazards.
+- Recent `fix:` commits all look like real customer-facing bugs, not
+  firefighting regressions from rushed earlier commits. Good pattern.
+
+---
+
 ## Stale-baseline save bug (known issue)
 
 **Status: KNOWN, test skipped, fix pending.**
