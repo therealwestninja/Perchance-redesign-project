@@ -1,51 +1,42 @@
 // memory/window_open.js
 //
-// Entry point for the Memory/Lore curation window. Glues db, stage, and
-// window UI:
+// Entry point for the Memory/Lore curation window. Glues db, stage,
+// bubbles, and the window UI:
 //
 //   1. Probe schema → bail gracefully if upstream shifted
 //   2. Load baseline from Dexie → createStage(baseline)
-//   3. Render window with initial items
-//   4. Bind UI handlers (promote/demote/delete/save/export/cancel)
-//      - Each UI action mutates the stage, then re-renders panels
-//      - Save shows confirm with diff summary, then commitDiff
-//      - Cancel discards staged edits and closes
-//      - Export produces a JSON blob the user can copy to a file
+//   3. Compute initial bubbles (per-scope) via bubbleize()
+//   4. Bind UI handlers:
+//      - Entry-level: promote/demote/delete (mutate stage, refresh)
+//      - Bubble-level: same, applied to every member
+//      - k-change: ± for memory or lore, recluster that panel
+//      - toggle-bubble: flip expand state
+//      - save/cancel/export
 //   5. Show overlay
 //
-// The window itself is stateless — this module owns the stage and the
-// delete queue (items staged for removal).
+// The module owns: stage, pending deletions, bubble state (k per scope,
+// expanded set per scope, current bubble layouts).
+// The window module owns: DOM.
+// stage.js knows nothing about bubbles.
 
 import { probeSchema, loadBaseline, commitDiff, formatDiffSummary } from './db.js';
 import { createStage } from './stage.js';
+import { bubbleize, rebucket } from './bubbles.js';
+import { recommendK } from './clustering.js';
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
 
 // ---- entry-point exposure ----
-//
-// openMemoryWindow is the surface the rest of the fork uses to open
-// the curation tool. For this commit there's no in-UI button yet — we
-// expose it on window.__perchance_fork__ so you can invoke it from the
-// browser console while iterating:
-//
-//   window.__perchance_fork__.openMemory()
-//
-// The button-based entry point (probably a small control next to the
-// chat input, or a link in our existing profile overlay) lands in the
-// next commit once the window's basic flow is verified.
 if (typeof window !== 'undefined') {
   const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
-  // Guard against the module being loaded twice (e.g. hot-reload)
   if (typeof ns.openMemory !== 'function') {
     ns.openMemory = () => openMemoryWindow();
   }
 }
 
 /**
- * Open the Memory/Lore window. Returns a Promise that resolves when the
- * window closes. Errors inside the flow produce an inert notice rather
- * than crashing the host page.
+ * Open the Memory/Lore window.
  */
 export async function openMemoryWindow() {
   // ---- schema probe ----
@@ -71,72 +62,173 @@ export async function openMemoryWindow() {
     return;
   }
 
-  // Get thread name for the header chip, best-effort.
   const threadLabel = await getActiveThreadLabel();
 
   // ---- stage + delete queue ----
   const stage = createStage(baseline);
-  // Items the user has dropped into the Delete zone. These are REMOVED
-  // from the stage (so they disappear from panels) but tracked here so
-  // Save knows to call stage.remove() on them first / UI can show a tally.
-  const pendingDeletions = new Map(); // id(str) → StageItem
+  const pendingDeletions = new Map();
 
-  // ---- handlers ----
+  // ---- bubble state (owned by this module) ----
+  // k per scope: initialized by recommendK() on the baseline. User can ± via
+  // the k-slider in the panel headers. Clamped to [1, entries-in-scope].
+  // expandedIds: the user's click-open-bubble set. Bubble ids are stable
+  // (bubble:0, bubble:1, ...) for a given k, but change if k changes.
+  // We clear expanded set on k change since the ids no longer mean anything.
+  //
+  // Note: bubbleize() reads `.embedding` but our db adapter stores the
+  // vector on `.__embedding` (passthrough convention). We adapt at this
+  // boundary so bubbles.js stays clean of db-specific field names.
+  const asBubbleEntry = (it) => ({ ...it, embedding: it.__embedding });
 
-  function refresh() {
-    overlay.updatePanels(stage.getStaged(), pendingDeletions.size);
+  const initialMemoryEntries = stage.getStaged().filter(it => it.scope === 'memory').map(asBubbleEntry);
+  const initialLoreEntries   = stage.getStaged().filter(it => it.scope === 'lore').map(asBubbleEntry);
+
+  let memoryK = recommendK(initialMemoryEntries.length);
+  let loreK   = recommendK(initialLoreEntries.length);
+
+  let memoryBubbles = bubbleize({ entries: initialMemoryEntries, k: memoryK });
+  let loreBubbles   = bubbleize({ entries: initialLoreEntries,   k: loreK });
+
+  const expandedMemoryIds = new Set();
+  const expandedLoreIds   = new Set();
+
+  // ---- refresh: recompute from current stage + current k, re-render ----
+
+  function currentEntriesPerScope() {
+    const staged = stage.getStaged();
+    return {
+      memory: staged.filter(it => it.scope === 'memory').map(asBubbleEntry),
+      lore:   staged.filter(it => it.scope === 'lore').map(asBubbleEntry),
+    };
+  }
+
+  function recomputeBubbles({ resetMemoryK = false, resetLoreK = false } = {}) {
+    const { memory: memE, lore: lorE } = currentEntriesPerScope();
+
+    if (resetMemoryK) memoryK = recommendK(memE.length);
+    if (resetLoreK)   loreK   = recommendK(lorE.length);
+
+    // Clamp k to entry count so we don't attempt more clusters than entries
+    memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memE.length)));
+    loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorE.length)));
+
+    // Rebucket preserves prior labels when entry set is unchanged.
+    // Forces fresh bubbleize when new entries appear or k changed.
+    memoryBubbles = rebucket({ entries: memE, prior: memoryBubbles, k: memoryK });
+    loreBubbles   = rebucket({ entries: lorE, prior: loreBubbles,   k: loreK });
+
+    // Drop expanded ids that no longer correspond to an existing bubble.
+    const memIds = new Set(memoryBubbles.map(b => b.id));
+    const lorIds = new Set(loreBubbles.map(b => b.id));
+    for (const id of expandedMemoryIds) if (!memIds.has(id)) expandedMemoryIds.delete(id);
+    for (const id of expandedLoreIds)   if (!lorIds.has(id)) expandedLoreIds.delete(id);
+  }
+
+  function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
+    recomputeBubbles({ resetMemoryK, resetLoreK });
+    overlay.updatePanels({
+      memoryBubbles, loreBubbles,
+      memoryK, loreK,
+      expandedMemoryIds, expandedLoreIds,
+      deleteCount: pendingDeletions.size,
+    });
     overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
   }
 
+  // ---- helpers used by bubble-batch handlers ----
+
+  function queueForDeletion(id) {
+    const item = stage.getStaged().find(it => String(it.id) === String(id));
+    if (item) pendingDeletions.set(String(id), item);
+  }
+
+  // ---- handlers ----
+
   const handlers = {
-    onPromote: (id) => {
-      stage.promote(id);
+    // Entry-level
+    onPromote: (id) => { stage.promote(id); refresh(); },
+    onDemote:  (id) => { stage.demote(id);  refresh(); },
+    onDelete:  (id) => { queueForDeletion(id); stage.remove(id); refresh(); },
+
+    // Bubble-level (batch the same op over all members)
+    onBubblePromote: (entries) => {
+      for (const e of entries) stage.promote(e.id);
       refresh();
     },
-    onDemote: (id) => {
-      stage.demote(id);
+    onBubbleDemote: (entries) => {
+      for (const e of entries) stage.demote(e.id);
       refresh();
     },
-    onDelete: (id) => {
-      // Find the staged item before removing it — we need its data
-      // for later commit (the db adapter needs passthrough fields).
-      const item = stage.getStaged().find(it => String(it.id) === String(id));
-      if (item) pendingDeletions.set(String(id), item);
-      stage.remove(id);
-      refresh();
-    },
-    onSave: async () => {
-      // Apply pending deletions to stage (stage.remove has already
-      // happened for them, so they're absent from getStaged() — but
-      // computeDiff needs them to appear in diff.deleted, which happens
-      // naturally when they're in baseline but not in staged. Good.)
-      const diff = stage.computeDiff();
-      if (diff.totalChanges === 0) {
-        alert('No changes to save.');
-        return;
+    onBubbleDelete: (entries) => {
+      for (const e of entries) {
+        queueForDeletion(e.id);
+        stage.remove(e.id);
       }
+      refresh();
+    },
+
+    // k-slider: ± per scope. When k changes, recluster fresh (not rebucket).
+    onChangeK: (scope, dir) => {
+      const step = Number(dir) || 0;
+      if (scope === 'memory') {
+        const { memory } = currentEntriesPerScope();
+        const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memory.length)));
+        if (newK === memoryK) return; // clamped, no change
+        memoryK = newK;
+        // Fresh re-bubble (don't preserve prior labels — user WANTED change)
+        memoryBubbles = bubbleize({ entries: memory, k: memoryK });
+        expandedMemoryIds.clear(); // ids no longer meaningful
+        overlay.updatePanels({
+          memoryBubbles, loreBubbles, memoryK, loreK,
+          expandedMemoryIds, expandedLoreIds,
+          deleteCount: pendingDeletions.size,
+        });
+      } else if (scope === 'lore') {
+        const { lore } = currentEntriesPerScope();
+        const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lore.length)));
+        if (newK === loreK) return;
+        loreK = newK;
+        loreBubbles = bubbleize({ entries: lore, k: loreK });
+        expandedLoreIds.clear();
+        overlay.updatePanels({
+          memoryBubbles, loreBubbles, memoryK, loreK,
+          expandedMemoryIds, expandedLoreIds,
+          deleteCount: pendingDeletions.size,
+        });
+      }
+    },
+
+    // Expand/collapse — no stage mutation, just toggle the set + re-render
+    onToggleBubble: (scope, bubbleId) => {
+      const set = scope === 'memory' ? expandedMemoryIds : expandedLoreIds;
+      if (set.has(bubbleId)) set.delete(bubbleId);
+      else set.add(bubbleId);
+      overlay.updatePanels({
+        memoryBubbles, loreBubbles, memoryK, loreK,
+        expandedMemoryIds, expandedLoreIds,
+        deleteCount: pendingDeletions.size,
+      });
+    },
+
+    // Footer actions
+    onSave: async () => {
+      const diff = stage.computeDiff();
+      if (diff.totalChanges === 0) { alert('No changes to save.'); return; }
       const confirmed = window.confirm(
-        formatDiffSummary(diff) +
-        '\n\nThis action is permanent — there is no undo.'
+        formatDiffSummary(diff) + '\n\nThis action is permanent — there is no undo.'
       );
       if (!confirmed) return;
 
       overlay.setSaveLabel('Saving…');
       overlay.setSaveEnabled(false);
 
-      const result = await commitDiff({
-        baselineItems: baseline,
-        diff,
-      });
-
+      const result = await commitDiff({ baselineItems: baseline, diff });
       if (!result.ok) {
         alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);
         overlay.setSaveLabel('Save');
         overlay.setSaveEnabled(true);
         return;
       }
-
-      // Success — close the window.
       overlay.hide();
     },
     onExport: () => {
@@ -146,7 +238,7 @@ export async function openMemoryWindow() {
         threadLabel,
         stagedItems: stage.getStaged(),
         pendingDeletions: Array.from(pendingDeletions.values()),
-        baseline,  // include so a future 'import' could reconstruct stage
+        baseline,
       };
       showExportDialog(JSON.stringify(state, null, 2));
     },
@@ -162,9 +254,13 @@ export async function openMemoryWindow() {
   // ---- window ----
 
   const overlay = createMemoryWindow({
-    items: stage.getStaged(),
+    initialState: {
+      memoryBubbles, loreBubbles,
+      memoryK, loreK,
+      expandedMemoryIds, expandedLoreIds,
+      deleteCount: 0,
+    },
     threadLabel,
-    deleteCount: 0,
     handlers,
   });
 
@@ -185,10 +281,6 @@ async function getActiveThreadLabel() {
   }
 }
 
-/**
- * Show a small, inert notice overlay when we can't run the feature.
- * Uses the standard overlay component so close behavior is consistent.
- */
 function showInertNotice(title, body) {
   const overlay = createOverlay({
     ariaLabel: title,
@@ -202,10 +294,6 @@ function showInertNotice(title, body) {
   overlay.show();
 }
 
-/**
- * Show a simple "here's your export as JSON" dialog. Textarea + close.
- * Matches the pattern the profile Backup section uses for Export.
- */
 function showExportDialog(jsonText) {
   const textarea = h('textarea', {
     class: 'pf-mem-export-textarea',

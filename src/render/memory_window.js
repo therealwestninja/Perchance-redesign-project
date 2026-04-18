@@ -10,39 +10,36 @@
 // three side-by-side columns comfortably.
 //
 // This module is composition only — it doesn't own the stage. The caller
-// wires handlers for cancel/export/save and calls updatePanels() to
-// re-render after stage mutations.
+// computes bubble state from stage contents, passes it in, and calls
+// updatePanels(state) to re-render after stage mutations.
+//
+// See memory_panels.js for the state shape. At minimum:
+//   { memoryBubbles, loreBubbles, memoryK, loreK,
+//     expandedMemoryIds, expandedLoreIds, deleteCount }
 
 import { h } from '../utils/dom.js';
 import { createOverlay } from './overlay.js';
 import { createMemoryPanels } from './memory_panels.js';
 
 /**
- * Create a Memory/Lore window populated with the given items.
- *
  * @param {{
- *   items: Array<import('../memory/stage.js').StageItem>,
- *   threadLabel?: string,     Rendered in the header as thread context
- *   deleteCount?: number,     Running count of items queued for delete
- *   handlers?: import('./memory_panels.js').PanelHandlers & {
- *     onSave?: () => void,
- *     onExport?: () => void,
- *     onCancel?: () => void,  Cancels without saving; defaults to close
- *   },
+ *   initialState?: Object,     Initial bubble state (see memory_panels.js)
+ *   threadLabel?: string,
+ *   handlers?: Object,         See memory_panels.js PanelHandlers +
+ *                              {onSave, onExport, onCancel}
  *   onClose?: () => void,
  * }} opts
  * @returns {HTMLElement & {
  *   show: () => void,
  *   hide: () => void,
- *   updatePanels: (items, deleteCount) => void,
+ *   updatePanels: (state) => void,
  *   setSaveEnabled: (enabled: boolean) => void,
  *   setSaveLabel: (label: string) => void,
  * }}
  */
 export function createMemoryWindow({
-  items = [],
+  initialState = {},
   threadLabel = '',
-  deleteCount = 0,
   handlers = {},
   onClose,
 } = {}) {
@@ -56,12 +53,17 @@ export function createMemoryWindow({
   );
 
   const panels = createMemoryPanels({
-    items,
-    deleteCount,
+    memoryBubbles:    initialState.memoryBubbles    || [],
+    loreBubbles:      initialState.loreBubbles      || [],
+    memoryK:          initialState.memoryK          || 0,
+    loreK:            initialState.loreK            || 0,
+    expandedMemoryIds: initialState.expandedMemoryIds || new Set(),
+    expandedLoreIds:   initialState.expandedLoreIds   || new Set(),
+    deleteCount:      initialState.deleteCount      || 0,
     handlers,
   });
 
-  // ---- footer: Export (left), Cancel + Save (right) ----
+  // ---- footer ----
 
   const exportBtn = h('button', {
     type: 'button',
@@ -81,7 +83,7 @@ export function createMemoryWindow({
   const saveBtn = h('button', {
     type: 'button',
     class: 'pf-mem-btn pf-mem-btn-primary',
-    disabled: true,  // starts disabled — enabled when stage has changes
+    disabled: true,
     onClick: () => { if (typeof handlers.onSave === 'function') handlers.onSave(); },
   }, ['Save']);
 
@@ -98,15 +100,10 @@ export function createMemoryWindow({
     onClose,
   });
 
-  // Tag the overlay so CSS can widen the content column for three panels.
   overlay.classList.add('pf-overlay-wide');
 
-  overlay.updatePanels = (newItems, newDeleteCount) => {
-    panels.update(newItems, newDeleteCount);
-  };
-  overlay.setSaveEnabled = (enabled) => {
-    saveBtn.disabled = !enabled;
-  };
+  overlay.updatePanels = (state) => panels.update(state);
+  overlay.setSaveEnabled = (enabled) => { saveBtn.disabled = !enabled; };
   overlay.setSaveLabel = (label) => {
     if (typeof label === 'string') saveBtn.textContent = label;
   };

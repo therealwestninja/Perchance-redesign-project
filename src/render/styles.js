@@ -1742,7 +1742,148 @@ export const CSS = `
   background: rgba(216, 122, 122, 0.12);
 }
 
-/* ---- empty states ---- */
+/* ============================================================
+   BUBBLE (topic cluster) styles — added in commit 2 of the Bubble rework.
+   ============================================================ */
+
+/* k-control in the panel header */
+.pf-mem-k-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.pf-mem-col-sub + .pf-mem-k-control {
+  /* If both subtitle and k-control are present, reset margin-left so
+     they sit next to each other */
+  margin-left: 0;
+}
+.pf-mem-k-btn {
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.65;
+  border-radius: 3px;
+}
+.pf-mem-k-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+.pf-mem-k-btn:focus-visible {
+  outline: 1px solid var(--link-color, #4a90e2);
+  outline-offset: 1px;
+}
+.pf-mem-k-value {
+  min-width: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+
+/* Bubble container */
+.pf-mem-bubble {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: calc(var(--border-radius) - 2px);
+  background: rgba(0, 0, 0, 0.10);
+  overflow: hidden;
+  transition: box-shadow 0.15s;
+}
+.pf-mem-bubble-ungrouped {
+  border-style: dashed;
+  opacity: 0.85;
+}
+.pf-mem-bubble-ungrouped .pf-mem-bubble-header {
+  font-style: italic;
+}
+
+/* Bubble header: drag source + click-to-toggle */
+.pf-mem-bubble-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  user-select: none;
+  background: rgba(185, 137, 74, 0.04); /* subtle gold tint to mark bubble */
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-mem-bubble-header:active { cursor: grabbing; }
+.pf-mem-bubble-header:hover {
+  background: rgba(185, 137, 74, 0.10);
+}
+.pf-mem-bubble-header:focus-visible {
+  outline: 2px solid var(--link-color, #4a90e2);
+  outline-offset: -2px;
+}
+.pf-mem-bubble[aria-expanded="true"] > .pf-mem-bubble-header,
+.pf-mem-bubble-header[aria-expanded="true"] {
+  border-bottom-color: var(--border-color);
+}
+.pf-mem-bubble-dragging {
+  opacity: 0.5;
+}
+
+.pf-mem-bubble-chevron {
+  font-size: 10px;
+  opacity: 0.6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.pf-mem-bubble-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-mem-bubble-count {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+/* Bubble body: the nested cards, only visible when expanded */
+.pf-mem-bubble-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 10px 26px; /* left pad aligns with chevron indent */
+}
+.pf-mem-bubble-body[hidden] { display: none; }
+
+/* Nested card: slightly subdued vs. standalone cards (pre-bubble era) */
+.pf-mem-card-nested {
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.pf-mem-card-nested .pf-mem-card-text {
+  font-size: 12px;
+}
 
 .pf-mem-empty {
   margin: 0;
