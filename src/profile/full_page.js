@@ -14,6 +14,8 @@ import { createAchievementsGrid } from '../render/achievements_grid.js';
 import { createPromptsBody } from '../render/prompts_section.js';
 import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
+import { createActivityBody } from '../render/activity_body.js';
+import { bumpCounter, getCounters } from '../stats/counters.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
 import { createActivitySparkline } from '../render/activity_sparkline.js';
@@ -70,6 +72,7 @@ export async function openFullPage() {
   } catch {
     settings = null;
   }
+
   try {
     const data = await readAllStores();
     // Merge IDB-derived stats with settings-derived prompt stats so
@@ -78,6 +81,12 @@ export async function openFullPage() {
   } catch {
     stats = { ...computeStats({}), ...computePromptStats(settings) };
   }
+  // Inject counter data into stats so counter-backed achievement
+  // criteria (bubble renames, memory saves, etc.) can see it. The
+  // counters module is the single source of truth for per-feature
+  // usage counts; stats (from Dexie) is the source for "what exists"
+  // data. Together they're the full picture for unlock criteria.
+  try { stats.counters = getCounters(); } catch { stats.counters = {}; }
   try {
     unlockedIds = computeUnlockedIds(stats);
   } catch {
@@ -125,6 +134,7 @@ export async function openFullPage() {
     onShareClick: () => {
       if (overlay && typeof overlay.setFocused === 'function') {
         overlay.setFocused(true);
+        bumpCounter('focusModeToggles');
       }
     },
   });
@@ -139,7 +149,8 @@ export async function openFullPage() {
     // crossed an achievement threshold.
     let freshUnlocked = unlockedIds;
     try {
-      const freshStats = { ...stats, ...computePromptStats(freshSettings) };
+      const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
+      const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters };
       freshUnlocked = computeUnlockedIds(freshStats);
     } catch { /* fall back to initial unlock list */ }
 
@@ -212,6 +223,11 @@ export async function openFullPage() {
     title: 'Prompt Archive',
     children: createPromptArchive(),
     initialState: displayState.archive,
+    onToggled: ({ collapsed }) => {
+      // Bump only on EXPAND (user is opening the archive), not on
+      // collapse. Counter reflects "views" of the archive.
+      if (!collapsed) bumpCounter('promptArchiveOpens');
+    },
   });
 
   const chronicleSection = createSection({
@@ -235,6 +251,19 @@ export async function openFullPage() {
     initialState: displayState.achievements,
   });
 
+  // ---- activity counters ----
+  // Shows per-feature usage counts tracked by stats/counters.js.
+  // Surfaces data that users have been accumulating silently; also
+  // establishes visibility for the future tiered-achievement system
+  // that will unlock based on these same counters.
+  const counters = getCounters();
+  const activitySection = createSection({
+    id: 'activity',
+    title: 'Activity',
+    children: createActivityBody({ counters }),
+    initialState: displayState.activity || { collapsed: false, blurred: false },
+  });
+
   const backupSection = createSection({
     id: 'backup',
     title: 'Backup',
@@ -256,6 +285,7 @@ export async function openFullPage() {
       chronicleSection,
       styleSection,
       achievementsSection,
+      activitySection,
       backupSection,
     ],
   });

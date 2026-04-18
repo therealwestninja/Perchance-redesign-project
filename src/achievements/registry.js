@@ -172,7 +172,126 @@ export const ACHIEVEMENTS = Object.freeze([
     tier: 'uncommon',
     criteria: (s) => (s.promptsWeeksActive || 0) >= 10,
   },
+
+  // --- Counter-backed tiered achievements (bubble tool + profile usage) ---
+  //
+  // Each logical achievement becomes three achievement rows: bronze,
+  // silver, gold. Thresholds defined in the tieredCounter helper below.
+  // User sees each tier as a separate unlock, but the narrative is
+  // "you unlocked the silver badge for renames" etc.
+  //
+  // These achievements read `stats.counters.*` which is injected by the
+  // call site (full_page.js / index.js) before passing stats to
+  // computeUnlockedIds. See the counters module (stats/counters.js).
+  ...tieredCounter({
+    baseId: 'curator',
+    baseName: 'Curator',
+    what: 'memory saves',
+    counterKey: 'memorySaves',
+    thresholds: { bronze: 3, silver: 15, gold: 50 },
+  }),
+  ...tieredCounter({
+    baseId: 'namer',
+    baseName: 'Namer',
+    what: 'bubble renames',
+    counterKey: 'bubblesRenamed',
+    thresholds: { bronze: 1, silver: 10, gold: 50 },
+  }),
+  ...tieredCounter({
+    baseId: 'organizer',
+    baseName: 'Organizer',
+    what: 'bubble reorders',
+    counterKey: 'bubblesReordered',
+    thresholds: { bronze: 1, silver: 10, gold: 50 },
+  }),
+  ...tieredCounter({
+    baseId: 'shuffler',
+    baseName: 'Shuffler',
+    what: 'card reorders',
+    counterKey: 'cardsReorderedInBubble',
+    thresholds: { bronze: 5, silver: 25, gold: 100 },
+  }),
+  ...tieredCounter({
+    baseId: 'sorter',
+    baseName: 'Sorter',
+    what: 'cross-bubble moves',
+    counterKey: 'cardsReorderedCrossBubble',
+    thresholds: { bronze: 3, silver: 15, gold: 50 },
+  }),
+  ...tieredCounter({
+    baseId: 'preservationist',
+    baseName: 'Preservationist',
+    what: 'bubble locks',
+    counterKey: 'bubblesLocked',
+    thresholds: { bronze: 1, silver: 5, gold: 20 },
+  }),
+  ...tieredCounter({
+    baseId: 'restorer',
+    baseName: 'Restorer',
+    what: 'snapshot restores',
+    counterKey: 'snapshotsRestored',
+    thresholds: { bronze: 1, silver: 3, gold: 10 },
+  }),
+  ...tieredCounter({
+    baseId: 'archivist',
+    baseName: 'Archivist',
+    what: 'backup exports',
+    counterKey: 'backupsExported',
+    thresholds: { bronze: 1, silver: 5, gold: 20 },
+  }),
+  ...tieredCounter({
+    baseId: 'regular',
+    baseName: 'Regular',
+    what: 'memory tool opens',
+    counterKey: 'memoryWindowOpens',
+    thresholds: { bronze: 5, silver: 25, gold: 100 },
+  }),
 ]);
+
+/**
+ * Generate a bronze/silver/gold triple of achievements gated on a
+ * single counter value. Each tier maps to the progression levels
+ * users expect (common → rare → epic).
+ *
+ * Criteria read `stats.counters[counterKey]`, so the caller must
+ * augment `stats` with a `counters` field before calling
+ * computeUnlockedIds. See profile/full_page.js for the call-site
+ * pattern.
+ *
+ * @param {{
+ *   baseId: string,
+ *   baseName: string,
+ *   what: string,          // e.g. 'bubble renames' — used in description
+ *   counterKey: string,
+ *   thresholds: { bronze: number, silver: number, gold: number },
+ * }} opts
+ */
+function tieredCounter({ baseId, baseName, what, counterKey, thresholds }) {
+  const read = (s) => Number((s && s.counters && s.counters[counterKey]) || 0);
+  return [
+    {
+      id: `${baseId}_bronze`,
+      name: `${baseName} — Bronze`,
+      description: `Reach ${thresholds.bronze} ${what}.`,
+      tier: 'common',
+      criteria: (s) => read(s) >= thresholds.bronze,
+    },
+    {
+      id: `${baseId}_silver`,
+      name: `${baseName} — Silver`,
+      description: `Reach ${thresholds.silver} ${what}.`,
+      tier: 'rare',
+      criteria: (s) => read(s) >= thresholds.silver,
+    },
+    {
+      id: `${baseId}_gold`,
+      name: `${baseName} — Gold`,
+      description: `Reach ${thresholds.gold} ${what}.`,
+      tier: 'epic',
+      criteria: (s) => read(s) >= thresholds.gold,
+    },
+  ];
+}
 
 /**
  * Convenience lookup by id. Returns null if not found.

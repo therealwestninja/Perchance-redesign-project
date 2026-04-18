@@ -93,19 +93,6 @@ Before we can implement, we need to:
 
 ---
 
-## Commit 3 — merge/split/rename bubble gestures
-
-User can:
-- Drag bubble A onto bubble B → merge into one bubble
-- Context menu on bubble → "Split this bubble at card N"
-- Double-click bubble label → edit label inline
-
-Deferred during 7d planning. Complex but self-contained.
-
-**Scope:** ~250 lines + tests. 2-3 commits.
-
----
-
 ## Commit 4 — drag bubble → new character
 
 Drag a Memory bubble outside the Memory panel → create a new character
@@ -376,91 +363,106 @@ once" — each area gets its own commit with tests. Targets:
 
 ---
 
-## Second pass on User Profile — track usage of new features
+## Second pass on User Profile — remaining items
 
-**Status: open.**
+**Status: PARTIAL. Core counter infrastructure shipped.**
 
-Since the profile shipped, we've added many features whose usage is not
-tracked in user stats:
-- Bubble tool opens (count, per-thread, per-day)
-- Memory bubbles locked / unlocked
-- Bubbles renamed
-- Cards reordered (intra-bubble, cross-bubble)
-- Snapshots used (`Restore` button clicks)
-- Export backups created
-- Prompt archive views
-- Focus mode toggles
-- Weekly prompts attempted / completed by category
-- Holiday event participations
+### Shipped
+- `settings.counters` namespace in settings_store
+- `src/stats/counters.js` module: `bumpCounter`, `getCounters`, `resetCounters`
+- Bubble tool instrumentation: memoryWindowOpens, bubblesLocked,
+  bubblesRenamed, bubblesReordered, cardsReorderedInBubble,
+  cardsReorderedCrossBubble, snapshotsRestored, memorySaves,
+  backupsExported
+- Non-bubble-tool instrumentation: backupsImported, promptArchiveOpens,
+  focusModeToggles
+- Profile "Activity" section displaying chip grid with per-counter
+  totals plus first/last activity timestamps
+- Round-trip through backup/export/import works for free (counters
+  live in settings)
+- 10 unit tests for counters module
 
-**Plan:**
-1. Extend `user_stats.js` schema with new counters + histograms
-2. Instrument call sites (usually a one-line `stats.bump('bubbleToolOpens')`)
-3. Surface new stats in profile page — at least a small "tool usage"
-   section with a mix of lifetime numbers and 30-day sparklines
-4. Migration path for existing users (missing counters default to 0)
+### Still open
+- **30-day sparklines for counters.** Counters are lifetime totals
+  today; a sparkline showing the last 30 days would feel more
+  dynamic and give users a "I used this a lot this week" signal.
+  Would require adding a daily-bucket histogram alongside lifetime
+  counters (`countersByDay: { '2026-04-18': { memorySaves: 3 } }`).
+  Plus UI to render it. ~150 lines.
+- **Weekly prompts completed BY CATEGORY tracking.** Currently we
+  track completedByWeek as a flat list. A category breakdown
+  (writing prompt vs roleplay prompt vs worldbuilding, etc.) would
+  let us surface "your preferred prompt type" and tier achievements
+  on variety. ~100 lines.
+- **Holiday event participations.** We track seenEventIds but not
+  any engagement signal beyond viewing. Could add "acknowledged",
+  "responded", "added to chronicle" states. ~80 lines.
+- **Per-thread counter breakdowns.** Today counters are global;
+  breaking them down per-thread could surface "your Davie thread
+  has the most memory edits" kind of insights. ~200 lines.
 
-**Scope:** ~250 lines across user_stats, profile renderer, instrumentation
-points. + tests for counter logic.
+These remaining items are all additive and can be tackled
+independently. None are blockers for the gamification roadmap
+item — the core counter data is there now.
 
 ---
 
 ## Achievement levels + profile gamification
 
-**Status: open.** User note: "I know this is a lot to ask, but I feel
-it's important for the overall longevity for Perchance, is having
-returning users."
+**Status: PARTIAL. Tiered counter-backed achievements shipped.**
 
-Build on the second profile pass. Achievements currently are flat
-badges. Upgrade to tiered/categorized achievements with unlocks:
+### Shipped
+- Tiered counter-backed achievements: bronze/silver/gold for 9
+  counter categories (Curator, Namer, Organizer, Shuffler, Sorter,
+  Preservationist, Restorer, Archivist, Regular). 27 new
+  achievement IDs mapped to bronze=common, silver=rare, gold=epic
+  existing tiers. Unlocks track per-counter thresholds.
+- `tieredCounter()` helper in `registry.js` for easily adding new
+  tiered achievements without repeating the three-row structure.
+- `stats.counters` injected by all three unlock call sites
+  (full_page initial, full_page refresh, mini-card refresh).
+- 12 unit tests for the new achievement behavior.
 
-**Tiered achievements:** Each achievement has difficulty levels:
-  - Casual user (once a week, lightweight goals)
-  - Twice-weekly user (steady cadence)
-  - Daily user (intense engagement)
-  - RP user (roleplay-heavy — measured by session length, character
-    creation, prompt variety in char-driven threads)
-  - Storyteller (long-form writing — measured by char count per thread,
-    multi-session continuity, snapshot restoration pattern)
+### Remaining
+- **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
+  Storyteller" classification that the user asked for. Unlike
+  tiered counter achievements (which reward doing a lot of ONE
+  thing), archetypes reward patterns across MANY signals:
+  - Casual: profile opened ~weekly, small counter totals
+  - Twice-weekly: steadier cadence, moderate counters
+  - Daily: high cadence, high counters
+  - RP: character creation, long threads, in-character writing
+    style indicators
+  - Storyteller: long-form writing, multi-session continuity,
+    snapshot restoration pattern, rename activity
+  Each archetype = achievement that unlocks when a WEIGHTED
+  combination of signals crosses a threshold. ~200 lines.
+- **Streak tracking** — add `streaks` namespace to settings.
+  Compute current + longest streak for "open profile", "complete a
+  prompt", "use memory tool". Needs a daily-rollover scheduler
+  similar to how prompts handle weeks. Unlocks:
+  "7-day streak", "30-day streak", "100-day streak". ~150 lines.
+- **Profile flair unlocks** — titles, avatar borders, accent colors
+  pinned to achievements/archetypes. Requires flair-storage field
+  in settings, flair-picker UI in profile, rendering in splash +
+  mini-card. ~200 lines.
+- **Personal-best notifications** — "beat your personal best in
+  words this session" toast. Needs per-session snapshot of relevant
+  stats at session start, comparison at end. ~80 lines.
+- **Shareable profile cards** — opt-in canvas-rendered image or
+  share-link with user's stats. Opens share sheet / copy-to-
+  clipboard. Privacy-sensitive; must exclude any identifying
+  details by default. ~200 lines.
+- **Summary notifications** — opt-in weekly/monthly summary toast
+  or mini-card pulse ("this week: 3 memory saves, 12 bubble
+  renames"). Needs a scheduler + a summary composer. ~150 lines.
 
-Each tier unlocks as stats cross thresholds. Category-based so users
-who use the tool differently still have progression.
-
-**Profile flair unlocks:**
-  - Titles (e.g., "Storyteller — Tier 3")
-  - Avatar border variants
-  - Accent color unlocks
-  - Custom background patterns for profile page
-  - Badges pinned to mini-card next to chats
-
-**Other gamification:**
-  - Streak indicators (N-day usage streaks, N-week streaks)
-  - "You beat your personal best" notifications (words per session,
-    memory curation counts)
-  - Milestone unlocks (100th memory, 50th bubble rename, etc.)
-  - Shareable profile cards (opt-in; generates an image or link the
-    user can post externally — "look at my writing stats")
-  - Weekly/monthly summary emails/notifications (opt-in) — reminder
-    to come back
-
-**Rationale:** Perchance needs returning users. Gamification of
-existing stats is a low-hanging lever because the stats are already
-being tracked. Flair unlocks give users cosmetic reward for
-engagement without any pay-to-win dynamics.
-
-**Scope:** Large. Break into:
-  1. Tiered schema + threshold table (~150 lines)
-  2. Unlock system + flair storage (~200 lines)
-  3. Profile flair picker UI (~150 lines)
-  4. Share card generator (~200 lines)
-  5. Streak tracking (~100 lines)
-  6. Summary notifications (~150 lines)
-Total ~950 lines across 4–6 commits.
-
-Should only be tackled AFTER:
-  - Second-pass user-stats tracking (depends on richer stats being
-    available to gamify)
-  - Code-duplication refactor pass (don't build on duplicated code)
+### Dependencies cleared
+- ~~Second-pass user-stats tracking~~ SHIPPED (commit b101e98 +
+  this commit)
+- Code-duplication refactor pass — still pending, but no longer a
+  strict blocker; the flair + share-card work can land as-is and
+  the refactor will touch the rest.
 
 ---
 

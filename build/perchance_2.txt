@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 59 };
+  NS.__meta = { modules: 61 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14535,7 +14535,126 @@ Use this template for your response:
       tier: 'uncommon',
       criteria: (s) => (s.promptsWeeksActive || 0) >= 10,
     },
+
+    // --- Counter-backed tiered achievements (bubble tool + profile usage) ---
+    //
+    // Each logical achievement becomes three achievement rows: bronze,
+    // silver, gold. Thresholds defined in the tieredCounter helper below.
+    // User sees each tier as a separate unlock, but the narrative is
+    // "you unlocked the silver badge for renames" etc.
+    //
+    // These achievements read `stats.counters.*` which is injected by the
+    // call site (full_page.js / index.js) before passing stats to
+    // computeUnlockedIds. See the counters module (stats/counters.js).
+    ...tieredCounter({
+      baseId: 'curator',
+      baseName: 'Curator',
+      what: 'memory saves',
+      counterKey: 'memorySaves',
+      thresholds: { bronze: 3, silver: 15, gold: 50 },
+    }),
+    ...tieredCounter({
+      baseId: 'namer',
+      baseName: 'Namer',
+      what: 'bubble renames',
+      counterKey: 'bubblesRenamed',
+      thresholds: { bronze: 1, silver: 10, gold: 50 },
+    }),
+    ...tieredCounter({
+      baseId: 'organizer',
+      baseName: 'Organizer',
+      what: 'bubble reorders',
+      counterKey: 'bubblesReordered',
+      thresholds: { bronze: 1, silver: 10, gold: 50 },
+    }),
+    ...tieredCounter({
+      baseId: 'shuffler',
+      baseName: 'Shuffler',
+      what: 'card reorders',
+      counterKey: 'cardsReorderedInBubble',
+      thresholds: { bronze: 5, silver: 25, gold: 100 },
+    }),
+    ...tieredCounter({
+      baseId: 'sorter',
+      baseName: 'Sorter',
+      what: 'cross-bubble moves',
+      counterKey: 'cardsReorderedCrossBubble',
+      thresholds: { bronze: 3, silver: 15, gold: 50 },
+    }),
+    ...tieredCounter({
+      baseId: 'preservationist',
+      baseName: 'Preservationist',
+      what: 'bubble locks',
+      counterKey: 'bubblesLocked',
+      thresholds: { bronze: 1, silver: 5, gold: 20 },
+    }),
+    ...tieredCounter({
+      baseId: 'restorer',
+      baseName: 'Restorer',
+      what: 'snapshot restores',
+      counterKey: 'snapshotsRestored',
+      thresholds: { bronze: 1, silver: 3, gold: 10 },
+    }),
+    ...tieredCounter({
+      baseId: 'archivist',
+      baseName: 'Archivist',
+      what: 'backup exports',
+      counterKey: 'backupsExported',
+      thresholds: { bronze: 1, silver: 5, gold: 20 },
+    }),
+    ...tieredCounter({
+      baseId: 'regular',
+      baseName: 'Regular',
+      what: 'memory tool opens',
+      counterKey: 'memoryWindowOpens',
+      thresholds: { bronze: 5, silver: 25, gold: 100 },
+    }),
   ]);
+
+  /**
+   * Generate a bronze/silver/gold triple of achievements gated on a
+   * single counter value. Each tier maps to the progression levels
+   * users expect (common → rare → epic).
+   *
+   * Criteria read `stats.counters[counterKey]`, so the caller must
+   * augment `stats` with a `counters` field before calling
+   * computeUnlockedIds. See profile/full_page.js for the call-site
+   * pattern.
+   *
+   * @param {{
+   *   baseId: string,
+   *   baseName: string,
+   *   what: string,          // e.g. 'bubble renames' — used in description
+   *   counterKey: string,
+   *   thresholds: { bronze: number, silver: number, gold: number },
+   * }} opts
+   */
+  function tieredCounter({ baseId, baseName, what, counterKey, thresholds }) {
+    const read = (s) => Number((s && s.counters && s.counters[counterKey]) || 0);
+    return [
+      {
+        id: `${baseId}_bronze`,
+        name: `${baseName} — Bronze`,
+        description: `Reach ${thresholds.bronze} ${what}.`,
+        tier: 'common',
+        criteria: (s) => read(s) >= thresholds.bronze,
+      },
+      {
+        id: `${baseId}_silver`,
+        name: `${baseName} — Silver`,
+        description: `Reach ${thresholds.silver} ${what}.`,
+        tier: 'rare',
+        criteria: (s) => read(s) >= thresholds.silver,
+      },
+      {
+        id: `${baseId}_gold`,
+        name: `${baseName} — Gold`,
+        description: `Reach ${thresholds.gold} ${what}.`,
+        tier: 'epic',
+        criteria: (s) => read(s) >= thresholds.gold,
+      },
+    ];
+  }
 
   /**
    * Convenience lookup by id. Returns null if not found.
@@ -21361,6 +21480,69 @@ Use this template for your response:
     line-height: 1.5;
     opacity: 0.85;
   }
+
+  /* Activity section — grid of per-feature usage counter chips. One
+     chip per action the user has taken (memory saves, bubble renames,
+     etc.), plus a footer with first/last activity timestamps. */
+  .pf-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pf-activity-empty {
+    color: var(--text-color);
+    opacity: 0.65;
+    font-size: 13px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+  .pf-activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .pf-activity-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    transition: background 0.15s, border-color 0.15s;
+    cursor: default;
+  }
+  .pf-activity-chip:hover {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(216, 179, 106, 0.4);
+  }
+  .pf-activity-chip-count {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-color);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .pf-activity-chip-label {
+    font-size: 11px;
+    opacity: 0.7;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .pf-activity-footer {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    opacity: 0.7;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  }
+  .pf-activity-footer strong {
+    font-weight: 600;
+    opacity: 1;
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -21405,6 +21587,7 @@ Use this template for your response:
           chronicle:    { collapsed: false, blurred: false },
           style:        { collapsed: false, blurred: false },
           achievements: { collapsed: false, blurred: false },
+          activity:     { collapsed: false, blurred: false },
           backup:       { collapsed: true,  blurred: false }, // utility — collapsed by default
         },
       },
@@ -21445,6 +21628,34 @@ Use this template for your response:
         // Pinned memories are exempt from prune. See src/memory/pins.js for
         // the API. Pins round-trip through backup/import automatically.
         pinsByThread: {},
+      },
+      counters: {
+        // Lifetime action counters for features the user has engaged with.
+        // Upstream Dexie data powers the "what exists" stats (message
+        // count, memory count, etc.); this namespace tracks "what the
+        // user has DONE with our tool" — actions that don't leave a
+        // natural trail in Dexie.
+        //
+        // Used by the profile page to surface engagement, and by the
+        // gamification / achievement layer to tier unlocks.
+        //
+        // Add new counters freely: missing fields default to 0 via
+        // mergeDeep on load, so older profiles gracefully acquire them.
+        memoryWindowOpens:          0,
+        bubblesLocked:              0, // cumulative toggle-to-locked count
+        bubblesRenamed:             0, // cumulative rename actions
+        bubblesReordered:           0, // whole-bubble reorder via grip
+        cardsReorderedInBubble:     0, // intra-bubble card reorder
+        cardsReorderedCrossBubble:  0, // cross-bubble card relocation
+        snapshotsRestored:          0, // Restore dialog confirmations
+        backupsExported:            0, // Export… used to create a backup
+        backupsImported:            0, // backup file imported
+        promptArchiveOpens:         0, // prompt archive section expanded
+        focusModeToggles:           0, // focus mode enter or exit
+        memorySaves:                0, // successful Save clicks in window
+        // First and last action timestamps. Set on any counter bump.
+        firstUsedAt:                null,
+        lastUsedAt:                 null,
       },
     };
   }
@@ -21568,6 +21779,124 @@ Use this template for your response:
     { value: '55+',            label: '55+' },
     { value: 'prefer-not-say', label: 'prefer not to say' },
   ]);
+
+  /* ──────────────────────────────────────────────────────────
+     module: stats/counters.js
+     ────────────────────────────────────────────────────────── */
+  // stats/counters.js
+  //
+  // Lifetime action counters for features the user has engaged with.
+  //
+  // The upstream Dexie database has the source of truth for what EXISTS
+  // (characters, threads, messages, memories, lore). This module tracks
+  // what the user has DONE with our tool — actions that don't leave a
+  // natural trail in Dexie. Bubble tool opens, lock toggles, renames,
+  // reorders, snapshot restorations, etc.
+  //
+  // Counter increments are written through settings_store.js (same
+  // persistence path as the rest of the profile), so they round-trip
+  // through the backup/export/import flow for free.
+  //
+  // Writes are best-effort: if localStorage is full or unavailable,
+  // we silently swallow the error. Counters are a pleasant-to-have
+  // indicator, not critical data — the user's primary work is their
+  // chat history, not their counter totals.
+
+
+
+  /**
+   * Increment a named counter by `n` (default 1). Also updates the
+   * firstUsedAt (set-once) and lastUsedAt (always) timestamps.
+   *
+   * Missing counters are created at 0 before the bump, which means a
+   * new counter name added in code lands smoothly on existing profiles
+   * — the counter appears at `n` on first bump.
+   *
+   * Best-effort: errors are swallowed (logged at debug level).
+   *
+   * @param {string} name - The counter field name, e.g. 'memoryWindowOpens'
+   * @param {number} [n=1] - Increment amount
+   */
+  function bumpCounter(name, n = 1) {
+    if (typeof name !== 'string' || !name) return;
+    const delta = Number(n) || 0;
+    if (delta <= 0) return;
+    try {
+      const settings = loadSettings();
+      if (!settings.counters || typeof settings.counters !== 'object') {
+        settings.counters = {};
+      }
+      const current = Number(settings.counters[name]) || 0;
+      settings.counters[name] = current + delta;
+
+      const nowIso = new Date().toISOString();
+      if (!settings.counters.firstUsedAt) {
+        settings.counters.firstUsedAt = nowIso;
+      }
+      settings.counters.lastUsedAt = nowIso;
+
+      saveSettings(settings);
+    } catch { /* best-effort */ }
+  }
+
+  /**
+   * Read the current counters object. Always returns an object (never
+   * null/undefined), with every known counter defaulted to 0 if missing
+   * from storage.
+   *
+   * @returns {object}
+   */
+  function getCounters() {
+    try {
+      const settings = loadSettings();
+      const c = (settings && settings.counters) || {};
+      return {
+        memoryWindowOpens:         Number(c.memoryWindowOpens)         || 0,
+        bubblesLocked:             Number(c.bubblesLocked)             || 0,
+        bubblesRenamed:            Number(c.bubblesRenamed)            || 0,
+        bubblesReordered:          Number(c.bubblesReordered)          || 0,
+        cardsReorderedInBubble:    Number(c.cardsReorderedInBubble)    || 0,
+        cardsReorderedCrossBubble: Number(c.cardsReorderedCrossBubble) || 0,
+        snapshotsRestored:         Number(c.snapshotsRestored)         || 0,
+        backupsExported:           Number(c.backupsExported)           || 0,
+        backupsImported:           Number(c.backupsImported)           || 0,
+        promptArchiveOpens:        Number(c.promptArchiveOpens)        || 0,
+        focusModeToggles:          Number(c.focusModeToggles)          || 0,
+        memorySaves:               Number(c.memorySaves)               || 0,
+        firstUsedAt:               c.firstUsedAt || null,
+        lastUsedAt:                c.lastUsedAt  || null,
+      };
+    } catch {
+      return {
+        memoryWindowOpens: 0, bubblesLocked: 0, bubblesRenamed: 0,
+        bubblesReordered: 0, cardsReorderedInBubble: 0,
+        cardsReorderedCrossBubble: 0, snapshotsRestored: 0,
+        backupsExported: 0, backupsImported: 0,
+        promptArchiveOpens: 0, focusModeToggles: 0, memorySaves: 0,
+        firstUsedAt: null, lastUsedAt: null,
+      };
+    }
+  }
+
+  /**
+   * Reset all counters to zero. Used for testing and for the "reset
+   * profile" / "clear history" flows.
+   */
+  function resetCounters() {
+    try {
+      const settings = loadSettings();
+      if (settings.counters && typeof settings.counters === 'object') {
+        const keep = { firstUsedAt: null, lastUsedAt: null };
+        for (const k of Object.keys(settings.counters)) {
+          if (k === 'firstUsedAt' || k === 'lastUsedAt') continue;
+          settings.counters[k] = 0;
+        }
+        settings.counters.firstUsedAt = keep.firstUsedAt;
+        settings.counters.lastUsedAt = keep.lastUsedAt;
+        saveSettings(settings);
+      }
+    } catch { /* best-effort */ }
+  }
 
   /* ──────────────────────────────────────────────────────────
      module: profile/notifications.js
@@ -21772,6 +22101,16 @@ Use this template for your response:
    * @param {string} jsonText
    * @returns {{ success: boolean, error?: string, schema?: number }}
    */
+  // stats/counters.js — imported lazily inside importSettingsFromJson
+  // to avoid a circular import with settings_store (counters imports
+  // settings_store, and we don't want backup.js → settings_store →
+  // counters → settings_store).
+
+  /**
+   * Import settings from a JSON blob (either wrapped with schema meta
+   * or raw settings). Returns { success, schema } on happy path or
+   * { success: false, error } otherwise.
+   */
   function importSettingsFromJson(jsonText) {
     if (typeof jsonText !== 'string' || !jsonText.trim()) {
       return { success: false, error: 'No backup text provided.' };
@@ -21806,6 +22145,13 @@ Use this template for your response:
 
     try {
       saveSettings(settings);
+      // Bump the import counter AFTER saving (so the bump itself lands
+      // in the post-import settings and isn't clobbered by restoring
+      // an old counter value). Dynamic import avoids the circular dep
+      // described above.
+      import('../stats/counters.js')
+        .then(mod => { try { mod.bumpCounter('backupsImported'); } catch {} })
+        .catch(() => { /* best-effort */ });
       return { success: true, schema };
     } catch (err) {
       return { success: false, error: (err && err.message) || 'Could not save settings.' };
@@ -23410,6 +23756,7 @@ Use this template for your response:
 
 
 
+
   // ---- entry-point exposure ----
   if (typeof window !== 'undefined') {
     const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
@@ -23432,6 +23779,11 @@ Use this template for your response:
       );
       return;
     }
+
+    // Count this as a successful bubble-tool open for the profile's
+    // activity counters. Done after schema probe so we don't count
+    // failed-to-open-for-reasons-outside-the-user's-control as usage.
+    bumpCounter('memoryWindowOpens');
 
     // ---- load baseline ----
     let baseline;
@@ -23834,6 +24186,7 @@ Use this template for your response:
         if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
         const currentOrder = s.getBubbles().map(b => b.id);
         moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
+        bumpCounter('bubblesReordered');
         refresh();
       },
 
@@ -23864,6 +24217,7 @@ Use this template for your response:
           if (!source) return;
           const currentCardOrder = source.entries.map(e => e.id);
           moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+          bumpCounter('cardsReorderedInBubble');
         } else {
           // Cross-bubble: assert new membership, position within target,
           // then clean up source's card-order reference.
@@ -23881,6 +24235,7 @@ Use this template for your response:
             if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
             else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
           }
+          bumpCounter('cardsReorderedCrossBubble');
         }
 
         refresh();
@@ -23936,6 +24291,7 @@ Use this template for your response:
         const s = byScope(scope);
         if (!s) return;
         const nowLocked = toggleLock(s.overrides, bubbleId);
+        if (nowLocked) bumpCounter('bubblesLocked');
 
         if (s.locksPersist && activeThreadId != null) {
           if (nowLocked) {
@@ -23969,6 +24325,7 @@ Use this template for your response:
         if (!s) return;
         if (!Array.isArray(memberIds) || memberIds.length === 0) return;
         renameBubble(s.overrides, memberIds, newLabel);
+        bumpCounter('bubblesRenamed');
         refresh();
       },
 
@@ -24060,6 +24417,8 @@ Use this template for your response:
           return;
         }
 
+        bumpCounter('memorySaves');
+
         // Show a brief confirmation of what landed on disk. For reorder-
         // only saves the stats object has reorderedMemory/reorderedLore
         // counts; for edits/adds/deletes it has those specific counters.
@@ -24080,6 +24439,7 @@ Use this template for your response:
           pendingDeletions: Array.from(pendingDeletions.values()),
           baseline,
         };
+        bumpCounter('backupsExported');
         showExportDialog(JSON.stringify(state, null, 2));
       },
 
@@ -24137,6 +24497,7 @@ Use this template for your response:
             alert(`Restore failed: ${result.error}\n\nNo changes were applied.`);
             return;
           }
+          bumpCounter('snapshotsRestored');
           alert('Restore complete. Re-open the Memory window to see the restored state.');
           overlay.hide();
         });
@@ -24335,7 +24696,7 @@ Use this template for your response:
    * }} opts
    * @returns {HTMLElement}
    */
-  function createSection({ id, title, children, initialState }) {
+  function createSection({ id, title, children, initialState, onToggled }) {
     let collapsed = !!(initialState && initialState.collapsed);
     let blurred   = !!(initialState && initialState.blurred);
 
@@ -24382,7 +24743,15 @@ Use this template for your response:
       // performs, not the current state, so they flip as state flips.
       chevronBtn.setAttribute('aria-label', collapsed ? `Expand ${title}` : `Collapse ${title}`);
       chevronBtn.setAttribute('title', collapsed ? 'Expand' : 'Collapse');
-      if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
+      if (persist) {
+        updateField(`display.sections.${id}.collapsed`, collapsed);
+        // Fire only on USER toggles (persist=true), not on initial hydrate,
+        // so section-specific instrumentation like counter bumps don't
+        // trigger on every profile open.
+        if (typeof onToggled === 'function') {
+          try { onToggled({ collapsed, blurred }); } catch { /* best-effort */ }
+        }
+      }
     }
 
     function setBlurred(val, { persist = true } = {}) {
@@ -25737,6 +26106,141 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/activity_body.js
+     ────────────────────────────────────────────────────────── */
+  // render/activity_body.js
+  //
+  // "Activity" section of the profile page. Surfaces the per-feature
+  // usage counters tracked by stats/counters.js — bubble tool opens,
+  // renames, reorders, saves, backups, etc.
+  //
+  // These counters are our answer to "what has the user actually DONE
+  // with this tool?" — data that isn't in upstream Dexie. They're also
+  // the substrate for the future gamification / tiered-achievement
+  // system. Showing them in the profile now (a) gives users feedback
+  // about their own use, and (b) makes the data visible before it's
+  // used for unlocks, so there's no "wait, where did that come from?"
+  // moment later.
+
+
+
+  /**
+   * Display metadata for each counter. Order here drives render order.
+   *
+   * `label` is user-facing; `key` matches the field name in getCounters();
+   * `hint` is optional title tooltip; `hideIfZero` hides the chip until
+   * the user has done the thing at least once (avoids a wall of zeros
+   * on first use).
+   */
+  const CHIPS = [
+    { key: 'memoryWindowOpens',          label: 'Memory tool opens',   hint: 'Times you\'ve opened the Memory & Lore window' },
+    { key: 'memorySaves',                label: 'Saves',               hint: 'Successful saves from the Memory tool', hideIfZero: true },
+    { key: 'bubblesReordered',           label: 'Bubble reorders',     hint: 'Bubbles you\'ve reordered via drag', hideIfZero: true },
+    { key: 'cardsReorderedInBubble',     label: 'Card reorders',       hint: 'Cards rearranged within a bubble', hideIfZero: true },
+    { key: 'cardsReorderedCrossBubble',  label: 'Cross-bubble moves',  hint: 'Cards dragged from one bubble to another', hideIfZero: true },
+    { key: 'bubblesRenamed',             label: 'Bubbles renamed',     hint: 'Custom labels you\'ve given bubbles', hideIfZero: true },
+    { key: 'bubblesLocked',              label: 'Bubbles locked',      hint: 'Bubbles locked to preserve their clustering', hideIfZero: true },
+    { key: 'snapshotsRestored',          label: 'Snapshots restored',  hint: 'Times you\'ve rolled back via Restore', hideIfZero: true },
+    { key: 'backupsExported',            label: 'Backups exported',    hint: 'Backup files you\'ve exported', hideIfZero: true },
+    { key: 'backupsImported',            label: 'Backups imported',    hint: 'Backup files imported from disk', hideIfZero: true },
+    { key: 'promptArchiveOpens',         label: 'Archive views',       hint: 'Prompt Archive section expanded', hideIfZero: true },
+    { key: 'focusModeToggles',           label: 'Focus mode',          hint: 'Focus-mode toggles', hideIfZero: true },
+  ];
+
+  /**
+   * Format an ISO timestamp as a short human-friendly relative string.
+   * Null-safe — returns placeholder for missing values.
+   */
+  function formatTimeAgo(iso) {
+    if (!iso) return '—';
+    const ts = Date.parse(iso);
+    if (!Number.isFinite(ts)) return '—';
+    const now = Date.now();
+    const diffMs = now - ts;
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60)       return 'just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60)       return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24)        return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay < 30)       return `${diffDay}d ago`;
+    const diffMon = Math.floor(diffDay / 30);
+    if (diffMon < 12)       return `${diffMon}mo ago`;
+    return `${Math.floor(diffMon / 12)}y ago`;
+  }
+
+  /**
+   * Format big numbers compactly: 1234 -> "1.2k", 1234567 -> "1.2M".
+   * Keeps chips compact for heavy users without losing signal.
+   */
+  function formatCount(n) {
+    const v = Number(n) || 0;
+    if (v < 1000)       return String(v);
+    if (v < 1_000_000)  return `${(v / 1000).toFixed(v < 10000 ? 1 : 0)}k`;
+    return `${(v / 1_000_000).toFixed(1)}M`;
+  }
+
+  /**
+   * Build the body of the Activity section.
+   *
+   * @param {{ counters: object }} opts - counters from getCounters()
+   */
+  function createActivityBody({ counters } = {}) {
+    const c = counters || {};
+    const totalActions =
+      (Number(c.memoryWindowOpens)         || 0) +
+      (Number(c.memorySaves)               || 0) +
+      (Number(c.bubblesReordered)          || 0) +
+      (Number(c.cardsReorderedInBubble)    || 0) +
+      (Number(c.cardsReorderedCrossBubble) || 0) +
+      (Number(c.bubblesRenamed)            || 0) +
+      (Number(c.bubblesLocked)             || 0) +
+      (Number(c.snapshotsRestored)         || 0) +
+      (Number(c.backupsExported)           || 0) +
+      (Number(c.backupsImported)           || 0) +
+      (Number(c.promptArchiveOpens)        || 0) +
+      (Number(c.focusModeToggles)          || 0);
+
+    if (totalActions === 0) {
+      return h('div', { class: 'pf-activity-empty' }, [
+        'No activity tracked yet. As you curate memories, rename bubbles, ' +
+        'save changes, and use other features, counts will appear here.',
+      ]);
+    }
+
+    // Render only chips with non-zero values (or those without hideIfZero)
+    const chipNodes = [];
+    for (const spec of CHIPS) {
+      const raw = Number(c[spec.key]) || 0;
+      if (spec.hideIfZero && raw === 0) continue;
+      chipNodes.push(h('div', {
+        class: 'pf-activity-chip',
+        title: spec.hint || '',
+      }, [
+        h('div', { class: 'pf-activity-chip-count' }, [formatCount(raw)]),
+        h('div', { class: 'pf-activity-chip-label' }, [spec.label]),
+      ]));
+    }
+
+    const grid = h('div', { class: 'pf-activity-grid' }, chipNodes);
+
+    // Footer strip — first/last activity timestamps for context.
+    const footer = h('div', { class: 'pf-activity-footer' }, [
+      h('span', {}, [
+        h('strong', {}, ['First activity: ']),
+        formatTimeAgo(c.firstUsedAt),
+      ]),
+      h('span', {}, [
+        h('strong', {}, ['Last activity: ']),
+        formatTimeAgo(c.lastUsedAt),
+      ]),
+    ]);
+
+    return h('div', { class: 'pf-activity' }, [grid, footer]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/backup_section.js
      ────────────────────────────────────────────────────────── */
   // render/backup_section.js
@@ -26306,6 +26810,8 @@ Use this template for your response:
 
 
 
+
+
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
    * on the splash. Highest tier first; within a tier, registry order.
@@ -26352,6 +26858,12 @@ Use this template for your response:
     } catch {
       stats = { ...computeStats({}), ...computePromptStats(settings) };
     }
+    // Inject counter data into stats so counter-backed achievement
+    // criteria (bubble renames, memory saves, etc.) can see it. The
+    // counters module is the single source of truth for per-feature
+    // usage counts; stats (from Dexie) is the source for "what exists"
+    // data. Together they're the full picture for unlock criteria.
+    try { stats.counters = getCounters(); } catch { stats.counters = {}; }
     try {
       unlockedIds = computeUnlockedIds(stats);
     } catch {
@@ -26399,6 +26911,7 @@ Use this template for your response:
       onShareClick: () => {
         if (overlay && typeof overlay.setFocused === 'function') {
           overlay.setFocused(true);
+          bumpCounter('focusModeToggles');
         }
       },
     });
@@ -26413,7 +26926,8 @@ Use this template for your response:
       // crossed an achievement threshold.
       let freshUnlocked = unlockedIds;
       try {
-        const freshStats = { ...stats, ...computePromptStats(freshSettings) };
+        const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
+        const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters };
         freshUnlocked = computeUnlockedIds(freshStats);
       } catch { /* fall back to initial unlock list */ }
 
@@ -26486,6 +27000,11 @@ Use this template for your response:
       title: 'Prompt Archive',
       children: createPromptArchive(),
       initialState: displayState.archive,
+      onToggled: ({ collapsed }) => {
+        // Bump only on EXPAND (user is opening the archive), not on
+        // collapse. Counter reflects "views" of the archive.
+        if (!collapsed) bumpCounter('promptArchiveOpens');
+      },
     });
 
     const chronicleSection = createSection({
@@ -26509,6 +27028,19 @@ Use this template for your response:
       initialState: displayState.achievements,
     });
 
+    // ---- activity counters ----
+    // Shows per-feature usage counts tracked by stats/counters.js.
+    // Surfaces data that users have been accumulating silently; also
+    // establishes visibility for the future tiered-achievement system
+    // that will unlock based on these same counters.
+    const counters = getCounters();
+    const activitySection = createSection({
+      id: 'activity',
+      title: 'Activity',
+      children: createActivityBody({ counters }),
+      initialState: displayState.activity || { collapsed: false, blurred: false },
+    });
+
     const backupSection = createSection({
       id: 'backup',
       title: 'Backup',
@@ -26530,6 +27062,7 @@ Use this template for your response:
         chronicleSection,
         styleSection,
         achievementsSection,
+        activitySection,
         backupSection,
       ],
     });
@@ -26552,6 +27085,7 @@ Use this template for your response:
   // This module is the one "main" for the project — everything else is a pure
   // helper. Keep it small: if logic lives here and it grows past ~100 lines,
   // extract it.
+
 
 
 
@@ -26596,8 +27130,10 @@ Use this template for your response:
       const data = await readAllStores();
       const settings = loadSettings();
       // Merge IDB-derived stats with settings-derived prompt stats so
-      // achievement criteria can read both from one stat bundle.
+      // achievement criteria can read both from one stat bundle. Also
+      // inject counter data so counter-backed achievements can unlock.
       const stats = { ...computeStats(data), ...computePromptStats(settings) };
+      try { stats.counters = getCounters(); } catch { stats.counters = {}; }
       const unlockedIds = computeUnlockedIds(stats);
 
       // First deploy: treat current unlocks as "already seen" so this commit

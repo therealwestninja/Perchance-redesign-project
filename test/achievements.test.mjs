@@ -143,3 +143,106 @@ test('diffNewUnlocks handles null / empty previous', () => {
   assert.deepEqual(diffNewUnlocks([], ['a']), ['a']);
   assert.deepEqual(diffNewUnlocks(['a'], null), []);
 });
+
+// ---- tiered counter achievements (curator, namer, organizer, etc.) ----
+
+test('curator bronze unlocks at 3 memory saves', () => {
+  const unlocked = computeUnlockedIds({ counters: { memorySaves: 3 } });
+  assert.ok(unlocked.includes('curator_bronze'));
+  assert.ok(!unlocked.includes('curator_silver'));
+});
+
+test('curator silver unlocks at 15; bronze stays unlocked', () => {
+  const unlocked = computeUnlockedIds({ counters: { memorySaves: 15 } });
+  assert.ok(unlocked.includes('curator_bronze'));
+  assert.ok(unlocked.includes('curator_silver'));
+  assert.ok(!unlocked.includes('curator_gold'));
+});
+
+test('curator gold unlocks at 50; bronze+silver stay unlocked', () => {
+  const unlocked = computeUnlockedIds({ counters: { memorySaves: 50 } });
+  assert.ok(unlocked.includes('curator_bronze'));
+  assert.ok(unlocked.includes('curator_silver'));
+  assert.ok(unlocked.includes('curator_gold'));
+});
+
+test('counter-backed achievements do not unlock when counters field absent', () => {
+  const unlocked = computeUnlockedIds({ userMessageCount: 100 });
+  assert.ok(!unlocked.some(id => id.startsWith('curator_')));
+  assert.ok(!unlocked.some(id => id.startsWith('namer_')));
+});
+
+test('counter-backed achievements: namer has three tiers', () => {
+  const one = computeUnlockedIds({ counters: { bubblesRenamed: 1 } });
+  const ten = computeUnlockedIds({ counters: { bubblesRenamed: 10 } });
+  const fifty = computeUnlockedIds({ counters: { bubblesRenamed: 50 } });
+  assert.ok(one.includes('namer_bronze'));
+  assert.ok(!one.includes('namer_silver'));
+  assert.ok(ten.includes('namer_silver'));
+  assert.ok(!ten.includes('namer_gold'));
+  assert.ok(fifty.includes('namer_gold'));
+});
+
+test('counter-backed achievements: organizer', () => {
+  const unlocked = computeUnlockedIds({ counters: { bubblesReordered: 50 } });
+  assert.ok(unlocked.includes('organizer_bronze'));
+  assert.ok(unlocked.includes('organizer_silver'));
+  assert.ok(unlocked.includes('organizer_gold'));
+});
+
+test('counter-backed achievements: shuffler has higher thresholds', () => {
+  // Shuffler needs 5/25/100 (card reorders are cheap, so higher bar)
+  const four = computeUnlockedIds({ counters: { cardsReorderedInBubble: 4 } });
+  const five = computeUnlockedIds({ counters: { cardsReorderedInBubble: 5 } });
+  assert.ok(!four.includes('shuffler_bronze'));
+  assert.ok(five.includes('shuffler_bronze'));
+});
+
+test('counter-backed achievements: preservationist rewards locks', () => {
+  const unlocked = computeUnlockedIds({ counters: { bubblesLocked: 20 } });
+  assert.ok(unlocked.includes('preservationist_bronze'));
+  assert.ok(unlocked.includes('preservationist_silver'));
+  assert.ok(unlocked.includes('preservationist_gold'));
+});
+
+test('counter-backed achievements: restorer rewards snapshot usage', () => {
+  const unlocked = computeUnlockedIds({ counters: { snapshotsRestored: 10 } });
+  assert.ok(unlocked.includes('restorer_gold'));
+});
+
+test('counter-backed achievements: archivist rewards exports', () => {
+  const unlocked = computeUnlockedIds({ counters: { backupsExported: 20 } });
+  assert.ok(unlocked.includes('archivist_gold'));
+});
+
+test('counter-backed achievements: regular rewards repeated tool opens', () => {
+  const unlocked = computeUnlockedIds({ counters: { memoryWindowOpens: 100 } });
+  assert.ok(unlocked.includes('regular_bronze'));
+  assert.ok(unlocked.includes('regular_silver'));
+  assert.ok(unlocked.includes('regular_gold'));
+});
+
+test('stats without counters field: existing non-counter achievements still work', () => {
+  // User with upstream usage but no counter data should still get the
+  // flat achievements like first_word, hundred_words, etc.
+  const unlocked = computeUnlockedIds({
+    userMessageCount: 5,
+    wordsWritten: 500,
+    characterCount: 1,
+  });
+  assert.ok(unlocked.includes('first_word'));
+  assert.ok(unlocked.includes('first_character'));
+  assert.ok(unlocked.includes('hundred_words'));
+});
+
+test('mixed stats + counters: both kinds of achievements unlock together', () => {
+  const unlocked = computeUnlockedIds({
+    userMessageCount: 5,
+    wordsWritten: 1500,
+    counters: { memorySaves: 15, bubblesRenamed: 10 },
+  });
+  assert.ok(unlocked.includes('first_word'));
+  assert.ok(unlocked.includes('thousand_words'));
+  assert.ok(unlocked.includes('curator_silver'));
+  assert.ok(unlocked.includes('namer_silver'));
+});

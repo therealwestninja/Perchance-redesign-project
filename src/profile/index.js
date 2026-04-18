@@ -16,8 +16,11 @@ import { computeStats } from '../stats/queries.js';
 import { computePromptStats } from '../stats/prompt_stats.js';
 import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
+import { getCounters } from '../stats/counters.js';
 import { createMiniCard } from '../render/mini_card.js';
 import { mountMiniCard } from './mount.js';
+import { createMemoryButton } from '../render/memory_button.js';
+import { openMemoryWindow } from '../memory/window_open.js';
 import { openFullPage } from './full_page.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
 import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents } from './notifications.js';
@@ -52,8 +55,10 @@ async function refresh(card) {
     const data = await readAllStores();
     const settings = loadSettings();
     // Merge IDB-derived stats with settings-derived prompt stats so
-    // achievement criteria can read both from one stat bundle.
+    // achievement criteria can read both from one stat bundle. Also
+    // inject counter data so counter-backed achievements can unlock.
     const stats = { ...computeStats(data), ...computePromptStats(settings) };
+    try { stats.counters = getCounters(); } catch { stats.counters = {}; }
     const unlockedIds = computeUnlockedIds(stats);
 
     // First deploy: treat current unlocks as "already seen" so this commit
@@ -97,7 +102,19 @@ export async function start() {
         });
       },
     }),
-    onMounted: () => {},
+    onMounted: (cardEl) => {
+      // Inject the Memory & Lore button directly after the mini-card so
+      // it lives in the same sidebar slot. Stop-propagation inside the
+      // button prevents click bubbling into the card's open-profile handler.
+      const btn = createMemoryButton({
+        onClick: () => {
+          openMemoryWindow().catch(e => {
+            console.warn('[pf] failed to open memory window:', e && e.message);
+          });
+        },
+      });
+      cardEl.parentNode.appendChild(btn);
+    },
   });
 
   if (!card) {
