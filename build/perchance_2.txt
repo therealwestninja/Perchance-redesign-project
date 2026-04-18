@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 49 };
+  NS.__meta = { modules: 52 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -18338,6 +18338,312 @@ Use this template for your response:
     background: rgba(185, 137, 74, 0.04);
     border-color: rgba(216, 179, 106, 0.20);
   }
+
+  /* ============================================================
+     MEMORY / LORE WINDOW
+     ============================================================ */
+
+  /* Widen the overlay content column when rendering the memory window.
+     Default is 800px; three columns need more room. */
+  .pf-overlay.pf-overlay-wide .pf-overlay-content { max-width: 1200px; }
+
+  .pf-mem-window {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 60vh;
+  }
+
+  .pf-mem-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .pf-mem-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .pf-mem-context-chip {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    opacity: 0.85;
+  }
+
+  /* ---- panels grid ---- */
+
+  .pf-mem-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr 0.6fr;
+    gap: 12px;
+    min-height: 0;
+    flex: 1;
+  }
+
+  @media (max-width: 720px) {
+    /* On narrow viewports, stack vertically. Delete zone stays at the
+       bottom as a short band so it's still reachable by drag. */
+    .pf-mem-panels {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .pf-mem-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 280px;
+    background: var(--box-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+  }
+
+  .pf-mem-col-header {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.12);
+  }
+
+  .pf-mem-col-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .pf-mem-col-title-danger { color: #d87a7a; }
+
+  .pf-mem-col-count {
+    font-size: 12px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    opacity: 0.85;
+  }
+
+  .pf-mem-col-sub {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    font-style: italic;
+  }
+
+  .pf-mem-col-drop-over {
+    outline: 2px dashed var(--link-color, #4a90e2);
+    outline-offset: -6px;
+    background: rgba(74, 144, 226, 0.06);
+  }
+
+  .pf-mem-col-delete.pf-mem-col-drop-over {
+    outline-color: #d87a7a;
+    background: rgba(216, 122, 122, 0.08);
+  }
+
+  /* ---- list + cards ---- */
+
+  .pf-mem-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .pf-mem-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: calc(var(--border-radius) - 2px);
+    background: rgba(0, 0, 0, 0.12);
+    cursor: grab;
+    user-select: none;
+    transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+
+  .pf-mem-card:active { cursor: grabbing; }
+
+  .pf-mem-card-dragging {
+    opacity: 0.45;
+    transform: scale(0.98);
+  }
+
+  .pf-mem-card-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .pf-mem-card-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .pf-mem-action {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    background: var(--box-color);
+    color: var(--text-color);
+    border-radius: calc(var(--border-radius) - 4px);
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.1s, background 0.1s;
+  }
+
+  .pf-mem-action:hover { opacity: 1; background: var(--box-color-hover, var(--box-color)); }
+  .pf-mem-action:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 1px;
+  }
+
+  .pf-mem-action-delete {
+    color: #d87a7a;
+    font-weight: 600;
+  }
+  .pf-mem-action-delete:hover {
+    background: rgba(216, 122, 122, 0.12);
+  }
+
+  /* ---- empty states ---- */
+
+  .pf-mem-empty {
+    margin: 0;
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 12px;
+    font-style: italic;
+    opacity: 0.55;
+  }
+
+  /* ---- delete panel body (drop target only, no content) ---- */
+
+  .pf-mem-col-delete {
+    border-color: rgba(216, 122, 122, 0.35);
+  }
+
+  .pf-mem-del-body-empty {
+    flex: 1;
+    min-height: 80px;
+  }
+
+  .pf-mem-del-count {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(216, 122, 122, 0.18);
+    color: #d87a7a;
+    margin-left: auto;
+    font-weight: 600;
+  }
+
+  /* ---- footer ---- */
+
+  .pf-mem-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .pf-mem-footer-left,
+  .pf-mem-footer-right {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pf-mem-btn {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    background: var(--box-color);
+    color: var(--text-color);
+  }
+  .pf-mem-btn:hover:not(:disabled) { background: var(--box-color-hover, var(--box-color)); }
+  .pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pf-mem-btn:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 2px;
+  }
+
+  .pf-mem-btn-primary {
+    background: #b9894a;
+    border-color: #d8b36a;
+    color: #1a1410;
+    font-weight: 600;
+  }
+  .pf-mem-btn-primary:hover:not(:disabled) { background: #d8b36a; }
+
+  /* ---- export dialog ---- */
+
+  .pf-mem-export {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pf-mem-export-hint {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.8;
+  }
+
+  .pf-mem-export-textarea {
+    width: 100%;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    resize: vertical;
+    min-height: 200px;
+  }
+
+  .pf-mem-export-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* ---- inert notice ---- */
+
+  .pf-mem-notice {
+    padding: 30px;
+    text-align: center;
+    max-width: 500px;
+    margin: 60px auto 0;
+  }
+
+  .pf-mem-notice-title {
+    margin: 0 0 12px;
+    font-size: 20px;
+  }
+
+  .pf-mem-notice-body {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    opacity: 0.85;
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -19225,6 +19531,657 @@ Use this template for your response:
     root.setFocused = setFocused;
 
     return root;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/memory_panels.js
+     ────────────────────────────────────────────────────────── */
+  // render/memory_panels.js
+  //
+  // Three-panel Memory/Lore curation widget:
+  //
+  //   [ MEMORY ] [ LORE ] [ DELETE ]
+  //
+  // Each card has Promote/Demote and Delete buttons inline. Cards are
+  // draggable. Memory and Lore columns are drop targets for each other
+  // (promote / demote). Delete column is a drop target only — items
+  // dropped there are immediately removed from the staged view.
+  //
+  // This module is rendering-only. It is handed:
+  //   - an initial list of StageItems
+  //   - a set of callback handlers (onPromote, onDemote, onDelete)
+  //   - a way to re-render after callbacks mutate external state
+  //
+  // The caller (window_open.js) owns the stage, re-renders on state
+  // change, and translates UI events into stage operations.
+
+
+
+  /**
+   * @typedef {'memory' | 'lore'} Scope
+   */
+
+  /**
+   * @typedef {Object} PanelHandlers
+   * @property {(id: string | number) => void} [onPromote]      memory → lore
+   * @property {(id: string | number) => void} [onDemote]       lore → memory
+   * @property {(id: string | number) => void} [onDelete]       either → removed
+   */
+
+  // Use a module-scoped holder for the active drag payload. DataTransfer
+  // on some browsers is only readable on 'drop' (not 'dragover'), which
+  // breaks our "dim invalid targets" UX. Reading from a JS variable sidesteps
+  // that. Scope is the source scope — determines what actions are valid.
+  let dragPayload = null;
+
+  /**
+   * @param {{
+   *   items?: Array<import('../memory/stage.js').StageItem>,
+   *   handlers?: PanelHandlers,
+   *   deleteCount?: number,  // "3 items queued for deletion" tally
+   * }} [opts]
+   * @returns {HTMLElement & { update: (items, deleteCount) => void }}
+   */
+  function createMemoryPanels({ items = [], handlers = {}, deleteCount = 0 } = {}) {
+    const memoryList = h('div', { class: 'pf-mem-list', role: 'list' });
+    const loreList   = h('div', { class: 'pf-mem-list', role: 'list' });
+
+    const memoryCount = h('span', { class: 'pf-mem-col-count' });
+    const loreCount   = h('span', { class: 'pf-mem-col-count' });
+    const deleteCountEl = h('span', { class: 'pf-mem-del-count', 'aria-live': 'polite' });
+
+    const memoryCol = buildColumn({
+      scope: 'memory',
+      title: 'Memory',
+      subtitle: 'current thread',
+      list: memoryList,
+      countEl: memoryCount,
+      handlers,
+      acceptsScope: 'lore',  // dropping a lore item here = demote
+      onAcceptDrop: (payload) => {
+        if (!payload) return;
+        if (payload.scope === 'lore' && typeof handlers.onDemote === 'function') {
+          handlers.onDemote(payload.id);
+        }
+      },
+    });
+
+    const loreCol = buildColumn({
+      scope: 'lore',
+      title: 'Lore',
+      subtitle: 'world bible',
+      list: loreList,
+      countEl: loreCount,
+      handlers,
+      acceptsScope: 'memory',  // dropping a memory item here = promote
+      onAcceptDrop: (payload) => {
+        if (!payload) return;
+        if (payload.scope === 'memory' && typeof handlers.onPromote === 'function') {
+          handlers.onPromote(payload.id);
+        }
+      },
+    });
+
+    const deleteCol = buildDeletePanel({
+      countEl: deleteCountEl,
+      handlers,
+    });
+
+    const root = h('div', { class: 'pf-mem-panels' }, [memoryCol, loreCol, deleteCol]);
+
+    function render(currentItems, currentDeleteCount) {
+      const mems  = (currentItems || []).filter(it => it.scope === 'memory');
+      const lores = (currentItems || []).filter(it => it.scope === 'lore');
+
+      memoryCount.textContent = String(mems.length);
+      loreCount.textContent   = String(lores.length);
+
+      const count = Number(currentDeleteCount) || 0;
+      deleteCountEl.textContent = count === 0
+        ? '0 queued'
+        : `${count} queued for deletion`;
+
+      replaceContents(memoryList, mems.length > 0
+        ? mems.map(it => renderCard(it, handlers))
+        : [renderEmptyState('memory')]
+      );
+      replaceContents(loreList, lores.length > 0
+        ? lores.map(it => renderCard(it, handlers))
+        : [renderEmptyState('lore')]
+      );
+    }
+
+    render(items, deleteCount);
+    root.update = render;
+    return root;
+  }
+
+  // ---- column builders ----
+
+  function buildColumn({ scope, title, subtitle, list, countEl, acceptsScope, onAcceptDrop }) {
+    const col = h('section', {
+      class: `pf-mem-col pf-mem-col-${scope}`,
+      'aria-label': `${title} (${subtitle})`,
+    }, [
+      h('header', { class: 'pf-mem-col-header' }, [
+        h('h3', { class: 'pf-mem-col-title' }, [title]),
+        countEl,
+        h('span', { class: 'pf-mem-col-sub' }, [subtitle]),
+      ]),
+      list,
+    ]);
+
+    // Drop target wiring — only accept drops from the opposite scope.
+    col.addEventListener('dragover', (ev) => {
+      if (!dragPayload) return;
+      if (dragPayload.scope !== acceptsScope) return;
+      ev.preventDefault();
+      col.classList.add('pf-mem-col-drop-over');
+    });
+    col.addEventListener('dragleave', (ev) => {
+      // Only clear the highlight when leaving the column itself, not
+      // when crossing between child elements (which also fires dragleave
+      // with event.target === the child). Using column bounds check.
+      if (!col.contains(ev.relatedTarget)) {
+        col.classList.remove('pf-mem-col-drop-over');
+      }
+    });
+    col.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      col.classList.remove('pf-mem-col-drop-over');
+      if (!dragPayload) return;
+      if (dragPayload.scope !== acceptsScope) return;
+      const payload = dragPayload;
+      dragPayload = null;
+      onAcceptDrop(payload);
+    });
+
+    return col;
+  }
+
+  function buildDeletePanel({ countEl, handlers }) {
+    // The Delete panel is drop-target only. Items dropped here disappear
+    // from view immediately (staged for removal, committed on Save).
+    // Per user decision: the panel body stays empty — just a header with
+    // a running count of queued deletions. No preview list, no drag-out-
+    // to-undo. Cancel-the-whole-session is the recovery path.
+    const col = h('section', {
+      class: 'pf-mem-col pf-mem-col-delete',
+      'aria-label': 'Delete queue',
+    }, [
+      h('header', { class: 'pf-mem-col-header' }, [
+        h('h3', { class: 'pf-mem-col-title pf-mem-col-title-danger' }, ['Delete']),
+        countEl,
+      ]),
+      // Intentionally empty body — the drop highlight is the only affordance
+      h('div', { class: 'pf-mem-del-body-empty', 'aria-hidden': 'true' }),
+    ]);
+
+    col.addEventListener('dragover', (ev) => {
+      if (!dragPayload) return;
+      ev.preventDefault();
+      col.classList.add('pf-mem-col-drop-over');
+    });
+    col.addEventListener('dragleave', (ev) => {
+      if (!col.contains(ev.relatedTarget)) {
+        col.classList.remove('pf-mem-col-drop-over');
+      }
+    });
+    col.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      col.classList.remove('pf-mem-col-drop-over');
+      if (!dragPayload) return;
+      const payload = dragPayload;
+      dragPayload = null;
+      if (typeof handlers.onDelete === 'function') handlers.onDelete(payload.id);
+    });
+
+    return col;
+  }
+
+  // ---- card rendering ----
+
+  function renderCard(item, handlers) {
+    const card = h('div', {
+      class: 'pf-mem-card',
+      role: 'listitem',
+      draggable: 'true',
+      'data-item-id': String(item.id),
+      'data-scope': item.scope,
+    }, [
+      h('div', { class: 'pf-mem-card-text' }, [String(item.text || '')]),
+      buildCardActions(item, handlers),
+    ]);
+
+    // Drag source wiring. We stash the payload in the module-scoped
+    // variable AND setData() for completeness (some browsers/AT rely on
+    // the dataTransfer model).
+    card.addEventListener('dragstart', (ev) => {
+      dragPayload = { id: item.id, scope: item.scope };
+      card.classList.add('pf-mem-card-dragging');
+      try {
+        ev.dataTransfer.setData('text/plain', String(item.id));
+        ev.dataTransfer.effectAllowed = 'move';
+      } catch { /* defensive — some environments block setData */ }
+    });
+    card.addEventListener('dragend', () => {
+      dragPayload = null;
+      card.classList.remove('pf-mem-card-dragging');
+    });
+
+    return card;
+  }
+
+  function buildCardActions(item, handlers) {
+    // Per-item buttons for users who prefer clicks over drag.
+    const actions = [];
+    if (item.scope === 'memory' && typeof handlers.onPromote === 'function') {
+      actions.push(h('button', {
+        type: 'button',
+        class: 'pf-mem-action pf-mem-action-promote',
+        title: 'Promote to Lore',
+        'aria-label': 'Promote to Lore',
+        onClick: () => handlers.onPromote(item.id),
+      }, ['→ Lore']));
+    }
+    if (item.scope === 'lore' && typeof handlers.onDemote === 'function') {
+      actions.push(h('button', {
+        type: 'button',
+        class: 'pf-mem-action pf-mem-action-demote',
+        title: 'Demote to Memory',
+        'aria-label': 'Demote to Memory',
+        onClick: () => handlers.onDemote(item.id),
+      }, ['Memory ←']));
+    }
+    if (typeof handlers.onDelete === 'function') {
+      actions.push(h('button', {
+        type: 'button',
+        class: 'pf-mem-action pf-mem-action-delete',
+        title: 'Delete',
+        'aria-label': 'Delete',
+        onClick: () => handlers.onDelete(item.id),
+      }, ['✕']));
+    }
+    return h('div', { class: 'pf-mem-card-actions' }, actions);
+  }
+
+  function renderEmptyState(scope) {
+    const text = scope === 'memory'
+      ? 'No memories yet. They accumulate as you chat.'
+      : 'No lore entries yet. Lore is worldbuilding that persists across threads.';
+    return h('p', { class: 'pf-mem-empty' }, [text]);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/memory_window.js
+     ────────────────────────────────────────────────────────── */
+  // render/memory_window.js
+  //
+  // The Memory/Lore window. Wraps createOverlay with memory-specific content:
+  //
+  //   [ Header:  Memory & Lore   (thread chip)       ]
+  //   [ Panels:  Memory  |  Lore  |  Delete          ]
+  //   [ Footer:  [Export…]          [Cancel] [Save ▶]]
+  //
+  // Widens the overlay content column past the default 800px cap to fit
+  // three side-by-side columns comfortably.
+  //
+  // This module is composition only — it doesn't own the stage. The caller
+  // wires handlers for cancel/export/save and calls updatePanels() to
+  // re-render after stage mutations.
+
+
+
+
+
+  /**
+   * Create a Memory/Lore window populated with the given items.
+   *
+   * @param {{
+   *   items: Array<import('../memory/stage.js').StageItem>,
+   *   threadLabel?: string,     Rendered in the header as thread context
+   *   deleteCount?: number,     Running count of items queued for delete
+   *   handlers?: import('./memory_panels.js').PanelHandlers & {
+   *     onSave?: () => void,
+   *     onExport?: () => void,
+   *     onCancel?: () => void,  Cancels without saving; defaults to close
+   *   },
+   *   onClose?: () => void,
+   * }} opts
+   * @returns {HTMLElement & {
+   *   show: () => void,
+   *   hide: () => void,
+   *   updatePanels: (items, deleteCount) => void,
+   *   setSaveEnabled: (enabled: boolean) => void,
+   *   setSaveLabel: (label: string) => void,
+   * }}
+   */
+  function createMemoryWindow({
+    items = [],
+    threadLabel = '',
+    deleteCount = 0,
+    handlers = {},
+    onClose,
+  } = {}) {
+    const title = h('h2', { class: 'pf-mem-title' }, ['Memory & Lore']);
+    const contextChip = threadLabel
+      ? h('span', { class: 'pf-mem-context-chip', title: 'Active thread' }, [threadLabel])
+      : null;
+
+    const header = h('header', { class: 'pf-mem-header' },
+      contextChip ? [title, contextChip] : [title]
+    );
+
+    const panels = createMemoryPanels({
+      items,
+      deleteCount,
+      handlers,
+    });
+
+    // ---- footer: Export (left), Cancel + Save (right) ----
+
+    const exportBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-secondary',
+      onClick: () => { if (typeof handlers.onExport === 'function') handlers.onExport(); },
+    }, ['Export…']);
+
+    const cancelBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      onClick: () => {
+        if (typeof handlers.onCancel === 'function') handlers.onCancel();
+        else overlay.hide();
+      },
+    }, ['Cancel']);
+
+    const saveBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      disabled: true,  // starts disabled — enabled when stage has changes
+      onClick: () => { if (typeof handlers.onSave === 'function') handlers.onSave(); },
+    }, ['Save']);
+
+    const footer = h('footer', { class: 'pf-mem-footer' }, [
+      h('div', { class: 'pf-mem-footer-left' }, [exportBtn]),
+      h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
+    ]);
+
+    const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer]);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Memory and Lore',
+      children: [wrapper],
+      onClose,
+    });
+
+    // Tag the overlay so CSS can widen the content column for three panels.
+    overlay.classList.add('pf-overlay-wide');
+
+    overlay.updatePanels = (newItems, newDeleteCount) => {
+      panels.update(newItems, newDeleteCount);
+    };
+    overlay.setSaveEnabled = (enabled) => {
+      saveBtn.disabled = !enabled;
+    };
+    overlay.setSaveLabel = (label) => {
+      if (typeof label === 'string') saveBtn.textContent = label;
+    };
+
+    return overlay;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/window_open.js
+     ────────────────────────────────────────────────────────── */
+  // memory/window_open.js
+  //
+  // Entry point for the Memory/Lore curation window. Glues db, stage, and
+  // window UI:
+  //
+  //   1. Probe schema → bail gracefully if upstream shifted
+  //   2. Load baseline from Dexie → createStage(baseline)
+  //   3. Render window with initial items
+  //   4. Bind UI handlers (promote/demote/delete/save/export/cancel)
+  //      - Each UI action mutates the stage, then re-renders panels
+  //      - Save shows confirm with diff summary, then commitDiff
+  //      - Cancel discards staged edits and closes
+  //      - Export produces a JSON blob the user can copy to a file
+  //   5. Show overlay
+  //
+  // The window itself is stateless — this module owns the stage and the
+  // delete queue (items staged for removal).
+
+
+
+
+
+
+
+  // ---- entry-point exposure ----
+  //
+  // openMemoryWindow is the surface the rest of the fork uses to open
+  // the curation tool. For this commit there's no in-UI button yet — we
+  // expose it on window.__perchance_fork__ so you can invoke it from the
+  // browser console while iterating:
+  //
+  //   window.__perchance_fork__.openMemory()
+  //
+  // The button-based entry point (probably a small control next to the
+  // chat input, or a link in our existing profile overlay) lands in the
+  // next commit once the window's basic flow is verified.
+  if (typeof window !== 'undefined') {
+    const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
+    // Guard against the module being loaded twice (e.g. hot-reload)
+    if (typeof ns.openMemory !== 'function') {
+      ns.openMemory = () => openMemoryWindow();
+    }
+  }
+
+  /**
+   * Open the Memory/Lore window. Returns a Promise that resolves when the
+   * window closes. Errors inside the flow produce an inert notice rather
+   * than crashing the host page.
+   */
+  async function openMemoryWindow() {
+    // ---- schema probe ----
+    const probe = probeSchema();
+    if (!probe.ok) {
+      showInertNotice(
+        'Memory & Lore is unavailable',
+        `The Memory/Lore tool can't run here: ${probe.reason}. ` +
+        `Your Perchance version may not be supported, or the database isn't ready yet.`
+      );
+      return;
+    }
+
+    // ---- load baseline ----
+    let baseline;
+    try {
+      baseline = await loadBaseline();
+    } catch (err) {
+      showInertNotice(
+        'Could not load memories',
+        `Something went wrong reading your thread: ${(err && err.message) || String(err)}`
+      );
+      return;
+    }
+
+    // Get thread name for the header chip, best-effort.
+    const threadLabel = await getActiveThreadLabel();
+
+    // ---- stage + delete queue ----
+    const stage = createStage(baseline);
+    // Items the user has dropped into the Delete zone. These are REMOVED
+    // from the stage (so they disappear from panels) but tracked here so
+    // Save knows to call stage.remove() on them first / UI can show a tally.
+    const pendingDeletions = new Map(); // id(str) → StageItem
+
+    // ---- handlers ----
+
+    function refresh() {
+      overlay.updatePanels(stage.getStaged(), pendingDeletions.size);
+      overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
+    }
+
+    const handlers = {
+      onPromote: (id) => {
+        stage.promote(id);
+        refresh();
+      },
+      onDemote: (id) => {
+        stage.demote(id);
+        refresh();
+      },
+      onDelete: (id) => {
+        // Find the staged item before removing it — we need its data
+        // for later commit (the db adapter needs passthrough fields).
+        const item = stage.getStaged().find(it => String(it.id) === String(id));
+        if (item) pendingDeletions.set(String(id), item);
+        stage.remove(id);
+        refresh();
+      },
+      onSave: async () => {
+        // Apply pending deletions to stage (stage.remove has already
+        // happened for them, so they're absent from getStaged() — but
+        // computeDiff needs them to appear in diff.deleted, which happens
+        // naturally when they're in baseline but not in staged. Good.)
+        const diff = stage.computeDiff();
+        if (diff.totalChanges === 0) {
+          alert('No changes to save.');
+          return;
+        }
+        const confirmed = window.confirm(
+          formatDiffSummary(diff) +
+          '\n\nThis action is permanent — there is no undo.'
+        );
+        if (!confirmed) return;
+
+        overlay.setSaveLabel('Saving…');
+        overlay.setSaveEnabled(false);
+
+        const result = await commitDiff({
+          baselineItems: baseline,
+          diff,
+        });
+
+        if (!result.ok) {
+          alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);
+          overlay.setSaveLabel('Save');
+          overlay.setSaveEnabled(true);
+          return;
+        }
+
+        // Success — close the window.
+        overlay.hide();
+      },
+      onExport: () => {
+        const state = {
+          schema: 1,
+          exportedAt: new Date().toISOString(),
+          threadLabel,
+          stagedItems: stage.getStaged(),
+          pendingDeletions: Array.from(pendingDeletions.values()),
+          baseline,  // include so a future 'import' could reconstruct stage
+        };
+        showExportDialog(JSON.stringify(state, null, 2));
+      },
+      onCancel: () => {
+        if (stage.hasChanges() || pendingDeletions.size > 0) {
+          const ok = window.confirm('Discard all unsaved changes?');
+          if (!ok) return;
+        }
+        overlay.hide();
+      },
+    };
+
+    // ---- window ----
+
+    const overlay = createMemoryWindow({
+      items: stage.getStaged(),
+      threadLabel,
+      deleteCount: 0,
+      handlers,
+    });
+
+    overlay.show();
+  }
+
+  // ---- helpers ----
+
+  async function getActiveThreadLabel() {
+    try {
+      const db = (typeof window !== 'undefined') ? window.db : null;
+      const threadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+      if (!db || !threadId) return '';
+      const thread = await db.threads.get(threadId);
+      return (thread && thread.name) ? String(thread.name) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Show a small, inert notice overlay when we can't run the feature.
+   * Uses the standard overlay component so close behavior is consistent.
+   */
+  function showInertNotice(title, body) {
+    const overlay = createOverlay({
+      ariaLabel: title,
+      children: [
+        h('div', { class: 'pf-mem-notice' }, [
+          h('h2', { class: 'pf-mem-notice-title' }, [title]),
+          h('p',  { class: 'pf-mem-notice-body' },  [body]),
+        ]),
+      ],
+    });
+    overlay.show();
+  }
+
+  /**
+   * Show a simple "here's your export as JSON" dialog. Textarea + close.
+   * Matches the pattern the profile Backup section uses for Export.
+   */
+  function showExportDialog(jsonText) {
+    const textarea = h('textarea', {
+      class: 'pf-mem-export-textarea',
+      rows: '20',
+      readonly: 'true',
+      spellcheck: 'false',
+      'aria-label': 'Exported state as JSON',
+    });
+    textarea.value = jsonText;
+
+    const copyBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      onClick: async () => {
+        try {
+          await navigator.clipboard.writeText(jsonText);
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => { copyBtn.textContent = 'Copy to clipboard'; }, 1500);
+        } catch {
+          textarea.focus();
+          textarea.select();
+        }
+      },
+    }, ['Copy to clipboard']);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Export staged state',
+      children: [
+        h('div', { class: 'pf-mem-export' }, [
+          h('h2', { class: 'pf-mem-title' }, ['Export']),
+          h('p', { class: 'pf-mem-export-hint' }, [
+            'Copy this JSON and save it to a file. If you cancel without ',
+            'saving to the database, this export preserves what you\u2019ve staged.',
+          ]),
+          textarea,
+          h('div', { class: 'pf-mem-export-actions' }, [copyBtn]),
+        ]),
+      ],
+    });
+    overlay.show();
   }
 
   /* ──────────────────────────────────────────────────────────

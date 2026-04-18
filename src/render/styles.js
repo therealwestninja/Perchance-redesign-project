@@ -1561,4 +1561,310 @@ export const CSS = `
   background: rgba(185, 137, 74, 0.04);
   border-color: rgba(216, 179, 106, 0.20);
 }
+
+/* ============================================================
+   MEMORY / LORE WINDOW
+   ============================================================ */
+
+/* Widen the overlay content column when rendering the memory window.
+   Default is 800px; three columns need more room. */
+.pf-overlay.pf-overlay-wide .pf-overlay-content { max-width: 1200px; }
+
+.pf-mem-window {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 60vh;
+}
+
+.pf-mem-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pf-mem-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.pf-mem-context-chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--box-color);
+  border: 1px solid var(--border-color);
+  opacity: 0.85;
+}
+
+/* ---- panels grid ---- */
+
+.pf-mem-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.6fr;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+@media (max-width: 720px) {
+  /* On narrow viewports, stack vertically. Delete zone stays at the
+     bottom as a short band so it's still reachable by drag. */
+  .pf-mem-panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pf-mem-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  background: var(--box-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.pf-mem-col-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.pf-mem-col-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pf-mem-col-title-danger { color: #d87a7a; }
+
+.pf-mem-col-count {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  opacity: 0.85;
+}
+
+.pf-mem-col-sub {
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.pf-mem-col-drop-over {
+  outline: 2px dashed var(--link-color, #4a90e2);
+  outline-offset: -6px;
+  background: rgba(74, 144, 226, 0.06);
+}
+
+.pf-mem-col-delete.pf-mem-col-drop-over {
+  outline-color: #d87a7a;
+  background: rgba(216, 122, 122, 0.08);
+}
+
+/* ---- list + cards ---- */
+
+.pf-mem-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-mem-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: calc(var(--border-radius) - 2px);
+  background: rgba(0, 0, 0, 0.12);
+  cursor: grab;
+  user-select: none;
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.pf-mem-card:active { cursor: grabbing; }
+
+.pf-mem-card-dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+}
+
+.pf-mem-card-text {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pf-mem-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pf-mem-action {
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  background: var(--box-color);
+  color: var(--text-color);
+  border-radius: calc(var(--border-radius) - 4px);
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.1s, background 0.1s;
+}
+
+.pf-mem-action:hover { opacity: 1; background: var(--box-color-hover, var(--box-color)); }
+.pf-mem-action:focus-visible {
+  outline: 2px solid var(--link-color, #4a90e2);
+  outline-offset: 1px;
+}
+
+.pf-mem-action-delete {
+  color: #d87a7a;
+  font-weight: 600;
+}
+.pf-mem-action-delete:hover {
+  background: rgba(216, 122, 122, 0.12);
+}
+
+/* ---- empty states ---- */
+
+.pf-mem-empty {
+  margin: 0;
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 12px;
+  font-style: italic;
+  opacity: 0.55;
+}
+
+/* ---- delete panel body (drop target only, no content) ---- */
+
+.pf-mem-col-delete {
+  border-color: rgba(216, 122, 122, 0.35);
+}
+
+.pf-mem-del-body-empty {
+  flex: 1;
+  min-height: 80px;
+}
+
+.pf-mem-del-count {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(216, 122, 122, 0.18);
+  color: #d87a7a;
+  margin-left: auto;
+  font-weight: 600;
+}
+
+/* ---- footer ---- */
+
+.pf-mem-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.pf-mem-footer-left,
+.pf-mem-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+.pf-mem-btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  background: var(--box-color);
+  color: var(--text-color);
+}
+.pf-mem-btn:hover:not(:disabled) { background: var(--box-color-hover, var(--box-color)); }
+.pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pf-mem-btn:focus-visible {
+  outline: 2px solid var(--link-color, #4a90e2);
+  outline-offset: 2px;
+}
+
+.pf-mem-btn-primary {
+  background: #b9894a;
+  border-color: #d8b36a;
+  color: #1a1410;
+  font-weight: 600;
+}
+.pf-mem-btn-primary:hover:not(:disabled) { background: #d8b36a; }
+
+/* ---- export dialog ---- */
+
+.pf-mem-export {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pf-mem-export-hint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.pf-mem-export-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-color);
+  resize: vertical;
+  min-height: 200px;
+}
+
+.pf-mem-export-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---- inert notice ---- */
+
+.pf-mem-notice {
+  padding: 30px;
+  text-align: center;
+  max-width: 500px;
+  margin: 60px auto 0;
+}
+
+.pf-mem-notice-title {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.pf-mem-notice-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.85;
+}
 `.trim();
