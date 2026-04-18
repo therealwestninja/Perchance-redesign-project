@@ -59,6 +59,8 @@ export function createMemoryWindow({
     loreK:            initialState.loreK            || 0,
     expandedMemoryIds: initialState.expandedMemoryIds || new Set(),
     expandedLoreIds:   initialState.expandedLoreIds   || new Set(),
+    lockedMemoryIds:   initialState.lockedMemoryIds   || new Set(),
+    lockedLoreIds:     initialState.lockedLoreIds     || new Set(),
     deleteCount:      initialState.deleteCount      || 0,
     handlers,
   });

@@ -23,6 +23,7 @@ import { probeSchema, loadBaseline, commitDiff, formatDiffSummary } from './db.j
 import { createStage } from './stage.js';
 import { bubbleize, rebucket } from './bubbles.js';
 import { recommendK } from './clustering.js';
+import { createOverrides, toggleLock } from './bubble_overrides.js';
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
@@ -92,6 +93,14 @@ export async function openMemoryWindow() {
   const expandedMemoryIds = new Set();
   const expandedLoreIds   = new Set();
 
+  // Override state (lock toggles, bubble order, cross-bubble assignments,
+  // intra-bubble card order). Separate instance per scope — Memory and
+  // Lore are independent bubble universes, so their overrides don't
+  // share namespaces. Currently only lock toggles are wired (commit 7b);
+  // the rest comes online in 7d.
+  const memoryOverrides = createOverrides();
+  const loreOverrides   = createOverrides();
+
   // ---- refresh: recompute from current stage + current k, re-render ----
 
   function currentEntriesPerScope() {
@@ -130,6 +139,8 @@ export async function openMemoryWindow() {
       memoryBubbles, loreBubbles,
       memoryK, loreK,
       expandedMemoryIds, expandedLoreIds,
+      lockedMemoryIds: memoryOverrides.lockedBubbles,
+      lockedLoreIds:   loreOverrides.lockedBubbles,
       deleteCount: pendingDeletions.size,
     });
     overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
@@ -181,6 +192,8 @@ export async function openMemoryWindow() {
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,
+          lockedMemoryIds: memoryOverrides.lockedBubbles,
+          lockedLoreIds:   loreOverrides.lockedBubbles,
           deleteCount: pendingDeletions.size,
         });
       } else if (scope === 'lore') {
@@ -193,6 +206,8 @@ export async function openMemoryWindow() {
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,
+          lockedMemoryIds: memoryOverrides.lockedBubbles,
+          lockedLoreIds:   loreOverrides.lockedBubbles,
           deleteCount: pendingDeletions.size,
         });
       }
@@ -206,6 +221,22 @@ export async function openMemoryWindow() {
       overlay.updatePanels({
         memoryBubbles, loreBubbles, memoryK, loreK,
         expandedMemoryIds, expandedLoreIds,
+        lockedMemoryIds: memoryOverrides.lockedBubbles,
+        lockedLoreIds:   loreOverrides.lockedBubbles,
+        deleteCount: pendingDeletions.size,
+      });
+    },
+
+    // Lock toggle — session-scoped. In 7b this only affects the visual
+    // indicator; 7d wires it to actually prevent reorder operations.
+    onToggleLock: (scope, bubbleId) => {
+      const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
+      toggleLock(overrides, bubbleId);
+      overlay.updatePanels({
+        memoryBubbles, loreBubbles, memoryK, loreK,
+        expandedMemoryIds, expandedLoreIds,
+        lockedMemoryIds: memoryOverrides.lockedBubbles,
+        lockedLoreIds:   loreOverrides.lockedBubbles,
         deleteCount: pendingDeletions.size,
       });
     },
@@ -258,6 +289,8 @@ export async function openMemoryWindow() {
       memoryBubbles, loreBubbles,
       memoryK, loreK,
       expandedMemoryIds, expandedLoreIds,
+      lockedMemoryIds: memoryOverrides.lockedBubbles,
+      lockedLoreIds:   loreOverrides.lockedBubbles,
       deleteCount: 0,
     },
     threadLabel,

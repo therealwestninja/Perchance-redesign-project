@@ -1848,13 +1848,33 @@ export const CSS = `
 }
 
 .pf-mem-bubble-label {
-  flex: 1;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Stack label-on-top, preview-underneath, in a flex-column that takes
+   the middle width of the bubble header between chevron and count/actions. */
+.pf-mem-bubble-labelstack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;  /* without this, ellipsis won't engage in flex children */
+  gap: 1px;
+}
+
+.pf-mem-bubble-preview {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0;
+  font-style: italic;
 }
 
 .pf-mem-bubble-count {
@@ -1864,6 +1884,54 @@ export const CSS = `
   background: rgba(0, 0, 0, 0.25);
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
+}
+
+/* Lock toggle on bubble header */
+.pf-mem-bubble-lock {
+  font-family: inherit;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.5;
+  border-radius: 4px;
+  padding: 0;
+  transition: opacity 0.1s, background 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+}
+.pf-mem-bubble-lock:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.06);
+}
+.pf-mem-bubble-lock:focus-visible {
+  outline: 2px solid var(--link-color, #4a90e2);
+  outline-offset: 1px;
+}
+.pf-mem-bubble-lock-on {
+  opacity: 1;
+  color: #d8b36a;                   /* gold accent for "locked" */
+  border-color: rgba(216, 179, 106, 0.35);
+  background: rgba(216, 179, 106, 0.08);
+}
+.pf-mem-bubble-lock-on:hover {
+  background: rgba(216, 179, 106, 0.16);
+}
+
+/* Locked bubble header: subtle visual cue so it reads as "pinned" even
+   when the lock icon is tucked to the right. Gold tint + a left border. */
+.pf-mem-bubble-header-locked {
+  background: rgba(216, 179, 106, 0.06);
+  box-shadow: inset 3px 0 0 0 rgba(216, 179, 106, 0.6);
+}
+.pf-mem-bubble-header-locked:hover {
+  background: rgba(216, 179, 106, 0.12);
 }
 
 /* Bubble body: the nested cards, only visible when expanded */

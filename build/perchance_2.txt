@@ -19716,6 +19716,54 @@ Use this template for your response:
     opacity: 0.8;
   }
 
+  /* Lock toggle on bubble header */
+  .pf-mem-bubble-lock {
+    font-family: inherit;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    line-height: 1;
+    opacity: 0.5;
+    border-radius: 4px;
+    padding: 0;
+    transition: opacity 0.1s, background 0.1s, border-color 0.1s;
+    flex-shrink: 0;
+  }
+  .pf-mem-bubble-lock:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .pf-mem-bubble-lock:focus-visible {
+    outline: 2px solid var(--link-color, #4a90e2);
+    outline-offset: 1px;
+  }
+  .pf-mem-bubble-lock-on {
+    opacity: 1;
+    color: #d8b36a;                   /* gold accent for "locked" */
+    border-color: rgba(216, 179, 106, 0.35);
+    background: rgba(216, 179, 106, 0.08);
+  }
+  .pf-mem-bubble-lock-on:hover {
+    background: rgba(216, 179, 106, 0.16);
+  }
+
+  /* Locked bubble header: subtle visual cue so it reads as "pinned" even
+     when the lock icon is tucked to the right. Gold tint + a left border. */
+  .pf-mem-bubble-header-locked {
+    background: rgba(216, 179, 106, 0.06);
+    box-shadow: inset 3px 0 0 0 rgba(216, 179, 106, 0.6);
+  }
+  .pf-mem-bubble-header-locked:hover {
+    background: rgba(216, 179, 106, 0.12);
+  }
+
   /* Bubble body: the nested cards, only visible when expanded */
   .pf-mem-bubble-body {
     display: flex;
@@ -20796,6 +20844,7 @@ Use this template for your response:
    * @property {(entries) => void} [onBubbleDemote]  all entries in a bubble
    * @property {(entries) => void} [onBubbleDelete]  all entries in a bubble
    * @property {(scope, bubbleId) => void} [onToggleBubble] expand/collapse
+   * @property {(scope, bubbleId) => void} [onToggleLock]   toggle lock state
    * @property {(scope, dir) => void} [onChangeK]    +1 or -1 to k for a panel
    */
 
@@ -20807,6 +20856,8 @@ Use this template for your response:
    *   loreK?:   number,
    *   expandedMemoryIds?: Set<string>,
    *   expandedLoreIds?:   Set<string>,
+   *   lockedMemoryIds?:   Set<string>,
+   *   lockedLoreIds?:     Set<string>,
    *   handlers?: PanelHandlers,
    *   deleteCount?: number,
    * }} [opts]
@@ -20819,6 +20870,8 @@ Use this template for your response:
     loreK = 0,
     expandedMemoryIds = new Set(),
     expandedLoreIds = new Set(),
+    lockedMemoryIds = new Set(),
+    lockedLoreIds = new Set(),
     handlers = {},
     deleteCount = 0,
   } = {}) {
@@ -20870,6 +20923,8 @@ Use this template for your response:
       const lorK = Number(s.loreK) || 0;
       const expMem = s.expandedMemoryIds || new Set();
       const expLor = s.expandedLoreIds || new Set();
+      const lockMem = s.lockedMemoryIds || new Set();
+      const lockLor = s.lockedLoreIds || new Set();
       const delCount = Number(s.deleteCount) || 0;
 
       // Header counts: total entries across all bubbles (Ungrouped included)
@@ -20889,13 +20944,13 @@ Use this template for your response:
       replaceContents(
         memoryList,
         memB.length > 0
-          ? memB.map(b => renderBubble(b, expMem.has(b.id), 'memory', handlers))
+          ? memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers))
           : [renderEmptyState('memory')]
       );
       replaceContents(
         loreList,
         lorB.length > 0
-          ? lorB.map(b => renderBubble(b, expLor.has(b.id), 'lore', handlers))
+          ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers))
           : [renderEmptyState('lore')]
       );
     }
@@ -20904,6 +20959,7 @@ Use this template for your response:
       memoryBubbles, loreBubbles,
       memoryK, loreK,
       expandedMemoryIds, expandedLoreIds,
+      lockedMemoryIds, lockedLoreIds,
       deleteCount,
     });
     root.update = render;
@@ -21038,7 +21094,7 @@ Use this template for your response:
 
   // ---- bubble rendering ----
 
-  function renderBubble(bubble, isExpanded, scope, handlers) {
+  function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
     const count = bubble.entries.length;
     const chevron = h('span', {
       class: 'pf-mem-bubble-chevron',
@@ -21057,10 +21113,26 @@ Use this template for your response:
     );
     const countBadge = h('span', { class: 'pf-mem-bubble-count' }, [String(count)]);
 
+    // Lock toggle — shown on every bubble (Memory AND Lore; only Memory
+    // lock actually prevents reorder in 7d, but the visual is consistent).
+    const lockBtn = h('button', {
+      type: 'button',
+      class: `pf-mem-bubble-lock ${isLocked ? 'pf-mem-bubble-lock-on' : ''}`,
+      title: isLocked ? 'Unlock (allow reorder / cross-drag)' : 'Lock (prevent reorder)',
+      'aria-label': isLocked ? 'Unlock bubble' : 'Lock bubble',
+      'aria-pressed': String(!!isLocked),
+      onClick: (ev) => {
+        ev.stopPropagation();
+        if (typeof handlers.onToggleLock === 'function') {
+          handlers.onToggleLock(scope, bubble.id);
+        }
+      },
+    }, [isLocked ? '🔒' : '🔓']);
+
     // Header is the drag source for the whole bubble, AND the click target
-    // for expand/collapse. Actions (Promote, Delete) are inline.
+    // for expand/collapse. Actions (Promote, Lock, Delete) are inline.
     const header = h('div', {
-      class: 'pf-mem-bubble-header',
+      class: `pf-mem-bubble-header ${isLocked ? 'pf-mem-bubble-header-locked' : ''}`,
       role: 'button',
       tabindex: '0',
       'aria-expanded': String(isExpanded),
@@ -21083,6 +21155,7 @@ Use this template for your response:
       chevron,
       labelStack,
       countBadge,
+      lockBtn,
       buildBubbleActions(bubble, scope, handlers),
     ]);
 
@@ -21339,6 +21412,8 @@ Use this template for your response:
       loreK:            initialState.loreK            || 0,
       expandedMemoryIds: initialState.expandedMemoryIds || new Set(),
       expandedLoreIds:   initialState.expandedLoreIds   || new Set(),
+      lockedMemoryIds:   initialState.lockedMemoryIds   || new Set(),
+      lockedLoreIds:     initialState.lockedLoreIds     || new Set(),
       deleteCount:      initialState.deleteCount      || 0,
       handlers,
     });
@@ -21423,6 +21498,7 @@ Use this template for your response:
 
 
 
+
   // ---- entry-point exposure ----
   if (typeof window !== 'undefined') {
     const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
@@ -21488,6 +21564,14 @@ Use this template for your response:
     const expandedMemoryIds = new Set();
     const expandedLoreIds   = new Set();
 
+    // Override state (lock toggles, bubble order, cross-bubble assignments,
+    // intra-bubble card order). Separate instance per scope — Memory and
+    // Lore are independent bubble universes, so their overrides don't
+    // share namespaces. Currently only lock toggles are wired (commit 7b);
+    // the rest comes online in 7d.
+    const memoryOverrides = createOverrides();
+    const loreOverrides   = createOverrides();
+
     // ---- refresh: recompute from current stage + current k, re-render ----
 
     function currentEntriesPerScope() {
@@ -21526,6 +21610,8 @@ Use this template for your response:
         memoryBubbles, loreBubbles,
         memoryK, loreK,
         expandedMemoryIds, expandedLoreIds,
+        lockedMemoryIds: memoryOverrides.lockedBubbles,
+        lockedLoreIds:   loreOverrides.lockedBubbles,
         deleteCount: pendingDeletions.size,
       });
       overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
@@ -21577,6 +21663,8 @@ Use this template for your response:
           overlay.updatePanels({
             memoryBubbles, loreBubbles, memoryK, loreK,
             expandedMemoryIds, expandedLoreIds,
+            lockedMemoryIds: memoryOverrides.lockedBubbles,
+            lockedLoreIds:   loreOverrides.lockedBubbles,
             deleteCount: pendingDeletions.size,
           });
         } else if (scope === 'lore') {
@@ -21589,6 +21677,8 @@ Use this template for your response:
           overlay.updatePanels({
             memoryBubbles, loreBubbles, memoryK, loreK,
             expandedMemoryIds, expandedLoreIds,
+            lockedMemoryIds: memoryOverrides.lockedBubbles,
+            lockedLoreIds:   loreOverrides.lockedBubbles,
             deleteCount: pendingDeletions.size,
           });
         }
@@ -21602,6 +21692,22 @@ Use this template for your response:
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,
+          lockedMemoryIds: memoryOverrides.lockedBubbles,
+          lockedLoreIds:   loreOverrides.lockedBubbles,
+          deleteCount: pendingDeletions.size,
+        });
+      },
+
+      // Lock toggle — session-scoped. In 7b this only affects the visual
+      // indicator; 7d wires it to actually prevent reorder operations.
+      onToggleLock: (scope, bubbleId) => {
+        const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
+        toggleLock(overrides, bubbleId);
+        overlay.updatePanels({
+          memoryBubbles, loreBubbles, memoryK, loreK,
+          expandedMemoryIds, expandedLoreIds,
+          lockedMemoryIds: memoryOverrides.lockedBubbles,
+          lockedLoreIds:   loreOverrides.lockedBubbles,
           deleteCount: pendingDeletions.size,
         });
       },
@@ -21654,6 +21760,8 @@ Use this template for your response:
         memoryBubbles, loreBubbles,
         memoryK, loreK,
         expandedMemoryIds, expandedLoreIds,
+        lockedMemoryIds: memoryOverrides.lockedBubbles,
+        lockedLoreIds:   loreOverrides.lockedBubbles,
         deleteCount: 0,
       },
       threadLabel,

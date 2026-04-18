@@ -44,6 +44,7 @@ let dragPayload = null;
  * @property {(entries) => void} [onBubbleDemote]  all entries in a bubble
  * @property {(entries) => void} [onBubbleDelete]  all entries in a bubble
  * @property {(scope, bubbleId) => void} [onToggleBubble] expand/collapse
+ * @property {(scope, bubbleId) => void} [onToggleLock]   toggle lock state
  * @property {(scope, dir) => void} [onChangeK]    +1 or -1 to k for a panel
  */
 
@@ -55,6 +56,8 @@ let dragPayload = null;
  *   loreK?:   number,
  *   expandedMemoryIds?: Set<string>,
  *   expandedLoreIds?:   Set<string>,
+ *   lockedMemoryIds?:   Set<string>,
+ *   lockedLoreIds?:     Set<string>,
  *   handlers?: PanelHandlers,
  *   deleteCount?: number,
  * }} [opts]
@@ -67,6 +70,8 @@ export function createMemoryPanels({
   loreK = 0,
   expandedMemoryIds = new Set(),
   expandedLoreIds = new Set(),
+  lockedMemoryIds = new Set(),
+  lockedLoreIds = new Set(),
   handlers = {},
   deleteCount = 0,
 } = {}) {
@@ -118,6 +123,8 @@ export function createMemoryPanels({
     const lorK = Number(s.loreK) || 0;
     const expMem = s.expandedMemoryIds || new Set();
     const expLor = s.expandedLoreIds || new Set();
+    const lockMem = s.lockedMemoryIds || new Set();
+    const lockLor = s.lockedLoreIds || new Set();
     const delCount = Number(s.deleteCount) || 0;
 
     // Header counts: total entries across all bubbles (Ungrouped included)
@@ -137,13 +144,13 @@ export function createMemoryPanels({
     replaceContents(
       memoryList,
       memB.length > 0
-        ? memB.map(b => renderBubble(b, expMem.has(b.id), 'memory', handlers))
+        ? memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers))
         : [renderEmptyState('memory')]
     );
     replaceContents(
       loreList,
       lorB.length > 0
-        ? lorB.map(b => renderBubble(b, expLor.has(b.id), 'lore', handlers))
+        ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers))
         : [renderEmptyState('lore')]
     );
   }
@@ -152,6 +159,7 @@ export function createMemoryPanels({
     memoryBubbles, loreBubbles,
     memoryK, loreK,
     expandedMemoryIds, expandedLoreIds,
+    lockedMemoryIds, lockedLoreIds,
     deleteCount,
   });
   root.update = render;
@@ -286,20 +294,45 @@ function buildDeletePanel({ countEl, handlers }) {
 
 // ---- bubble rendering ----
 
-function renderBubble(bubble, isExpanded, scope, handlers) {
+function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
   const count = bubble.entries.length;
   const chevron = h('span', {
     class: 'pf-mem-bubble-chevron',
     'aria-hidden': 'true',
   }, [isExpanded ? '▼' : '▶']);
 
+  // Label sits on top; preview (first memory text, single-line, CSS-truncated
+  // via ellipsis) sits underneath. Stacked in a flex-column that takes
+  // remaining width between chevron and count/actions.
   const label = h('span', { class: 'pf-mem-bubble-label' }, [bubble.label]);
+  const previewText = getPreviewText(bubble);
+  const labelStack = h('div', { class: 'pf-mem-bubble-labelstack' },
+    previewText
+      ? [label, h('span', { class: 'pf-mem-bubble-preview', title: previewText }, [previewText])]
+      : [label]
+  );
   const countBadge = h('span', { class: 'pf-mem-bubble-count' }, [String(count)]);
 
+  // Lock toggle — shown on every bubble (Memory AND Lore; only Memory
+  // lock actually prevents reorder in 7d, but the visual is consistent).
+  const lockBtn = h('button', {
+    type: 'button',
+    class: `pf-mem-bubble-lock ${isLocked ? 'pf-mem-bubble-lock-on' : ''}`,
+    title: isLocked ? 'Unlock (allow reorder / cross-drag)' : 'Lock (prevent reorder)',
+    'aria-label': isLocked ? 'Unlock bubble' : 'Lock bubble',
+    'aria-pressed': String(!!isLocked),
+    onClick: (ev) => {
+      ev.stopPropagation();
+      if (typeof handlers.onToggleLock === 'function') {
+        handlers.onToggleLock(scope, bubble.id);
+      }
+    },
+  }, [isLocked ? '🔒' : '🔓']);
+
   // Header is the drag source for the whole bubble, AND the click target
-  // for expand/collapse. Actions (Promote, Delete) are inline.
+  // for expand/collapse. Actions (Promote, Lock, Delete) are inline.
   const header = h('div', {
-    class: 'pf-mem-bubble-header',
+    class: `pf-mem-bubble-header ${isLocked ? 'pf-mem-bubble-header-locked' : ''}`,
     role: 'button',
     tabindex: '0',
     'aria-expanded': String(isExpanded),
@@ -320,8 +353,9 @@ function renderBubble(bubble, isExpanded, scope, handlers) {
     },
   }, [
     chevron,
-    label,
+    labelStack,
     countBadge,
+    lockBtn,
     buildBubbleActions(bubble, scope, handlers),
   ]);
 
@@ -480,6 +514,31 @@ function countEntries(bubbles) {
   let n = 0;
   for (const b of bubbles) n += (b.entries ? b.entries.length : 0);
   return n;
+}
+
+/**
+ * Derive a one-line preview of a bubble's content. Uses the first entry's
+ * text, takes its first line (anything before a newline), and caps at
+ * ~60 characters (CSS handles the ellipsis visually; this just avoids
+ * shipping an entire paragraph into the DOM).
+ *
+ * Returns empty string when no entries or no text — caller suppresses
+ * the preview node in that case.
+ *
+ * @param {{ entries: Array<{text?: string}> }} bubble
+ * @returns {string}
+ */
+function getPreviewText(bubble) {
+  const first = bubble && bubble.entries && bubble.entries[0];
+  if (!first || !first.text) return '';
+  // Take only the first line so newlines inside multi-line memories don't
+  // break the single-line layout. Then trim whitespace.
+  const firstLine = String(first.text).split(/\r?\n/)[0].trim();
+  if (!firstLine) return '';
+  // Cap length so innerHTML stays small; CSS ellipsis handles on-screen truncation
+  // at whatever width the column gives us.
+  if (firstLine.length > 200) return firstLine.slice(0, 200);
+  return firstLine;
 }
 
 function renderEmptyState(scope) {
