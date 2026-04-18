@@ -135,6 +135,41 @@ anything else.
 
 ---
 
+## Stale-baseline save bug (known issue)
+
+**Status: KNOWN, test skipped, fix pending.**
+
+`test/memory_db.test.mjs` has a `test.skip(...)` reproducer named
+"commitDiff reorder: external edit is overwritten by stale baseline."
+It documents this scenario:
+
+1. User opens our Memory window. Baseline snapshotted (text = "X").
+2. User edits the same memory externally via Perchance's `/mem` or
+   brain-icon (text now = "Y").
+3. User saves from our tool with reorder active (7e proportional remap).
+4. Our save writes the stale baseline text "X" back to Dexie,
+   silently overwriting "Y".
+
+**Severity:** data loss, but low likelihood — requires user to actively
+have both our tool AND Perchance's native mem editor open simultaneously.
+
+**Fix sketch:** in `db.js` `commitDiff`'s reorder block, re-read the
+CURRENT `memoriesEndingHere` for each affected message inside the
+transaction (before writing) and merge:
+  - Our baseline-tracked entries overwritten with our current text
+  - Entries present in the current DB but NOT in our baseline
+    preserved (they're external additions since we opened)
+  - Entries in our baseline but missing from current DB treated as
+    external deletions (don't re-add)
+
+Alternatively: compute a hash of `memoriesEndingHere` at baseline time,
+compare before write. Abort save with "thread was modified externally,
+reload?" prompt if different. Simpler but more intrusive.
+
+**Scope:** ~30 lines in `commitDiff` + unskip the existing test.
+
+---
+
 ## Save stats / summary UI
 
 After a successful save, the window closes silently. The commitDiff
@@ -149,6 +184,28 @@ their reorder actually hit disk, not just "the window closed."
 
 ---
 
+## Settings modal + rename threshold slider
+
+**Status: follow-up to rename-bug-fix commit.**
+
+The rename bug fix uses a hardcoded Jaccard threshold of 0.5 (same as
+lock reconciliation) to decide when a rename survives a membership
+change. Users may want to tune this.
+
+Plan: add a `⚙` gear icon to the Memory window header. Click opens a
+modal with tool settings. First entry: rename-survival threshold slider
+(range 0–1, step 0.05, default 0.5). Persist to
+`settings.memory.tool.renameThreshold` via `settings_store`. Pass
+threshold through to `applyOverrides` in `window_open.js`.
+
+Extensible for future tunable knobs: snapshot ring-buffer size
+(currently 10), usage histogram window (currently 10 messages), lock
+reconciliation threshold (currently 0.5), etc.
+
+**Scope:** ~200 lines + modal + settings plumbing + tests.
+
+---
+
 ## "Confirm all destructive batch actions" option
 
 During 7b.3 design, the full-guard option was "confirm delete AND
@@ -158,6 +215,126 @@ as currently shipped). The full-guard variant could become a user
 preference toggle in settings.
 
 **Scope:** ~20 lines + settings wiring.
+
+---
+
+## Code duplication audit + refactor pass
+
+**Status: open.**
+
+The codebase has grown organically across many commits. Several places
+have near-duplicate logic that should be extracted. Known hotspots:
+
+- `window_open.js`: handler bodies that do scope dispatch. Some have
+  been DRY'd via `byScope(scope)` (this commit), but there's still
+  ad-hoc duplication in `onSave`, `hasReorderChanged`, and the panels
+  state builder.
+- `render/`: `renderBubble`, `renderCard`, and various drag/drop wiring
+  have small pockets of duplication around event-handler stopPropagation
+  and the "find my parent bubble element" pattern.
+- Achievement check loops — each achievement predicate does its own
+  "walk user stats" work instead of sharing a scanner.
+- Profile rendering — multiple spots build a similar stat-chip DOM
+  structure with slight variations.
+- `styles.js` — CSS for cards/bubbles has copy-paste structure for
+  hover/focus/disabled across similar components.
+
+**Approach:** take one pass per area. Don't do "refactor everything at
+once" — each area gets its own commit with tests. Targets:
+  1. render/memory_panels.js — extract `buildHeader`, `buildBody`, etc.
+  2. window_open.js — extract save-pipeline helpers
+  3. profile/* — extract `buildStatChip`, `buildAchievementRow`
+  4. styles.js — CSS variables for the repeated palette/sizes
+
+**Scope per pass:** ~100–200 lines each. Three to five commits total.
+
+---
+
+## Second pass on User Profile — track usage of new features
+
+**Status: open.**
+
+Since the profile shipped, we've added many features whose usage is not
+tracked in user stats:
+- Bubble tool opens (count, per-thread, per-day)
+- Memory bubbles locked / unlocked
+- Bubbles renamed
+- Cards reordered (intra-bubble, cross-bubble)
+- Snapshots used (`Restore` button clicks)
+- Export backups created
+- Prompt archive views
+- Focus mode toggles
+- Weekly prompts attempted / completed by category
+- Holiday event participations
+
+**Plan:**
+1. Extend `user_stats.js` schema with new counters + histograms
+2. Instrument call sites (usually a one-line `stats.bump('bubbleToolOpens')`)
+3. Surface new stats in profile page — at least a small "tool usage"
+   section with a mix of lifetime numbers and 30-day sparklines
+4. Migration path for existing users (missing counters default to 0)
+
+**Scope:** ~250 lines across user_stats, profile renderer, instrumentation
+points. + tests for counter logic.
+
+---
+
+## Achievement levels + profile gamification
+
+**Status: open.** User note: "I know this is a lot to ask, but I feel
+it's important for the overall longevity for Perchance, is having
+returning users."
+
+Build on the second profile pass. Achievements currently are flat
+badges. Upgrade to tiered/categorized achievements with unlocks:
+
+**Tiered achievements:** Each achievement has difficulty levels:
+  - Casual user (once a week, lightweight goals)
+  - Twice-weekly user (steady cadence)
+  - Daily user (intense engagement)
+  - RP user (roleplay-heavy — measured by session length, character
+    creation, prompt variety in char-driven threads)
+  - Storyteller (long-form writing — measured by char count per thread,
+    multi-session continuity, snapshot restoration pattern)
+
+Each tier unlocks as stats cross thresholds. Category-based so users
+who use the tool differently still have progression.
+
+**Profile flair unlocks:**
+  - Titles (e.g., "Storyteller — Tier 3")
+  - Avatar border variants
+  - Accent color unlocks
+  - Custom background patterns for profile page
+  - Badges pinned to mini-card next to chats
+
+**Other gamification:**
+  - Streak indicators (N-day usage streaks, N-week streaks)
+  - "You beat your personal best" notifications (words per session,
+    memory curation counts)
+  - Milestone unlocks (100th memory, 50th bubble rename, etc.)
+  - Shareable profile cards (opt-in; generates an image or link the
+    user can post externally — "look at my writing stats")
+  - Weekly/monthly summary emails/notifications (opt-in) — reminder
+    to come back
+
+**Rationale:** Perchance needs returning users. Gamification of
+existing stats is a low-hanging lever because the stats are already
+being tracked. Flair unlocks give users cosmetic reward for
+engagement without any pay-to-win dynamics.
+
+**Scope:** Large. Break into:
+  1. Tiered schema + threshold table (~150 lines)
+  2. Unlock system + flair storage (~200 lines)
+  3. Profile flair picker UI (~150 lines)
+  4. Share card generator (~200 lines)
+  5. Streak tracking (~100 lines)
+  6. Summary notifications (~150 lines)
+Total ~950 lines across 4–6 commits.
+
+Should only be tackled AFTER:
+  - Second-pass user-stats tracking (depends on richer stats being
+    available to gamify)
+  - Code-duplication refactor pass (don't build on duplicated code)
 
 ---
 

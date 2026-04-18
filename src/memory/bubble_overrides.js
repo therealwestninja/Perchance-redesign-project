@@ -249,7 +249,7 @@ export function isLocked(state, bubbleId) {
  * @param {import('./bubbles.js').Bubble[]} freshBubbles
  * @returns {import('./bubbles.js').Bubble[]}
  */
-export function applyOverrides(state, freshBubbles) {
+export function applyOverrides(state, freshBubbles, { renameThreshold = 0.5 } = {}) {
   // Index of the fresh clustering: bubble id → bubble object
   const freshByBubbleId = new Map();
   for (const b of freshBubbles || []) {
@@ -362,25 +362,37 @@ export function applyOverrides(state, freshBubbles) {
   // clean without affecting user-asserted order).
   state.bubbleOrder = state.bubbleOrder.filter(id => freshByBubbleId.has(id));
 
-  // Apply user-chosen labels (from rename operations). Each fresh bubble
-  // computes its stableBubbleId from current membership; if the user has
-  // assigned a label to that stable-id, override whatever deriveLabels
-  // produced. This gives rename continuity across re-clusterings as long
-  // as membership stays recognizable.
+  // Apply user-chosen labels (from rename operations). Uses Jaccard-
+  // tolerant matching so a rename survives small membership changes
+  // (single deletes, promotes, cross-drags in/out). Each stored rename
+  // can be claimed by AT MOST ONE current bubble to avoid two different
+  // bubbles drifting to look similar to the same rename.
+  //
+  // Order of resolution: iterate current bubbles largest-first so big
+  // bubbles get first pick of fuzzy matches. Small ones fall back to
+  // auto-derived label if the nearest rename is already claimed.
   if (state.bubbleLabelsByStableId && state.bubbleLabelsByStableId.size > 0) {
-    for (const id of orderedIds) {
-      const bubble = freshByBubbleId.get(id);
-      if (!bubble || bubble.isUngrouped) continue;
-      const memberIds = (bubble.entries || []).map(e => String(e.id));
-      if (memberIds.length === 0) continue;
-      const stableId = stableBubbleId(memberIds);
-      const userLabel = state.bubbleLabelsByStableId.get(stableId);
-      if (userLabel) {
-        bubble.label = userLabel;
+    const claimed = new Set();
+    const orderedForResolution = orderedIds
+      .map(id => freshByBubbleId.get(id))
+      .filter(b => b && !b.isUngrouped && Array.isArray(b.entries) && b.entries.length > 0)
+      .sort((a, b) => (b.entries.length - a.entries.length));
+
+    for (const bubble of orderedForResolution) {
+      const memberIds = bubble.entries.map(e => String(e.id));
+      const match = findLabelOverride(state, memberIds, { threshold: renameThreshold, claimed });
+      if (match) {
+        bubble.label = match.label;
         bubble.userRenamed = true;
+        claimed.add(match.stableId);
       }
     }
   }
+
+  // Drop rename entries whose members have fully left the Memory scope
+  // (e.g., whole bubble was promoted to Lore). Entries with any overlap
+  // are kept — user may reassemble the original members via undo/drag.
+  pruneOrphanedRenames(state, orderedIds.map(id => freshByBubbleId.get(id)));
 
   return orderedIds.map(id => freshByBubbleId.get(id));
 }
@@ -425,11 +437,10 @@ export function rememberUserBubble(state, bubbleId, label) {
 
 /**
  * Rename a bubble. The rename is keyed by the bubble's STABLE identity
- * (hash of sorted member card ids), so it survives re-clusterings as
- * long as membership stays recognizable.
+ * (hash of sorted member card ids) AND stores the original member list
+ * so we can do tolerant matching when membership shifts later.
  *
- * Empty-string label clears the rename (falls back to auto-derived
- * label from deriveLabels).
+ * Empty-string label clears the rename (falls back to auto-derived).
  *
  * @param {UserOverrideState} state
  * @param {string[]} memberCardIds
@@ -441,13 +452,101 @@ export function renameBubble(state, memberCardIds, label) {
   if (!trimmed) {
     state.bubbleLabelsByStableId.delete(stableId);
   } else {
-    state.bubbleLabelsByStableId.set(stableId, trimmed);
+    state.bubbleLabelsByStableId.set(stableId, {
+      label: trimmed,
+      memberIds: memberCardIds.map(String),
+    });
   }
 }
 
 /**
- * Look up the user-chosen label for a bubble by its members, if any.
- * Returns null when the bubble has no rename.
+ * Look up the user-chosen label for a bubble by its CURRENT members.
+ *
+ * Matching strategy:
+ *   1. Exact match on stable-id hash (fast path).
+ *   2. If no exact match, walk every stored entry and compute Jaccard
+ *      similarity between its original member set and the candidate
+ *      member set. Pick the best match above `threshold`.
+ *
+ * Caller is responsible for calling this once per bubble in the render
+ * pass and tracking which stored entries have been claimed (to avoid
+ * two current bubbles both matching the same stored rename).
+ *
+ * @param {UserOverrideState} state
+ * @param {string[]} memberCardIds
+ * @param {{ threshold?: number, claimed?: Set<string> }} [opts]
+ * @returns {{ label: string, stableId: string, jaccard: number } | null}
+ */
+export function findLabelOverride(state, memberCardIds, { threshold = 0.5, claimed } = {}) {
+  if (!state.bubbleLabelsByStableId || state.bubbleLabelsByStableId.size === 0) return null;
+  if (!Array.isArray(memberCardIds) || memberCardIds.length === 0) return null;
+
+  // Fast path: exact stable-id match.
+  const exactId = stableBubbleId(memberCardIds);
+  const exactEntry = state.bubbleLabelsByStableId.get(exactId);
+  if (exactEntry && (!claimed || !claimed.has(exactId))) {
+    return { label: exactEntry.label, stableId: exactId, jaccard: 1 };
+  }
+
+  // Slow path: Jaccard search.
+  const candidateSet = new Set(memberCardIds.map(String));
+  let best = null;
+  let bestJaccard = 0;
+
+  for (const [storedId, entry] of state.bubbleLabelsByStableId) {
+    if (claimed && claimed.has(storedId)) continue;
+    if (!entry || !Array.isArray(entry.memberIds)) continue;
+
+    const storedSet = new Set(entry.memberIds.map(String));
+    let intersection = 0;
+    const smaller = candidateSet.size <= storedSet.size ? candidateSet : storedSet;
+    const larger  = candidateSet.size <= storedSet.size ? storedSet : candidateSet;
+    for (const x of smaller) if (larger.has(x)) intersection++;
+    const unionSize = candidateSet.size + storedSet.size - intersection;
+    const j = unionSize === 0 ? 0 : intersection / unionSize;
+
+    if (j >= threshold && j > bestJaccard) {
+      bestJaccard = j;
+      best = { label: entry.label, stableId: storedId, jaccard: j };
+    }
+  }
+  return best;
+}
+
+/**
+ * Remove rename entries that have zero overlap with any provided current
+ * bubble's members. Call after applyOverrides when we want to reclaim
+ * space from renames whose cards have entirely left the Memory scope
+ * (typically via batch-promote-to-lore or batch-delete).
+ *
+ * Entries with ANY overlap (even below threshold) are preserved — the
+ * user may yet reassemble the original membership via drag or undo.
+ *
+ * @param {UserOverrideState} state
+ * @param {import('./bubbles.js').Bubble[]} currentBubbles
+ */
+export function pruneOrphanedRenames(state, currentBubbles) {
+  if (!state.bubbleLabelsByStableId || state.bubbleLabelsByStableId.size === 0) return;
+  const allCurrentIds = new Set();
+  for (const b of currentBubbles || []) {
+    for (const e of (b.entries || [])) allCurrentIds.add(String(e.id));
+  }
+  for (const [stableId, entry] of [...state.bubbleLabelsByStableId]) {
+    if (!entry || !Array.isArray(entry.memberIds)) {
+      state.bubbleLabelsByStableId.delete(stableId);
+      continue;
+    }
+    const hasAny = entry.memberIds.some(id => allCurrentIds.has(String(id)));
+    if (!hasAny) {
+      state.bubbleLabelsByStableId.delete(stableId);
+    }
+  }
+}
+
+/**
+ * Look up the user-chosen label for a bubble by its members (exact only).
+ * Kept for backward compatibility with tests. Prefer findLabelOverride
+ * for new code.
  *
  * @param {UserOverrideState} state
  * @param {string[]} memberCardIds
@@ -455,5 +554,6 @@ export function renameBubble(state, memberCardIds, label) {
  */
 export function getBubbleLabelOverride(state, memberCardIds) {
   const stableId = stableBubbleId(memberCardIds);
-  return state.bubbleLabelsByStableId.get(stableId) || null;
+  const entry = state.bubbleLabelsByStableId.get(stableId);
+  return entry ? entry.label : null;
 }

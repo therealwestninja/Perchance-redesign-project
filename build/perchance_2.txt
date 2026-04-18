@@ -17070,7 +17070,7 @@ Use this template for your response:
    * @param {import('./bubbles.js').Bubble[]} freshBubbles
    * @returns {import('./bubbles.js').Bubble[]}
    */
-  function applyOverrides(state, freshBubbles) {
+  function applyOverrides(state, freshBubbles, { renameThreshold = 0.5 } = {}) {
     // Index of the fresh clustering: bubble id → bubble object
     const freshByBubbleId = new Map();
     for (const b of freshBubbles || []) {
@@ -17183,25 +17183,37 @@ Use this template for your response:
     // clean without affecting user-asserted order).
     state.bubbleOrder = state.bubbleOrder.filter(id => freshByBubbleId.has(id));
 
-    // Apply user-chosen labels (from rename operations). Each fresh bubble
-    // computes its stableBubbleId from current membership; if the user has
-    // assigned a label to that stable-id, override whatever deriveLabels
-    // produced. This gives rename continuity across re-clusterings as long
-    // as membership stays recognizable.
+    // Apply user-chosen labels (from rename operations). Uses Jaccard-
+    // tolerant matching so a rename survives small membership changes
+    // (single deletes, promotes, cross-drags in/out). Each stored rename
+    // can be claimed by AT MOST ONE current bubble to avoid two different
+    // bubbles drifting to look similar to the same rename.
+    //
+    // Order of resolution: iterate current bubbles largest-first so big
+    // bubbles get first pick of fuzzy matches. Small ones fall back to
+    // auto-derived label if the nearest rename is already claimed.
     if (state.bubbleLabelsByStableId && state.bubbleLabelsByStableId.size > 0) {
-      for (const id of orderedIds) {
-        const bubble = freshByBubbleId.get(id);
-        if (!bubble || bubble.isUngrouped) continue;
-        const memberIds = (bubble.entries || []).map(e => String(e.id));
-        if (memberIds.length === 0) continue;
-        const stableId = stableBubbleId(memberIds);
-        const userLabel = state.bubbleLabelsByStableId.get(stableId);
-        if (userLabel) {
-          bubble.label = userLabel;
+      const claimed = new Set();
+      const orderedForResolution = orderedIds
+        .map(id => freshByBubbleId.get(id))
+        .filter(b => b && !b.isUngrouped && Array.isArray(b.entries) && b.entries.length > 0)
+        .sort((a, b) => (b.entries.length - a.entries.length));
+
+      for (const bubble of orderedForResolution) {
+        const memberIds = bubble.entries.map(e => String(e.id));
+        const match = findLabelOverride(state, memberIds, { threshold: renameThreshold, claimed });
+        if (match) {
+          bubble.label = match.label;
           bubble.userRenamed = true;
+          claimed.add(match.stableId);
         }
       }
     }
+
+    // Drop rename entries whose members have fully left the Memory scope
+    // (e.g., whole bubble was promoted to Lore). Entries with any overlap
+    // are kept — user may reassemble the original members via undo/drag.
+    pruneOrphanedRenames(state, orderedIds.map(id => freshByBubbleId.get(id)));
 
     return orderedIds.map(id => freshByBubbleId.get(id));
   }
@@ -17246,11 +17258,10 @@ Use this template for your response:
 
   /**
    * Rename a bubble. The rename is keyed by the bubble's STABLE identity
-   * (hash of sorted member card ids), so it survives re-clusterings as
-   * long as membership stays recognizable.
+   * (hash of sorted member card ids) AND stores the original member list
+   * so we can do tolerant matching when membership shifts later.
    *
-   * Empty-string label clears the rename (falls back to auto-derived
-   * label from deriveLabels).
+   * Empty-string label clears the rename (falls back to auto-derived).
    *
    * @param {UserOverrideState} state
    * @param {string[]} memberCardIds
@@ -17262,13 +17273,101 @@ Use this template for your response:
     if (!trimmed) {
       state.bubbleLabelsByStableId.delete(stableId);
     } else {
-      state.bubbleLabelsByStableId.set(stableId, trimmed);
+      state.bubbleLabelsByStableId.set(stableId, {
+        label: trimmed,
+        memberIds: memberCardIds.map(String),
+      });
     }
   }
 
   /**
-   * Look up the user-chosen label for a bubble by its members, if any.
-   * Returns null when the bubble has no rename.
+   * Look up the user-chosen label for a bubble by its CURRENT members.
+   *
+   * Matching strategy:
+   *   1. Exact match on stable-id hash (fast path).
+   *   2. If no exact match, walk every stored entry and compute Jaccard
+   *      similarity between its original member set and the candidate
+   *      member set. Pick the best match above `threshold`.
+   *
+   * Caller is responsible for calling this once per bubble in the render
+   * pass and tracking which stored entries have been claimed (to avoid
+   * two current bubbles both matching the same stored rename).
+   *
+   * @param {UserOverrideState} state
+   * @param {string[]} memberCardIds
+   * @param {{ threshold?: number, claimed?: Set<string> }} [opts]
+   * @returns {{ label: string, stableId: string, jaccard: number } | null}
+   */
+  function findLabelOverride(state, memberCardIds, { threshold = 0.5, claimed } = {}) {
+    if (!state.bubbleLabelsByStableId || state.bubbleLabelsByStableId.size === 0) return null;
+    if (!Array.isArray(memberCardIds) || memberCardIds.length === 0) return null;
+
+    // Fast path: exact stable-id match.
+    const exactId = stableBubbleId(memberCardIds);
+    const exactEntry = state.bubbleLabelsByStableId.get(exactId);
+    if (exactEntry && (!claimed || !claimed.has(exactId))) {
+      return { label: exactEntry.label, stableId: exactId, jaccard: 1 };
+    }
+
+    // Slow path: Jaccard search.
+    const candidateSet = new Set(memberCardIds.map(String));
+    let best = null;
+    let bestJaccard = 0;
+
+    for (const [storedId, entry] of state.bubbleLabelsByStableId) {
+      if (claimed && claimed.has(storedId)) continue;
+      if (!entry || !Array.isArray(entry.memberIds)) continue;
+
+      const storedSet = new Set(entry.memberIds.map(String));
+      let intersection = 0;
+      const smaller = candidateSet.size <= storedSet.size ? candidateSet : storedSet;
+      const larger  = candidateSet.size <= storedSet.size ? storedSet : candidateSet;
+      for (const x of smaller) if (larger.has(x)) intersection++;
+      const unionSize = candidateSet.size + storedSet.size - intersection;
+      const j = unionSize === 0 ? 0 : intersection / unionSize;
+
+      if (j >= threshold && j > bestJaccard) {
+        bestJaccard = j;
+        best = { label: entry.label, stableId: storedId, jaccard: j };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Remove rename entries that have zero overlap with any provided current
+   * bubble's members. Call after applyOverrides when we want to reclaim
+   * space from renames whose cards have entirely left the Memory scope
+   * (typically via batch-promote-to-lore or batch-delete).
+   *
+   * Entries with ANY overlap (even below threshold) are preserved — the
+   * user may yet reassemble the original membership via drag or undo.
+   *
+   * @param {UserOverrideState} state
+   * @param {import('./bubbles.js').Bubble[]} currentBubbles
+   */
+  function pruneOrphanedRenames(state, currentBubbles) {
+    if (!state.bubbleLabelsByStableId || state.bubbleLabelsByStableId.size === 0) return;
+    const allCurrentIds = new Set();
+    for (const b of currentBubbles || []) {
+      for (const e of (b.entries || [])) allCurrentIds.add(String(e.id));
+    }
+    for (const [stableId, entry] of [...state.bubbleLabelsByStableId]) {
+      if (!entry || !Array.isArray(entry.memberIds)) {
+        state.bubbleLabelsByStableId.delete(stableId);
+        continue;
+      }
+      const hasAny = entry.memberIds.some(id => allCurrentIds.has(String(id)));
+      if (!hasAny) {
+        state.bubbleLabelsByStableId.delete(stableId);
+      }
+    }
+  }
+
+  /**
+   * Look up the user-chosen label for a bubble by its members (exact only).
+   * Kept for backward compatibility with tests. Prefer findLabelOverride
+   * for new code.
    *
    * @param {UserOverrideState} state
    * @param {string[]} memberCardIds
@@ -17276,7 +17375,8 @@ Use this template for your response:
    */
   function getBubbleLabelOverride(state, memberCardIds) {
     const stableId = stableBubbleId(memberCardIds);
-    return state.bubbleLabelsByStableId.get(stableId) || null;
+    const entry = state.bubbleLabelsByStableId.get(stableId);
+    return entry ? entry.label : null;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -22199,7 +22299,10 @@ Use this template for your response:
       replaceContents(
         loreList,
         lorB.length > 0
-          ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage))
+          ? interleaveDropGaps(
+              lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage)),
+              lorB, 'lore', 'bubble', handlers
+            )
           : [renderEmptyState('lore')]
       );
     }
@@ -22374,9 +22477,17 @@ Use this template for your response:
     // drag = cross-panel (promote/demote/delete). Grip drag = reorder.
     // They emit different payload kinds ('bubble' vs 'reorder-bubble')
     // so drop handlers can distinguish. 7c only sets up the source; 7d
-    // wires drops.
+    // Drag-handle grip: rendered on bubbles for both Memory and Lore
+    // scopes. Reorder is session-scoped in both cases (Lore has no order
+    // field in Dexie, but in-window visual reordering is still useful
+    // for curation). Disabled look when the bubble is locked.
+    //
+    // The grip is a SEPARATE drag source from the header itself. Header
+    // drag = cross-panel (promote/demote/delete). Grip drag = reorder.
+    // They emit different payload kinds ('bubble' vs 'reorder-bubble')
+    // so drop handlers can distinguish.
     let grip = null;
-    if (scope === 'memory') {
+    if (!bubble.isUngrouped) {
       grip = h('span', {
         class: `pf-mem-bubble-grip ${isLocked ? 'pf-mem-bubble-grip-disabled' : ''}`,
         title: isLocked ? 'Locked — reorder disabled' : 'Drag to reorder',
@@ -22403,9 +22514,6 @@ Use this template for your response:
           } catch { /* defensive */ }
         });
         grip.addEventListener('dragend', () => {
-          // Clear payload only if it's still ours; a cross-panel drag
-          // started on the header would have already overwritten this,
-          // but defensive belt-and-suspenders.
           if (dragPayload && dragPayload.kind === 'reorder-bubble') {
             dragPayload = null;
           }
@@ -22425,7 +22533,7 @@ Use this template for your response:
       title: bubble.userRenamed ? 'Renamed — double-click to change' : 'Double-click to rename',
     }, [bubble.label]);
 
-    if (scope === 'memory' && !bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
+    if (!bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
       // Stop single-click propagation too — otherwise the FIRST click of a
       // double-click bubbles to the header's expand/collapse handler, toggling
       // the bubble once (first click) and back (second click), leaving it in
@@ -22434,14 +22542,14 @@ Use this template for your response:
       // Side effect: clicking the label no longer toggles expand/collapse.
       // Users can still use the rest of the header (chevron, preview, count,
       // empty space) for that. Power users can also dblclick to rename.
-      // Main entry point remains the Rename button in the bubble footer.
+      // Main entry point remains the Rename button in the bubble settings row.
       label.addEventListener('click', (ev) => {
         ev.stopPropagation();
       });
       label.addEventListener('dblclick', (ev) => {
         ev.stopPropagation();
         ev.preventDefault();
-        startInlineRename(label, bubble, handlers);
+        startInlineRename(label, bubble, scope, handlers);
       });
     }
 
@@ -22551,17 +22659,17 @@ Use this template for your response:
           return renderCard(entry, { scope, bubbleId: bubble.id, isLocked, useCount }, handlers);
         })
       : [];
-    let bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
+    let bodyChildren = (isExpanded && !isLocked)
       ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
       : cardNodes;
 
-    // Settings row — appears at the TOP of expanded Memory bubbles
+    // Settings row — appears at the TOP of expanded bubbles (Memory or Lore)
     // that aren't Ungrouped. Currently hosts just the Rename button.
     // Intended to grow into a home for additional per-bubble controls
     // (exclude from re-cluster, export just this bubble, etc.) without
     // cluttering the header or forcing the user to scroll past long
     // card lists to find the controls.
-    if (isExpanded && scope === 'memory' && !bubble.isUngrouped) {
+    if (isExpanded && !bubble.isUngrouped) {
       const settingsRow = buildBubbleSettingsRow(bubble, scope, handlers);
       if (settingsRow) bodyChildren = [settingsRow, ...bodyChildren];
     }
@@ -22607,7 +22715,7 @@ Use this template for your response:
           if (!bubbleEl) return;
           const labelEl = bubbleEl.querySelector('.pf-mem-bubble-label');
           if (!labelEl) return;
-          startInlineRename(labelEl, bubble, handlers);
+          startInlineRename(labelEl, bubble, scope, handlers);
         },
       }, ['✎ Rename']);
       items.push(renameBtn);
@@ -22668,10 +22776,11 @@ Use this template for your response:
     // parent = { scope, bubbleId, isLocked }
     const parentCtx = parent || {};
 
-    // Card-level grip: only when parent is Memory scope and unlocked.
-    // Lore cards and locked-bubble cards don't get a grip (no reorder).
+    // Card-level grip: rendered on cards in unlocked bubbles regardless
+    // of scope. Lore cards gain session-scoped reorder (in-window curation)
+    // the same way bubble-level reorder works for Lore.
     let grip = null;
-    if (parentCtx.scope === 'memory' && !parentCtx.isLocked) {
+    if (!parentCtx.isLocked) {
       grip = h('span', {
         class: 'pf-mem-card-grip',
         title: 'Drag to reorder',
@@ -22817,7 +22926,9 @@ Use this template for your response:
    * @returns {HTMLElement[]}
    */
   function interleaveDropGaps(nodes, items, scope, kind, handlers, parentBubbleId, parentBubbleLocked) {
-    if (scope !== 'memory') return nodes; // Lore has no reorder
+    // Both Memory and Lore scopes get drop-gaps; reorder is session-scoped
+    // for Lore (no Dexie order field to persist to), but in-window curation
+    // is still useful.
     const out = [];
     for (let i = 0; i < nodes.length; i++) {
       const beforeId = items[i] && items[i].id;
@@ -22855,6 +22966,11 @@ Use this template for your response:
       if (!dragPayload) return false;
       if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
       if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
+      // Reorder payloads carry the source scope; a Memory bubble/card
+      // can't reorder INTO the Lore column and vice versa. (Cross-panel
+      // drops use a different payload kind — 'bubble'/'entry' — handled
+      // at the column level, not the gap level.)
+      if (dragPayload.scope !== scope) return false;
       if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
       return true;
     }
@@ -22935,13 +23051,13 @@ Use this template for your response:
 
   /**
    * Replace a bubble's label element with an inline <input> for editing.
-   * Enter commits via handlers.onRenameBubble(bubbleId, newLabel).
+   * Enter commits via handlers.onRenameBubble(scope, bubbleId, newLabel, memberIds).
    * Escape or blur without Enter cancels (label reverts to original text).
    *
    * Uses DOM replacement rather than building a second element type —
    * simpler plumbing, no state machine in the render path.
    */
-  function startInlineRename(labelEl, bubble, handlers) {
+  function startInlineRename(labelEl, bubble, scope, handlers) {
     const original = labelEl.textContent;
     const input = document.createElement('input');
     input.type = 'text';
@@ -22963,12 +23079,10 @@ Use this template for your response:
       if (committed) return;
       committed = true;
       const newLabel = String(input.value || '').trim();
-      // Restore label element visually — the actual label text shown comes
-      // from the next render pass (which will reflect the new override).
       parent.replaceChild(labelEl, input);
-      if (newLabel === original) return; // no-op; no-op in state too
+      if (newLabel === original) return;
       if (typeof handlers.onRenameBubble === 'function') {
-        handlers.onRenameBubble(bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
+        handlers.onRenameBubble(scope, bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
       }
     }
 
@@ -23251,6 +23365,46 @@ Use this template for your response:
       }
     }
 
+    // ---- scope dispatch ----
+    //
+    // Most handlers operate on EITHER memory or lore state. Previously
+    // every handler had its own scope === 'memory' ? memoryX : loreX
+    // ladder. Centralize that into `byScope(scope)` which returns a
+    // bundle of per-scope accessors and setters. Handlers become short
+    // and symmetric.
+    //
+    // The only scope-specific piece left after this refactor is
+    // lock PERSISTENCE — memory locks persist via lock_persistence.js,
+    // lore locks stay session-only. That asymmetry is called out at the
+    // call site with an explicit `if (scope === 'memory')` guard.
+    function byScope(scope) {
+      if (scope === 'memory') {
+        return {
+          overrides: memoryOverrides,
+          getBubbles: () => memoryBubbles,
+          setBubbles: (b) => { memoryBubbles = b; },
+          getK: () => memoryK,
+          setK: (k) => { memoryK = k; },
+          getEntries: () => currentEntriesPerScope().memory,
+          expandedIds: expandedMemoryIds,
+          locksPersist: true,
+        };
+      }
+      if (scope === 'lore') {
+        return {
+          overrides: loreOverrides,
+          getBubbles: () => loreBubbles,
+          setBubbles: (b) => { loreBubbles = b; },
+          getK: () => loreK,
+          setK: (k) => { loreK = k; },
+          getEntries: () => currentEntriesPerScope().lore,
+          expandedIds: expandedLoreIds,
+          locksPersist: false,
+        };
+      }
+      return null;
+    }
+
     // ---- refresh: recompute from current stage + current k, re-render ----
 
     function currentEntriesPerScope() {
@@ -23490,156 +23644,131 @@ Use this template for your response:
       },
 
       // Reorder gestures (7d). Lore has no reorder at all — these handlers
-      // short-circuit if called with scope='lore' (defense in depth; the
-      // renderer already gates grip rendering to Memory).
-      //
       // onReorderBubble: move bubble `bubbleId` to the position just before
-      // `beforeBubbleId` (null = move to end). Locked bubbles resist — but
-      // the grip is disabled on them so this is theoretical. We still
-      // defensively refuse to reorder a locked bubble.
+      // `beforeBubbleId` (null = move to end). Locked bubbles can't be
+      // moved — the grip is disabled on them so this is theoretical, but
+      // we defend in depth. Works for both Memory and Lore (Lore reorder
+      // is visual-only inside the window; Dexie has no lore order field
+      // so it doesn't persist across sessions, but same-session curation
+      // is useful).
       onReorderBubble: (scope, bubbleId, beforeBubbleId) => {
-        if (scope !== 'memory') return;
-        if (memoryOverrides.lockedBubbles.has(String(bubbleId))) return;
-        const currentOrder = memoryBubbles.map(b => b.id);
-        moveBubbleBefore(memoryOverrides, bubbleId, beforeBubbleId, currentOrder);
+        const s = byScope(scope);
+        if (!s) return;
+        if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
+        const currentOrder = s.getBubbles().map(b => b.id);
+        moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
         refresh();
       },
 
       // onReorderCard: move card `cardId` (which lives in `sourceBubbleId`)
       // to the position just before `beforeCardId` in `targetBubbleId`.
       //
-      // 7d.1 was within-bubble only (source == target). 7d.2 allows
-      // cross-bubble: when source != target, the card is RELOCATED to
-      // the target bubble. The move is recorded as a user-assertion via
-      // assignCardToBubble, so it survives re-clustering.
+      // Within-bubble: pure order change.
+      // Cross-bubble: relocate via assignCardToBubble so the assertion
+      // survives re-clustering. Source's bubbleCardOrder is cleaned up.
       //
-      // Lock enforcement:
-      //   - Source locked → refuse (can't lift cards out of a locked bubble).
-      //     Normally the card has no grip inside a locked bubble, but
-      //     belt-and-suspenders here.
-      //   - Target locked → refuse. The UI normally doesn't render drop
-      //     gaps in locked bubbles, but belt-and-suspenders.
+      // Lock enforcement: refuse if either source or target is locked.
+      // (UI gates grip rendering and drop-gap rendering to unlocked
+      // bubbles; this is belt-and-suspenders.)
+      //
+      // Works for both Memory and Lore scopes.
       onReorderCard: (scope, sourceBubbleId, cardId, targetBubbleId, beforeCardId) => {
-        if (scope !== 'memory') return;
-        const sourceLocked = memoryOverrides.lockedBubbles.has(String(sourceBubbleId));
-        const targetLocked = memoryOverrides.lockedBubbles.has(String(targetBubbleId));
+        const s = byScope(scope);
+        if (!s) return;
+        const sourceLocked = s.overrides.lockedBubbles.has(String(sourceBubbleId));
+        const targetLocked = s.overrides.lockedBubbles.has(String(targetBubbleId));
         if (sourceLocked || targetLocked) return;
 
         const sameBubble = String(sourceBubbleId) === String(targetBubbleId);
+        const bubbles = s.getBubbles();
 
         if (sameBubble) {
-          // Within-bubble reorder (7d.1 path, unchanged)
-          const source = memoryBubbles.find(b => String(b.id) === String(sourceBubbleId));
+          const source = bubbles.find(b => String(b.id) === String(sourceBubbleId));
           if (!source) return;
           const currentCardOrder = source.entries.map(e => e.id);
-          moveCardBefore(memoryOverrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+          moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
         } else {
-          // Cross-bubble relocation (7d.2)
-          // 1. Assert the new membership — this is a user override that
-          //    survives re-clustering.
-          assignCardToBubble(memoryOverrides, cardId, targetBubbleId);
+          // Cross-bubble: assert new membership, position within target,
+          // then clean up source's card-order reference.
+          assignCardToBubble(s.overrides, cardId, targetBubbleId);
 
-          // 2. Position it within the target bubble's card order.
-          //    If the target had no user-order yet, we need to seed it
-          //    with the current order + insert. moveCardBefore already
-          //    handles the 'insert into current order' part — we just
-          //    need to give it the target bubble's current card order
-          //    (which does NOT yet include the incoming card, because
-          //    the card still lives in the source at this point).
-          const target = memoryBubbles.find(b => String(b.id) === String(targetBubbleId));
+          const target = bubbles.find(b => String(b.id) === String(targetBubbleId));
           if (target) {
             const currentTargetOrder = target.entries.map(e => e.id);
-            moveCardBefore(memoryOverrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
+            moveCardBefore(s.overrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
           }
 
-          // 3. The card no longer belongs in the source's card-order list.
-          //    moveCardBefore won't clean it up because it thinks it's
-          //    ADDING the card to the target. Manually remove from source.
-          if (memoryOverrides.bubbleCardOrder.has(String(sourceBubbleId))) {
-            const srcOrder = memoryOverrides.bubbleCardOrder.get(String(sourceBubbleId));
+          if (s.overrides.bubbleCardOrder.has(String(sourceBubbleId))) {
+            const srcOrder = s.overrides.bubbleCardOrder.get(String(sourceBubbleId));
             const cleaned = srcOrder.filter(id => String(id) !== String(cardId));
-            if (cleaned.length === 0) memoryOverrides.bubbleCardOrder.delete(String(sourceBubbleId));
-            else memoryOverrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
+            if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
+            else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
           }
         }
 
         refresh();
       },
 
-      // k-slider: ± per scope. k now counts ONLY free (non-locked) bubbles.
+      // k-slider: ± per scope. k counts ONLY free (non-locked) bubbles.
       // Clusters the free entries; locked bubbles pass through untouched.
       onChangeK: (scope, dir) => {
         const step = Number(dir) || 0;
-        if (scope === 'memory') {
-          const { memory } = currentEntriesPerScope();
-          const memFreeCount = countFreeEntries(memory, memoryBubbles, memoryOverrides.lockedBubbles);
-          const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memFreeCount)));
-          if (newK === memoryK) return; // clamped, no change
-          memoryK = newK;
-          memoryBubbles = bubbleizeWithLocks({
-            entries: memory,
-            currentBubbles: memoryBubbles,
-            lockedBubbleIds: memoryOverrides.lockedBubbles,
-            k: memoryK,
-          });
-          memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
-          // Preserve expanded state for locked bubbles (their ids survive).
-          // Free bubbles get new ids, so drop those from expanded.
-          for (const id of expandedMemoryIds) {
-            if (!memoryOverrides.lockedBubbles.has(String(id))) {
-              expandedMemoryIds.delete(id);
-            }
+        const s = byScope(scope);
+        if (!s) return;
+
+        const entries = s.getEntries();
+        const bubbles = s.getBubbles();
+        const currentK = s.getK();
+        const freeCount = countFreeEntries(entries, bubbles, s.overrides.lockedBubbles);
+        const newK = Math.max(1, Math.min(currentK + step, Math.max(1, freeCount)));
+        if (newK === currentK) return;
+
+        s.setK(newK);
+        const clustered = bubbleizeWithLocks({
+          entries,
+          currentBubbles: bubbles,
+          lockedBubbleIds: s.overrides.lockedBubbles,
+          k: newK,
+        });
+        s.setBubbles(applyOverrides(s.overrides, clustered));
+
+        // Preserve expanded state for locked bubbles (their ids survive
+        // across k-changes); free bubbles get fresh ids so drop those.
+        for (const id of s.expandedIds) {
+          if (!s.overrides.lockedBubbles.has(String(id))) {
+            s.expandedIds.delete(id);
           }
-          overlay.updatePanels(panelsState());
-        } else if (scope === 'lore') {
-          const { lore } = currentEntriesPerScope();
-          const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
-          const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lorFreeCount)));
-          if (newK === loreK) return;
-          loreK = newK;
-          loreBubbles = bubbleizeWithLocks({
-            entries: lore,
-            currentBubbles: loreBubbles,
-            lockedBubbleIds: loreOverrides.lockedBubbles,
-            k: loreK,
-          });
-          loreBubbles = applyOverrides(loreOverrides, loreBubbles);
-          for (const id of expandedLoreIds) {
-            if (!loreOverrides.lockedBubbles.has(String(id))) {
-              expandedLoreIds.delete(id);
-            }
-          }
-          overlay.updatePanels(panelsState());
         }
+        overlay.updatePanels(panelsState());
       },
 
       // Expand/collapse — no stage mutation, just toggle the set + re-render
       onToggleBubble: (scope, bubbleId) => {
-        const set = scope === 'memory' ? expandedMemoryIds : expandedLoreIds;
-        if (set.has(bubbleId)) set.delete(bubbleId);
-        else set.add(bubbleId);
+        const s = byScope(scope);
+        if (!s) return;
+        if (s.expandedIds.has(bubbleId)) s.expandedIds.delete(bubbleId);
+        else s.expandedIds.add(bubbleId);
         overlay.updatePanels(panelsState());
       },
 
-      // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
-      // and for Memory scope only, mirrored to persistent per-thread storage.
-      // Lore locks don't persist — Lore has no reorder semantics that care.
+      // Lock toggle — session state is kept in the scope's lockedBubbles.
+      // For scopes where locksPersist is true (Memory), the lock is also
+      // mirrored to per-thread storage via lock_persistence.js so it
+      // survives window close/reopen. Lore locks stay session-only.
       onToggleLock: (scope, bubbleId) => {
-        const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
-        const nowLocked = toggleLock(overrides, bubbleId);
+        const s = byScope(scope);
+        if (!s) return;
+        const nowLocked = toggleLock(s.overrides, bubbleId);
 
-        // Persist (Memory scope only) — find the current bubble's members
-        // and record the lock against their stable hash.
-        if (scope === 'memory' && activeThreadId != null) {
+        if (s.locksPersist && activeThreadId != null) {
           if (nowLocked) {
-            const b = memoryBubbles.find(x => String(x.id) === String(bubbleId));
+            const b = s.getBubbles().find(x => String(x.id) === String(bubbleId));
             if (b) {
               const memberIds = b.entries.map(e => String(e.id));
               const stableId = persistLock(activeThreadId, memberIds);
               stableIdByCurrentBubble.set(String(bubbleId), stableId);
             }
           } else {
-            // Unlock — find the stable id that was recorded and forget it
             const stableId = stableIdByCurrentBubble.get(String(bubbleId));
             if (stableId) {
               forgetLock(activeThreadId, stableId);
@@ -23651,17 +23780,18 @@ Use this template for your response:
         overlay.updatePanels(panelsState());
       },
 
-      // Inline rename — user double-clicked a Memory bubble's label and
-      // typed a new name. The rename is keyed by the bubble's STABLE
-      // identity (hash of member ids) so it survives re-clusterings as
-      // long as membership remains recognizable. Empty newLabel clears
-      // the rename (falls back to auto-derived label).
+      // Inline rename — user renamed a bubble via dblclick on the label
+      // or via the Rename button in the bubble settings row. Rename is
+      // keyed by the bubble's STABLE identity (hash of member ids) and
+      // uses Jaccard-tolerant lookup, so it survives re-clusterings as
+      // long as membership stays recognizable. Empty newLabel clears.
       //
-      // Lore is not wired here — Lore bubbles are a flat-list affordance
-      // with no practical rename use-case in the current UX.
-      onRenameBubble: (bubbleId, newLabel, memberIds) => {
+      // Works for both Memory and Lore scopes.
+      onRenameBubble: (scope, bubbleId, newLabel, memberIds) => {
+        const s = byScope(scope);
+        if (!s) return;
         if (!Array.isArray(memberIds) || memberIds.length === 0) return;
-        renameBubble(memoryOverrides, memberIds, newLabel);
+        renameBubble(s.overrides, memberIds, newLabel);
         refresh();
       },
 

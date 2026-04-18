@@ -158,7 +158,10 @@ export function createMemoryPanels({
     replaceContents(
       loreList,
       lorB.length > 0
-        ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage))
+        ? interleaveDropGaps(
+            lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage)),
+            lorB, 'lore', 'bubble', handlers
+          )
         : [renderEmptyState('lore')]
     );
   }
@@ -333,9 +336,17 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
   // drag = cross-panel (promote/demote/delete). Grip drag = reorder.
   // They emit different payload kinds ('bubble' vs 'reorder-bubble')
   // so drop handlers can distinguish. 7c only sets up the source; 7d
-  // wires drops.
+  // Drag-handle grip: rendered on bubbles for both Memory and Lore
+  // scopes. Reorder is session-scoped in both cases (Lore has no order
+  // field in Dexie, but in-window visual reordering is still useful
+  // for curation). Disabled look when the bubble is locked.
+  //
+  // The grip is a SEPARATE drag source from the header itself. Header
+  // drag = cross-panel (promote/demote/delete). Grip drag = reorder.
+  // They emit different payload kinds ('bubble' vs 'reorder-bubble')
+  // so drop handlers can distinguish.
   let grip = null;
-  if (scope === 'memory') {
+  if (!bubble.isUngrouped) {
     grip = h('span', {
       class: `pf-mem-bubble-grip ${isLocked ? 'pf-mem-bubble-grip-disabled' : ''}`,
       title: isLocked ? 'Locked — reorder disabled' : 'Drag to reorder',
@@ -362,9 +373,6 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
         } catch { /* defensive */ }
       });
       grip.addEventListener('dragend', () => {
-        // Clear payload only if it's still ours; a cross-panel drag
-        // started on the header would have already overwritten this,
-        // but defensive belt-and-suspenders.
         if (dragPayload && dragPayload.kind === 'reorder-bubble') {
           dragPayload = null;
         }
@@ -384,7 +392,7 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
     title: bubble.userRenamed ? 'Renamed — double-click to change' : 'Double-click to rename',
   }, [bubble.label]);
 
-  if (scope === 'memory' && !bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
+  if (!bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
     // Stop single-click propagation too — otherwise the FIRST click of a
     // double-click bubbles to the header's expand/collapse handler, toggling
     // the bubble once (first click) and back (second click), leaving it in
@@ -393,14 +401,14 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
     // Side effect: clicking the label no longer toggles expand/collapse.
     // Users can still use the rest of the header (chevron, preview, count,
     // empty space) for that. Power users can also dblclick to rename.
-    // Main entry point remains the Rename button in the bubble footer.
+    // Main entry point remains the Rename button in the bubble settings row.
     label.addEventListener('click', (ev) => {
       ev.stopPropagation();
     });
     label.addEventListener('dblclick', (ev) => {
       ev.stopPropagation();
       ev.preventDefault();
-      startInlineRename(label, bubble, handlers);
+      startInlineRename(label, bubble, scope, handlers);
     });
   }
 
@@ -510,17 +518,17 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
         return renderCard(entry, { scope, bubbleId: bubble.id, isLocked, useCount }, handlers);
       })
     : [];
-  let bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
+  let bodyChildren = (isExpanded && !isLocked)
     ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
     : cardNodes;
 
-  // Settings row — appears at the TOP of expanded Memory bubbles
+  // Settings row — appears at the TOP of expanded bubbles (Memory or Lore)
   // that aren't Ungrouped. Currently hosts just the Rename button.
   // Intended to grow into a home for additional per-bubble controls
   // (exclude from re-cluster, export just this bubble, etc.) without
   // cluttering the header or forcing the user to scroll past long
   // card lists to find the controls.
-  if (isExpanded && scope === 'memory' && !bubble.isUngrouped) {
+  if (isExpanded && !bubble.isUngrouped) {
     const settingsRow = buildBubbleSettingsRow(bubble, scope, handlers);
     if (settingsRow) bodyChildren = [settingsRow, ...bodyChildren];
   }
@@ -566,7 +574,7 @@ function buildBubbleSettingsRow(bubble, scope, handlers) {
         if (!bubbleEl) return;
         const labelEl = bubbleEl.querySelector('.pf-mem-bubble-label');
         if (!labelEl) return;
-        startInlineRename(labelEl, bubble, handlers);
+        startInlineRename(labelEl, bubble, scope, handlers);
       },
     }, ['✎ Rename']);
     items.push(renameBtn);
@@ -627,10 +635,11 @@ function renderCard(item, parent, handlers) {
   // parent = { scope, bubbleId, isLocked }
   const parentCtx = parent || {};
 
-  // Card-level grip: only when parent is Memory scope and unlocked.
-  // Lore cards and locked-bubble cards don't get a grip (no reorder).
+  // Card-level grip: rendered on cards in unlocked bubbles regardless
+  // of scope. Lore cards gain session-scoped reorder (in-window curation)
+  // the same way bubble-level reorder works for Lore.
   let grip = null;
-  if (parentCtx.scope === 'memory' && !parentCtx.isLocked) {
+  if (!parentCtx.isLocked) {
     grip = h('span', {
       class: 'pf-mem-card-grip',
       title: 'Drag to reorder',
@@ -776,7 +785,9 @@ function buildCardActions(item, handlers) {
  * @returns {HTMLElement[]}
  */
 function interleaveDropGaps(nodes, items, scope, kind, handlers, parentBubbleId, parentBubbleLocked) {
-  if (scope !== 'memory') return nodes; // Lore has no reorder
+  // Both Memory and Lore scopes get drop-gaps; reorder is session-scoped
+  // for Lore (no Dexie order field to persist to), but in-window curation
+  // is still useful.
   const out = [];
   for (let i = 0; i < nodes.length; i++) {
     const beforeId = items[i] && items[i].id;
@@ -814,6 +825,11 @@ function createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parent
     if (!dragPayload) return false;
     if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
     if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
+    // Reorder payloads carry the source scope; a Memory bubble/card
+    // can't reorder INTO the Lore column and vice versa. (Cross-panel
+    // drops use a different payload kind — 'bubble'/'entry' — handled
+    // at the column level, not the gap level.)
+    if (dragPayload.scope !== scope) return false;
     if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
     return true;
   }
@@ -894,13 +910,13 @@ function renderEmptyState(scope) {
 
 /**
  * Replace a bubble's label element with an inline <input> for editing.
- * Enter commits via handlers.onRenameBubble(bubbleId, newLabel).
+ * Enter commits via handlers.onRenameBubble(scope, bubbleId, newLabel, memberIds).
  * Escape or blur without Enter cancels (label reverts to original text).
  *
  * Uses DOM replacement rather than building a second element type —
  * simpler plumbing, no state machine in the render path.
  */
-function startInlineRename(labelEl, bubble, handlers) {
+function startInlineRename(labelEl, bubble, scope, handlers) {
   const original = labelEl.textContent;
   const input = document.createElement('input');
   input.type = 'text';
@@ -922,12 +938,10 @@ function startInlineRename(labelEl, bubble, handlers) {
     if (committed) return;
     committed = true;
     const newLabel = String(input.value || '').trim();
-    // Restore label element visually — the actual label text shown comes
-    // from the next render pass (which will reflect the new override).
     parent.replaceChild(labelEl, input);
-    if (newLabel === original) return; // no-op; no-op in state too
+    if (newLabel === original) return;
     if (typeof handlers.onRenameBubble === 'function') {
-      handlers.onRenameBubble(bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
+      handlers.onRenameBubble(scope, bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
     }
   }
 

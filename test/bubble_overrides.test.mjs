@@ -390,7 +390,9 @@ test('renameBubble: sets an entry keyed by stable id', async () => {
   const s = createOverrides();
   renameBubble(s, ['c1', 'c2'], 'My cluster');
   const stableId = stableBubbleId(['c1', 'c2']);
-  assert.equal(s.bubbleLabelsByStableId.get(stableId), 'My cluster');
+  const entry = s.bubbleLabelsByStableId.get(stableId);
+  assert.equal(entry.label, 'My cluster');
+  assert.deepEqual(entry.memberIds, ['c1', 'c2']);
 });
 
 test('renameBubble: empty label clears the rename', async () => {
@@ -414,7 +416,7 @@ test('renameBubble: same membership in different order produces same stable id',
   const s = createOverrides();
   renameBubble(s, ['c1', 'c2', 'c3'], 'Alpha');
   const reversedId = stableBubbleId(['c3', 'c2', 'c1']);
-  assert.equal(s.bubbleLabelsByStableId.get(reversedId), 'Alpha');
+  assert.equal(s.bubbleLabelsByStableId.get(reversedId).label, 'Alpha');
 });
 
 test('applyOverrides: rename applied to bubble with matching members', async () => {
@@ -451,16 +453,150 @@ test('applyOverrides: rename survives re-clustering if membership preserved', as
   assert.equal(r2[0].label, 'Survivor');
 });
 
-test('applyOverrides: rename does NOT apply when membership diverges', async () => {
+test('applyOverrides: rename does NOT apply when membership diverges heavily', async () => {
   const { renameBubble } = await import('../src/memory/bubble_overrides.js');
   const s = createOverrides();
-  renameBubble(s, ['c1', 'c2'], 'Original Rename');
+  // Original membership: 4 cards
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4'], 'Original Rename');
 
-  // Re-cluster splits: bubble now only has c1
+  // Re-cluster drops 3 of 4, leaves only c1 → Jaccard 1/4 = 0.25, below 0.5
   const fresh = [bubble('bubble:0', [entry('c1')], { label: 'Auto' })];
   const result = applyOverrides(s, fresh);
   assert.equal(result[0].label, 'Auto');
   assert.ok(!result[0].userRenamed);
+});
+
+test('applyOverrides: rename survives small membership shifts (Jaccard tolerance)', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  // Original: 4 members
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4'], 'Stays Named');
+
+  // One member dropped → 3/4 overlap = 0.75, well above 0.5 threshold
+  const fresh = [bubble('bubble:0',
+    [entry('c1'), entry('c2'), entry('c3')],
+    { label: 'Auto' })];
+  const result = applyOverrides(s, fresh);
+  assert.equal(result[0].label, 'Stays Named');
+  assert.ok(result[0].userRenamed);
+});
+
+test('applyOverrides: rename survives member added (cross-drag in)', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2', 'c3'], 'Sticky');
+
+  // One extra member added → 3/4 = 0.75
+  const fresh = [bubble('bubble:0',
+    [entry('c1'), entry('c2'), entry('c3'), entry('c4')],
+    { label: 'Auto' })];
+  const result = applyOverrides(s, fresh);
+  assert.equal(result[0].label, 'Sticky');
+  assert.ok(result[0].userRenamed);
+});
+
+test('applyOverrides: rename survives single member delete (high-overlap case)', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4', 'c5'], 'Big Bubble');
+
+  // Delete 1 of 5 → 4/5 = 0.8
+  const fresh = [bubble('bubble:0',
+    [entry('c1'), entry('c2'), entry('c3'), entry('c4')],
+    { label: 'Auto' })];
+  const result = applyOverrides(s, fresh);
+  assert.equal(result[0].label, 'Big Bubble');
+});
+
+test('applyOverrides: rename respects custom threshold', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4'], 'Strict');
+
+  // Jaccard 3/4 = 0.75. With threshold 0.9, should NOT apply.
+  const fresh = [bubble('bubble:0',
+    [entry('c1'), entry('c2'), entry('c3')],
+    { label: 'Auto' })];
+  const resultStrict = applyOverrides(s, fresh, { renameThreshold: 0.9 });
+  assert.equal(resultStrict[0].label, 'Auto');
+
+  // Same 0.75 overlap with default threshold 0.5 SHOULD apply.
+  const resultDefault = applyOverrides(s, fresh);
+  assert.equal(resultDefault[0].label, 'Strict');
+});
+
+test('applyOverrides: two bubbles competing for same rename — bigger wins', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  // Rename originally had [c1, c2, c3, c4]
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4'], 'Original');
+
+  // Two bubbles each have partial overlap:
+  //   big bubble has 3 of the 4 originals → J=3/4=0.75
+  //   small bubble has 1 of the 4 originals + 1 other → J=1/5=0.2 (below threshold)
+  const fresh = [
+    bubble('bubble:0', [entry('c1'), entry('c2'), entry('c3')], { label: 'Auto A' }),
+    bubble('bubble:1', [entry('c4'), entry('c99')],            { label: 'Auto B' }),
+  ];
+  const result = applyOverrides(s, fresh);
+  const b0 = result.find(b => b.id === 'bubble:0');
+  const b1 = result.find(b => b.id === 'bubble:1');
+  assert.equal(b0.label, 'Original'); // bigger overlap won
+  assert.equal(b1.label, 'Auto B');
+});
+
+test('pruneOrphanedRenames: drops entries with zero member overlap', async () => {
+  const { renameBubble, pruneOrphanedRenames, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'Should be pruned');
+  renameBubble(s, ['c3'], 'Partial overlap');
+
+  // Current bubbles have c3 and c4 — first rename (c1,c2) has zero overlap,
+  // should be pruned. Second rename (c3) overlaps fully, kept.
+  const current = [bubble('bubble:0', [entry('c3'), entry('c4')])];
+  pruneOrphanedRenames(s, current);
+
+  assert.equal(s.bubbleLabelsByStableId.size, 1);
+  const kept = s.bubbleLabelsByStableId.get(stableBubbleId(['c3']));
+  assert.equal(kept.label, 'Partial overlap');
+});
+
+test('pruneOrphanedRenames: keeps entries with any overlap (even below threshold)', async () => {
+  const { renameBubble, pruneOrphanedRenames } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2', 'c3', 'c4', 'c5'], 'Hopeful');
+
+  // Only 1 of 5 still present — Jaccard = 1/5 = 0.2, well below threshold.
+  // But we keep the entry — user might undo the other 4 deletions.
+  const current = [bubble('bubble:0', [entry('c1'), entry('c99')])];
+  pruneOrphanedRenames(s, current);
+  assert.equal(s.bubbleLabelsByStableId.size, 1);
+});
+
+test('findLabelOverride: exact-match fast path', async () => {
+  const { renameBubble, findLabelOverride } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'My Name');
+  const match = findLabelOverride(s, ['c1', 'c2']);
+  assert.ok(match);
+  assert.equal(match.label, 'My Name');
+  assert.equal(match.jaccard, 1);
+});
+
+test('findLabelOverride: returns null when nothing stored', async () => {
+  const { findLabelOverride } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  assert.equal(findLabelOverride(s, ['c1', 'c2']), null);
+});
+
+test('findLabelOverride: claimed entries are skipped', async () => {
+  const { renameBubble, findLabelOverride, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'Claimed rename');
+  const stableId = stableBubbleId(['c1', 'c2']);
+  const claimed = new Set([stableId]);
+  const match = findLabelOverride(s, ['c1', 'c2'], { claimed });
+  assert.equal(match, null);
 });
 
 test('applyOverrides: ungrouped bubbles are never renamed', async () => {

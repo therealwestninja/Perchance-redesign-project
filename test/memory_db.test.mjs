@@ -674,3 +674,89 @@ test('loadUsageHistogram: malformed data does not throw', async () => {
   const r = await loadUsageHistogram({ threadId: 100 });
   assert.equal(r.memoryCounts.get('valid|1|0'), 1);
 });
+
+// ---- stale-baseline bug reproducer ----
+//
+// Scenario: user opens our tool (baseline snapshotted), user edits a
+// memory via /mem or brain-icon OUTSIDE our tool, then user triggers
+// a Save in our tool that involves reorder. Our proportional remap
+// writes the STALE baseline text back to Dexie, silently overwriting
+// the external edit.
+//
+// TODO: fix this bug in a follow-up commit. Test is .skip'd until the
+// fix lands. The fix is to re-read affected messages at save time
+// inside the reorder block, using fresh Dexie data rather than stale
+// baseline text. Estimated ~30 lines in db.js commitDiff.
+
+test.skip('commitDiff reorder: external edit is overwritten by stale baseline', async () => {
+  // Initial state: one message with one memory, text = "original"
+  const db = createMockDb({
+    messages: [
+      {
+        id: 1, threadId: 100,
+        memoriesEndingHere: { '1': [{ text: 'original', embedding: null }] },
+      },
+    ],
+  });
+  // Shim .sortBy since the mock doesn't have it by default and commitDiff
+  // calls it for the remap-messages list.
+  const origMessages = db.messages;
+  db.messages = {
+    ...origMessages,
+    where(idx) {
+      const orig = origMessages.where(idx);
+      return {
+        ...orig,
+        equals(val) {
+          const chain = orig.equals(val);
+          return {
+            ...chain,
+            sortBy: async (key) => {
+              const all = await chain.toArray();
+              return [...all].sort((a, b) => (a[key] || 0) - (b[key] || 0));
+            },
+          };
+        },
+      };
+    },
+  };
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  // Step 1: our tool opens, loads baseline
+  const baseline = await loadBaseline({ threadId: 100 });
+  assert.equal(baseline.length, 1);
+  assert.equal(baseline[0].text, 'original');
+  const memId = baseline[0].id; // "1|1|0"
+
+  // Step 2: external edit via /mem — text is now "edited externally"
+  origMessages.rows[0].memoriesEndingHere['1'][0].text = 'edited externally';
+
+  // Step 3: user clicks Save in our tool with a non-empty memoryOrder,
+  // triggering proportional remap.
+  const diff = {
+    added: [], deleted: [], edited: [], reordered: [],
+    totalChanges: 0,
+  };
+  const memoryOrder = [{ id: memId, locked: false }];
+
+  await commitDiff({
+    baselineItems: baseline,
+    diff,
+    threadId: 100,
+    memoryOrder,
+  });
+
+  // Step 4: check final DB state — if the bug is present, the remap
+  // wrote the STALE baseline text ("original") back, overwriting the
+  // external edit.
+  const current = origMessages.rows[0].memoriesEndingHere['1'];
+  const texts = current.filter(e => e && e.text).map(e => e.text);
+
+  // This assertion CURRENTLY FAILS (bug exists). Once fixed, should pass.
+  assert.ok(
+    texts.includes('edited externally'),
+    `stale-baseline bug: external edit was overwritten. Final texts: ${JSON.stringify(texts)}`
+  );
+});

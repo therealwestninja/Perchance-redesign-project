@@ -128,6 +128,46 @@ export async function openMemoryWindow() {
     }
   }
 
+  // ---- scope dispatch ----
+  //
+  // Most handlers operate on EITHER memory or lore state. Previously
+  // every handler had its own scope === 'memory' ? memoryX : loreX
+  // ladder. Centralize that into `byScope(scope)` which returns a
+  // bundle of per-scope accessors and setters. Handlers become short
+  // and symmetric.
+  //
+  // The only scope-specific piece left after this refactor is
+  // lock PERSISTENCE — memory locks persist via lock_persistence.js,
+  // lore locks stay session-only. That asymmetry is called out at the
+  // call site with an explicit `if (scope === 'memory')` guard.
+  function byScope(scope) {
+    if (scope === 'memory') {
+      return {
+        overrides: memoryOverrides,
+        getBubbles: () => memoryBubbles,
+        setBubbles: (b) => { memoryBubbles = b; },
+        getK: () => memoryK,
+        setK: (k) => { memoryK = k; },
+        getEntries: () => currentEntriesPerScope().memory,
+        expandedIds: expandedMemoryIds,
+        locksPersist: true,
+      };
+    }
+    if (scope === 'lore') {
+      return {
+        overrides: loreOverrides,
+        getBubbles: () => loreBubbles,
+        setBubbles: (b) => { loreBubbles = b; },
+        getK: () => loreK,
+        setK: (k) => { loreK = k; },
+        getEntries: () => currentEntriesPerScope().lore,
+        expandedIds: expandedLoreIds,
+        locksPersist: false,
+      };
+    }
+    return null;
+  }
+
   // ---- refresh: recompute from current stage + current k, re-render ----
 
   function currentEntriesPerScope() {
@@ -367,156 +407,131 @@ export async function openMemoryWindow() {
     },
 
     // Reorder gestures (7d). Lore has no reorder at all — these handlers
-    // short-circuit if called with scope='lore' (defense in depth; the
-    // renderer already gates grip rendering to Memory).
-    //
     // onReorderBubble: move bubble `bubbleId` to the position just before
-    // `beforeBubbleId` (null = move to end). Locked bubbles resist — but
-    // the grip is disabled on them so this is theoretical. We still
-    // defensively refuse to reorder a locked bubble.
+    // `beforeBubbleId` (null = move to end). Locked bubbles can't be
+    // moved — the grip is disabled on them so this is theoretical, but
+    // we defend in depth. Works for both Memory and Lore (Lore reorder
+    // is visual-only inside the window; Dexie has no lore order field
+    // so it doesn't persist across sessions, but same-session curation
+    // is useful).
     onReorderBubble: (scope, bubbleId, beforeBubbleId) => {
-      if (scope !== 'memory') return;
-      if (memoryOverrides.lockedBubbles.has(String(bubbleId))) return;
-      const currentOrder = memoryBubbles.map(b => b.id);
-      moveBubbleBefore(memoryOverrides, bubbleId, beforeBubbleId, currentOrder);
+      const s = byScope(scope);
+      if (!s) return;
+      if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
+      const currentOrder = s.getBubbles().map(b => b.id);
+      moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
       refresh();
     },
 
     // onReorderCard: move card `cardId` (which lives in `sourceBubbleId`)
     // to the position just before `beforeCardId` in `targetBubbleId`.
     //
-    // 7d.1 was within-bubble only (source == target). 7d.2 allows
-    // cross-bubble: when source != target, the card is RELOCATED to
-    // the target bubble. The move is recorded as a user-assertion via
-    // assignCardToBubble, so it survives re-clustering.
+    // Within-bubble: pure order change.
+    // Cross-bubble: relocate via assignCardToBubble so the assertion
+    // survives re-clustering. Source's bubbleCardOrder is cleaned up.
     //
-    // Lock enforcement:
-    //   - Source locked → refuse (can't lift cards out of a locked bubble).
-    //     Normally the card has no grip inside a locked bubble, but
-    //     belt-and-suspenders here.
-    //   - Target locked → refuse. The UI normally doesn't render drop
-    //     gaps in locked bubbles, but belt-and-suspenders.
+    // Lock enforcement: refuse if either source or target is locked.
+    // (UI gates grip rendering and drop-gap rendering to unlocked
+    // bubbles; this is belt-and-suspenders.)
+    //
+    // Works for both Memory and Lore scopes.
     onReorderCard: (scope, sourceBubbleId, cardId, targetBubbleId, beforeCardId) => {
-      if (scope !== 'memory') return;
-      const sourceLocked = memoryOverrides.lockedBubbles.has(String(sourceBubbleId));
-      const targetLocked = memoryOverrides.lockedBubbles.has(String(targetBubbleId));
+      const s = byScope(scope);
+      if (!s) return;
+      const sourceLocked = s.overrides.lockedBubbles.has(String(sourceBubbleId));
+      const targetLocked = s.overrides.lockedBubbles.has(String(targetBubbleId));
       if (sourceLocked || targetLocked) return;
 
       const sameBubble = String(sourceBubbleId) === String(targetBubbleId);
+      const bubbles = s.getBubbles();
 
       if (sameBubble) {
-        // Within-bubble reorder (7d.1 path, unchanged)
-        const source = memoryBubbles.find(b => String(b.id) === String(sourceBubbleId));
+        const source = bubbles.find(b => String(b.id) === String(sourceBubbleId));
         if (!source) return;
         const currentCardOrder = source.entries.map(e => e.id);
-        moveCardBefore(memoryOverrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+        moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
       } else {
-        // Cross-bubble relocation (7d.2)
-        // 1. Assert the new membership — this is a user override that
-        //    survives re-clustering.
-        assignCardToBubble(memoryOverrides, cardId, targetBubbleId);
+        // Cross-bubble: assert new membership, position within target,
+        // then clean up source's card-order reference.
+        assignCardToBubble(s.overrides, cardId, targetBubbleId);
 
-        // 2. Position it within the target bubble's card order.
-        //    If the target had no user-order yet, we need to seed it
-        //    with the current order + insert. moveCardBefore already
-        //    handles the 'insert into current order' part — we just
-        //    need to give it the target bubble's current card order
-        //    (which does NOT yet include the incoming card, because
-        //    the card still lives in the source at this point).
-        const target = memoryBubbles.find(b => String(b.id) === String(targetBubbleId));
+        const target = bubbles.find(b => String(b.id) === String(targetBubbleId));
         if (target) {
           const currentTargetOrder = target.entries.map(e => e.id);
-          moveCardBefore(memoryOverrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
+          moveCardBefore(s.overrides, targetBubbleId, cardId, beforeCardId, currentTargetOrder);
         }
 
-        // 3. The card no longer belongs in the source's card-order list.
-        //    moveCardBefore won't clean it up because it thinks it's
-        //    ADDING the card to the target. Manually remove from source.
-        if (memoryOverrides.bubbleCardOrder.has(String(sourceBubbleId))) {
-          const srcOrder = memoryOverrides.bubbleCardOrder.get(String(sourceBubbleId));
+        if (s.overrides.bubbleCardOrder.has(String(sourceBubbleId))) {
+          const srcOrder = s.overrides.bubbleCardOrder.get(String(sourceBubbleId));
           const cleaned = srcOrder.filter(id => String(id) !== String(cardId));
-          if (cleaned.length === 0) memoryOverrides.bubbleCardOrder.delete(String(sourceBubbleId));
-          else memoryOverrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
+          if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
+          else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
         }
       }
 
       refresh();
     },
 
-    // k-slider: ± per scope. k now counts ONLY free (non-locked) bubbles.
+    // k-slider: ± per scope. k counts ONLY free (non-locked) bubbles.
     // Clusters the free entries; locked bubbles pass through untouched.
     onChangeK: (scope, dir) => {
       const step = Number(dir) || 0;
-      if (scope === 'memory') {
-        const { memory } = currentEntriesPerScope();
-        const memFreeCount = countFreeEntries(memory, memoryBubbles, memoryOverrides.lockedBubbles);
-        const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memFreeCount)));
-        if (newK === memoryK) return; // clamped, no change
-        memoryK = newK;
-        memoryBubbles = bubbleizeWithLocks({
-          entries: memory,
-          currentBubbles: memoryBubbles,
-          lockedBubbleIds: memoryOverrides.lockedBubbles,
-          k: memoryK,
-        });
-        memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
-        // Preserve expanded state for locked bubbles (their ids survive).
-        // Free bubbles get new ids, so drop those from expanded.
-        for (const id of expandedMemoryIds) {
-          if (!memoryOverrides.lockedBubbles.has(String(id))) {
-            expandedMemoryIds.delete(id);
-          }
+      const s = byScope(scope);
+      if (!s) return;
+
+      const entries = s.getEntries();
+      const bubbles = s.getBubbles();
+      const currentK = s.getK();
+      const freeCount = countFreeEntries(entries, bubbles, s.overrides.lockedBubbles);
+      const newK = Math.max(1, Math.min(currentK + step, Math.max(1, freeCount)));
+      if (newK === currentK) return;
+
+      s.setK(newK);
+      const clustered = bubbleizeWithLocks({
+        entries,
+        currentBubbles: bubbles,
+        lockedBubbleIds: s.overrides.lockedBubbles,
+        k: newK,
+      });
+      s.setBubbles(applyOverrides(s.overrides, clustered));
+
+      // Preserve expanded state for locked bubbles (their ids survive
+      // across k-changes); free bubbles get fresh ids so drop those.
+      for (const id of s.expandedIds) {
+        if (!s.overrides.lockedBubbles.has(String(id))) {
+          s.expandedIds.delete(id);
         }
-        overlay.updatePanels(panelsState());
-      } else if (scope === 'lore') {
-        const { lore } = currentEntriesPerScope();
-        const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
-        const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lorFreeCount)));
-        if (newK === loreK) return;
-        loreK = newK;
-        loreBubbles = bubbleizeWithLocks({
-          entries: lore,
-          currentBubbles: loreBubbles,
-          lockedBubbleIds: loreOverrides.lockedBubbles,
-          k: loreK,
-        });
-        loreBubbles = applyOverrides(loreOverrides, loreBubbles);
-        for (const id of expandedLoreIds) {
-          if (!loreOverrides.lockedBubbles.has(String(id))) {
-            expandedLoreIds.delete(id);
-          }
-        }
-        overlay.updatePanels(panelsState());
       }
+      overlay.updatePanels(panelsState());
     },
 
     // Expand/collapse — no stage mutation, just toggle the set + re-render
     onToggleBubble: (scope, bubbleId) => {
-      const set = scope === 'memory' ? expandedMemoryIds : expandedLoreIds;
-      if (set.has(bubbleId)) set.delete(bubbleId);
-      else set.add(bubbleId);
+      const s = byScope(scope);
+      if (!s) return;
+      if (s.expandedIds.has(bubbleId)) s.expandedIds.delete(bubbleId);
+      else s.expandedIds.add(bubbleId);
       overlay.updatePanels(panelsState());
     },
 
-    // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
-    // and for Memory scope only, mirrored to persistent per-thread storage.
-    // Lore locks don't persist — Lore has no reorder semantics that care.
+    // Lock toggle — session state is kept in the scope's lockedBubbles.
+    // For scopes where locksPersist is true (Memory), the lock is also
+    // mirrored to per-thread storage via lock_persistence.js so it
+    // survives window close/reopen. Lore locks stay session-only.
     onToggleLock: (scope, bubbleId) => {
-      const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
-      const nowLocked = toggleLock(overrides, bubbleId);
+      const s = byScope(scope);
+      if (!s) return;
+      const nowLocked = toggleLock(s.overrides, bubbleId);
 
-      // Persist (Memory scope only) — find the current bubble's members
-      // and record the lock against their stable hash.
-      if (scope === 'memory' && activeThreadId != null) {
+      if (s.locksPersist && activeThreadId != null) {
         if (nowLocked) {
-          const b = memoryBubbles.find(x => String(x.id) === String(bubbleId));
+          const b = s.getBubbles().find(x => String(x.id) === String(bubbleId));
           if (b) {
             const memberIds = b.entries.map(e => String(e.id));
             const stableId = persistLock(activeThreadId, memberIds);
             stableIdByCurrentBubble.set(String(bubbleId), stableId);
           }
         } else {
-          // Unlock — find the stable id that was recorded and forget it
           const stableId = stableIdByCurrentBubble.get(String(bubbleId));
           if (stableId) {
             forgetLock(activeThreadId, stableId);
@@ -528,17 +543,18 @@ export async function openMemoryWindow() {
       overlay.updatePanels(panelsState());
     },
 
-    // Inline rename — user double-clicked a Memory bubble's label and
-    // typed a new name. The rename is keyed by the bubble's STABLE
-    // identity (hash of member ids) so it survives re-clusterings as
-    // long as membership remains recognizable. Empty newLabel clears
-    // the rename (falls back to auto-derived label).
+    // Inline rename — user renamed a bubble via dblclick on the label
+    // or via the Rename button in the bubble settings row. Rename is
+    // keyed by the bubble's STABLE identity (hash of member ids) and
+    // uses Jaccard-tolerant lookup, so it survives re-clusterings as
+    // long as membership stays recognizable. Empty newLabel clears.
     //
-    // Lore is not wired here — Lore bubbles are a flat-list affordance
-    // with no practical rename use-case in the current UX.
-    onRenameBubble: (bubbleId, newLabel, memberIds) => {
+    // Works for both Memory and Lore scopes.
+    onRenameBubble: (scope, bubbleId, newLabel, memberIds) => {
+      const s = byScope(scope);
+      if (!s) return;
       if (!Array.isArray(memberIds) || memberIds.length === 0) return;
-      renameBubble(memoryOverrides, memberIds, newLabel);
+      renameBubble(s.overrides, memberIds, newLabel);
       refresh();
     },
 
