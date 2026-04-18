@@ -25,6 +25,7 @@
     "memory/clustering.js",
     "memory/ner.js",
     "memory/bubbles.js",
+    "memory/bubble_overrides.js",
     "memory/stage.js",
     "memory/db.js",
     "render/styles.js",
