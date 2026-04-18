@@ -40,9 +40,9 @@ let dragPayload = null;
  * @property {(id) => void} [onPromote]            single entry memory → lore
  * @property {(id) => void} [onDemote]             single entry lore → memory
  * @property {(id) => void} [onDelete]             single entry → delete queue
- * @property {(entries) => void} [onBubblePromote] all entries in a bubble
- * @property {(entries) => void} [onBubbleDemote]  all entries in a bubble
- * @property {(entries) => void} [onBubbleDelete]  all entries in a bubble
+ * @property {(bubbleId, entries) => void} [onBubblePromote] all entries in a bubble
+ * @property {(bubbleId, entries) => void} [onBubbleDemote]  all entries in a bubble
+ * @property {(bubbleId, entries) => void} [onBubbleDelete]  all entries in a bubble
  * @property {(scope, bubbleId) => void} [onToggleBubble] expand/collapse
  * @property {(scope, bubbleId) => void} [onToggleLock]   toggle lock state
  * @property {(scope, dir) => void} [onChangeK]    +1 or -1 to k for a panel
@@ -243,9 +243,9 @@ function buildColumn({
       }
     } else if (payload.kind === 'bubble') {
       if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
-        handlers.onBubbleDemote(payload.entries);
+        handlers.onBubbleDemote(payload.bubbleId, payload.entries);
       } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
-        handlers.onBubblePromote(payload.entries);
+        handlers.onBubblePromote(payload.bubbleId, payload.entries);
       }
     }
   });
@@ -285,7 +285,7 @@ function buildDeletePanel({ countEl, handlers }) {
     if (payload.kind === 'entry' && typeof handlers.onDelete === 'function') {
       handlers.onDelete(payload.id);
     } else if (payload.kind === 'bubble' && typeof handlers.onBubbleDelete === 'function') {
-      handlers.onBubbleDelete(payload.entries);
+      handlers.onBubbleDelete(payload.bubbleId, payload.entries);
     }
   });
 
@@ -405,7 +405,7 @@ function buildBubbleActions(bubble, scope, handlers) {
       'aria-label': 'Promote all to Lore',
       onClick: (ev) => {
         ev.stopPropagation();
-        handlers.onBubblePromote(bubble.entries);
+        handlers.onBubblePromote(bubble.id, bubble.entries);
       },
     }, ['→ Lore']));
   }
@@ -417,7 +417,7 @@ function buildBubbleActions(bubble, scope, handlers) {
       'aria-label': 'Demote all to Memory',
       onClick: (ev) => {
         ev.stopPropagation();
-        handlers.onBubbleDemote(bubble.entries);
+        handlers.onBubbleDemote(bubble.id, bubble.entries);
       },
     }, ['Memory ←']));
   }
@@ -429,7 +429,7 @@ function buildBubbleActions(bubble, scope, handlers) {
       'aria-label': 'Delete all',
       onClick: (ev) => {
         ev.stopPropagation();
-        handlers.onBubbleDelete(bubble.entries);
+        handlers.onBubbleDelete(bubble.id, bubble.entries);
       },
     }, ['✕']));
   }

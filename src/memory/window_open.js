@@ -186,6 +186,34 @@ export async function openMemoryWindow() {
     if (item) pendingDeletions.set(String(id), item);
   }
 
+  /**
+   * Returns 'memory' | 'lore' | null based on which panel's current
+   * bubble layout contains the given bubbleId. Used by onBubbleDelete
+   * (which doesn't know the scope from its call site in the DOM).
+   */
+  function locatedBubbleScope(bubbleId) {
+    if (!bubbleId) return null;
+    const id = String(bubbleId);
+    if (memoryBubbles.some(b => String(b.id) === id)) return 'memory';
+    if (loreBubbles.some(b => String(b.id) === id)) return 'lore';
+    return null;
+  }
+
+  /**
+   * If the given bubble is locked in its scope's override set, prompt
+   * the user for confirmation. Returns true if the action should proceed,
+   * false if the user declined (or if we couldn't determine the scope).
+   *
+   * Returns true unconditionally when the bubble isn't locked (so callers
+   * can wrap every bubble-batch handler in this without branches).
+   */
+  function confirmIfLocked(scope, bubbleId, message) {
+    if (!bubbleId || !scope) return true;
+    const overrides = scope === 'memory' ? memoryOverrides : loreOverrides;
+    if (!overrides.lockedBubbles.has(String(bubbleId))) return true;
+    return window.confirm(message);
+  }
+
   // ---- handlers ----
 
   const handlers = {
@@ -194,16 +222,40 @@ export async function openMemoryWindow() {
     onDemote:  (id) => { stage.demote(id);  refresh(); },
     onDelete:  (id) => { queueForDeletion(id); stage.remove(id); refresh(); },
 
-    // Bubble-level (batch the same op over all members)
-    onBubblePromote: (entries) => {
+    // Bubble-level (batch the same op over all members).
+    //
+    // If the bubble is LOCKED, the batch action is destructive of the
+    // user's pinning decision — so we confirm first. Once confirmed, we
+    // remove the lock BEFORE running the batch so that the next
+    // recomputeBubbles() prunes the now-empty bubble naturally (empty
+    // locked bubbles are preserved as shells; empty unlocked bubbles
+    // are dropped).
+    //
+    // Individual card actions inside a locked bubble don't confirm — they
+    // are explicitly one-at-a-time gestures and repeated prompts would be
+    // tedious.
+    onBubblePromote: (bubbleId, entries) => {
+      if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
+      if (bubbleId) memoryOverrides.lockedBubbles.delete(String(bubbleId));
       for (const e of entries) stage.promote(e.id);
       refresh();
     },
-    onBubbleDemote: (entries) => {
+    onBubbleDemote: (bubbleId, entries) => {
+      if (!confirmIfLocked('lore', bubbleId, `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`)) return;
+      if (bubbleId) loreOverrides.lockedBubbles.delete(String(bubbleId));
       for (const e of entries) stage.demote(e.id);
       refresh();
     },
-    onBubbleDelete: (entries) => {
+    onBubbleDelete: (bubbleId, entries) => {
+      // Delete is always destructive; confirm when the bubble is locked
+      // so a stray click on a pinned cluster doesn't wipe it silently.
+      // Infer scope from wherever the bubble lives now.
+      const scope = locatedBubbleScope(bubbleId);
+      if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
+      if (bubbleId) {
+        memoryOverrides.lockedBubbles.delete(String(bubbleId));
+        loreOverrides.lockedBubbles.delete(String(bubbleId));
+      }
       for (const e of entries) {
         queueForDeletion(e.id);
         stage.remove(e.id);
