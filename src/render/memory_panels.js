@@ -126,6 +126,11 @@ export function createMemoryPanels({
     const lockMem = s.lockedMemoryIds || new Set();
     const lockLor = s.lockedLoreIds || new Set();
     const delCount = Number(s.deleteCount) || 0;
+    // Usage histograms: Map<entryId, count>. Missing key = entry not
+    // referenced by AI in recent window. Passed to renderBubble → render
+    // the "recently used" dot on cards.
+    const memUsage = s.memoryUsageCounts || new Map();
+    const lorUsage = s.loreUsageCounts   || new Map();
 
     // Header counts: total entries across all bubbles (Ungrouped included)
     const memEntryTotal = countEntries(memB);
@@ -145,7 +150,7 @@ export function createMemoryPanels({
       memoryList,
       memB.length > 0
         ? interleaveDropGaps(
-            memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers)),
+            memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers, memUsage)),
             memB, 'memory', 'bubble', handlers
           )
         : [renderEmptyState('memory')]
@@ -153,7 +158,7 @@ export function createMemoryPanels({
     replaceContents(
       loreList,
       lorB.length > 0
-        ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers))
+        ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage))
         : [renderEmptyState('lore')]
     );
   }
@@ -313,7 +318,7 @@ function buildDeletePanel({ countEl, handlers }) {
 
 // ---- bubble rendering ----
 
-function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
+function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts) {
   const count = bubble.entries.length;
   const chevron = h('span', {
     class: 'pf-mem-bubble-chevron',
@@ -379,6 +384,29 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
   );
   const countBadge = h('span', { class: 'pf-mem-bubble-count' }, [String(count)]);
 
+  // Usage badge: sum of per-entry usage across this bubble's members.
+  // Shown only when at least one member was referenced in the recent
+  // message window. "Used N×" gives an at-a-glance "this bubble is
+  // active" signal; per-card dots in the body give granularity.
+  let usageBadge = null;
+  if (usageCounts && usageCounts.get) {
+    let bubbleUsage = 0;
+    let usedMembers = 0;
+    for (const e of bubble.entries) {
+      const c = usageCounts.get(String(e.id)) || 0;
+      if (c > 0) {
+        bubbleUsage += c;
+        usedMembers++;
+      }
+    }
+    if (bubbleUsage > 0) {
+      usageBadge = h('span', {
+        class: 'pf-mem-bubble-used',
+        title: `${usedMembers} of ${count} memor${count === 1 ? 'y' : 'ies'} referenced ${bubbleUsage}× in recent messages`,
+      }, [`used ${bubbleUsage}×`]);
+    }
+  }
+
   // Lock toggle — shown on every bubble (Memory AND Lore; only Memory
   // lock actually prevents reorder in 7d, but the visual is consistent).
   const lockBtn = h('button', {
@@ -399,7 +427,9 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
   // for expand/collapse. Actions (Promote, Lock, Delete) are inline.
   const headerChildren = [];
   if (grip) headerChildren.push(grip);
-  headerChildren.push(chevron, labelStack, countBadge, lockBtn, buildBubbleActions(bubble, scope, handlers));
+  headerChildren.push(chevron, labelStack, countBadge);
+  if (usageBadge) headerChildren.push(usageBadge);
+  headerChildren.push(lockBtn, buildBubbleActions(bubble, scope, handlers));
 
   const header = h('div', {
     class: `pf-mem-bubble-header ${isLocked ? 'pf-mem-bubble-header-locked' : ''}`,
@@ -447,7 +477,10 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
   // For Memory/unlocked bubbles, interleave drop-gaps between cards
   // to enable within-bubble reorder.
   const cardNodes = isExpanded
-    ? bubble.entries.map(entry => renderCard(entry, { scope, bubbleId: bubble.id, isLocked }, handlers))
+    ? bubble.entries.map(entry => {
+        const useCount = (usageCounts && usageCounts.get) ? (usageCounts.get(String(entry.id)) || 0) : 0;
+        return renderCard(entry, { scope, bubbleId: bubble.id, isLocked, useCount }, handlers);
+      })
     : [];
   const bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
     ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
@@ -546,6 +579,23 @@ function renderCard(item, parent, handlers) {
 
   const cardChildren = [];
   if (grip) cardChildren.push(grip);
+
+  // "Recently used" indicator: a small dot on the left side of the text
+  // when this entry was referenced by the AI in the recent message
+  // window. Opacity scales with usage count (clamped) so a memory used
+  // 1× is a pale dot, used 5×+ is solid.
+  const useCount = Number(parentCtx.useCount) || 0;
+  if (useCount > 0) {
+    const opacity = Math.min(1, 0.35 + (useCount - 1) * 0.15);
+    const usedDot = h('span', {
+      class: 'pf-mem-card-used-dot',
+      title: `Referenced ${useCount}× in recent messages`,
+      'aria-label': `Referenced ${useCount} time${useCount === 1 ? '' : 's'} recently`,
+      style: { opacity: String(opacity.toFixed(2)) },
+    }, ['•']);
+    cardChildren.push(usedDot);
+  }
+
   cardChildren.push(
     h('div', { class: 'pf-mem-card-text' }, [String(item.text || '')]),
     buildCardActions(item, handlers),

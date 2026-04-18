@@ -132,6 +132,75 @@ async function maybeEmbedBatch(texts, modelName) {
 // ---- read path ----
 
 /**
+ * Read how often each memory/lore entry was referenced by the AI across
+ * the last N messages in the thread. Upstream stores this as
+ * `message.memoryIdBatchesUsed` (composite ID arrays) and
+ * `message.loreIdsUsed` (numeric lore IDs).
+ *
+ * Supports both upstream memory-storage models:
+ *   - "Old" model: `memoryIdBatchesUsed[i]` is an array of numeric ids
+ *     referring to rows in `db.memories` (legacy).
+ *   - "New" model: `memoryIdBatchesUsed[i]` is an array of strings like
+ *     `${messageId}|${level}|${indexInLevel}` — matches our composite
+ *     IDs directly. All current threads use this.
+ *
+ * Returns histograms: Map<compositeId, count> for memory, Map<loreId, count>
+ * for lore. Entries not referenced in the window are absent from the map.
+ *
+ * @param {{ threadId?: number, lastN?: number }} [opts]
+ * @returns {Promise<{
+ *   memoryCounts: Map<string, number>,
+ *   loreCounts: Map<number, number>,
+ *   messagesScanned: number,
+ * }>}
+ */
+export async function loadUsageHistogram({ threadId = activeThreadId(), lastN = 10 } = {}) {
+  const db = safeDb();
+  const empty = { memoryCounts: new Map(), loreCounts: new Map(), messagesScanned: 0 };
+  if (!db || threadId == null) return empty;
+
+  const messages = await db.messages
+    .where('threadId').equals(threadId)
+    .toArray()
+    .catch(() => []);
+  if (messages.length === 0) return empty;
+
+  // Last N by id (chronological). Messages without retrieval data (e.g.,
+  // user inputs) contribute nothing — the relevant field is only populated
+  // on AI-generated messages.
+  messages.sort((a, b) => (a.id || 0) - (b.id || 0));
+  const recent = messages.slice(Math.max(0, messages.length - lastN));
+
+  const memoryCounts = new Map();
+  const loreCounts = new Map();
+
+  for (const m of recent) {
+    const batches = Array.isArray(m.memoryIdBatchesUsed) ? m.memoryIdBatchesUsed : [];
+    for (const batch of batches) {
+      if (!Array.isArray(batch)) continue;
+      for (const id of batch) {
+        // New-model composite IDs: "3|1|2". Only these apply to our tool
+        // (we exclusively use the new model for reads/writes).
+        if (typeof id === 'string' && id.split('|').length === 3) {
+          memoryCounts.set(id, (memoryCounts.get(id) || 0) + 1);
+        }
+        // Old-model numeric ids are silently ignored — legacy data predates
+        // our tool's applicability and the UI can't map them back anyway.
+      }
+    }
+
+    const loreIds = Array.isArray(m.loreIdsUsed) ? m.loreIdsUsed : [];
+    for (const id of loreIds) {
+      if (typeof id === 'number') {
+        loreCounts.set(id, (loreCounts.get(id) || 0) + 1);
+      }
+    }
+  }
+
+  return { memoryCounts, loreCounts, messagesScanned: recent.length };
+}
+
+/**
  * Read the complete memory + lore set for the currently-active thread.
  *
  * Memories are flattened from message.memoriesEndingHere[level][*] across

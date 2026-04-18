@@ -17943,6 +17943,75 @@ Use this template for your response:
   // ---- read path ----
 
   /**
+   * Read how often each memory/lore entry was referenced by the AI across
+   * the last N messages in the thread. Upstream stores this as
+   * `message.memoryIdBatchesUsed` (composite ID arrays) and
+   * `message.loreIdsUsed` (numeric lore IDs).
+   *
+   * Supports both upstream memory-storage models:
+   *   - "Old" model: `memoryIdBatchesUsed[i]` is an array of numeric ids
+   *     referring to rows in `db.memories` (legacy).
+   *   - "New" model: `memoryIdBatchesUsed[i]` is an array of strings like
+   *     `${messageId}|${level}|${indexInLevel}` — matches our composite
+   *     IDs directly. All current threads use this.
+   *
+   * Returns histograms: Map<compositeId, count> for memory, Map<loreId, count>
+   * for lore. Entries not referenced in the window are absent from the map.
+   *
+   * @param {{ threadId?: number, lastN?: number }} [opts]
+   * @returns {Promise<{
+   *   memoryCounts: Map<string, number>,
+   *   loreCounts: Map<number, number>,
+   *   messagesScanned: number,
+   * }>}
+   */
+  async function loadUsageHistogram({ threadId = activeThreadId(), lastN = 10 } = {}) {
+    const db = safeDb();
+    const empty = { memoryCounts: new Map(), loreCounts: new Map(), messagesScanned: 0 };
+    if (!db || threadId == null) return empty;
+
+    const messages = await db.messages
+      .where('threadId').equals(threadId)
+      .toArray()
+      .catch(() => []);
+    if (messages.length === 0) return empty;
+
+    // Last N by id (chronological). Messages without retrieval data (e.g.,
+    // user inputs) contribute nothing — the relevant field is only populated
+    // on AI-generated messages.
+    messages.sort((a, b) => (a.id || 0) - (b.id || 0));
+    const recent = messages.slice(Math.max(0, messages.length - lastN));
+
+    const memoryCounts = new Map();
+    const loreCounts = new Map();
+
+    for (const m of recent) {
+      const batches = Array.isArray(m.memoryIdBatchesUsed) ? m.memoryIdBatchesUsed : [];
+      for (const batch of batches) {
+        if (!Array.isArray(batch)) continue;
+        for (const id of batch) {
+          // New-model composite IDs: "3|1|2". Only these apply to our tool
+          // (we exclusively use the new model for reads/writes).
+          if (typeof id === 'string' && id.split('|').length === 3) {
+            memoryCounts.set(id, (memoryCounts.get(id) || 0) + 1);
+          }
+          // Old-model numeric ids are silently ignored — legacy data predates
+          // our tool's applicability and the UI can't map them back anyway.
+        }
+      }
+
+      const loreIds = Array.isArray(m.loreIdsUsed) ? m.loreIdsUsed : [];
+      for (const id of loreIds) {
+        if (typeof id === 'number') {
+          loreCounts.set(id, (loreCounts.get(id) || 0) + 1);
+        }
+      }
+    }
+
+    return { memoryCounts, loreCounts, messagesScanned: recent.length };
+  }
+
+  /**
    * Read the complete memory + lore set for the currently-active thread.
    *
    * Memories are flattened from message.memoriesEndingHere[level][*] across
@@ -20349,6 +20418,35 @@ Use this template for your response:
     opacity: 0.8;
   }
 
+  /* "Recently used" indicator on a bubble header: appears when at least
+     one member was referenced by the AI in the recent message window.
+     Teal-ish accent so it doesn't collide with the lock's gold, the delete
+     column's red, or the promote button's neutral. */
+  .pf-mem-bubble-used {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: rgba(87, 178, 173, 0.18);
+    color: rgba(160, 220, 215, 0.95);
+    border: 1px solid rgba(87, 178, 173, 0.35);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  /* Per-card dot: appears to the left of the card text when this specific
+     entry was referenced. Dot opacity scales inline via style="opacity: X".
+     Same teal as the bubble-level badge. */
+  .pf-mem-card-used-dot {
+    color: rgb(87, 178, 173);
+    font-size: 16px;
+    line-height: 1;
+    margin-right: 6px;
+    align-self: center;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
   /* Drop-gap elements for reorder (7d). Thin horizontal strips between
      sibling bubbles (in the Memory column) and between sibling cards
      (inside an expanded Memory bubble body). Become visible on dragover
@@ -21641,6 +21739,11 @@ Use this template for your response:
       const lockMem = s.lockedMemoryIds || new Set();
       const lockLor = s.lockedLoreIds || new Set();
       const delCount = Number(s.deleteCount) || 0;
+      // Usage histograms: Map<entryId, count>. Missing key = entry not
+      // referenced by AI in recent window. Passed to renderBubble → render
+      // the "recently used" dot on cards.
+      const memUsage = s.memoryUsageCounts || new Map();
+      const lorUsage = s.loreUsageCounts   || new Map();
 
       // Header counts: total entries across all bubbles (Ungrouped included)
       const memEntryTotal = countEntries(memB);
@@ -21660,7 +21763,7 @@ Use this template for your response:
         memoryList,
         memB.length > 0
           ? interleaveDropGaps(
-              memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers)),
+              memB.map(b => renderBubble(b, expMem.has(b.id), lockMem.has(b.id), 'memory', handlers, memUsage)),
               memB, 'memory', 'bubble', handlers
             )
           : [renderEmptyState('memory')]
@@ -21668,7 +21771,7 @@ Use this template for your response:
       replaceContents(
         loreList,
         lorB.length > 0
-          ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers))
+          ? lorB.map(b => renderBubble(b, expLor.has(b.id), lockLor.has(b.id), 'lore', handlers, lorUsage))
           : [renderEmptyState('lore')]
       );
     }
@@ -21828,7 +21931,7 @@ Use this template for your response:
 
   // ---- bubble rendering ----
 
-  function renderBubble(bubble, isExpanded, isLocked, scope, handlers) {
+  function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts) {
     const count = bubble.entries.length;
     const chevron = h('span', {
       class: 'pf-mem-bubble-chevron',
@@ -21894,6 +21997,29 @@ Use this template for your response:
     );
     const countBadge = h('span', { class: 'pf-mem-bubble-count' }, [String(count)]);
 
+    // Usage badge: sum of per-entry usage across this bubble's members.
+    // Shown only when at least one member was referenced in the recent
+    // message window. "Used N×" gives an at-a-glance "this bubble is
+    // active" signal; per-card dots in the body give granularity.
+    let usageBadge = null;
+    if (usageCounts && usageCounts.get) {
+      let bubbleUsage = 0;
+      let usedMembers = 0;
+      for (const e of bubble.entries) {
+        const c = usageCounts.get(String(e.id)) || 0;
+        if (c > 0) {
+          bubbleUsage += c;
+          usedMembers++;
+        }
+      }
+      if (bubbleUsage > 0) {
+        usageBadge = h('span', {
+          class: 'pf-mem-bubble-used',
+          title: `${usedMembers} of ${count} memor${count === 1 ? 'y' : 'ies'} referenced ${bubbleUsage}× in recent messages`,
+        }, [`used ${bubbleUsage}×`]);
+      }
+    }
+
     // Lock toggle — shown on every bubble (Memory AND Lore; only Memory
     // lock actually prevents reorder in 7d, but the visual is consistent).
     const lockBtn = h('button', {
@@ -21914,7 +22040,9 @@ Use this template for your response:
     // for expand/collapse. Actions (Promote, Lock, Delete) are inline.
     const headerChildren = [];
     if (grip) headerChildren.push(grip);
-    headerChildren.push(chevron, labelStack, countBadge, lockBtn, buildBubbleActions(bubble, scope, handlers));
+    headerChildren.push(chevron, labelStack, countBadge);
+    if (usageBadge) headerChildren.push(usageBadge);
+    headerChildren.push(lockBtn, buildBubbleActions(bubble, scope, handlers));
 
     const header = h('div', {
       class: `pf-mem-bubble-header ${isLocked ? 'pf-mem-bubble-header-locked' : ''}`,
@@ -21962,7 +22090,10 @@ Use this template for your response:
     // For Memory/unlocked bubbles, interleave drop-gaps between cards
     // to enable within-bubble reorder.
     const cardNodes = isExpanded
-      ? bubble.entries.map(entry => renderCard(entry, { scope, bubbleId: bubble.id, isLocked }, handlers))
+      ? bubble.entries.map(entry => {
+          const useCount = (usageCounts && usageCounts.get) ? (usageCounts.get(String(entry.id)) || 0) : 0;
+          return renderCard(entry, { scope, bubbleId: bubble.id, isLocked, useCount }, handlers);
+        })
       : [];
     const bodyChildren = (isExpanded && scope === 'memory' && !isLocked)
       ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
@@ -22061,6 +22192,23 @@ Use this template for your response:
 
     const cardChildren = [];
     if (grip) cardChildren.push(grip);
+
+    // "Recently used" indicator: a small dot on the left side of the text
+    // when this entry was referenced by the AI in the recent message
+    // window. Opacity scales with usage count (clamped) so a memory used
+    // 1× is a pale dot, used 5×+ is solid.
+    const useCount = Number(parentCtx.useCount) || 0;
+    if (useCount > 0) {
+      const opacity = Math.min(1, 0.35 + (useCount - 1) * 0.15);
+      const usedDot = h('span', {
+        class: 'pf-mem-card-used-dot',
+        title: `Referenced ${useCount}× in recent messages`,
+        'aria-label': `Referenced ${useCount} time${useCount === 1 ? '' : 's'} recently`,
+        style: { opacity: String(opacity.toFixed(2)) },
+      }, ['•']);
+      cardChildren.push(usedDot);
+    }
+
     cardChildren.push(
       h('div', { class: 'pf-mem-card-text' }, [String(item.text || '')]),
       buildCardActions(item, handlers),
@@ -22462,6 +22610,14 @@ Use this template for your response:
       return;
     }
 
+    // Usage histogram: which memories/lore have been referenced by the AI
+    // across the last N messages. Drives the "recently used" dot indicator
+    // on cards. Load failure is non-fatal — cards just render without dots.
+    let usageHistogram = { memoryCounts: new Map(), loreCounts: new Map(), messagesScanned: 0 };
+    try {
+      usageHistogram = await loadUsageHistogram({ lastN: 10 });
+    } catch { /* soft-fail — dots are a hint, not core functionality */ }
+
     const threadLabel = await getActiveThreadLabel();
 
     // ---- stage + delete queue ----
@@ -22589,16 +22745,28 @@ Use this template for your response:
       return count;
     }
 
-    function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
-      recomputeBubbles({ resetMemoryK, resetLoreK });
-      overlay.updatePanels({
+    /**
+     * Build the state object that gets passed to overlay.updatePanels(...).
+     * Centralized so every call site stays in sync — this is especially
+     * important for things like usage histograms that were added after the
+     * original design. Add new fields here once, not five times.
+     */
+    function panelsState() {
+      return {
         memoryBubbles, loreBubbles,
         memoryK, loreK,
         expandedMemoryIds, expandedLoreIds,
         lockedMemoryIds: memoryOverrides.lockedBubbles,
         lockedLoreIds:   loreOverrides.lockedBubbles,
         deleteCount: pendingDeletions.size,
-      });
+        memoryUsageCounts: usageHistogram.memoryCounts,
+        loreUsageCounts:   usageHistogram.loreCounts,
+      };
+    }
+
+    function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
+      recomputeBubbles({ resetMemoryK, resetLoreK });
+      overlay.updatePanels(panelsState());
       overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
     }
 
@@ -22844,13 +23012,7 @@ Use this template for your response:
               expandedMemoryIds.delete(id);
             }
           }
-          overlay.updatePanels({
-            memoryBubbles, loreBubbles, memoryK, loreK,
-            expandedMemoryIds, expandedLoreIds,
-            lockedMemoryIds: memoryOverrides.lockedBubbles,
-            lockedLoreIds:   loreOverrides.lockedBubbles,
-            deleteCount: pendingDeletions.size,
-          });
+          overlay.updatePanels(panelsState());
         } else if (scope === 'lore') {
           const { lore } = currentEntriesPerScope();
           const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
@@ -22869,13 +23031,7 @@ Use this template for your response:
               expandedLoreIds.delete(id);
             }
           }
-          overlay.updatePanels({
-            memoryBubbles, loreBubbles, memoryK, loreK,
-            expandedMemoryIds, expandedLoreIds,
-            lockedMemoryIds: memoryOverrides.lockedBubbles,
-            lockedLoreIds:   loreOverrides.lockedBubbles,
-            deleteCount: pendingDeletions.size,
-          });
+          overlay.updatePanels(panelsState());
         }
       },
 
@@ -22884,13 +23040,7 @@ Use this template for your response:
         const set = scope === 'memory' ? expandedMemoryIds : expandedLoreIds;
         if (set.has(bubbleId)) set.delete(bubbleId);
         else set.add(bubbleId);
-        overlay.updatePanels({
-          memoryBubbles, loreBubbles, memoryK, loreK,
-          expandedMemoryIds, expandedLoreIds,
-          lockedMemoryIds: memoryOverrides.lockedBubbles,
-          lockedLoreIds:   loreOverrides.lockedBubbles,
-          deleteCount: pendingDeletions.size,
-        });
+        overlay.updatePanels(panelsState());
       },
 
       // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
@@ -22920,13 +23070,7 @@ Use this template for your response:
           }
         }
 
-        overlay.updatePanels({
-          memoryBubbles, loreBubbles, memoryK, loreK,
-          expandedMemoryIds, expandedLoreIds,
-          lockedMemoryIds: memoryOverrides.lockedBubbles,
-          lockedLoreIds:   loreOverrides.lockedBubbles,
-          deleteCount: pendingDeletions.size,
-        });
+        overlay.updatePanels(panelsState());
       },
 
       // Footer actions

@@ -41,6 +41,48 @@ export const CSS = `
   outline-offset: 1px;
 }
 
+/* Memory & Lore open-button sitting below the mini-card. Sized to match
+   the mini-card's padding/border so the two read as a single sidebar
+   group. Gold-accented to match the Bubble tool's visual language. */
+.pf-memory-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  margin-bottom: 0.5rem;
+  background: var(--box-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-color);
+  cursor: pointer;
+  user-select: none;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.pf-memory-button:hover {
+  background: var(--box-color-hover, var(--box-color));
+  border-color: rgba(216, 179, 106, 0.4);
+}
+.pf-memory-button:active {
+  transform: translateY(1px);
+}
+.pf-memory-button:focus-visible {
+  outline: 2px solid var(--link-color, #4a90e2);
+  outline-offset: 1px;
+}
+.pf-memory-button-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.pf-memory-button-label {
+  flex: 1;
+  font-weight: 500;
+}
+
 .pf-mini-avatar {
   flex-shrink: 0;
   width: 40px;
@@ -1884,6 +1926,35 @@ export const CSS = `
   background: rgba(0, 0, 0, 0.25);
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
+}
+
+/* "Recently used" indicator on a bubble header: appears when at least
+   one member was referenced by the AI in the recent message window.
+   Teal-ish accent so it doesn't collide with the lock's gold, the delete
+   column's red, or the promote button's neutral. */
+.pf-mem-bubble-used {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: rgba(87, 178, 173, 0.18);
+  color: rgba(160, 220, 215, 0.95);
+  border: 1px solid rgba(87, 178, 173, 0.35);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* Per-card dot: appears to the left of the card text when this specific
+   entry was referenced. Dot opacity scales inline via style="opacity: X".
+   Same teal as the bubble-level badge. */
+.pf-mem-card-used-dot {
+  color: rgb(87, 178, 173);
+  font-size: 16px;
+  line-height: 1;
+  margin-right: 6px;
+  align-self: center;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 /* Drop-gap elements for reorder (7d). Thin horizontal strips between

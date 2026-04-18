@@ -571,3 +571,106 @@ test('formatDiffSummary: multiple changes joined cleanly', async () => {
   assert.match(r, /new lore/);
   assert.match(r, /memory deletion/);
 });
+
+// ---- loadUsageHistogram ----
+
+test('loadUsageHistogram: returns empty maps when window.db missing', async () => {
+  resetWindow();
+  globalThis.window = {};
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram();
+  assert.equal(r.memoryCounts.size, 0);
+  assert.equal(r.loreCounts.size, 0);
+  assert.equal(r.messagesScanned, 0);
+});
+
+test('loadUsageHistogram: counts composite-id memories across messages', async () => {
+  resetWindow();
+  const db = createMockDb({
+    messages: [
+      {
+        id: 1, threadId: 100,
+        memoryIdBatchesUsed: [['1|1|0', '1|1|1']],
+        loreIdsUsed: [],
+      },
+      {
+        id: 2, threadId: 100,
+        memoryIdBatchesUsed: [['1|1|0'], ['3|1|0']],
+        loreIdsUsed: [],
+      },
+    ],
+  });
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram({ threadId: 100, lastN: 10 });
+  assert.equal(r.memoryCounts.get('1|1|0'), 2);
+  assert.equal(r.memoryCounts.get('1|1|1'), 1);
+  assert.equal(r.memoryCounts.get('3|1|0'), 1);
+  assert.equal(r.messagesScanned, 2);
+});
+
+test('loadUsageHistogram: counts lore ids', async () => {
+  resetWindow();
+  const db = createMockDb({
+    messages: [
+      { id: 1, threadId: 100, memoryIdBatchesUsed: [], loreIdsUsed: [42, 43] },
+      { id: 2, threadId: 100, memoryIdBatchesUsed: [], loreIdsUsed: [42, 44] },
+    ],
+  });
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram({ threadId: 100 });
+  assert.equal(r.loreCounts.get(42), 2);
+  assert.equal(r.loreCounts.get(43), 1);
+  assert.equal(r.loreCounts.get(44), 1);
+});
+
+test('loadUsageHistogram: ignores old-model numeric memory ids', async () => {
+  // Old storage format used numeric IDs pointing into db.memories. Our tool
+  // doesn't read db.memories, so these should be silently dropped.
+  resetWindow();
+  const db = createMockDb({
+    messages: [
+      { id: 1, threadId: 100, memoryIdBatchesUsed: [[99, 100, 101]], loreIdsUsed: [] },
+    ],
+  });
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram({ threadId: 100 });
+  assert.equal(r.memoryCounts.size, 0);
+});
+
+test('loadUsageHistogram: respects lastN window', async () => {
+  resetWindow();
+  const messages = [];
+  for (let i = 1; i <= 20; i++) {
+    messages.push({
+      id: i, threadId: 100,
+      memoryIdBatchesUsed: [[`${i}|1|0`]],
+      loreIdsUsed: [],
+    });
+  }
+  const db = createMockDb({ messages });
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram({ threadId: 100, lastN: 5 });
+  assert.equal(r.messagesScanned, 5);
+  assert.ok(!r.memoryCounts.has('10|1|0'));
+  assert.ok(r.memoryCounts.has('16|1|0'));
+  assert.ok(r.memoryCounts.has('20|1|0'));
+});
+
+test('loadUsageHistogram: malformed data does not throw', async () => {
+  resetWindow();
+  const db = createMockDb({
+    messages: [
+      { id: 1, threadId: 100, memoryIdBatchesUsed: null, loreIdsUsed: undefined },
+      { id: 2, threadId: 100, memoryIdBatchesUsed: [null, 'not-an-array'], loreIdsUsed: [] },
+      { id: 3, threadId: 100, memoryIdBatchesUsed: [['valid|1|0', null, undefined]], loreIdsUsed: [] },
+    ],
+  });
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadUsageHistogram } = await loadDbModule();
+  const r = await loadUsageHistogram({ threadId: 100 });
+  assert.equal(r.memoryCounts.get('valid|1|0'), 1);
+});

@@ -19,7 +19,7 @@
 // The window module owns: DOM.
 // stage.js knows nothing about bubbles.
 
-import { probeSchema, loadBaseline, commitDiff, formatDiffSummary } from './db.js';
+import { probeSchema, loadBaseline, loadUsageHistogram, commitDiff, formatDiffSummary } from './db.js';
 import { createStage } from './stage.js';
 import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
@@ -63,6 +63,14 @@ export async function openMemoryWindow() {
     );
     return;
   }
+
+  // Usage histogram: which memories/lore have been referenced by the AI
+  // across the last N messages. Drives the "recently used" dot indicator
+  // on cards. Load failure is non-fatal — cards just render without dots.
+  let usageHistogram = { memoryCounts: new Map(), loreCounts: new Map(), messagesScanned: 0 };
+  try {
+    usageHistogram = await loadUsageHistogram({ lastN: 10 });
+  } catch { /* soft-fail — dots are a hint, not core functionality */ }
 
   const threadLabel = await getActiveThreadLabel();
 
@@ -191,16 +199,28 @@ export async function openMemoryWindow() {
     return count;
   }
 
-  function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
-    recomputeBubbles({ resetMemoryK, resetLoreK });
-    overlay.updatePanels({
+  /**
+   * Build the state object that gets passed to overlay.updatePanels(...).
+   * Centralized so every call site stays in sync — this is especially
+   * important for things like usage histograms that were added after the
+   * original design. Add new fields here once, not five times.
+   */
+  function panelsState() {
+    return {
       memoryBubbles, loreBubbles,
       memoryK, loreK,
       expandedMemoryIds, expandedLoreIds,
       lockedMemoryIds: memoryOverrides.lockedBubbles,
       lockedLoreIds:   loreOverrides.lockedBubbles,
       deleteCount: pendingDeletions.size,
-    });
+      memoryUsageCounts: usageHistogram.memoryCounts,
+      loreUsageCounts:   usageHistogram.loreCounts,
+    };
+  }
+
+  function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
+    recomputeBubbles({ resetMemoryK, resetLoreK });
+    overlay.updatePanels(panelsState());
     overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
   }
 
@@ -446,13 +466,7 @@ export async function openMemoryWindow() {
             expandedMemoryIds.delete(id);
           }
         }
-        overlay.updatePanels({
-          memoryBubbles, loreBubbles, memoryK, loreK,
-          expandedMemoryIds, expandedLoreIds,
-          lockedMemoryIds: memoryOverrides.lockedBubbles,
-          lockedLoreIds:   loreOverrides.lockedBubbles,
-          deleteCount: pendingDeletions.size,
-        });
+        overlay.updatePanels(panelsState());
       } else if (scope === 'lore') {
         const { lore } = currentEntriesPerScope();
         const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
@@ -471,13 +485,7 @@ export async function openMemoryWindow() {
             expandedLoreIds.delete(id);
           }
         }
-        overlay.updatePanels({
-          memoryBubbles, loreBubbles, memoryK, loreK,
-          expandedMemoryIds, expandedLoreIds,
-          lockedMemoryIds: memoryOverrides.lockedBubbles,
-          lockedLoreIds:   loreOverrides.lockedBubbles,
-          deleteCount: pendingDeletions.size,
-        });
+        overlay.updatePanels(panelsState());
       }
     },
 
@@ -486,13 +494,7 @@ export async function openMemoryWindow() {
       const set = scope === 'memory' ? expandedMemoryIds : expandedLoreIds;
       if (set.has(bubbleId)) set.delete(bubbleId);
       else set.add(bubbleId);
-      overlay.updatePanels({
-        memoryBubbles, loreBubbles, memoryK, loreK,
-        expandedMemoryIds, expandedLoreIds,
-        lockedMemoryIds: memoryOverrides.lockedBubbles,
-        lockedLoreIds:   loreOverrides.lockedBubbles,
-        deleteCount: pendingDeletions.size,
-      });
+      overlay.updatePanels(panelsState());
     },
 
     // Lock toggle — session state is kept in memoryOverrides.lockedBubbles,
@@ -522,13 +524,7 @@ export async function openMemoryWindow() {
         }
       }
 
-      overlay.updatePanels({
-        memoryBubbles, loreBubbles, memoryK, loreK,
-        expandedMemoryIds, expandedLoreIds,
-        lockedMemoryIds: memoryOverrides.lockedBubbles,
-        lockedLoreIds:   loreOverrides.lockedBubbles,
-        deleteCount: pendingDeletions.size,
-      });
+      overlay.updatePanels(panelsState());
     },
 
     // Footer actions
