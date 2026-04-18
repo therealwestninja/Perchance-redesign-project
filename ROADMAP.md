@@ -310,20 +310,6 @@ this task is.
 
 ---
 
-## Save stats / summary UI
-
-After a successful save, the window closes silently. The commitDiff
-return value includes stats (`stats.addedMemory`, `stats.reorderedMemory`,
-etc.) but they're discarded. Could show a small toast or modal:
-"Saved: 3 memories edited, 2 promoted to lore, 15 reordered."
-
-Especially valuable for 7e's reorder-on-save — user wants to know
-their reorder actually hit disk, not just "the window closed."
-
-**Scope:** ~60 lines + UI.
-
----
-
 ## Settings modal + rename threshold slider
 
 **Status: follow-up to rename-bug-fix commit.**

@@ -18951,6 +18951,45 @@ Use this template for your response:
     return `Save: ${parts.slice(0, -1).join(', ')}, and ${parts.slice(-1)}. Continue?`;
   }
 
+  /**
+   * Human-readable summary of a stats object returned by commitDiff.
+   * Used to show a post-save confirmation banner so the user can see
+   * what their save actually did.
+   *
+   * Unlike formatDiffSummary (which summarizes the INTENTION — what will
+   * be saved), this summarizes the RESULT — what landed on disk.
+   *
+   * Returns null when there's nothing meaningful to report (stats all
+   * zero or missing).
+   *
+   * @param {object} stats
+   * @returns {string | null}
+   */
+  function formatSaveStatsSummary(stats) {
+    if (!stats || typeof stats !== 'object') return null;
+    const parts = [];
+    const add = (n, singular, plural) => {
+      const v = Number(n) || 0;
+      if (v > 0) parts.push(`${v} ${v === 1 ? singular : plural}`);
+    };
+
+    add(stats.addedMemory,       'new memory',         'new memories');
+    add(stats.addedLore,         'new lore entry',     'new lore entries');
+    add(stats.editedMemoryText,  'memory edit',        'memory edits');
+    add(stats.editedLoreText,    'lore edit',          'lore edits');
+    add(stats.promoted,          'promote',            'promotes');
+    add(stats.demoted,           'demote',             'demotes');
+    add(stats.deletedMemory,     'memory deletion',    'memory deletions');
+    add(stats.deletedLore,       'lore deletion',      'lore deletions');
+    add(stats.reorderedMemory,   'memory reorder',     'memories reordered');
+    add(stats.reorderedLore,     'lore reorder',       'lore entries reordered');
+
+    if (parts.length === 0) return null;
+    if (parts.length === 1) return `Saved: ${parts[0]}.`;
+    if (parts.length === 2) return `Saved: ${parts.join(' and ')}.`;
+    return `Saved: ${parts.slice(0, -1).join(', ')}, and ${parts.slice(-1)}.`;
+  }
+
   /* ──────────────────────────────────────────────────────────
      module: render/styles.js
      ────────────────────────────────────────────────────────── */
@@ -20573,6 +20612,7 @@ Use this template for your response:
     flex-direction: column;
     gap: 16px;
     min-height: 60vh;
+    position: relative;  /* anchors the floating save-banner (absolute) */
   }
 
   .pf-mem-header {
@@ -21171,6 +21211,40 @@ Use this template for your response:
   .pf-mem-footer-right {
     display: flex;
     gap: 8px;
+  }
+
+  /* Post-save confirmation banner. A floating pill that appears briefly
+     above the footer to confirm what landed on disk. Positioned via the
+     wrapper (which is position:relative implicitly by being a flex col)
+     so it doesn't displace layout. */
+  .pf-mem-save-banner {
+    position: absolute;
+    left: 50%;
+    bottom: 70px;
+    transform: translate(-50%, 8px);
+    background: rgba(20, 40, 20, 0.92);
+    border: 1px solid rgba(100, 200, 120, 0.55);
+    color: rgba(200, 240, 210, 0.95);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 10;
+    white-space: nowrap;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pf-mem-save-banner[hidden] {
+    display: none;
+  }
+  .pf-mem-save-banner-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 
   .pf-mem-btn {
@@ -23253,7 +23327,18 @@ Use this template for your response:
       h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
     ]);
 
-    const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer]);
+    // Post-save confirmation banner. Appears briefly to confirm what was
+    // saved ("Saved: 3 edits, 15 reordered."), then hides. Sits as a
+    // floating pill in the wrapper, anchored above the footer. Starts
+    // hidden; shown via overlay.showSaveBanner(text).
+    const saveBanner = h('div', {
+      class: 'pf-mem-save-banner',
+      role: 'status',
+      'aria-live': 'polite',
+      hidden: true,
+    });
+
+    const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer, saveBanner]);
 
     const overlay = createOverlay({
       ariaLabel: 'Memory and Lore',
@@ -23267,6 +23352,24 @@ Use this template for your response:
     overlay.setSaveEnabled = (enabled) => { saveBtn.disabled = !enabled; };
     overlay.setSaveLabel = (label) => {
       if (typeof label === 'string') saveBtn.textContent = label;
+    };
+
+    // Show a brief save-confirmation banner, then fade it out. Returns a
+    // Promise that resolves after the banner has been visible for `ms`
+    // milliseconds, so callers can await before hiding the overlay.
+    overlay.showSaveBanner = (text, { ms = 1800 } = {}) => {
+      saveBanner.textContent = text || '';
+      saveBanner.hidden = !text;
+      // Force a reflow so the enter transition actually animates
+      void saveBanner.offsetWidth;
+      saveBanner.classList.add('pf-mem-save-banner-visible');
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          saveBanner.classList.remove('pf-mem-save-banner-visible');
+          // After transition, hide so it's not tabbable / screen-reader-noisy
+          setTimeout(() => { saveBanner.hidden = true; resolve(); }, 200);
+        }, ms);
+      });
     };
 
     return overlay;
@@ -23955,6 +24058,16 @@ Use this template for your response:
           overlay.setSaveLabel('Save');
           overlay.setSaveEnabled(true);
           return;
+        }
+
+        // Show a brief confirmation of what landed on disk. For reorder-
+        // only saves the stats object has reorderedMemory/reorderedLore
+        // counts; for edits/adds/deletes it has those specific counters.
+        // If formatSaveStatsSummary returns null (shouldn't happen after
+        // a successful save with changes), fall back to a generic message.
+        const summary = formatSaveStatsSummary(result.stats) || 'Saved.';
+        if (typeof overlay.showSaveBanner === 'function') {
+          await overlay.showSaveBanner(summary);
         }
         overlay.hide();
       },

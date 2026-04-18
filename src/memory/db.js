@@ -705,3 +705,42 @@ export function formatDiffSummary(diff) {
   if (parts.length === 2) return `Save: ${parts.join(' and ')}. Continue?`;
   return `Save: ${parts.slice(0, -1).join(', ')}, and ${parts.slice(-1)}. Continue?`;
 }
+
+/**
+ * Human-readable summary of a stats object returned by commitDiff.
+ * Used to show a post-save confirmation banner so the user can see
+ * what their save actually did.
+ *
+ * Unlike formatDiffSummary (which summarizes the INTENTION — what will
+ * be saved), this summarizes the RESULT — what landed on disk.
+ *
+ * Returns null when there's nothing meaningful to report (stats all
+ * zero or missing).
+ *
+ * @param {object} stats
+ * @returns {string | null}
+ */
+export function formatSaveStatsSummary(stats) {
+  if (!stats || typeof stats !== 'object') return null;
+  const parts = [];
+  const add = (n, singular, plural) => {
+    const v = Number(n) || 0;
+    if (v > 0) parts.push(`${v} ${v === 1 ? singular : plural}`);
+  };
+
+  add(stats.addedMemory,       'new memory',         'new memories');
+  add(stats.addedLore,         'new lore entry',     'new lore entries');
+  add(stats.editedMemoryText,  'memory edit',        'memory edits');
+  add(stats.editedLoreText,    'lore edit',          'lore edits');
+  add(stats.promoted,          'promote',            'promotes');
+  add(stats.demoted,           'demote',             'demotes');
+  add(stats.deletedMemory,     'memory deletion',    'memory deletions');
+  add(stats.deletedLore,       'lore deletion',      'lore deletions');
+  add(stats.reorderedMemory,   'memory reorder',     'memories reordered');
+  add(stats.reorderedLore,     'lore reorder',       'lore entries reordered');
+
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return `Saved: ${parts[0]}.`;
+  if (parts.length === 2) return `Saved: ${parts.join(' and ')}.`;
+  return `Saved: ${parts.slice(0, -1).join(', ')}, and ${parts.slice(-1)}.`;
+}

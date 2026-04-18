@@ -100,7 +100,18 @@ export function createMemoryWindow({
     h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
   ]);
 
-  const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer]);
+  // Post-save confirmation banner. Appears briefly to confirm what was
+  // saved ("Saved: 3 edits, 15 reordered."), then hides. Sits as a
+  // floating pill in the wrapper, anchored above the footer. Starts
+  // hidden; shown via overlay.showSaveBanner(text).
+  const saveBanner = h('div', {
+    class: 'pf-mem-save-banner',
+    role: 'status',
+    'aria-live': 'polite',
+    hidden: true,
+  });
+
+  const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer, saveBanner]);
 
   const overlay = createOverlay({
     ariaLabel: 'Memory and Lore',
@@ -114,6 +125,24 @@ export function createMemoryWindow({
   overlay.setSaveEnabled = (enabled) => { saveBtn.disabled = !enabled; };
   overlay.setSaveLabel = (label) => {
     if (typeof label === 'string') saveBtn.textContent = label;
+  };
+
+  // Show a brief save-confirmation banner, then fade it out. Returns a
+  // Promise that resolves after the banner has been visible for `ms`
+  // milliseconds, so callers can await before hiding the overlay.
+  overlay.showSaveBanner = (text, { ms = 1800 } = {}) => {
+    saveBanner.textContent = text || '';
+    saveBanner.hidden = !text;
+    // Force a reflow so the enter transition actually animates
+    void saveBanner.offsetWidth;
+    saveBanner.classList.add('pf-mem-save-banner-visible');
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        saveBanner.classList.remove('pf-mem-save-banner-visible');
+        // After transition, hide so it's not tabbable / screen-reader-noisy
+        setTimeout(() => { saveBanner.hidden = true; resolve(); }, 200);
+      }, ms);
+    });
   };
 
   return overlay;

@@ -19,7 +19,7 @@
 // The window module owns: DOM.
 // stage.js knows nothing about bubbles.
 
-import { probeSchema, loadBaseline, loadUsageHistogram, commitDiff, formatDiffSummary } from './db.js';
+import { probeSchema, loadBaseline, loadUsageHistogram, commitDiff, formatDiffSummary, formatSaveStatsSummary } from './db.js';
 import { createStage } from './stage.js';
 import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
@@ -678,6 +678,16 @@ export async function openMemoryWindow() {
         overlay.setSaveLabel('Save');
         overlay.setSaveEnabled(true);
         return;
+      }
+
+      // Show a brief confirmation of what landed on disk. For reorder-
+      // only saves the stats object has reorderedMemory/reorderedLore
+      // counts; for edits/adds/deletes it has those specific counters.
+      // If formatSaveStatsSummary returns null (shouldn't happen after
+      // a successful save with changes), fall back to a generic message.
+      const summary = formatSaveStatsSummary(result.stats) || 'Saved.';
+      if (typeof overlay.showSaveBanner === 'function') {
+        await overlay.showSaveBanner(summary);
       }
       overlay.hide();
     },

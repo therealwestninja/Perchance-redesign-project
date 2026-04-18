@@ -1617,6 +1617,7 @@ export const CSS = `
   flex-direction: column;
   gap: 16px;
   min-height: 60vh;
+  position: relative;  /* anchors the floating save-banner (absolute) */
 }
 
 .pf-mem-header {
@@ -2215,6 +2216,40 @@ export const CSS = `
 .pf-mem-footer-right {
   display: flex;
   gap: 8px;
+}
+
+/* Post-save confirmation banner. A floating pill that appears briefly
+   above the footer to confirm what landed on disk. Positioned via the
+   wrapper (which is position:relative implicitly by being a flex col)
+   so it doesn't displace layout. */
+.pf-mem-save-banner {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translate(-50%, 8px);
+  background: rgba(20, 40, 20, 0.92);
+  border: 1px solid rgba(100, 200, 120, 0.55);
+  color: rgba(200, 240, 210, 0.95);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 10;
+  white-space: nowrap;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pf-mem-save-banner[hidden] {
+  display: none;
+}
+.pf-mem-save-banner-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .pf-mem-btn {

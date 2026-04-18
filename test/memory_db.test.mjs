@@ -833,3 +833,66 @@ test('commitDiff reorder: internal edit + reorder on same memory preserves edit'
     `baseline text leaked through. Final texts: ${JSON.stringify(texts)}`
   );
 });
+
+// ---- formatSaveStatsSummary ----
+
+test('formatSaveStatsSummary: null for empty stats', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(formatSaveStatsSummary(null), null);
+  assert.equal(formatSaveStatsSummary({}), null);
+  assert.equal(formatSaveStatsSummary({
+    addedMemory: 0, addedLore: 0, deletedMemory: 0, deletedLore: 0,
+    editedMemoryText: 0, editedLoreText: 0, promoted: 0, demoted: 0,
+    reorderedMemory: 0, reorderedLore: 0,
+  }), null);
+});
+
+test('formatSaveStatsSummary: single counter singular', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({ editedMemoryText: 1 }),
+    'Saved: 1 memory edit.'
+  );
+});
+
+test('formatSaveStatsSummary: single counter plural', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({ editedMemoryText: 3 }),
+    'Saved: 3 memory edits.'
+  );
+});
+
+test('formatSaveStatsSummary: two counters with "and"', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({ editedMemoryText: 2, deletedMemory: 1 }),
+    'Saved: 2 memory edits and 1 memory deletion.'
+  );
+});
+
+test('formatSaveStatsSummary: three+ counters with commas', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({
+      addedMemory: 1, editedMemoryText: 2, reorderedMemory: 15,
+    }),
+    'Saved: 1 new memory, 2 memory edits, and 15 memories reordered.'
+  );
+});
+
+test('formatSaveStatsSummary: reorder-only save', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({ reorderedMemory: 10 }),
+    'Saved: 10 memories reordered.'
+  );
+});
+
+test('formatSaveStatsSummary: promotes and demotes', async () => {
+  const { formatSaveStatsSummary } = await loadDbModule();
+  assert.equal(
+    formatSaveStatsSummary({ promoted: 2, demoted: 1 }),
+    'Saved: 2 promotes and 1 demote.'
+  );
+});
