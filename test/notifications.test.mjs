@@ -178,3 +178,50 @@ test('getSeenAchievementIds returns empty Set on fresh storage', () => {
   assert.ok(seen instanceof Set);
   assert.equal(seen.size, 0);
 });
+
+// ---- unlock date tracking ----
+
+const {
+  recordUnlockDates,
+  getUnlockDates,
+} = await import('../src/profile/notifications.js');
+
+test('getUnlockDates: returns empty object when untouched', () => {
+  const dates = getUnlockDates();
+  assert.deepEqual(dates, {});
+});
+
+test('recordUnlockDates: records ISO timestamps for new achievements', () => {
+  const before = Date.now();
+  recordUnlockDates(['a', 'b']);
+  const dates = getUnlockDates();
+  assert.ok(dates.a, 'a recorded');
+  assert.ok(dates.b, 'b recorded');
+  assert.ok(Date.parse(dates.a) >= before);
+  assert.ok(Date.parse(dates.b) >= before);
+});
+
+test('recordUnlockDates: idempotent — existing dates preserved', async () => {
+  recordUnlockDates(['a']);
+  const firstDate = getUnlockDates().a;
+  await new Promise(r => setTimeout(r, 5));
+  recordUnlockDates(['a']);
+  assert.equal(getUnlockDates().a, firstDate, 'original date preserved');
+});
+
+test('recordUnlockDates: adds new IDs without overwriting old ones', () => {
+  recordUnlockDates(['a']);
+  const aDate = getUnlockDates().a;
+  recordUnlockDates(['a', 'b']);
+  const after = getUnlockDates();
+  assert.equal(after.a, aDate, 'a unchanged');
+  assert.ok(after.b, 'b recorded');
+});
+
+test('recordUnlockDates: ignores empty/invalid input', () => {
+  recordUnlockDates([]);
+  recordUnlockDates(null);
+  recordUnlockDates(undefined);
+  recordUnlockDates([42, null, '']);
+  assert.deepEqual(getUnlockDates(), {});
+});

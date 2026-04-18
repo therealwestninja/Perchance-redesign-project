@@ -1588,6 +1588,17 @@ export const CSS = `
   opacity: 0.55;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
+/* Unlock-date line — small, low-emphasis timestamp showing when
+   the achievement was first earned. Only rendered on unlocked cards
+   that have a recorded date (pre-unlock-tracking legacy unlocks
+   won't have one). */
+.pf-ach-unlock-date {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  opacity: 0.45;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  margin-top: 2px;
+}
 .pf-ach-locked {
   opacity: 0.35;
 }
@@ -2365,5 +2376,68 @@ export const CSS = `
   font-size: 14px;
   line-height: 1.5;
   opacity: 0.85;
+}
+
+/* Activity section — grid of per-feature usage counter chips. One
+   chip per action the user has taken (memory saves, bubble renames,
+   etc.), plus a footer with first/last activity timestamps. */
+.pf-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pf-activity-empty {
+  color: var(--text-color);
+  opacity: 0.65;
+  font-size: 13px;
+  line-height: 1.5;
+  font-style: italic;
+}
+.pf-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.pf-activity-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  transition: background 0.15s, border-color 0.15s;
+  cursor: default;
+}
+.pf-activity-chip:hover {
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(216, 179, 106, 0.4);
+}
+.pf-activity-chip-count {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.pf-activity-chip-label {
+  font-size: 11px;
+  opacity: 0.7;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+.pf-activity-footer {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  opacity: 0.7;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.pf-activity-footer strong {
+  font-weight: 600;
+  opacity: 1;
 }
 `.trim();

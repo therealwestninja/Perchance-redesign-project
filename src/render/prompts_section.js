@@ -101,13 +101,10 @@ function createCadenceToggle(current) {
 
   function pick(next) {
     if (next === current) return;
+    // updateField fires onSettingsChange, which the profile page
+    // listens to and uses to rebuild the Prompts section body in
+    // place. See full_page.js for the rebuild wiring.
     updateField('prompts.cadence', next);
-    // Close the overlay; re-opening reads the new cadence. Avoids
-    // having to tear down + rebuild the entire Prompts tree in place.
-    // Use closest() instead of document.querySelector so we close THIS
-    // overlay and not some other one that might exist.
-    const overlay = wklBtn.closest('.pf-overlay');
-    if (overlay && typeof overlay.hide === 'function') overlay.hide();
   }
 
   return h('div', {

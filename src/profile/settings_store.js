@@ -37,6 +37,7 @@ export function defaultSettings() {
         chronicle:    { collapsed: false, blurred: false },
         style:        { collapsed: false, blurred: false },
         achievements: { collapsed: false, blurred: false },
+        activity:     { collapsed: false, blurred: false },
         backup:       { collapsed: true,  blurred: false }, // utility — collapsed by default
       },
     },
@@ -45,6 +46,11 @@ export function defaultSettings() {
       // once while they were unlocked). Anything unlocked but not listed
       // here counts as "pending" and triggers the mini-card pulse.
       seenAchievements: [],
+      // Map of achievementId -> ISO timestamp of first-detected unlock.
+      // Populated by recordUnlockDates (notifications.js) when unlocks
+      // compute. Preserved across sessions and round-trips through
+      // backup/export/import for free.
+      unlockDates: {},
       // Prevents new deployments from pulsing for every pre-existing
       // achievement. See notifications.js#initSeenOnFirstRun.
       hasInitialized: false,
@@ -77,6 +83,34 @@ export function defaultSettings() {
       // Pinned memories are exempt from prune. See src/memory/pins.js for
       // the API. Pins round-trip through backup/import automatically.
       pinsByThread: {},
+    },
+    counters: {
+      // Lifetime action counters for features the user has engaged with.
+      // Upstream Dexie data powers the "what exists" stats (message
+      // count, memory count, etc.); this namespace tracks "what the
+      // user has DONE with our tool" — actions that don't leave a
+      // natural trail in Dexie.
+      //
+      // Used by the profile page to surface engagement, and by the
+      // gamification / achievement layer to tier unlocks.
+      //
+      // Add new counters freely: missing fields default to 0 via
+      // mergeDeep on load, so older profiles gracefully acquire them.
+      memoryWindowOpens:          0,
+      bubblesLocked:              0, // cumulative toggle-to-locked count
+      bubblesRenamed:             0, // cumulative rename actions
+      bubblesReordered:           0, // whole-bubble reorder via grip
+      cardsReorderedInBubble:     0, // intra-bubble card reorder
+      cardsReorderedCrossBubble:  0, // cross-bubble card relocation
+      snapshotsRestored:          0, // Restore dialog confirmations
+      backupsExported:            0, // Export… used to create a backup
+      backupsImported:            0, // backup file imported
+      promptArchiveOpens:         0, // prompt archive section expanded
+      focusModeToggles:           0, // focus mode enter or exit
+      memorySaves:                0, // successful Save clicks in window
+      // First and last action timestamps. Set on any counter bump.
+      firstUsedAt:                null,
+      lastUsedAt:                 null,
     },
   };
 }

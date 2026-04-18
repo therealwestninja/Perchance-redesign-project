@@ -23,7 +23,7 @@ import { createMemoryButton } from '../render/memory_button.js';
 import { openMemoryWindow } from '../memory/window_open.js';
 import { openFullPage } from './full_page.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
-import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents } from './notifications.js';
+import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents, recordUnlockDates } from './notifications.js';
 import { initPromptsOnFirstRun, hasNewWeekPending, hasNewDayPending } from '../prompts/completion.js';
 import { getActiveEventIds } from '../events/active.js';
 
@@ -67,6 +67,11 @@ async function refresh(card) {
     // because the feature is new to the user.
     initSeenOnFirstRun(unlockedIds);
     initPromptsOnFirstRun();
+    // Record the first-detected unlock date for each unlocked achievement
+    // (idempotent; existing entries preserved). Done here so background
+    // refreshes capture unlock dates even if the user never opens the
+    // full profile page.
+    try { recordUnlockDates(unlockedIds); } catch { /* non-fatal */ }
 
     const pendingIds = computePendingAchievements(unlockedIds);
     const cadence = (settings && settings.prompts && settings.prompts.cadence) || 'weekly';

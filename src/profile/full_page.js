@@ -32,7 +32,7 @@ import { loadSettings, onSettingsChange } from './settings_store.js';
 import { getCurrentWeekKey, getCurrentDayKey, getWeekPrompts, getDayPrompt } from '../prompts/scheduler.js';
 import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completion.js';
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
-import { markAchievementsSeen, markEventsSeen } from './notifications.js';
+import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
 
 /**
@@ -98,6 +98,10 @@ export async function openFullPage() {
   // re-render without its pulse state. We don't require the user to scroll
   // to the relevant section — opening is the acknowledgment.
   try { markAchievementsSeen(unlockedIds); } catch { /* non-fatal */ }
+  // Record the first-detected unlock date for any new achievement. This
+  // populates notifications.unlockDates so the achievements grid can
+  // show "Unlocked: 3d ago" on hover.
+  try { recordUnlockDates(unlockedIds); } catch { /* non-fatal */ }
   // Acknowledge BOTH week and day — the user is seeing the current state,
   // and if they toggle cadence later we don't want stale pulse-pending on
   // the mode they weren't using.
@@ -164,7 +168,38 @@ export async function openFullPage() {
       progress01: lvl.progress01,
       pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
     });
+
+    // Rebuild the Prompts section body when the cadence setting changes.
+    // Previously we closed the overlay to force a reload; that slammed
+    // shut on the user as they were toggling Daily/Weekly. Now we just
+    // re-render the body in place — no overlay flicker, no context loss.
+    const freshCadence = (freshSettings && freshSettings.prompts && freshSettings.prompts.cadence) || 'weekly';
+    if (freshCadence !== currentCadence) {
+      currentCadence = freshCadence;
+      let newPrompts;
+      let newDayKey = null;
+      if (freshCadence === 'daily') {
+        newDayKey = getCurrentDayKey();
+        const dayPrompt = getDayPrompt(newDayKey);
+        newPrompts = dayPrompt ? [dayPrompt] : [];
+      } else {
+        newPrompts = getWeekPrompts(weekKey);
+      }
+      const newBody = createPromptsBody({
+        weekKey,
+        prompts: newPrompts,
+        completedIds: getCompletedIds(weekKey),
+        activeEvents,
+        cadence: freshCadence,
+      });
+      const bodyWrap = promptsSection.querySelector('.pf-section-body');
+      if (bodyWrap) {
+        bodyWrap.replaceChildren(newBody);
+      }
+    }
   }
+  // Track the mounted cadence so the listener can detect changes.
+  let currentCadence = cadence;
   refreshSplashFromSettings();
 
   // Live-refresh the splash when the user changes avatar / title / display
@@ -247,7 +282,7 @@ export async function openFullPage() {
   const achievementsSection = createSection({
     id: 'achievements',
     title: 'Achievements',
-    children: createAchievementsGrid({ unlockedIds }),
+    children: createAchievementsGrid({ unlockedIds, unlockDates: getUnlockDates() }),
     initialState: displayState.achievements,
   });
 

@@ -68,6 +68,49 @@ export function computePendingAchievements(unlockedIds) {
 }
 
 /**
+ * Read the stored map of achievement unlock dates.
+ * Returns an object keyed by achievement id -> ISO timestamp string.
+ * Always returns an object (never null) for safe iteration.
+ *
+ * @returns {Object<string, string>}
+ */
+export function getUnlockDates() {
+  const s = safeLoad();
+  const map = (s.notifications && s.notifications.unlockDates) || {};
+  return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+}
+
+/**
+ * Persist a first-detected unlock date for each newly unlocked achievement.
+ * Idempotent: an achievement that already has a recorded date keeps it.
+ * (We never overwrite — the first unlock is the meaningful one. If a
+ * user later re-crosses a threshold after data loss or reset, we keep
+ * the original date since it reflects when they FIRST earned it.)
+ *
+ * Call this alongside markAchievementsSeen so every pass through the
+ * unlocks pipeline captures new dates.
+ *
+ * @param {string[]} unlockedIds - currently-unlocked achievement IDs
+ */
+export function recordUnlockDates(unlockedIds) {
+  if (!Array.isArray(unlockedIds) || unlockedIds.length === 0) return;
+  const existing = getUnlockDates();
+  const nowIso = new Date().toISOString();
+  let changed = false;
+  const next = { ...existing };
+  for (const id of unlockedIds) {
+    if (typeof id !== 'string' || id === '') continue;
+    if (!next[id]) {
+      next[id] = nowIso;
+      changed = true;
+    }
+  }
+  if (changed) {
+    updateField('notifications.unlockDates', next);
+  }
+}
+
+/**
  * First-run initialization. If the user's notifications state hasn't been
  * touched yet, mark everything currently unlocked as already seen so we
  * don't spam them with a pulse for every old achievement. Idempotent.
