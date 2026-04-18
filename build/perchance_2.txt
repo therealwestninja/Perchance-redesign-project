@@ -16859,10 +16859,18 @@ Use this template for your response:
    *   reorder, cross-drag, re-clustering assignment changes.
    *
    * @property {Map<string, string>} userCreatedBubbles
-   *   bubble id → stable identity hash. Bubble ids from pure clustering
-   *   are `bubble:N` (cluster index) and change meaning when k changes.
-   *   User-modified bubbles get stable ids derived from their members
-   *   so they can be tracked across re-clusterings.
+   *   bubble id → label string. Used specifically for LOCKED bubbles
+   *   that lost their cluster seat during re-clustering — preserves
+   *   their label while they're kept alive as user-kept empty-shell
+   *   bubbles. Keyed by transient bubble id. See note in applyOverrides
+   *   on how this differs from bubbleLabelsByStableId.
+   *
+   * @property {Map<string, string>} bubbleLabelsByStableId
+   *   Override: stableBubbleId(members) → user-chosen label. Set when
+   *   the user renames a bubble. Applied to whichever bubble in the
+   *   current clustering has that stable-id, so the rename survives
+   *   re-clusterings. Pruning happens lazily — entries that no longer
+   *   match any current bubble are kept in case membership shifts back.
    */
 
   /**
@@ -16876,6 +16884,7 @@ Use this template for your response:
       bubbleOrder: [],
       lockedBubbles: new Set(),
       userCreatedBubbles: new Map(),
+      bubbleLabelsByStableId: new Map(),
     };
   }
 
@@ -17174,6 +17183,26 @@ Use this template for your response:
     // clean without affecting user-asserted order).
     state.bubbleOrder = state.bubbleOrder.filter(id => freshByBubbleId.has(id));
 
+    // Apply user-chosen labels (from rename operations). Each fresh bubble
+    // computes its stableBubbleId from current membership; if the user has
+    // assigned a label to that stable-id, override whatever deriveLabels
+    // produced. This gives rename continuity across re-clusterings as long
+    // as membership stays recognizable.
+    if (state.bubbleLabelsByStableId && state.bubbleLabelsByStableId.size > 0) {
+      for (const id of orderedIds) {
+        const bubble = freshByBubbleId.get(id);
+        if (!bubble || bubble.isUngrouped) continue;
+        const memberIds = (bubble.entries || []).map(e => String(e.id));
+        if (memberIds.length === 0) continue;
+        const stableId = stableBubbleId(memberIds);
+        const userLabel = state.bubbleLabelsByStableId.get(stableId);
+        if (userLabel) {
+          bubble.label = userLabel;
+          bubble.userRenamed = true;
+        }
+      }
+    }
+
     return orderedIds.map(id => freshByBubbleId.get(id));
   }
 
@@ -17213,6 +17242,41 @@ Use this template for your response:
    */
   function rememberUserBubble(state, bubbleId, label) {
     state.userCreatedBubbles.set(String(bubbleId), String(label));
+  }
+
+  /**
+   * Rename a bubble. The rename is keyed by the bubble's STABLE identity
+   * (hash of sorted member card ids), so it survives re-clusterings as
+   * long as membership stays recognizable.
+   *
+   * Empty-string label clears the rename (falls back to auto-derived
+   * label from deriveLabels).
+   *
+   * @param {UserOverrideState} state
+   * @param {string[]} memberCardIds
+   * @param {string} label
+   */
+  function renameBubble(state, memberCardIds, label) {
+    const stableId = stableBubbleId(memberCardIds);
+    const trimmed = String(label || '').trim();
+    if (!trimmed) {
+      state.bubbleLabelsByStableId.delete(stableId);
+    } else {
+      state.bubbleLabelsByStableId.set(stableId, trimmed);
+    }
+  }
+
+  /**
+   * Look up the user-chosen label for a bubble by its members, if any.
+   * Returns null when the bubble has no rename.
+   *
+   * @param {UserOverrideState} state
+   * @param {string[]} memberCardIds
+   * @returns {string | null}
+   */
+  function getBubbleLabelOverride(state, memberCardIds) {
+    const stableId = stableBubbleId(memberCardIds);
+    return state.bubbleLabelsByStableId.get(stableId) || null;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -20656,6 +20720,35 @@ Use this template for your response:
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: text;
+  }
+
+  /* Subtle visual hint that a label has been user-renamed. Keeps the
+     main type treatment but adds an italic cast so you can tell at a
+     glance that this was set by you, not auto-derived. */
+  .pf-mem-bubble-label-renamed {
+    font-style: italic;
+  }
+
+  /* Inline rename input. Sized to fill the label slot so typing feels
+     natural. Text-first styling: same font weight/size as the label it
+     replaces, matching the dark Perchance theme. */
+  .pf-mem-bubble-label-input {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    padding: 1px 6px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(216, 179, 106, 0.5);
+    border-radius: 4px;
+    color: var(--text-color);
+    outline: none;
+    width: 100%;
+    min-width: 0;
+  }
+  .pf-mem-bubble-label-input:focus {
+    border-color: rgba(216, 179, 106, 0.9);
   }
 
   /* Stack label-on-top, preview-underneath, in a flex-column that takes
@@ -22295,7 +22388,23 @@ Use this template for your response:
     // Label sits on top; preview (first memory text, single-line, CSS-truncated
     // via ellipsis) sits underneath. Stacked in a flex-column that takes
     // remaining width between chevron and count/actions.
-    const label = h('span', { class: 'pf-mem-bubble-label' }, [bubble.label]);
+    //
+    // Double-click the label → inline rename. Only supported on Memory
+    // bubbles (Lore doesn't have a useful rename use-case in our current
+    // UX — Lore is a flat list, bubbles are purely cosmetic).
+    const label = h('span', {
+      class: `pf-mem-bubble-label ${bubble.userRenamed ? 'pf-mem-bubble-label-renamed' : ''}`,
+      title: bubble.userRenamed ? 'Renamed — double-click to change' : 'Double-click to rename',
+    }, [bubble.label]);
+
+    if (scope === 'memory' && !bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
+      label.addEventListener('dblclick', (ev) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        startInlineRename(label, bubble, handlers);
+      });
+    }
+
     const previewText = getPreviewText(bubble);
     const labelStack = h('div', { class: 'pf-mem-bubble-labelstack' },
       previewText
@@ -22728,6 +22837,67 @@ Use this template for your response:
       ? 'No memories yet. They accumulate as you chat.'
       : 'No lore entries yet. Lore is worldbuilding that persists across threads.';
     return h('p', { class: 'pf-mem-empty' }, [text]);
+  }
+
+  /**
+   * Replace a bubble's label element with an inline <input> for editing.
+   * Enter commits via handlers.onRenameBubble(bubbleId, newLabel).
+   * Escape or blur without Enter cancels (label reverts to original text).
+   *
+   * Uses DOM replacement rather than building a second element type —
+   * simpler plumbing, no state machine in the render path.
+   */
+  function startInlineRename(labelEl, bubble, handlers) {
+    const original = labelEl.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'pf-mem-bubble-label-input';
+    input.value = original;
+    input.setAttribute('aria-label', 'Rename bubble');
+    input.maxLength = 80;
+
+    // Swap label for input
+    const parent = labelEl.parentNode;
+    if (!parent) return;
+    parent.replaceChild(input, labelEl);
+    input.focus();
+    input.select();
+
+    let committed = false;
+
+    function commit() {
+      if (committed) return;
+      committed = true;
+      const newLabel = String(input.value || '').trim();
+      // Restore label element visually — the actual label text shown comes
+      // from the next render pass (which will reflect the new override).
+      parent.replaceChild(labelEl, input);
+      if (newLabel === original) return; // no-op; no-op in state too
+      if (typeof handlers.onRenameBubble === 'function') {
+        handlers.onRenameBubble(bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
+      }
+    }
+
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      parent.replaceChild(labelEl, input);
+    }
+
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        commit();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        cancel();
+      }
+    });
+    input.addEventListener('blur', commit);
+    // Stop clicks inside the input from bubbling up to the header's
+    // expand/collapse toggler.
+    input.addEventListener('click', (ev) => ev.stopPropagation());
+    input.addEventListener('mousedown', (ev) => ev.stopPropagation());
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -23385,6 +23555,20 @@ Use this template for your response:
         }
 
         overlay.updatePanels(panelsState());
+      },
+
+      // Inline rename — user double-clicked a Memory bubble's label and
+      // typed a new name. The rename is keyed by the bubble's STABLE
+      // identity (hash of member ids) so it survives re-clusterings as
+      // long as membership remains recognizable. Empty newLabel clears
+      // the rename (falls back to auto-derived label).
+      //
+      // Lore is not wired here — Lore bubbles are a flat-list affordance
+      // with no practical rename use-case in the current UX.
+      onRenameBubble: (bubbleId, newLabel, memberIds) => {
+        if (!Array.isArray(memberIds) || memberIds.length === 0) return;
+        renameBubble(memoryOverrides, memberIds, newLabel);
+        refresh();
       },
 
       // Footer actions

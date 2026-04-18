@@ -38,10 +38,18 @@
  *   reorder, cross-drag, re-clustering assignment changes.
  *
  * @property {Map<string, string>} userCreatedBubbles
- *   bubble id → stable identity hash. Bubble ids from pure clustering
- *   are `bubble:N` (cluster index) and change meaning when k changes.
- *   User-modified bubbles get stable ids derived from their members
- *   so they can be tracked across re-clusterings.
+ *   bubble id → label string. Used specifically for LOCKED bubbles
+ *   that lost their cluster seat during re-clustering — preserves
+ *   their label while they're kept alive as user-kept empty-shell
+ *   bubbles. Keyed by transient bubble id. See note in applyOverrides
+ *   on how this differs from bubbleLabelsByStableId.
+ *
+ * @property {Map<string, string>} bubbleLabelsByStableId
+ *   Override: stableBubbleId(members) → user-chosen label. Set when
+ *   the user renames a bubble. Applied to whichever bubble in the
+ *   current clustering has that stable-id, so the rename survives
+ *   re-clusterings. Pruning happens lazily — entries that no longer
+ *   match any current bubble are kept in case membership shifts back.
  */
 
 /**
@@ -55,6 +63,7 @@ export function createOverrides() {
     bubbleOrder: [],
     lockedBubbles: new Set(),
     userCreatedBubbles: new Map(),
+    bubbleLabelsByStableId: new Map(),
   };
 }
 
@@ -353,6 +362,26 @@ export function applyOverrides(state, freshBubbles) {
   // clean without affecting user-asserted order).
   state.bubbleOrder = state.bubbleOrder.filter(id => freshByBubbleId.has(id));
 
+  // Apply user-chosen labels (from rename operations). Each fresh bubble
+  // computes its stableBubbleId from current membership; if the user has
+  // assigned a label to that stable-id, override whatever deriveLabels
+  // produced. This gives rename continuity across re-clusterings as long
+  // as membership stays recognizable.
+  if (state.bubbleLabelsByStableId && state.bubbleLabelsByStableId.size > 0) {
+    for (const id of orderedIds) {
+      const bubble = freshByBubbleId.get(id);
+      if (!bubble || bubble.isUngrouped) continue;
+      const memberIds = (bubble.entries || []).map(e => String(e.id));
+      if (memberIds.length === 0) continue;
+      const stableId = stableBubbleId(memberIds);
+      const userLabel = state.bubbleLabelsByStableId.get(stableId);
+      if (userLabel) {
+        bubble.label = userLabel;
+        bubble.userRenamed = true;
+      }
+    }
+  }
+
   return orderedIds.map(id => freshByBubbleId.get(id));
 }
 
@@ -392,4 +421,39 @@ export function stableBubbleId(memberCardIds) {
  */
 export function rememberUserBubble(state, bubbleId, label) {
   state.userCreatedBubbles.set(String(bubbleId), String(label));
+}
+
+/**
+ * Rename a bubble. The rename is keyed by the bubble's STABLE identity
+ * (hash of sorted member card ids), so it survives re-clusterings as
+ * long as membership stays recognizable.
+ *
+ * Empty-string label clears the rename (falls back to auto-derived
+ * label from deriveLabels).
+ *
+ * @param {UserOverrideState} state
+ * @param {string[]} memberCardIds
+ * @param {string} label
+ */
+export function renameBubble(state, memberCardIds, label) {
+  const stableId = stableBubbleId(memberCardIds);
+  const trimmed = String(label || '').trim();
+  if (!trimmed) {
+    state.bubbleLabelsByStableId.delete(stableId);
+  } else {
+    state.bubbleLabelsByStableId.set(stableId, trimmed);
+  }
+}
+
+/**
+ * Look up the user-chosen label for a bubble by its members, if any.
+ * Returns null when the bubble has no rename.
+ *
+ * @param {UserOverrideState} state
+ * @param {string[]} memberCardIds
+ * @returns {string | null}
+ */
+export function getBubbleLabelOverride(state, memberCardIds) {
+  const stableId = stableBubbleId(memberCardIds);
+  return state.bubbleLabelsByStableId.get(stableId) || null;
 }

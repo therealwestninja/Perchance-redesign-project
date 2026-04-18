@@ -23,7 +23,7 @@ import { probeSchema, loadBaseline, loadUsageHistogram, commitDiff, formatDiffSu
 import { createStage } from './stage.js';
 import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
-import { createOverrides, toggleLock, applyOverrides, moveBubbleBefore, moveCardBefore, forgetCard, assignCardToBubble } from './bubble_overrides.js';
+import { createOverrides, toggleLock, applyOverrides, moveBubbleBefore, moveCardBefore, forgetCard, assignCardToBubble, renameBubble } from './bubble_overrides.js';
 import { loadLocks, persistLock, forgetLock, reconcileLocks } from './lock_persistence.js';
 import { loadSnapshots, captureSnapshot, deleteSnapshot, findSnapshot, buildRestoreDiff, formatSnapshotSummary } from './snapshots.js';
 import { createMemoryWindow } from '../render/memory_window.js';
@@ -526,6 +526,20 @@ export async function openMemoryWindow() {
       }
 
       overlay.updatePanels(panelsState());
+    },
+
+    // Inline rename — user double-clicked a Memory bubble's label and
+    // typed a new name. The rename is keyed by the bubble's STABLE
+    // identity (hash of member ids) so it survives re-clusterings as
+    // long as membership remains recognizable. Empty newLabel clears
+    // the rename (falls back to auto-derived label).
+    //
+    // Lore is not wired here — Lore bubbles are a flat-list affordance
+    // with no practical rename use-case in the current UX.
+    onRenameBubble: (bubbleId, newLabel, memberIds) => {
+      if (!Array.isArray(memberIds) || memberIds.length === 0) return;
+      renameBubble(memoryOverrides, memberIds, newLabel);
+      refresh();
     },
 
     // Footer actions

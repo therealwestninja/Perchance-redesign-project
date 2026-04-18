@@ -1896,6 +1896,35 @@ export const CSS = `
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+/* Subtle visual hint that a label has been user-renamed. Keeps the
+   main type treatment but adds an italic cast so you can tell at a
+   glance that this was set by you, not auto-derived. */
+.pf-mem-bubble-label-renamed {
+  font-style: italic;
+}
+
+/* Inline rename input. Sized to fill the label slot so typing feels
+   natural. Text-first styling: same font weight/size as the label it
+   replaces, matching the dark Perchance theme. */
+.pf-mem-bubble-label-input {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+  padding: 1px 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(216, 179, 106, 0.5);
+  border-radius: 4px;
+  color: var(--text-color);
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+.pf-mem-bubble-label-input:focus {
+  border-color: rgba(216, 179, 106, 0.9);
 }
 
 /* Stack label-on-top, preview-underneath, in a flex-column that takes

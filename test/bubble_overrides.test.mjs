@@ -382,3 +382,125 @@ test('applyOverrides: complex scenario combining all override types', () => {
   assert.deepEqual(b1.entries.map(e => e.id), ['c1', 'c2']);
   assert.equal(isLocked(s, 'b0'), true);
 });
+
+// ---- renameBubble / bubbleLabelsByStableId ----
+
+test('renameBubble: sets an entry keyed by stable id', async () => {
+  const { renameBubble, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'My cluster');
+  const stableId = stableBubbleId(['c1', 'c2']);
+  assert.equal(s.bubbleLabelsByStableId.get(stableId), 'My cluster');
+});
+
+test('renameBubble: empty label clears the rename', async () => {
+  const { renameBubble, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'Something');
+  renameBubble(s, ['c1', 'c2'], '');
+  assert.equal(s.bubbleLabelsByStableId.size, 0);
+});
+
+test('renameBubble: whitespace-only label clears the rename', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1'], 'Something');
+  renameBubble(s, ['c1'], '   ');
+  assert.equal(s.bubbleLabelsByStableId.size, 0);
+});
+
+test('renameBubble: same membership in different order produces same stable id', async () => {
+  const { renameBubble, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2', 'c3'], 'Alpha');
+  const reversedId = stableBubbleId(['c3', 'c2', 'c1']);
+  assert.equal(s.bubbleLabelsByStableId.get(reversedId), 'Alpha');
+});
+
+test('applyOverrides: rename applied to bubble with matching members', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'My Rename');
+  const fresh = [
+    bubble('bubble:0', [entry('c1'), entry('c2')], { label: 'Auto Label' }),
+    bubble('bubble:1', [entry('c3')], { label: 'Other' }),
+  ];
+  const result = applyOverrides(s, fresh);
+  const b0 = result.find(b => b.id === 'bubble:0');
+  assert.equal(b0.label, 'My Rename');
+  assert.equal(b0.userRenamed, true);
+  // Untouched bubble still has its auto label
+  const b1 = result.find(b => b.id === 'bubble:1');
+  assert.equal(b1.label, 'Other');
+  assert.ok(!b1.userRenamed);
+});
+
+test('applyOverrides: rename survives re-clustering if membership preserved', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'Survivor');
+
+  // First clustering: bubble:0 has [c1, c2]
+  const fresh1 = [bubble('bubble:0', [entry('c1'), entry('c2')])];
+  const r1 = applyOverrides(s, fresh1);
+  assert.equal(r1[0].label, 'Survivor');
+
+  // Re-cluster: same members, different cluster index (bubble:3)
+  const fresh2 = [bubble('bubble:3', [entry('c2'), entry('c1')])];
+  const r2 = applyOverrides(s, fresh2);
+  assert.equal(r2[0].label, 'Survivor');
+});
+
+test('applyOverrides: rename does NOT apply when membership diverges', async () => {
+  const { renameBubble } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1', 'c2'], 'Original Rename');
+
+  // Re-cluster splits: bubble now only has c1
+  const fresh = [bubble('bubble:0', [entry('c1')], { label: 'Auto' })];
+  const result = applyOverrides(s, fresh);
+  assert.equal(result[0].label, 'Auto');
+  assert.ok(!result[0].userRenamed);
+});
+
+test('applyOverrides: ungrouped bubbles are never renamed', async () => {
+  const { renameBubble, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  // Directly poke the stable-id that would match the ungrouped bubble's
+  // members to confirm rename logic skips isUngrouped bubbles
+  renameBubble(s, ['c1', 'c2'], 'Attempted Rename');
+
+  const fresh = [
+    bubble('ungrouped', [entry('c1'), entry('c2')], { isUngrouped: true, label: 'Ungrouped' }),
+  ];
+  const result = applyOverrides(s, fresh);
+  assert.equal(result[0].label, 'Ungrouped');
+  assert.ok(!result[0].userRenamed);
+});
+
+test('applyOverrides: empty bubble (no members) is not renamed', async () => {
+  const { renameBubble, stableBubbleId } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  renameBubble(s, ['c1'], 'Should not apply');
+  // Lock the empty bubble so it survives applyOverrides' empty-drop pass.
+  // Without lock, empty unlocked bubbles are dropped and there's nothing
+  // to test. We just want to confirm rename logic safely skips zero-member
+  // bubbles without throwing.
+  s.lockedBubbles.add('bubble:0');
+  const fresh = [bubble('bubble:0', [], { label: 'Empty' })];
+  const result = applyOverrides(s, fresh);
+  if (result.length > 0) {
+    // If locked-empty survived, it shouldn't have our rename
+    assert.equal(result[0].label, 'Empty');
+    assert.ok(!result[0].userRenamed);
+  }
+  // If dropped entirely, that's also fine — no rename was applied.
+});
+
+test('getBubbleLabelOverride: returns stored label or null', async () => {
+  const { renameBubble, getBubbleLabelOverride } = await import('../src/memory/bubble_overrides.js');
+  const s = createOverrides();
+  assert.equal(getBubbleLabelOverride(s, ['c1']), null);
+  renameBubble(s, ['c1'], 'Named');
+  assert.equal(getBubbleLabelOverride(s, ['c1']), 'Named');
+});

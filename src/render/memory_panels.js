@@ -375,7 +375,23 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
   // Label sits on top; preview (first memory text, single-line, CSS-truncated
   // via ellipsis) sits underneath. Stacked in a flex-column that takes
   // remaining width between chevron and count/actions.
-  const label = h('span', { class: 'pf-mem-bubble-label' }, [bubble.label]);
+  //
+  // Double-click the label → inline rename. Only supported on Memory
+  // bubbles (Lore doesn't have a useful rename use-case in our current
+  // UX — Lore is a flat list, bubbles are purely cosmetic).
+  const label = h('span', {
+    class: `pf-mem-bubble-label ${bubble.userRenamed ? 'pf-mem-bubble-label-renamed' : ''}`,
+    title: bubble.userRenamed ? 'Renamed — double-click to change' : 'Double-click to rename',
+  }, [bubble.label]);
+
+  if (scope === 'memory' && !bubble.isUngrouped && typeof handlers.onRenameBubble === 'function') {
+    label.addEventListener('dblclick', (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      startInlineRename(label, bubble, handlers);
+    });
+  }
+
   const previewText = getPreviewText(bubble);
   const labelStack = h('div', { class: 'pf-mem-bubble-labelstack' },
     previewText
@@ -808,4 +824,65 @@ function renderEmptyState(scope) {
     ? 'No memories yet. They accumulate as you chat.'
     : 'No lore entries yet. Lore is worldbuilding that persists across threads.';
   return h('p', { class: 'pf-mem-empty' }, [text]);
+}
+
+/**
+ * Replace a bubble's label element with an inline <input> for editing.
+ * Enter commits via handlers.onRenameBubble(bubbleId, newLabel).
+ * Escape or blur without Enter cancels (label reverts to original text).
+ *
+ * Uses DOM replacement rather than building a second element type —
+ * simpler plumbing, no state machine in the render path.
+ */
+function startInlineRename(labelEl, bubble, handlers) {
+  const original = labelEl.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'pf-mem-bubble-label-input';
+  input.value = original;
+  input.setAttribute('aria-label', 'Rename bubble');
+  input.maxLength = 80;
+
+  // Swap label for input
+  const parent = labelEl.parentNode;
+  if (!parent) return;
+  parent.replaceChild(input, labelEl);
+  input.focus();
+  input.select();
+
+  let committed = false;
+
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const newLabel = String(input.value || '').trim();
+    // Restore label element visually — the actual label text shown comes
+    // from the next render pass (which will reflect the new override).
+    parent.replaceChild(labelEl, input);
+    if (newLabel === original) return; // no-op; no-op in state too
+    if (typeof handlers.onRenameBubble === 'function') {
+      handlers.onRenameBubble(bubble.id, newLabel, bubble.entries.map(e => String(e.id)));
+    }
+  }
+
+  function cancel() {
+    if (committed) return;
+    committed = true;
+    parent.replaceChild(labelEl, input);
+  }
+
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      commit();
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener('blur', commit);
+  // Stop clicks inside the input from bubbling up to the header's
+  // expand/collapse toggler.
+  input.addEventListener('click', (ev) => ev.stopPropagation());
+  input.addEventListener('mousedown', (ev) => ev.stopPropagation());
 }
