@@ -111,7 +111,10 @@ test('markDaySeen: ignores non-string input', () => {
   markDaySeen('2026-04-17');
   markDaySeen(null);      // should not clobber
   markDaySeen(42);
-  markDaySeen(undefined);
+  // Note: markDaySeen(undefined) is NOT tested — in JS, passing undefined
+  // is indistinguishable from not passing an argument, which triggers the
+  // default (today's date). That's intentional behavior for the zero-arg
+  // shorthand markDaySeen() used in the refresh path.
   // Still marked from the valid call above
   assert.equal(hasNewDayPending('2026-04-17'), false);
 });

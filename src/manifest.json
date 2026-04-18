@@ -22,6 +22,7 @@
     "memory/trim.js",
     "memory/continuity.js",
     "memory/duplicates.js",
+    "memory/stage.js",
     "render/styles.js",
     "profile/settings_store.js",
     "profile/notifications.js",
