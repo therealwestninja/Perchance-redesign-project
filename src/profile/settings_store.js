@@ -120,6 +120,7 @@ export function defaultSettings() {
       promptArchiveOpens:         0, // prompt archive section expanded
       focusModeToggles:           0, // focus mode enter or exit
       memorySaves:                0, // successful Save clicks in window
+      charactersSpawned:          0, // spin-off characters created from bubbles
       // First and last action timestamps. Set on any counter bump.
       firstUsedAt:                null,
       lastUsedAt:                 null,

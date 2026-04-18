@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 63 };
+  NS.__meta = { modules: 64 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14608,6 +14608,13 @@ Use this template for your response:
       what: 'memory tool opens',
       counterKey: 'memoryWindowOpens',
       thresholds: { bronze: 5, silver: 25, gold: 100 },
+    }),
+    ...tieredCounter({
+      baseId: 'demiurge',
+      baseName: 'Demiurge',
+      what: 'characters spun off from bubbles',
+      counterKey: 'charactersSpawned',
+      thresholds: { bronze: 1, silver: 5, gold: 20 },
     }),
 
     // --- Streak-based achievements ---
@@ -21779,6 +21786,160 @@ Use this template for your response:
   .pf-streak-broken {
     opacity: 0.75;
   }
+
+  /* ---- Right column stack: Create Character (top 2/3) + Delete (bottom 1/3) ---- */
+  .pf-mem-right-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+  .pf-mem-right-stack > .pf-mem-col-create-char {
+    flex: 2 1 0;
+  }
+  .pf-mem-right-stack > .pf-mem-col-delete {
+    flex: 1 1 0;
+    min-height: 120px;
+  }
+
+  /* Create Character drop zone — green accent to distinguish from
+     red Delete. Drop hint centered so it's inviting, not just
+     functional. */
+  .pf-mem-col-create-char {
+    border-color: rgba(106, 184, 124, 0.3);
+    background: var(--box-color);
+  }
+  .pf-mem-col-title-create {
+    color: #6ab87c;
+  }
+  .pf-mem-create-char-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px 14px;
+    text-align: center;
+    opacity: 0.72;
+    transition: opacity 0.15s;
+  }
+  .pf-mem-col-create-char:hover .pf-mem-create-char-body {
+    opacity: 0.9;
+  }
+  .pf-mem-create-char-icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+  .pf-mem-create-char-hint {
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 220px;
+    opacity: 0.85;
+  }
+  .pf-mem-col-create-char.pf-mem-col-drop-over {
+    outline-color: #6ab87c;
+    background: rgba(106, 184, 124, 0.10);
+  }
+
+  /* ---- Spin-off confirmation dialog ---- */
+  .pf-spinoff-dialog {
+    max-width: 560px;
+    padding: 24px 28px;
+  }
+  .pf-spinoff-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #6ab87c;
+  }
+  .pf-spinoff-blurb {
+    margin: 0 0 18px;
+    opacity: 0.8;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .pf-spinoff-label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.72;
+    margin-bottom: 18px;
+  }
+  .pf-spinoff-name {
+    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: 500;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-color);
+    outline: none;
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 1;
+  }
+  .pf-spinoff-name:focus {
+    border-color: rgba(106, 184, 124, 0.5);
+    background: rgba(0, 0, 0, 0.28);
+  }
+  .pf-spinoff-preview-wrap {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .pf-spinoff-preview-label {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 6px;
+  }
+  .pf-spinoff-preview {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .pf-spinoff-preview li {
+    margin: 3px 0;
+  }
+  .pf-spinoff-more {
+    opacity: 0.55;
+    font-style: italic;
+    list-style: none;
+    margin-left: -18px !important;
+  }
+  .pf-spinoff-tip {
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.55;
+    margin: 0 0 14px;
+  }
+  .pf-spinoff-err {
+    color: #d87a7a;
+    font-size: 12px;
+    padding: 8px 10px;
+    background: rgba(216, 122, 122, 0.08);
+    border: 1px solid rgba(216, 122, 122, 0.3);
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+  .pf-spinoff-err[hidden] {
+    display: none;
+  }
+  .pf-spinoff-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -21906,6 +22067,7 @@ Use this template for your response:
         promptArchiveOpens:         0, // prompt archive section expanded
         focusModeToggles:           0, // focus mode enter or exit
         memorySaves:                0, // successful Save clicks in window
+        charactersSpawned:          0, // spin-off characters created from bubbles
         // First and last action timestamps. Set on any counter bump.
         firstUsedAt:                null,
         lastUsedAt:                 null,
@@ -22138,6 +22300,7 @@ Use this template for your response:
         promptArchiveOpens:        Number(c.promptArchiveOpens)        || 0,
         focusModeToggles:          Number(c.focusModeToggles)          || 0,
         memorySaves:               Number(c.memorySaves)               || 0,
+        charactersSpawned:         Number(c.charactersSpawned)         || 0,
         firstUsedAt:               c.firstUsedAt || null,
         lastUsedAt:                c.lastUsedAt  || null,
       };
@@ -22148,6 +22311,7 @@ Use this template for your response:
         cardsReorderedCrossBubble: 0, snapshotsRestored: 0,
         backupsExported: 0, backupsImported: 0,
         promptArchiveOpens: 0, focusModeToggles: 0, memorySaves: 0,
+        charactersSpawned: 0,
         firstUsedAt: null, lastUsedAt: null,
       };
     }
@@ -23167,7 +23331,17 @@ Use this template for your response:
 
     const deleteCol = buildDeletePanel({ countEl: deleteCountEl, handlers });
 
-    const root = h('div', { class: 'pf-mem-panels' }, [memoryCol, loreCol, deleteCol]);
+    // Right column: stacked Create-Character (2/3 height) + Delete (1/3
+    // height). Create-Character accepts only bubble payloads (single
+    // memories don't make sense as character seeds); Delete keeps its
+    // existing semantics.
+    const createCharCol = buildCreateCharacterPanel({ handlers });
+    const rightCol = h('div', { class: 'pf-mem-right-stack' }, [
+      createCharCol,
+      deleteCol,
+    ]);
+
+    const root = h('div', { class: 'pf-mem-panels' }, [memoryCol, loreCol, rightCol]);
 
     function render(state) {
       const s = state || {};
@@ -23373,6 +23547,74 @@ Use this template for your response:
     return col;
   }
 
+  /**
+   * Build the "Create Character" drop zone. Sits above the (now smaller)
+   * Delete zone in the right column. Accepts whole-bubble drops only —
+   * single memories can't seed a character; the unit of meaning is the
+   * bubble. Themed with a green accent to distinguish from the red
+   * Delete zone.
+   *
+   * On drop: invokes handlers.onSpinOffCharacter(scope, bubbleId, entries,
+   * label). The handler decides whether to open a confirmation dialog
+   * and whether to actually create the character — this panel is just
+   * the gesture target.
+   */
+  function buildCreateCharacterPanel({ handlers }) {
+    const col = h('section', {
+      class: 'pf-mem-col pf-mem-col-create-char',
+      'aria-label': 'Spin off as new character',
+    }, [
+      h('header', { class: 'pf-mem-col-header' }, [
+        h('h3', { class: 'pf-mem-col-title pf-mem-col-title-create' }, ['Create Character']),
+      ]),
+      h('div', { class: 'pf-mem-create-char-body' }, [
+        h('div', { class: 'pf-mem-create-char-icon', 'aria-hidden': 'true' }, ['✨']),
+        h('div', { class: 'pf-mem-create-char-hint' }, [
+          'Drop a bubble here to spin off its memories into a new character.',
+        ]),
+      ]),
+    ]);
+
+    col.addEventListener('dragover', (ev) => {
+      if (!dragPayload) return;
+      // Only accept whole-bubble drops; reject single-card payloads.
+      const isBubblePayload = dragPayload.kind === 'bubble' || dragPayload.kind === 'reorder-bubble';
+      if (!isBubblePayload) return;
+      ev.preventDefault();
+      col.classList.add('pf-mem-col-drop-over');
+    });
+    col.addEventListener('dragleave', (ev) => {
+      if (!col.contains(ev.relatedTarget)) {
+        col.classList.remove('pf-mem-col-drop-over');
+      }
+    });
+    col.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      col.classList.remove('pf-mem-col-drop-over');
+      if (!dragPayload) return;
+      const payload = dragPayload;
+      dragPayload = null;
+
+      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+      if (!isBubblePayload) return;
+      if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
+
+      if (typeof handlers.onSpinOffCharacter === 'function') {
+        // Pass scope so handler can decide how to label / route. The
+        // entries themselves are scope-agnostic — both Memory and Lore
+        // entries have a text field that maps cleanly to a lore item.
+        handlers.onSpinOffCharacter(
+          payload.scope,
+          payload.bubbleId,
+          payload.entries,
+          payload.label || ''
+        );
+      }
+    });
+
+    return col;
+  }
+
   // ---- bubble rendering ----
 
   function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts) {
@@ -23420,6 +23662,7 @@ Use this template for your response:
             scope,
             bubbleId: bubble.id,
             entries: bubble.entries.slice(),
+            label: bubble.label || '',
           };
           try {
             ev.dataTransfer.setData('text/plain', `reorder-bubble:${bubble.id}`);
@@ -23551,6 +23794,7 @@ Use this template for your response:
         scope,
         bubbleId: bubble.id,
         entries: bubble.entries.slice(),
+        label: bubble.label || '',
       };
       header.classList.add('pf-mem-bubble-dragging');
       try {
@@ -24347,6 +24591,318 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: memory/spinoff_character.js
+     ────────────────────────────────────────────────────────── */
+  // memory/spinoff_character.js
+  //
+  // Drop a Memory or Lore bubble onto the Create Character zone in the
+  // Memory window's right column → spin off a new character whose seed
+  // lore is the bubble's entries. The bubble itself is unchanged in the
+  // source thread (this is a copy-out, not a move-out).
+  //
+  // Flow:
+  //   1. We open OUR own minimal confirmation dialog: name + preview.
+  //      User edits the name (default = bubble's auto/custom label) and
+  //      reviews what'll be created.
+  //   2. On confirm: create a character row in db.characters, then add
+  //      one db.lore row per bubble entry, scoped to a synthetic lore
+  //      book attached to the new character via loreBookUrls.
+  //
+  // Why our own dialog and not Perchance's `characterDetailsPrompt`:
+  //   characterDetailsPrompt is defined inside Perchance's IIFE closure
+  //   and isn't reachable from our iframe context. We could programmati-
+  //   cally click the #newCharacterButton DOM element to open the form,
+  //   but that would lose our pre-filled content (the form opens blank).
+  //   So we ship a focused minimal dialog that does exactly what this
+  //   feature needs, and leave a TODO marker for future integration if
+  //   the upstream API gets exposed.
+  //
+  // Lore-book scoping note:
+  //   Perchance's lore is per-thread (each thread has loreBookId =
+  //   thread.id). Characters have a loreBookUrls array for "shareable"
+  //   lore books referenced by URL. We use a synthetic URL of the form
+  //   `pf-spawned:<characterId>` which serves as the bookId for our
+  //   seeded lore items. When the user creates a new thread with this
+  //   character, we'd want that thread's loreBookId to also reference
+  //   our entries — that integration is a follow-up.
+
+
+
+
+  /**
+   * Open the spin-off confirmation dialog. On confirm, creates the
+   * character and lore items via window.db (Perchance's Dexie instance).
+   *
+   * @param {{
+   *   sourceLabel: string,
+   *   entries: Array<{ id: string|number, text: string, embedding?: any }>,
+   *   onCreated?: (result: { character: object, loreCount: number }) => void,
+   *   onCancel?: () => void,
+   * }} opts
+   */
+  function openSpinOffDialog({ sourceLabel, entries, onCreated, onCancel } = {}) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      if (typeof onCancel === 'function') onCancel();
+      return;
+    }
+
+    // Default name: the bubble's auto-derived label, lightly cleaned.
+    const defaultName = (sourceLabel || '').replace(/^[\s•·:]+|[\s•·:]+$/g, '').trim() || 'New Character';
+
+    const nameInput = h('input', {
+      type: 'text',
+      class: 'pf-spinoff-name',
+      value: defaultName,
+      placeholder: 'Character name',
+      'aria-label': 'New character name',
+      spellcheck: 'true',
+    });
+
+    // Read-only preview of what we'll create. Each entry shown as a
+    // bullet so the user can see what's about to land in lore.
+    const previewList = h('ul', { class: 'pf-spinoff-preview' });
+    const maxPreview = 8;
+    const shown = entries.slice(0, maxPreview);
+    for (const e of shown) {
+      const txt = (e && e.text) ? String(e.text) : '';
+      const truncated = txt.length > 200 ? txt.slice(0, 200) + '…' : txt;
+      previewList.appendChild(h('li', {}, [truncated]));
+    }
+    if (entries.length > maxPreview) {
+      previewList.appendChild(h('li', { class: 'pf-spinoff-more' }, [
+        `…and ${entries.length - maxPreview} more`,
+      ]));
+    }
+
+    const errEl = h('div', { class: 'pf-spinoff-err', hidden: true });
+
+    let busy = false;
+    const cancelBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      onClick: () => {
+        if (busy) return;
+        overlay.hide();
+        if (typeof onCancel === 'function') onCancel();
+      },
+    }, ['Cancel']);
+
+    const createBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      onClick: async () => {
+        if (busy) return;
+        const name = nameInput.value.trim();
+        if (!name) {
+          errEl.textContent = 'Please enter a character name.';
+          errEl.hidden = false;
+          nameInput.focus();
+          return;
+        }
+        errEl.hidden = true;
+        busy = true;
+        createBtn.disabled = true;
+        cancelBtn.disabled = true;
+        createBtn.textContent = 'Creating…';
+        try {
+          const result = await createCharacterWithLore({
+            name,
+            sourceLabel: sourceLabel || '',
+            entries,
+          });
+          overlay.hide();
+          if (typeof onCreated === 'function') onCreated(result);
+        } catch (err) {
+          errEl.textContent = `Could not create character: ${(err && err.message) || String(err)}`;
+          errEl.hidden = false;
+          busy = false;
+          createBtn.disabled = false;
+          cancelBtn.disabled = false;
+          createBtn.textContent = 'Create Character';
+        }
+      },
+    }, ['Create Character']);
+
+    const wrapper = h('div', { class: 'pf-spinoff-dialog' }, [
+      h('h2', { class: 'pf-spinoff-title' }, ['Spin off as new character']),
+      h('p', { class: 'pf-spinoff-blurb' }, [
+        `Creates a new character seeded with ${entries.length} ` +
+        (entries.length === 1 ? 'memory' : 'memories') +
+        ' as starter lore. Source thread is unchanged.',
+      ]),
+      h('label', { class: 'pf-spinoff-label' }, [
+        'Character name',
+        nameInput,
+      ]),
+      h('div', { class: 'pf-spinoff-preview-wrap' }, [
+        h('div', { class: 'pf-spinoff-preview-label' }, ['Lore preview:']),
+        previewList,
+      ]),
+      h('p', { class: 'pf-spinoff-tip' }, [
+        'After creation, find your new character in the upstream character ' +
+        'list. You can edit details, add an avatar, and tune lore there.',
+      ]),
+      errEl,
+      h('div', { class: 'pf-spinoff-actions' }, [cancelBtn, createBtn]),
+    ]);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Create character from bubble',
+      children: [wrapper],
+    });
+    overlay.show();
+    // Focus name input after a tick so the overlay's own focus management
+    // doesn't steal it.
+    setTimeout(() => nameInput.select(), 0);
+  }
+
+  /**
+   * Create the character row + lore rows. Returns { character, loreCount }.
+   *
+   * Throws if window.db isn't available or the writes fail.
+   */
+  async function createCharacterWithLore({ name, sourceLabel, entries }) {
+    const db = (typeof window !== 'undefined') ? window.db : null;
+    if (!db || !db.characters || !db.lore) {
+      throw new Error('Perchance database not available');
+    }
+
+    // Build a description that hints at the seed-from-bubble origin.
+    // Kept short — the character form will let the user edit/expand it.
+    // First line is a one-liner, second is a faded source note.
+    const description = [
+      `${name} — spun off from a memory bubble.`,
+      sourceLabel ? `Seeded from: ${sourceLabel}` : '',
+    ].filter(Boolean).join('\n');
+
+    // Build the character object with the minimum-viable shape that
+    // upstream expects. These defaults MIRROR upstream's
+    // `upgradeCharacterFromOldVersion` function (search that name in
+    // vendor/perchance_2.txt) which sets defaults for fields that
+    // characters are loaded without. That migration runs on LOAD, not
+    // on add, so we have to populate these fields at creation time —
+    // otherwise UI code like `renderCharacterList` that reads the raw
+    // row breaks on undefined fields (e.g. `c.folderPath.startsWith`).
+    //
+    // The set of fields here should be kept in sync with upstream as
+    // their schema evolves. If upstream adds a new field, load it once,
+    // then re-save — the migration will fill in our character too.
+    const characterObj = {
+      name,
+      description,
+      avatar: { url: '', size: 1, shape: 'square' },
+      // Upstream migration deletes avatarUrl after constructing `avatar`
+      // from it, so we don't pass avatarUrl here.
+      scene: { background: {}, music: {} },
+      streamingResponse: true,
+      roleInstruction: '',
+      folderPath: '',
+      uuid: null,
+      customData: {},
+      userCharacter: {},
+      systemCharacter: { avatar: {} },
+      loreBookUrls: [],
+      autoGenerateMemories: 'none',
+      maxTokensPerMessage: null,
+      customCode: '',
+      initialMessagesText: '',
+      reminderMessage: '',
+      lastMessageTime: Date.now(),
+      creationTime: Date.now(),
+      // Mark our origin so future versions of the tool can find what
+      // we created (for stats, gamification, or future cleanup).
+      pfSpawnedFrom: {
+        sourceLabel: sourceLabel || '',
+        entryCount: entries.length,
+        createdAt: new Date().toISOString(),
+      },
+    };
+
+    // Insert character. Dexie returns the new id.
+    const newId = await db.characters.add(characterObj);
+    characterObj.id = newId;
+
+    // Synthetic lore-book identifier that links the new character to its
+    // seeded lore. Stored as a URL-shaped string in loreBookUrls so the
+    // upstream loader recognizes it as a known shape, but the value is
+    // ours (`pf-spawned:<id>`) so we can find it later.
+    const loreBookId = `pf-spawned:${newId}`;
+
+    // Patch the character with the new loreBookUrls now that we have id.
+    await db.characters.update(newId, { loreBookUrls: [loreBookId] });
+
+    // Add each entry as a lore row in the synthetic book. Triggers left
+    // empty — user can tune in the upstream lore editor. Embeddings
+    // preserved if present so retrieval can use them right away.
+    let loreCount = 0;
+    for (const entry of entries) {
+      if (!entry || !entry.text) continue;
+      try {
+        await db.lore.add({
+          bookId: loreBookId,
+          bookUrl: loreBookId,
+          text: String(entry.text),
+          triggers: [],
+          embeddings: entry.embedding ? { default: entry.embedding } : {},
+        });
+        loreCount++;
+      } catch (e) {
+        // Per-entry failure shouldn't block the whole spin-off. Log and
+        // continue. The character still gets created with whatever lore
+        // landed successfully.
+        console.warn('[pf] lore add failed during spin-off:', e && e.message);
+      }
+    }
+
+    return { character: characterObj, loreCount };
+  }
+
+  /**
+   * Heal any previously-spun-off characters that were created before we
+   * populated the full field set. Walks db.characters, finds rows with
+   * pfSpawnedFrom but missing required fields, and backfills the
+   * defaults upstream's migration would normally provide.
+   *
+   * Safe to call on every window open — idempotent.
+   */
+  async function backfillSpawnedCharacterFields() {
+    const db = (typeof window !== 'undefined') ? window.db : null;
+    if (!db || !db.characters) return;
+    try {
+      const all = await db.characters.toArray();
+      for (const c of all) {
+        if (!c || !c.pfSpawnedFrom) continue;
+        const patch = {};
+        if (c.folderPath === undefined)           patch.folderPath = '';
+        if (c.uuid === undefined)                 patch.uuid = null;
+        if (c.customData === undefined)           patch.customData = {};
+        if (c.userCharacter === undefined)        patch.userCharacter = {};
+        if (c.systemCharacter === undefined)      patch.systemCharacter = { avatar: {} };
+        if (c.scene === undefined)                patch.scene = { background: {}, music: {} };
+        if (c.streamingResponse === undefined)    patch.streamingResponse = true;
+        if (c.roleInstruction === undefined)      patch.roleInstruction = '';
+        if (c.autoGenerateMemories === undefined) patch.autoGenerateMemories = 'none';
+        if (c.maxTokensPerMessage === undefined)  patch.maxTokensPerMessage = null;
+        if (c.customCode === undefined)           patch.customCode = '';
+        if (c.initialMessagesText === undefined)  patch.initialMessagesText = '';
+        if (c.reminderMessage === undefined)      patch.reminderMessage = '';
+        if (c.creationTime === undefined)         patch.creationTime = c.lastMessageTime || Date.now();
+        if (c.avatar === undefined)               patch.avatar = { url: '', size: 1, shape: 'square' };
+        if (c.loreBookUrls === undefined)         patch.loreBookUrls = [];
+        if (Object.keys(patch).length > 0) {
+          try {
+            await db.characters.update(c.id, patch);
+          } catch (e) {
+            console.warn('[pf] character backfill failed for id', c.id, ':', e && e.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[pf] backfillSpawnedCharacterFields failed:', e && e.message);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: memory/window_open.js
      ────────────────────────────────────────────────────────── */
   // memory/window_open.js
@@ -24369,6 +24925,7 @@ Use this template for your response:
   // expanded set per scope, current bubble layouts).
   // The window module owns: DOM.
   // stage.js knows nothing about bubbles.
+
 
 
 
@@ -24792,6 +25349,35 @@ Use this template for your response:
         }
         refresh();
       },
+      // Spin off a new character from a bubble. Non-mutating for the
+      // source thread — the bubble's entries are COPIED out as seed
+      // lore for the new character. Source memories remain intact.
+      //
+      // Opens a confirmation dialog with name + preview. User can edit
+      // the name before creating. On successful creation, the character
+      // shows up in the upstream character list; user can then chat
+      // with them or tune lore further there.
+      //
+      // Bumps the charactersSpawned counter so the "Demiurge" tiered
+      // achievement progresses.
+      onSpinOffCharacter: (_scope, _bubbleId, entries, label) => {
+        if (!Array.isArray(entries) || entries.length === 0) return;
+        openSpinOffDialog({
+          sourceLabel: label || '',
+          entries,
+          onCreated: ({ character, loreCount }) => {
+            bumpCounter('charactersSpawned');
+            // Brief confirmation. We don't re-render the Memory window
+            // since the spin-off doesn't mutate source state.
+            const name = (character && character.name) || 'the character';
+            window.alert(
+              `Created "${name}" with ${loreCount} ${loreCount === 1 ? 'lore item' : 'lore items'}.\n\n` +
+              `You can find them in the upstream character list.`
+            );
+          },
+        });
+      },
+
       onBubbleDelete: (bubbleId, entries) => {
         const scope = locatedBubbleScope(bubbleId);
         if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
@@ -26865,6 +27451,7 @@ Use this template for your response:
     { key: 'backupsImported',            label: 'Backups imported',    hint: 'Backup files imported from disk', hideIfZero: true },
     { key: 'promptArchiveOpens',         label: 'Archive views',       hint: 'Prompt Archive section expanded', hideIfZero: true },
     { key: 'focusModeToggles',           label: 'Focus mode',          hint: 'Focus-mode toggles', hideIfZero: true },
+    { key: 'charactersSpawned',          label: 'Characters spawned',  hint: 'New characters spun off from memory bubbles', hideIfZero: true },
   ];
 
   /**
@@ -26922,7 +27509,8 @@ Use this template for your response:
       (Number(c.backupsExported)           || 0) +
       (Number(c.backupsImported)           || 0) +
       (Number(c.promptArchiveOpens)        || 0) +
-      (Number(c.focusModeToggles)          || 0);
+      (Number(c.focusModeToggles)          || 0) +
+      (Number(c.charactersSpawned)         || 0);
 
     // Streak banner — shown above the chip grid when there's any streak
     // history. Icon + tone shifts based on streakStatus:
@@ -27915,6 +28503,7 @@ Use this template for your response:
 
 
 
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -27994,6 +28583,14 @@ Use this template for your response:
   async function start() {
     if (start._started) return;
     start._started = true;
+
+    // One-shot backfill for characters spun off before we included the
+    // full field set. Without this, upstream's renderCharacterList will
+    // throw "Cannot read properties of undefined (reading 'startsWith')"
+    // when it iterates over c.folderPath. Fire-and-forget; errors logged
+    // inside the backfill helper. Runs every session but is idempotent
+    // (only writes when a character actually has missing fields).
+    backfillSpawnedCharacterFields().catch(() => { /* best-effort */ });
 
     const card = await mountMiniCard({
       buildElement: () => createMiniCard({

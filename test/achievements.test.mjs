@@ -246,3 +246,23 @@ test('mixed stats + counters: both kinds of achievements unlock together', () =>
   assert.ok(unlocked.includes('curator_silver'));
   assert.ok(unlocked.includes('namer_silver'));
 });
+
+// ---- spin-off character achievement (Demiurge) ----
+
+test('achievements: demiurge_bronze unlocks at 1 spawned character', () => {
+  const unlocked = computeUnlockedIds({ counters: { charactersSpawned: 1 } });
+  assert.ok(unlocked.includes('demiurge_bronze'));
+  assert.ok(!unlocked.includes('demiurge_silver'));
+});
+
+test('achievements: demiurge_gold at 20 characters', () => {
+  const unlocked = computeUnlockedIds({ counters: { charactersSpawned: 20 } });
+  assert.ok(unlocked.includes('demiurge_bronze'));
+  assert.ok(unlocked.includes('demiurge_silver'));
+  assert.ok(unlocked.includes('demiurge_gold'));
+});
+
+test('achievements: no demiurge without spawns', () => {
+  const unlocked = computeUnlockedIds({ counters: { memorySaves: 100 } });
+  assert.ok(!unlocked.some(id => id.startsWith('demiurge_')));
+});

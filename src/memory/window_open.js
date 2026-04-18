@@ -32,6 +32,7 @@ import { h } from '../utils/dom.js';
 import { bumpCounter } from '../stats/counters.js';
 import { loadSettings } from '../profile/settings_store.js';
 import { recordActivityForStreak } from '../stats/streaks.js';
+import { openSpinOffDialog } from './spinoff_character.js';
 
 // ---- entry-point exposure ----
 if (typeof window !== 'undefined') {
@@ -441,6 +442,35 @@ export async function openMemoryWindow() {
       }
       refresh();
     },
+    // Spin off a new character from a bubble. Non-mutating for the
+    // source thread — the bubble's entries are COPIED out as seed
+    // lore for the new character. Source memories remain intact.
+    //
+    // Opens a confirmation dialog with name + preview. User can edit
+    // the name before creating. On successful creation, the character
+    // shows up in the upstream character list; user can then chat
+    // with them or tune lore further there.
+    //
+    // Bumps the charactersSpawned counter so the "Demiurge" tiered
+    // achievement progresses.
+    onSpinOffCharacter: (_scope, _bubbleId, entries, label) => {
+      if (!Array.isArray(entries) || entries.length === 0) return;
+      openSpinOffDialog({
+        sourceLabel: label || '',
+        entries,
+        onCreated: ({ character, loreCount }) => {
+          bumpCounter('charactersSpawned');
+          // Brief confirmation. We don't re-render the Memory window
+          // since the spin-off doesn't mutate source state.
+          const name = (character && character.name) || 'the character';
+          window.alert(
+            `Created "${name}" with ${loreCount} ${loreCount === 1 ? 'lore item' : 'lore items'}.\n\n` +
+            `You can find them in the upstream character list.`
+          );
+        },
+      });
+    },
+
     onBubbleDelete: (bubbleId, entries) => {
       const scope = locatedBubbleScope(bubbleId);
       if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;

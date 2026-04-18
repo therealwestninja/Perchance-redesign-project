@@ -42,6 +42,7 @@
     "render/memory_panels.js",
     "render/memory_settings_drawer.js",
     "render/memory_window.js",
+    "memory/spinoff_character.js",
     "memory/window_open.js",
     "render/section.js",
     "render/splash.js",

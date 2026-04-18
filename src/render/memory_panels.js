@@ -113,7 +113,17 @@ export function createMemoryPanels({
 
   const deleteCol = buildDeletePanel({ countEl: deleteCountEl, handlers });
 
-  const root = h('div', { class: 'pf-mem-panels' }, [memoryCol, loreCol, deleteCol]);
+  // Right column: stacked Create-Character (2/3 height) + Delete (1/3
+  // height). Create-Character accepts only bubble payloads (single
+  // memories don't make sense as character seeds); Delete keeps its
+  // existing semantics.
+  const createCharCol = buildCreateCharacterPanel({ handlers });
+  const rightCol = h('div', { class: 'pf-mem-right-stack' }, [
+    createCharCol,
+    deleteCol,
+  ]);
+
+  const root = h('div', { class: 'pf-mem-panels' }, [memoryCol, loreCol, rightCol]);
 
   function render(state) {
     const s = state || {};
@@ -319,6 +329,74 @@ function buildDeletePanel({ countEl, handlers }) {
   return col;
 }
 
+/**
+ * Build the "Create Character" drop zone. Sits above the (now smaller)
+ * Delete zone in the right column. Accepts whole-bubble drops only —
+ * single memories can't seed a character; the unit of meaning is the
+ * bubble. Themed with a green accent to distinguish from the red
+ * Delete zone.
+ *
+ * On drop: invokes handlers.onSpinOffCharacter(scope, bubbleId, entries,
+ * label). The handler decides whether to open a confirmation dialog
+ * and whether to actually create the character — this panel is just
+ * the gesture target.
+ */
+function buildCreateCharacterPanel({ handlers }) {
+  const col = h('section', {
+    class: 'pf-mem-col pf-mem-col-create-char',
+    'aria-label': 'Spin off as new character',
+  }, [
+    h('header', { class: 'pf-mem-col-header' }, [
+      h('h3', { class: 'pf-mem-col-title pf-mem-col-title-create' }, ['Create Character']),
+    ]),
+    h('div', { class: 'pf-mem-create-char-body' }, [
+      h('div', { class: 'pf-mem-create-char-icon', 'aria-hidden': 'true' }, ['✨']),
+      h('div', { class: 'pf-mem-create-char-hint' }, [
+        'Drop a bubble here to spin off its memories into a new character.',
+      ]),
+    ]),
+  ]);
+
+  col.addEventListener('dragover', (ev) => {
+    if (!dragPayload) return;
+    // Only accept whole-bubble drops; reject single-card payloads.
+    const isBubblePayload = dragPayload.kind === 'bubble' || dragPayload.kind === 'reorder-bubble';
+    if (!isBubblePayload) return;
+    ev.preventDefault();
+    col.classList.add('pf-mem-col-drop-over');
+  });
+  col.addEventListener('dragleave', (ev) => {
+    if (!col.contains(ev.relatedTarget)) {
+      col.classList.remove('pf-mem-col-drop-over');
+    }
+  });
+  col.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    col.classList.remove('pf-mem-col-drop-over');
+    if (!dragPayload) return;
+    const payload = dragPayload;
+    dragPayload = null;
+
+    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
+    if (!isBubblePayload) return;
+    if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
+
+    if (typeof handlers.onSpinOffCharacter === 'function') {
+      // Pass scope so handler can decide how to label / route. The
+      // entries themselves are scope-agnostic — both Memory and Lore
+      // entries have a text field that maps cleanly to a lore item.
+      handlers.onSpinOffCharacter(
+        payload.scope,
+        payload.bubbleId,
+        payload.entries,
+        payload.label || ''
+      );
+    }
+  });
+
+  return col;
+}
+
 // ---- bubble rendering ----
 
 function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts) {
@@ -366,6 +444,7 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
           scope,
           bubbleId: bubble.id,
           entries: bubble.entries.slice(),
+          label: bubble.label || '',
         };
         try {
           ev.dataTransfer.setData('text/plain', `reorder-bubble:${bubble.id}`);
@@ -497,6 +576,7 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
       scope,
       bubbleId: bubble.id,
       entries: bubble.entries.slice(),
+      label: bubble.label || '',
     };
     header.classList.add('pf-mem-bubble-dragging');
     try {

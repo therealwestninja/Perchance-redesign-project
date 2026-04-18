@@ -3,6 +3,7 @@
 Future improvements that aren't urgent or don't belong in the current
 sprint. Ordered by rough priority, not schedule.
 
+
 ---
 
 ## Memory reorder: targeted persistence (post-7e)
@@ -53,6 +54,7 @@ This distinction needs careful design.
 **Scope estimate:** ~300 lines + new provenance tracking + tests.
 2-3 commits.
 
+
 ---
 
 ## Hide upstream `/mem` and `/lore` commands
@@ -91,17 +93,55 @@ Before we can implement, we need to:
 
 **Scope after investigation:** 10-100 lines depending on what we find.
 
+
 ---
 
-## Commit 4 — drag bubble → new character
+## Commit 4 — drag bubble → new character — SHIPPED
 
-Drag a Memory bubble outside the Memory panel → create a new character
-in the profile system populated with that bubble's entries. Would let
-users spin off ancillary characters from a main thread.
+**Status: shipped.**
 
-Requires coordination with the profile system we built earlier.
+Implemented as a "Create Character" drop zone stacked above a smaller
+Delete zone in the Memory window's right column (per user's spec:
+Delete shrunk to 1/3 height, Create Character on top 2/3 with green
+accent).
 
-**Scope:** unclear, high. ~500+ lines.
+### Flow
+- User drags a bubble (via grip OR header) onto the Create Character
+  zone → minimal confirmation dialog appears with editable name
+  (pre-filled from bubble label) and a preview of the bubble's
+  entries as upcoming lore items
+- On Create: `db.characters.add` creates the character, then each
+  entry is added as a `db.lore` row with `bookId = pf-spawned:<id>`
+  and the character's `loreBookUrls` is set to `[<that bookId>]`
+- Embeddings preserved in the lore rows so retrieval works
+  immediately if the user starts a thread with the character
+- Source bubble is unchanged (copy-out, not move-out)
+
+### Upstream integration note
+We could not invoke Perchance's `characterDetailsPrompt` directly
+since it lives inside the upstream IIFE closure. Shipped our own
+minimal dialog that focuses on name + preview; full field editing
+happens in the upstream character list after creation. Future
+enhancement: if Perchance exposes `characterDetailsPrompt` or we
+build a postMessage bridge, we could pipe the full form through
+and let users fill avatar/scenario/etc. before the character lands.
+
+### Counter + achievement
+- New counter `charactersSpawned` (tracks spin-offs)
+- Tiered "Demiurge" achievement (bronze 1, silver 5, gold 20)
+- New "Characters spawned" chip in the Activity section
+
+### Files
+- `src/memory/spinoff_character.js` — NEW (~175 lines)
+- `src/render/memory_panels.js` — `buildCreateCharacterPanel`,
+  right-column stack, `label` added to bubble drag payloads
+- `src/memory/window_open.js` — `onSpinOffCharacter` handler
+- `src/render/styles.js` — stack + create-char + spinoff dialog CSS
+- `src/profile/settings_store.js`, `src/stats/counters.js` — new
+  counter field
+- `src/achievements/registry.js` — Demiurge tiers
+- `src/render/activity_body.js` — new chip + total
+- `src/manifest.json` — `spinoff_character.js` registered
 
 ---
 
@@ -119,6 +159,164 @@ anything else.
 
 **Scope:** ~80 lines in db.js (migration + read/write honoring order)
 + UI wiring to enable Lore grips (currently hardcoded off).
+
+---
+
+
+
+## Settings modal + rename threshold slider — SHIPPED
+
+**Status: shipped as a settings drawer.**
+
+Implemented as a slide-down drawer (not a modal) triggered by a gear
+icon in the Memory window header. Keeps the tool chrome clean when
+not in use and extensible for more knobs. Changes persist via
+`updateField`, fire settings pub/sub, and trigger a live refresh of
+the bubble layout so users see the effect of their changes
+immediately without closing the window.
+
+Shipped knob: **rename-survival threshold slider** (0–100%, step 5%,
+default 50%). Live-readable from `settings.memory.tool.renameThreshold`.
+Passed to `applyOverrides` at both call sites. Tooltip captions adapt
+in plain English as the slider moves ("Balanced — renames stick when
+membership is largely the same.").
+
+### Extension points
+
+Architected to accept more knobs by adding a row to
+`createMemorySettingsDrawer`. Candidates from the original roadmap:
+
+- Snapshot ring-buffer size (currently hardcoded 10)
+- Usage histogram window (currently hardcoded last-10 messages)
+- Lock reconciliation threshold (currently uses renameThreshold —
+  could decouple if users ever ask)
+- K-cluster recommendation tuning
+- Auto-save behavior (currently off by default)
+
+Each new row is ~30 lines in `memory_settings_drawer.js` + a default
+in `settings.memory.tool` + a consumer in the relevant module. No
+plumbing-pass required.
+
+
+
+---
+
+## Second pass on User Profile — remaining items
+
+**Status: PARTIAL. Core counter infrastructure shipped.**
+
+### Shipped
+- `settings.counters` namespace in settings_store
+- `src/stats/counters.js` module: `bumpCounter`, `getCounters`, `resetCounters`
+- Bubble tool instrumentation: memoryWindowOpens, bubblesLocked,
+  bubblesRenamed, bubblesReordered, cardsReorderedInBubble,
+  cardsReorderedCrossBubble, snapshotsRestored, memorySaves,
+  backupsExported
+- Non-bubble-tool instrumentation: backupsImported, promptArchiveOpens,
+  focusModeToggles
+- Profile "Activity" section displaying chip grid with per-counter
+  totals plus first/last activity timestamps
+- Round-trip through backup/export/import works for free (counters
+  live in settings)
+- 10 unit tests for counters module
+
+### Still open
+- **30-day sparklines for counters.** Counters are lifetime totals
+  today; a sparkline showing the last 30 days would feel more
+  dynamic and give users a "I used this a lot this week" signal.
+  Would require adding a daily-bucket histogram alongside lifetime
+  counters (`countersByDay: { '2026-04-18': { memorySaves: 3 } }`).
+  Plus UI to render it. ~150 lines.
+- **Weekly prompts completed BY CATEGORY tracking.** Currently we
+  track completedByWeek as a flat list. A category breakdown
+  (writing prompt vs roleplay prompt vs worldbuilding, etc.) would
+  let us surface "your preferred prompt type" and tier achievements
+  on variety. ~100 lines.
+- **Holiday event participations.** We track seenEventIds but not
+  any engagement signal beyond viewing. Could add "acknowledged",
+  "responded", "added to chronicle" states. ~80 lines.
+- **Per-thread counter breakdowns.** Today counters are global;
+  breaking them down per-thread could surface "your Davie thread
+  has the most memory edits" kind of insights. ~200 lines.
+
+These remaining items are all additive and can be tackled
+independently. None are blockers for the gamification roadmap
+item — the core counter data is there now.
+
+
+---
+
+## Achievement levels + profile gamification
+
+**Status: PARTIAL. Tiered counter-backed achievements shipped.**
+
+### Shipped
+- Tiered counter-backed achievements: bronze/silver/gold for 9
+  counter categories (Curator, Namer, Organizer, Shuffler, Sorter,
+  Preservationist, Restorer, Archivist, Regular). 27 new
+  achievement IDs mapped to bronze=common, silver=rare, gold=epic
+  existing tiers. Unlocks track per-counter thresholds.
+- `tieredCounter()` helper in `registry.js` for easily adding new
+  tiered achievements without repeating the three-row structure.
+- `stats.counters` injected by all three unlock call sites
+  (full_page initial, full_page refresh, mini-card refresh).
+- 12 unit tests for the new achievement behavior.
+- Achievement unlock-date tracking (commit 3beeeb0): each unlock
+  records first-detected ISO timestamp; achievements grid shows
+  relative + absolute date.
+- **Streak tracking** (NEW): consecutive-day activity streak with
+  current + longest, "active / at-risk / broken" status, streak
+  banner in Activity section with adaptive icon/tone, 5 tiered
+  streak achievements (3/7/14/30/100 days, common→legendary).
+  recordActivityForStreak() called on profile open + memory tool
+  open. Idempotent within a UTC day.
+
+### Remaining
+- **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
+  Storyteller" classification that the user asked for. Unlike
+  tiered counter achievements (which reward doing a lot of ONE
+  thing), archetypes reward patterns across MANY signals:
+  - Casual: profile opened ~weekly, small counter totals
+  - Twice-weekly: steadier cadence, moderate counters
+  - Daily: high cadence, high counters
+  - RP: character creation, long threads, in-character writing
+    style indicators
+  - Storyteller: long-form writing, multi-session continuity,
+    snapshot restoration pattern, rename activity
+  Each archetype = achievement that unlocks when a WEIGHTED
+  combination of signals crosses a threshold. ~200 lines.
+- **Profile flair unlocks** — titles, avatar borders, accent colors
+  pinned to achievements/archetypes. Requires flair-storage field
+  in settings, flair-picker UI in profile, rendering in splash +
+  mini-card. ~200 lines.
+- **Personal-best notifications** — "beat your personal best in
+  words this session" toast. Needs per-session snapshot of relevant
+  stats at session start, comparison at end. ~80 lines.
+- **Shareable profile cards** — opt-in canvas-rendered image or
+  share-link with user's stats. Opens share sheet / copy-to-
+  clipboard. Privacy-sensitive; must exclude any identifying
+  details by default. ~200 lines.
+- **Summary notifications** — opt-in weekly/monthly summary toast
+  or mini-card pulse ("this week: 3 memory saves, 12 bubble
+  renames"). Needs a scheduler + a summary composer. ~150 lines.
+
+### Dependencies cleared
+- ~~Second-pass user-stats tracking~~ SHIPPED (commit b101e98 +
+  this commit)
+- Code-duplication refactor pass — still pending, but no longer a
+  strict blocker; the flair + share-card work can land as-is and
+  the refactor will touch the rest.
+
+
+
+---
+
+## Phase: Audits (deferred — last phase)
+
+Per user direction: audits move to the last phase of work.
+Engineering hygiene items grouped here so they don't compete for
+priority with feature shipping. Each gets its own commit when its
+turn comes.
 
 ---
 
@@ -234,6 +432,8 @@ should be non-fatal. A deeper audit should:
 
 ---
 
+---
+
 ## Narrow-predicate audit — "does this check everything it should?"
 
 **Status: open.** Related to the Apr 18 audit but called out as its
@@ -297,39 +497,6 @@ this task is.
 
 ---
 
-## Settings modal + rename threshold slider — SHIPPED
-
-**Status: shipped as a settings drawer.**
-
-Implemented as a slide-down drawer (not a modal) triggered by a gear
-icon in the Memory window header. Keeps the tool chrome clean when
-not in use and extensible for more knobs. Changes persist via
-`updateField`, fire settings pub/sub, and trigger a live refresh of
-the bubble layout so users see the effect of their changes
-immediately without closing the window.
-
-Shipped knob: **rename-survival threshold slider** (0–100%, step 5%,
-default 50%). Live-readable from `settings.memory.tool.renameThreshold`.
-Passed to `applyOverrides` at both call sites. Tooltip captions adapt
-in plain English as the slider moves ("Balanced — renames stick when
-membership is largely the same.").
-
-### Extension points
-
-Architected to accept more knobs by adding a row to
-`createMemorySettingsDrawer`. Candidates from the original roadmap:
-
-- Snapshot ring-buffer size (currently hardcoded 10)
-- Usage histogram window (currently hardcoded last-10 messages)
-- Lock reconciliation threshold (currently uses renameThreshold —
-  could decouple if users ever ask)
-- K-cluster recommendation tuning
-- Auto-save behavior (currently off by default)
-
-Each new row is ~30 lines in `memory_settings_drawer.js` + a default
-in `settings.memory.tool` + a consumer in the relevant module. No
-plumbing-pass required.
-
 ---
 
 ## Code duplication audit + refactor pass
@@ -363,111 +530,6 @@ once" — each area gets its own commit with tests. Targets:
 **Scope per pass:** ~100–200 lines each. Three to five commits total.
 
 ---
-
-## Second pass on User Profile — remaining items
-
-**Status: PARTIAL. Core counter infrastructure shipped.**
-
-### Shipped
-- `settings.counters` namespace in settings_store
-- `src/stats/counters.js` module: `bumpCounter`, `getCounters`, `resetCounters`
-- Bubble tool instrumentation: memoryWindowOpens, bubblesLocked,
-  bubblesRenamed, bubblesReordered, cardsReorderedInBubble,
-  cardsReorderedCrossBubble, snapshotsRestored, memorySaves,
-  backupsExported
-- Non-bubble-tool instrumentation: backupsImported, promptArchiveOpens,
-  focusModeToggles
-- Profile "Activity" section displaying chip grid with per-counter
-  totals plus first/last activity timestamps
-- Round-trip through backup/export/import works for free (counters
-  live in settings)
-- 10 unit tests for counters module
-
-### Still open
-- **30-day sparklines for counters.** Counters are lifetime totals
-  today; a sparkline showing the last 30 days would feel more
-  dynamic and give users a "I used this a lot this week" signal.
-  Would require adding a daily-bucket histogram alongside lifetime
-  counters (`countersByDay: { '2026-04-18': { memorySaves: 3 } }`).
-  Plus UI to render it. ~150 lines.
-- **Weekly prompts completed BY CATEGORY tracking.** Currently we
-  track completedByWeek as a flat list. A category breakdown
-  (writing prompt vs roleplay prompt vs worldbuilding, etc.) would
-  let us surface "your preferred prompt type" and tier achievements
-  on variety. ~100 lines.
-- **Holiday event participations.** We track seenEventIds but not
-  any engagement signal beyond viewing. Could add "acknowledged",
-  "responded", "added to chronicle" states. ~80 lines.
-- **Per-thread counter breakdowns.** Today counters are global;
-  breaking them down per-thread could surface "your Davie thread
-  has the most memory edits" kind of insights. ~200 lines.
-
-These remaining items are all additive and can be tackled
-independently. None are blockers for the gamification roadmap
-item — the core counter data is there now.
-
----
-
-## Achievement levels + profile gamification
-
-**Status: PARTIAL. Tiered counter-backed achievements shipped.**
-
-### Shipped
-- Tiered counter-backed achievements: bronze/silver/gold for 9
-  counter categories (Curator, Namer, Organizer, Shuffler, Sorter,
-  Preservationist, Restorer, Archivist, Regular). 27 new
-  achievement IDs mapped to bronze=common, silver=rare, gold=epic
-  existing tiers. Unlocks track per-counter thresholds.
-- `tieredCounter()` helper in `registry.js` for easily adding new
-  tiered achievements without repeating the three-row structure.
-- `stats.counters` injected by all three unlock call sites
-  (full_page initial, full_page refresh, mini-card refresh).
-- 12 unit tests for the new achievement behavior.
-- Achievement unlock-date tracking (commit 3beeeb0): each unlock
-  records first-detected ISO timestamp; achievements grid shows
-  relative + absolute date.
-- **Streak tracking** (NEW): consecutive-day activity streak with
-  current + longest, "active / at-risk / broken" status, streak
-  banner in Activity section with adaptive icon/tone, 5 tiered
-  streak achievements (3/7/14/30/100 days, common→legendary).
-  recordActivityForStreak() called on profile open + memory tool
-  open. Idempotent within a UTC day.
-
-### Remaining
-- **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
-  Storyteller" classification that the user asked for. Unlike
-  tiered counter achievements (which reward doing a lot of ONE
-  thing), archetypes reward patterns across MANY signals:
-  - Casual: profile opened ~weekly, small counter totals
-  - Twice-weekly: steadier cadence, moderate counters
-  - Daily: high cadence, high counters
-  - RP: character creation, long threads, in-character writing
-    style indicators
-  - Storyteller: long-form writing, multi-session continuity,
-    snapshot restoration pattern, rename activity
-  Each archetype = achievement that unlocks when a WEIGHTED
-  combination of signals crosses a threshold. ~200 lines.
-- **Profile flair unlocks** — titles, avatar borders, accent colors
-  pinned to achievements/archetypes. Requires flair-storage field
-  in settings, flair-picker UI in profile, rendering in splash +
-  mini-card. ~200 lines.
-- **Personal-best notifications** — "beat your personal best in
-  words this session" toast. Needs per-session snapshot of relevant
-  stats at session start, comparison at end. ~80 lines.
-- **Shareable profile cards** — opt-in canvas-rendered image or
-  share-link with user's stats. Opens share sheet / copy-to-
-  clipboard. Privacy-sensitive; must exclude any identifying
-  details by default. ~200 lines.
-- **Summary notifications** — opt-in weekly/monthly summary toast
-  or mini-card pulse ("this week: 3 memory saves, 12 bubble
-  renames"). Needs a scheduler + a summary composer. ~150 lines.
-
-### Dependencies cleared
-- ~~Second-pass user-stats tracking~~ SHIPPED (commit b101e98 +
-  this commit)
-- Code-duplication refactor pass — still pending, but no longer a
-  strict blocker; the flair + share-card work can land as-is and
-  the refactor will touch the rest.
 
 ---
 
@@ -513,6 +575,8 @@ against the fork promise of "upstream untouched." One mitigation:
 build-time patches only (don't edit the vendor file, apply textual
 patches in `build/build.mjs` instead). That keeps the vendor file
 pristine in git but gives us latitude to fix stuff.
+
+---
 
 ---
 

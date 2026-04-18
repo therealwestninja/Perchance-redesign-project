@@ -35,6 +35,7 @@ const CHIPS = [
   { key: 'backupsImported',            label: 'Backups imported',    hint: 'Backup files imported from disk', hideIfZero: true },
   { key: 'promptArchiveOpens',         label: 'Archive views',       hint: 'Prompt Archive section expanded', hideIfZero: true },
   { key: 'focusModeToggles',           label: 'Focus mode',          hint: 'Focus-mode toggles', hideIfZero: true },
+  { key: 'charactersSpawned',          label: 'Characters spawned',  hint: 'New characters spun off from memory bubbles', hideIfZero: true },
 ];
 
 /**
@@ -92,7 +93,8 @@ export function createActivityBody({ counters, streaks, streakStatus: status } =
     (Number(c.backupsExported)           || 0) +
     (Number(c.backupsImported)           || 0) +
     (Number(c.promptArchiveOpens)        || 0) +
-    (Number(c.focusModeToggles)          || 0);
+    (Number(c.focusModeToggles)          || 0) +
+    (Number(c.charactersSpawned)         || 0);
 
   // Streak banner — shown above the chip grid when there's any streak
   // history. Icon + tone shifts based on streakStatus:

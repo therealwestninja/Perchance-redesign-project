@@ -246,6 +246,13 @@ export const ACHIEVEMENTS = Object.freeze([
     counterKey: 'memoryWindowOpens',
     thresholds: { bronze: 5, silver: 25, gold: 100 },
   }),
+  ...tieredCounter({
+    baseId: 'demiurge',
+    baseName: 'Demiurge',
+    what: 'characters spun off from bubbles',
+    counterKey: 'charactersSpawned',
+    thresholds: { bronze: 1, silver: 5, gold: 20 },
+  }),
 
   // --- Streak-based achievements ---
   //

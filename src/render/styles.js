@@ -2608,4 +2608,158 @@ export const CSS = `
 .pf-streak-broken {
   opacity: 0.75;
 }
+
+/* ---- Right column stack: Create Character (top 2/3) + Delete (bottom 1/3) ---- */
+.pf-mem-right-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.pf-mem-right-stack > .pf-mem-col-create-char {
+  flex: 2 1 0;
+}
+.pf-mem-right-stack > .pf-mem-col-delete {
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+/* Create Character drop zone — green accent to distinguish from
+   red Delete. Drop hint centered so it's inviting, not just
+   functional. */
+.pf-mem-col-create-char {
+  border-color: rgba(106, 184, 124, 0.3);
+  background: var(--box-color);
+}
+.pf-mem-col-title-create {
+  color: #6ab87c;
+}
+.pf-mem-create-char-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 14px;
+  text-align: center;
+  opacity: 0.72;
+  transition: opacity 0.15s;
+}
+.pf-mem-col-create-char:hover .pf-mem-create-char-body {
+  opacity: 0.9;
+}
+.pf-mem-create-char-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.pf-mem-create-char-hint {
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 220px;
+  opacity: 0.85;
+}
+.pf-mem-col-create-char.pf-mem-col-drop-over {
+  outline-color: #6ab87c;
+  background: rgba(106, 184, 124, 0.10);
+}
+
+/* ---- Spin-off confirmation dialog ---- */
+.pf-spinoff-dialog {
+  max-width: 560px;
+  padding: 24px 28px;
+}
+.pf-spinoff-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #6ab87c;
+}
+.pf-spinoff-blurb {
+  margin: 0 0 18px;
+  opacity: 0.8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pf-spinoff-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  margin-bottom: 18px;
+}
+.pf-spinoff-name {
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 500;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  outline: none;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 1;
+}
+.pf-spinoff-name:focus {
+  border-color: rgba(106, 184, 124, 0.5);
+  background: rgba(0, 0, 0, 0.28);
+}
+.pf-spinoff-preview-wrap {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.pf-spinoff-preview-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 6px;
+}
+.pf-spinoff-preview {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.pf-spinoff-preview li {
+  margin: 3px 0;
+}
+.pf-spinoff-more {
+  opacity: 0.55;
+  font-style: italic;
+  list-style: none;
+  margin-left: -18px !important;
+}
+.pf-spinoff-tip {
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.55;
+  margin: 0 0 14px;
+}
+.pf-spinoff-err {
+  color: #d87a7a;
+  font-size: 12px;
+  padding: 8px 10px;
+  background: rgba(216, 122, 122, 0.08);
+  border: 1px solid rgba(216, 122, 122, 0.3);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+.pf-spinoff-err[hidden] {
+  display: none;
+}
+.pf-spinoff-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 `.trim();
