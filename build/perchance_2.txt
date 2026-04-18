@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 52 };
+  NS.__meta = { modules: 55 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -15878,6 +15878,660 @@ Use this template for your response:
     }
 
     return clusters.sort((a, b) => b.maxSimilarity - a.maxSimilarity);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/clustering.js
+     ────────────────────────────────────────────────────────── */
+  // memory/clustering.js
+  //
+  // Pure k-means clustering over embedding vectors. Used by bubbles.js to
+  // group memories by semantic similarity.
+  //
+  // Design decisions:
+  //
+  // 1. Seeded deterministic RNG. Two runs on the same data produce identical
+  //    clusters. Users revisit the curation tool; non-determinism would be
+  //    experienced as "wait, why is Elara split in two today?" The seed is
+  //    derived from the input (count + first-vector-hash) so small changes
+  //    to the data are tolerated without reshuffling unrelated clusters.
+  //
+  // 2. k-means++ initialization. Random-init k-means is famously prone to
+  //    local minima; k-means++ spreads initial centroids out, which gives
+  //    dramatically better results at negligible cost for the sizes we see.
+  //
+  // 3. Cosine similarity. Text embeddings are direction-bearing; magnitude
+  //    tends to reflect word count, not meaning. We L2-normalize on entry
+  //    so euclidean distance on normalized vectors ≡ cosine distance.
+  //
+  // 4. Early termination. Real k-means converges in well under 100 iterations
+  //    for our sizes. Hard cap at 100 so a pathological input can't hang.
+  //
+  // Complexity: O(iterations · n · k · d) where n = entries, k = clusters,
+  // d = embedding dimensions (typically 384 or 768). For n=200, k=10, d=384
+  // this is a few ms.
+
+  /**
+   * @typedef {Float32Array | number[]} Vector
+   */
+
+  /**
+   * Deterministic PRNG (mulberry32). Fast, good enough for clustering init.
+   * @param {number} seed
+   * @returns {() => number} rand in [0, 1)
+   */
+  function seededRandom(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Derive a stable seed from the input vectors. Sum of the first 8 components
+   * of the first vector (or just count, if no vectors). Ensures the seed
+   * changes if the data changes, but stays stable across sessions.
+   * @param {Vector[]} vectors
+   * @returns {number}
+   */
+  function deriveSeed(vectors) {
+    let h = vectors.length * 2654435761; // Knuth multiplicative hash on length
+    if (vectors.length > 0 && vectors[0]) {
+      const v = vectors[0];
+      const lim = Math.min(8, v.length);
+      for (let i = 0; i < lim; i++) {
+        // Bring float into integer range and fold in
+        h = Math.imul(h ^ Math.floor((v[i] || 0) * 2147483647), 1597334677);
+      }
+    }
+    return (h >>> 0) || 1;
+  }
+
+  /**
+   * Normalize a vector to unit length in place. Zero-vectors are left at zero.
+   * @param {Vector} v
+   * @returns {Vector} the same vector (for chaining)
+   */
+  function l2Normalize(v) {
+    let sq = 0;
+    for (let i = 0; i < v.length; i++) sq += v[i] * v[i];
+    if (sq > 0) {
+      const inv = 1 / Math.sqrt(sq);
+      for (let i = 0; i < v.length; i++) v[i] *= inv;
+    }
+    return v;
+  }
+
+  /**
+   * Squared euclidean distance between two vectors. Both vectors must be the
+   * same length. For L2-normalized inputs, this equals 2·(1 − cosine).
+   * @param {Vector} a
+   * @param {Vector} b
+   * @returns {number}
+   */
+  function sqDistance(a, b) {
+    let s = 0;
+    for (let i = 0; i < a.length; i++) {
+      const d = a[i] - b[i];
+      s += d * d;
+    }
+    return s;
+  }
+
+  /**
+   * k-means++ initialization: pick first center uniformly at random, then
+   * each subsequent center with probability proportional to squared distance
+   * from the nearest already-chosen center. Spreads initialization out across
+   * the space — far better starting point than uniform random.
+   * @param {Vector[]} vectors  pre-normalized
+   * @param {number} k
+   * @param {() => number} rand
+   * @returns {number[]} indices of chosen initial centers
+   */
+  function kmeansPlusPlusInit(vectors, k, rand) {
+    const n = vectors.length;
+    const chosen = [Math.floor(rand() * n)];
+    const sqDistToNearest = new Float64Array(n);
+    // Initial distances: to the one chosen center.
+    for (let i = 0; i < n; i++) {
+      sqDistToNearest[i] = sqDistance(vectors[i], vectors[chosen[0]]);
+    }
+    while (chosen.length < k) {
+      // Weighted sample by sqDistToNearest
+      let total = 0;
+      for (let i = 0; i < n; i++) total += sqDistToNearest[i];
+      if (total === 0) {
+        // All remaining points are duplicates of an existing center —
+        // pick any unchosen index (defensive; rarely triggers).
+        const already = new Set(chosen);
+        for (let i = 0; i < n; i++) {
+          if (!already.has(i)) { chosen.push(i); break; }
+        }
+        if (chosen.length === k) break;
+        continue;
+      }
+      let target = rand() * total;
+      let pick = n - 1;
+      for (let i = 0; i < n; i++) {
+        target -= sqDistToNearest[i];
+        if (target <= 0) { pick = i; break; }
+      }
+      chosen.push(pick);
+      // Update nearest-distance cache with the newly chosen center
+      const newCenter = vectors[pick];
+      for (let i = 0; i < n; i++) {
+        const d = sqDistance(vectors[i], newCenter);
+        if (d < sqDistToNearest[i]) sqDistToNearest[i] = d;
+      }
+    }
+    return chosen;
+  }
+
+  /**
+   * Compute the centroid of a subset of vectors. Returns a new Float64Array
+   * (higher precision for accumulation than Float32).
+   * @param {Vector[]} vectors
+   * @param {number[]} indices
+   * @returns {Float64Array}
+   */
+  function centroid(vectors, indices) {
+    const d = vectors[indices[0]].length;
+    const c = new Float64Array(d);
+    for (const idx of indices) {
+      const v = vectors[idx];
+      for (let i = 0; i < d; i++) c[i] += v[i];
+    }
+    const inv = 1 / indices.length;
+    for (let i = 0; i < d; i++) c[i] *= inv;
+    return c;
+  }
+
+  /**
+   * Run k-means clustering on the given vectors.
+   *
+   * @param {Object} opts
+   * @param {Vector[]} opts.vectors  L2-normalized vectors (will be normalized
+   *   in place if not already). All same dimension.
+   * @param {number} opts.k          desired cluster count. Will be clamped to
+   *   [1, vectors.length].
+   * @param {number} [opts.maxIterations=100]
+   * @param {number} [opts.seed]     override derived seed (for testing)
+   * @returns {{
+   *   assignments: number[],  // length n, each entry in [0, k)
+   *   centers: Float64Array[], // length k
+   *   iterations: number,
+   *   converged: boolean,
+   * }}
+   */
+  function kmeans({ vectors, k, maxIterations = 100, seed } = {}) {
+    const n = vectors ? vectors.length : 0;
+    if (n === 0) {
+      return { assignments: [], centers: [], iterations: 0, converged: true };
+    }
+    const effectiveK = Math.max(1, Math.min(k | 0, n));
+
+    // Normalize in place — cheap if already normalized (detected: skip on
+    // already-unit vectors), and ensures downstream distance is cosine-esque.
+    for (const v of vectors) l2Normalize(v);
+
+    const rand = seededRandom(seed != null ? seed : deriveSeed(vectors));
+
+    // Init centers via k-means++
+    const initIndices = kmeansPlusPlusInit(vectors, effectiveK, rand);
+    let centers = initIndices.map(i => {
+      const src = vectors[i];
+      const c = new Float64Array(src.length);
+      for (let j = 0; j < src.length; j++) c[j] = src[j];
+      return c;
+    });
+
+    const assignments = new Array(n).fill(0);
+    let iterations = 0;
+    let converged = false;
+
+    while (iterations < maxIterations) {
+      iterations++;
+
+      // Assign step
+      let anyChanged = false;
+      for (let i = 0; i < n; i++) {
+        let bestK = 0;
+        let bestD = sqDistance(vectors[i], centers[0]);
+        for (let j = 1; j < effectiveK; j++) {
+          const d = sqDistance(vectors[i], centers[j]);
+          if (d < bestD) { bestD = d; bestK = j; }
+        }
+        if (assignments[i] !== bestK) {
+          assignments[i] = bestK;
+          anyChanged = true;
+        }
+      }
+
+      if (!anyChanged) { converged = true; break; }
+
+      // Update step
+      const clusterIndices = Array.from({ length: effectiveK }, () => []);
+      for (let i = 0; i < n; i++) clusterIndices[assignments[i]].push(i);
+      const nextCenters = centers.slice();
+      for (let j = 0; j < effectiveK; j++) {
+        if (clusterIndices[j].length > 0) {
+          nextCenters[j] = centroid(vectors, clusterIndices[j]);
+        }
+        // Empty cluster: keep its old center. Re-seeding empty clusters is
+        // a known improvement but our inputs are small and it rarely matters.
+      }
+      centers = nextCenters;
+    }
+
+    return { assignments, centers, iterations, converged };
+  }
+
+  /**
+   * Recommended k for the given input size, using the sqrt(N/2) heuristic
+   * capped at [3, 15]. Also exported for UI slider default values.
+   * @param {number} n  entry count
+   * @returns {number} recommended k, always >= 1
+   */
+  function recommendK(n) {
+    if (!Number.isFinite(n) || n <= 0) return 1;
+    if (n <= 3) return n;
+    const raw = Math.round(Math.sqrt(n / 2));
+    return Math.max(3, Math.min(15, raw));
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/ner.js
+     ────────────────────────────────────────────────────────── */
+  // memory/ner.js
+  //
+  // Tiny named-entity extraction for labeling memory bubbles. Not a serious
+  // NER system — no model, no POS tagging. It finds:
+  //
+  //   1. Capitalized multi-word phrases that aren't sentence-initial
+  //      (proper nouns: "Elara", "the Veil of Night", "Captain Vex")
+  //   2. Failing that, the most-frequent salient word (stopword-filtered,
+  //      length ≥ 3) as a fallback when no proper noun dominates.
+  //
+  // This is optimized for the story/roleplay context of Perchance memories,
+  // where proper nouns dominate vocabulary and characters/places are what
+  // users want to see as labels. If the text is prose-heavy without
+  // proper nouns (unusual), the salient-word fallback keeps the label
+  // human-readable.
+  //
+  // The output is intended for display only. If the heuristic picks
+  // something silly, the user can click-to-rename the bubble.
+
+  // Pretty big stopword list; omitting it produces labels like "the"
+  // which is useless.
+  const STOPWORDS = new Set([
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'being', 'but', 'by',
+    'can', 'could', 'did', 'do', 'does', 'doing', 'done', 'for', 'from',
+    'had', 'has', 'have', 'having', 'he', 'her', 'here', 'hers', 'herself',
+    'him', 'himself', 'his', 'how', 'i', 'if', 'in', 'into', 'is', 'it',
+    'its', 'itself', 'just', 'me', 'my', 'myself', 'no', 'nor', 'not',
+    'now', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'ours',
+    'out', 'over', 'own', 'same', 'she', 'should', 'so', 'some', 'still',
+    'such', 'than', 'that', 'the', 'their', 'theirs', 'them', 'themselves',
+    'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to',
+    'too', 'under', 'until', 'up', 'very', 'was', 'we', 'were', 'what',
+    'when', 'where', 'which', 'while', 'who', 'whom', 'why', 'will', 'with',
+    'would', 'you', 'your', 'yours', 'yourself', 'yourselves',
+    // Narrative-specific noise words
+    'said', 'went', 'came', 'looked', 'seemed', 'felt', 'knew', 'thought',
+    'back', 'again', 'before', 'after', 'even', 'still', 'never', 'always',
+  ]);
+
+  /**
+   * Sentence-start detection. A "position" is considered sentence-initial
+   * if it's at index 0, OR preceded by a sentence-ending punctuation
+   * followed by whitespace.
+   * @param {string} text
+   * @param {number} start  index of the match in text
+   * @returns {boolean}
+   */
+  function isSentenceStart(text, start) {
+    if (start === 0) return true;
+    // Walk back past whitespace
+    let i = start - 1;
+    while (i >= 0 && /\s/.test(text[i])) i--;
+    if (i < 0) return true;
+    return /[.!?]/.test(text[i]);
+  }
+
+  /**
+   * Extract candidate proper-noun phrases from text. Returns them in
+   * order of appearance (duplicates allowed — caller tallies frequency).
+   *
+   * Walks the text token by token, identifying capitalized tokens that are
+   * NOT at sentence-start (sentence-initial capitals are ambiguous — "Then"
+   * at the start of a sentence is almost never a proper noun). A phrase is
+   * a maximal run of consecutive capitalized tokens, optionally joined by
+   * lowercase linkers ("of", "the", "de", etc.).
+   *
+   * Non-sentence-initial requirement is strict: a phrase cannot BEGIN at a
+   * sentence start, even if continues for multiple tokens. "Captain Vex
+   * arrived" at the start of a sentence is ambiguous (regular word +
+   * proper noun, or proper noun + proper noun?) — we err on the side of
+   * missing some multi-word names rather than inflating labels with
+   * sentence-starter noise like "Then Elara".
+   *
+   * @param {string} text
+   * @returns {string[]}
+   */
+  function extractProperNouns(text) {
+    if (!text) return [];
+
+    // Tokenize preserving positions.
+    const tokens = [];
+    const tokenRe = /\S+/g;
+    let m;
+    while ((m = tokenRe.exec(text)) !== null) {
+      tokens.push({ word: m[0], start: m.index });
+    }
+
+    const LINKERS = new Set(['of', 'the', 'and', 'de', 'la', 'von', 'van', 'al', 'du', 'le']);
+    const out = [];
+    let i = 0;
+    while (i < tokens.length) {
+      const tok = tokens[i];
+      // Phrase start candidate: a capitalized word (starts with A-Z, rest a-z'-)
+      const cleanWord = tok.word.replace(/[^A-Za-z'-]/g, ''); // strip trailing/leading punct
+      if (!/^[A-Z][a-zA-Z'-]*$/.test(cleanWord)) { i++; continue; }
+      // Must NOT be sentence-initial
+      if (isSentenceStart(text, tok.start)) { i++; continue; }
+
+      // Collect phrase: this token + possible (<linker> <Capitalized>)+ or (<Capitalized>)+
+      const phraseWords = [cleanWord];
+      let j = i + 1;
+      while (j < tokens.length) {
+        const next = tokens[j];
+        const nextClean = next.word.replace(/[^A-Za-z'-]/g, '');
+        if (/^[A-Z][a-zA-Z'-]*$/.test(nextClean)) {
+          phraseWords.push(nextClean);
+          j++;
+        } else if (LINKERS.has(nextClean.toLowerCase()) && j + 1 < tokens.length) {
+          const after = tokens[j + 1];
+          const afterClean = after.word.replace(/[^A-Za-z'-]/g, '');
+          if (/^[A-Z][a-zA-Z'-]*$/.test(afterClean)) {
+            phraseWords.push(nextClean.toLowerCase());
+            phraseWords.push(afterClean);
+            j += 2;
+          } else break;
+        } else break;
+      }
+
+      out.push(phraseWords.join(' '));
+      i = j;
+    }
+    return out;
+  }
+
+  /**
+   * Extract salient words from text: lowercased, stopword-filtered, length ≥ 3.
+   * Returns in order of appearance.
+   * @param {string} text
+   * @returns {string[]}
+   */
+  function extractSalientWords(text) {
+    if (!text) return [];
+    const words = String(text)
+      .toLowerCase()
+      .replace(/[^a-z0-9'\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    return words.filter(w => w.length >= 3 && !STOPWORDS.has(w));
+  }
+
+  /**
+   * Count term frequency over a list of strings. Returns a sorted array
+   * of [term, count] pairs, descending by count.
+   * @param {string[]} terms
+   * @returns {Array<[string, number]>}
+   */
+  function tally(terms) {
+    const counts = new Map();
+    for (const t of terms) {
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }
+
+  /**
+   * Prefer proper nouns; fall back to salient words. Returns best label for
+   * the given concatenated text.
+   *
+   * @param {string} text  concatenation of bubble member texts
+   * @param {{ minCount?: number }} [opts]  term must appear at least this
+   *   many times to qualify (default 1). Raising this filters trivia.
+   * @returns {string | null} the chosen label, or null if text is empty
+   */
+  function bestLabel(text, { minCount = 1 } = {}) {
+    if (!text || !text.trim()) return null;
+
+    // 1) Proper nouns
+    const propers = tally(extractProperNouns(text));
+    // Prefer the highest-frequency proper noun that meets minCount
+    for (const [term, count] of propers) {
+      if (count >= minCount) return term;
+    }
+
+    // 2) Fallback: most-frequent salient word that meets minCount,
+    //    title-cased for display
+    const salients = tally(extractSalientWords(text));
+    for (const [term, count] of salients) {
+      if (count >= minCount) {
+        return term.charAt(0).toUpperCase() + term.slice(1);
+      }
+    }
+
+    // 3) Nothing qualifies → null, caller uses a generic label
+    return null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: memory/bubbles.js
+     ────────────────────────────────────────────────────────── */
+  // memory/bubbles.js
+  //
+  // Bubble composition. Takes a flat list of memory/lore entries with
+  // optional embedding vectors, returns a labeled array of bubbles grouping
+  // semantically similar entries.
+  //
+  // Bubbles are a PROJECTION over entries, not a persisted data structure:
+  //   - Every entry belongs to exactly one bubble.
+  //   - Bubbles only exist within a rendering pass. Stage.js and db.js are
+  //     entirely bubble-unaware — they still operate on individual entries.
+  //   - Recompute bubbles any time the entry list changes (add/edit/
+  //     promote/demote/delete). Labels and cluster shapes may shift.
+  //
+  // Entries with no embedding cannot be clustered; they go in a dedicated
+  // "Ungrouped" bubble at the end. Callers may choose to compute missing
+  // embeddings on-the-fly (via window.embedTexts) before calling bubbleize.
+
+
+
+
+  /**
+   * @typedef {Object} BubbleEntry
+   * @property {string | number} id
+   * @property {'memory' | 'lore'} scope
+   * @property {string} text
+   * @property {Float32Array | number[] | null | undefined} embedding
+   */
+
+  /**
+   * @typedef {Object} Bubble
+   * @property {string} id        stable synthetic id: 'bubble:<idx>' or 'bubble:ungrouped'
+   * @property {string} label
+   * @property {BubbleEntry[]} entries
+   * @property {boolean} isUngrouped
+   */
+
+  const UNGROUPED_ID = 'bubble:ungrouped';
+  const UNGROUPED_LABEL = 'Ungrouped';
+  const GENERIC_LABEL_PREFIX = 'Group';
+
+  /**
+   * Group entries into bubbles by semantic similarity.
+   *
+   * @param {Object} opts
+   * @param {BubbleEntry[]} opts.entries
+   * @param {number} [opts.k]  cluster count. Omit to auto-compute via recommendK().
+   * @returns {Bubble[]}
+   */
+  function bubbleize({ entries, k } = {}) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    if (safeEntries.length === 0) return [];
+
+    // Split: embedded entries go through k-means; unembedded go to Ungrouped.
+    const embedded = [];
+    const unembedded = [];
+    for (const e of safeEntries) {
+      if (hasUsableEmbedding(e)) embedded.push(e);
+      else unembedded.push(e);
+    }
+
+    const bubbles = [];
+
+    if (embedded.length > 0) {
+      // Convert embeddings to mutable vectors (k-means normalizes in place
+      // — we don't want to mutate the original Float32Array coming from
+      // Dexie which might be referenced elsewhere).
+      const vectors = embedded.map(e => copyVector(e.embedding));
+      for (const v of vectors) l2Normalize(v);
+
+      const effectiveK = (k != null && Number.isFinite(k))
+        ? Math.max(1, Math.min(k | 0, embedded.length))
+        : recommendK(embedded.length);
+
+      const { assignments } = kmeans({ vectors, k: effectiveK });
+
+      // Group entries by cluster assignment
+      const clusterIndices = Array.from({ length: effectiveK }, () => []);
+      for (let i = 0; i < embedded.length; i++) {
+        clusterIndices[assignments[i]].push(i);
+      }
+
+      // Emit non-empty bubbles in cluster-index order (stable for a given k)
+      for (let c = 0; c < effectiveK; c++) {
+        const idxList = clusterIndices[c];
+        if (idxList.length === 0) continue;
+        const clusterEntries = idxList.map(i => embedded[i]);
+        const label = deriveLabel(clusterEntries, c);
+        bubbles.push({
+          id: `bubble:${c}`,
+          label,
+          entries: clusterEntries,
+          isUngrouped: false,
+        });
+      }
+    }
+
+    if (unembedded.length > 0) {
+      bubbles.push({
+        id: UNGROUPED_ID,
+        label: UNGROUPED_LABEL,
+        entries: unembedded,
+        isUngrouped: true,
+      });
+    }
+
+    return bubbles;
+  }
+
+  /**
+   * Rebucket entries into a previous bubble layout, preserving labels and
+   * cluster membership where possible. Useful after a stage mutation: we
+   * don't want renames or minor edits to reshuffle every bubble.
+   *
+   * Strategy: any entry whose id existed in the prior layout stays in its
+   * prior bubble. New entries are clustered against the prior cluster
+   * centers (nearest-center assignment, no k-means iteration). Entries
+   * that have moved scope still belong to their same topic bubble.
+   *
+   * If the prior layout is missing entirely (first render, or entry count
+   * changed drastically) we fall back to fresh bubbleize.
+   *
+   * @param {Object} opts
+   * @param {BubbleEntry[]} opts.entries
+   * @param {Bubble[]} [opts.prior]
+   * @param {number} [opts.k]
+   * @returns {Bubble[]}
+   */
+  function rebucket({ entries, prior, k } = {}) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    if (!prior || prior.length === 0) return bubbleize({ entries: safeEntries, k });
+
+    // Build id → prior-bubble-id map
+    const idToPrior = new Map();
+    for (const bubble of prior) {
+      for (const e of bubble.entries) idToPrior.set(String(e.id), bubble.id);
+    }
+
+    // Every entry that already has a home keeps it; new entries need placement.
+    const knownByBubbleId = new Map(); // bubbleId → entries
+    const newEntries = [];
+    for (const e of safeEntries) {
+      const priorId = idToPrior.get(String(e.id));
+      if (priorId != null) {
+        if (!knownByBubbleId.has(priorId)) knownByBubbleId.set(priorId, []);
+        knownByBubbleId.get(priorId).push(e);
+      } else {
+        newEntries.push(e);
+      }
+    }
+
+    // If we have no prior semantic centers to reuse, just fresh-bubble.
+    // (Could compute centers from priors, but that's complexity we don't need
+    // until stage mutations start looking jittery in practice.)
+    if (newEntries.length > 0) {
+      // Fold new entries into the most-similar existing bubble by
+      // re-clustering with the full input. Simple and predictable.
+      return bubbleize({ entries: safeEntries, k });
+    }
+
+    // No new entries → rebuild the previous structure with its labels intact.
+    return prior
+      .map(bubble => ({
+        ...bubble,
+        entries: knownByBubbleId.get(bubble.id) || [],
+      }))
+      .filter(bubble => bubble.entries.length > 0);
+  }
+
+  // ---- helpers ----
+
+  function hasUsableEmbedding(entry) {
+    if (!entry) return false;
+    const emb = entry.embedding;
+    if (!emb) return false;
+    if (typeof emb.length !== 'number' || emb.length === 0) return false;
+    // Detect degenerate all-zero vectors (sometimes returned by failed
+    // embedder calls). L2 = 0 ⇒ no usable direction.
+    for (let i = 0; i < emb.length; i++) {
+      if (emb[i] !== 0) return true;
+    }
+    return false;
+  }
+
+  function copyVector(src) {
+    const dst = new Float32Array(src.length);
+    for (let i = 0; i < src.length; i++) dst[i] = src[i] || 0;
+    return dst;
+  }
+
+  function deriveLabel(entries, clusterIndex) {
+    const text = entries.map(e => e.text || '').join('\n');
+    // Small clusters benefit from minCount=1; large clusters benefit from
+    // requiring repeated mention to avoid picking one-off trivia.
+    const minCount = entries.length >= 4 ? 2 : 1;
+    const label = bestLabel(text, { minCount })
+      || bestLabel(text, { minCount: 1 })
+      || `${GENERIC_LABEL_PREFIX} ${clusterIndex + 1}`;
+    return label;
   }
 
   /* ──────────────────────────────────────────────────────────
