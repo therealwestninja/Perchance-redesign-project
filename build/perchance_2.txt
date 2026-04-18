@@ -17731,10 +17731,11 @@ Use this template for your response:
    *   baselineItems: StageItem[],
    *   diff: import('./stage.js').StageDiff,
    *   threadId?: number,
+   *   memoryOrder?: Array<{id: string|number, locked: boolean}>,
    * }} params
    * @returns {Promise<{ ok: true, stats: object } | { ok: false, error: string }>}
    */
-  async function commitDiff({ baselineItems, diff, threadId = activeThreadId() } = {}) {
+  async function commitDiff({ baselineItems, diff, threadId = activeThreadId(), memoryOrder = null } = {}) {
     const db = safeDb();
     if (!db) return { ok: false, error: 'window.db not available' };
     if (threadId == null) return { ok: false, error: 'no active thread' };
@@ -17785,6 +17786,7 @@ Use this template for your response:
       deletedMemory: 0, deletedLore: 0,
       editedMemoryText: 0, editedLoreText: 0,
       promoted: 0, demoted: 0,
+      reorderedMemory: 0,
       reorderedLore: 0,
       skippedMemoryReorder: 0,
     };
@@ -17938,14 +17940,110 @@ Use this template for your response:
         }
 
         // ---- reorders ----
-        // Lore: upstream schema has no order field. We record the change as
-        //   a no-op for now; cosmetic reordering only survives in our stage.
-        // Memory: position derives from message order × indexInLevel — truly
-        //   persisting a cross-message reorder would mean rewriting other
-        //   messages' memoriesEndingHere, which is risky. Skip for v1.
+        // Memory: proportional message-id remap (7e).
+        //   See ROADMAP.md "Memory reorder: targeted persistence" for the
+        //   follow-up that does this surgically rather than nuke-and-pave.
+        //
+        // Algorithm:
+        //   1. Walk `memoryOrder` (user's final rendered sequence) and
+        //      partition: locked entries keep their current messageId;
+        //      unlocked entries get remapped.
+        //   2. Clear unlocked entries from ALL messages' memoriesEndingHere
+        //      (so we don't duplicate). Locked entries stay put.
+        //   3. Re-assign each unlocked entry to message at position
+        //      floor(i * M / N) where i is its rank among unlocked, N is
+        //      count of unlocked, M is message count.
+        //   4. Append re-assigned entries to their target message's
+        //      memoriesEndingHere[1].
+        //
+        // If memoryOrder is not provided (legacy callers) OR there's nothing
+        // to remap, skip this block.
+        if (Array.isArray(memoryOrder) && memoryOrder.length > 0) {
+          // Gather baseline memory items keyed by id, only those that
+          // still exist (weren't deleted in this diff).
+          const deletedIds = new Set((diff.deleted || []).map(d => String(d.id)));
+          const baseMemById = new Map();
+          for (const it of baselineItems || []) {
+            if (it && it.scope === 'memory' && !deletedIds.has(String(it.id))) {
+              baseMemById.set(String(it.id), it);
+            }
+          }
+
+          // Partition: unlocked (to remap) vs locked (keep in place)
+          const toRemap = [];
+          const frozen = new Set();
+          for (const entry of memoryOrder) {
+            const base = baseMemById.get(String(entry.id));
+            if (!base) continue; // edited-to-different-id or newly-added; skip
+            if (entry.locked) {
+              frozen.add(String(entry.id));
+            } else {
+              toRemap.push(base);
+            }
+          }
+
+          if (toRemap.length > 0) {
+            // Load thread messages in chronological order.
+            const messages = await db.messages
+              .where('threadId').equals(threadId)
+              .sortBy('id')
+              .catch(() => []);
+
+            if (messages.length > 0) {
+              // Prefetch any messages that toRemap items CURRENTLY live in,
+              // plus all messages in the thread (since we'll write to
+              // potentially any of them).
+              for (const m of messages) {
+                if (!touchedMessages.has(m.id)) touchedMessages.set(m.id, m);
+              }
+
+              // Remove every toRemap entry from its current home.
+              // Preserve frozen entries in place.
+              for (const item of toRemap) {
+                const coord = parseMemId(item.id);
+                if (!coord) continue;
+                const m = touchedMessages.get(coord.messageId);
+                if (!m || !m.memoriesEndingHere) continue;
+                const lvlArr = m.memoriesEndingHere[coord.level];
+                if (!Array.isArray(lvlArr)) continue;
+                // Tombstone the slot; we rebuild messages below so indices
+                // don't actually matter, but this keeps the semantics clean.
+                lvlArr[coord.indexInLevel] = null;
+              }
+
+              // Assign each toRemap entry to a target message by proportional rank.
+              const N = toRemap.length;
+              const M = messages.length;
+              for (let i = 0; i < N; i++) {
+                const targetMsgIdx = Math.min(M - 1, Math.floor(i * M / N));
+                const targetMsg = touchedMessages.get(messages[targetMsgIdx].id);
+                if (!targetMsg.memoriesEndingHere) targetMsg.memoriesEndingHere = {};
+                if (!Array.isArray(targetMsg.memoriesEndingHere['1'])) {
+                  targetMsg.memoriesEndingHere['1'] = [];
+                }
+                const item = toRemap[i];
+                targetMsg.memoriesEndingHere['1'].push({
+                  text: item.text,
+                  embedding: item.__embedding ?? null,
+                });
+                stats.skippedMemoryReorder = 0; // replaces the old "skipped" tally
+              }
+
+              stats.reorderedMemory = N;
+            }
+          }
+        } else {
+          // No memoryOrder provided — fall back to the old behavior of
+          // counting reorder entries as "skipped".
+          for (const item of (diff.reordered || [])) {
+            if (item.scope === 'memory') stats.skippedMemoryReorder++;
+            else if (item.scope === 'lore') stats.reorderedLore++;
+          }
+        }
+
+        // Lore reorder: upstream has no order field, still a no-op.
         for (const item of (diff.reordered || [])) {
-          if (item.scope === 'memory') stats.skippedMemoryReorder++;
-          else if (item.scope === 'lore') stats.reorderedLore++;
+          if (item.scope === 'lore') stats.reorderedLore++;
         }
 
         // Flush every touched message in one pass at the end of the tx.
@@ -22114,6 +22212,24 @@ Use this template for your response:
 
     // ---- helpers used by bubble-batch handlers ----
 
+    /**
+     * Returns true iff the user has applied any reorder action that would
+     * affect on-disk storage:
+     *   - A non-empty bubbleOrder (user manually ordered bubbles)
+     *   - Any bubbleCardOrder entries (user reordered within a bubble)
+     *   - Any cardToBubbleId entries (user moved a card cross-bubble)
+     *
+     * Locking alone does NOT count — lock is session-only.
+     * Returns false when the rendered order is exactly what clustering
+     * produced with no user intervention (save can skip remap step).
+     */
+    function hasReorderChanged() {
+      if (memoryOverrides.bubbleOrder.length > 0) return true;
+      if (memoryOverrides.bubbleCardOrder.size > 0) return true;
+      if (memoryOverrides.cardToBubbleId.size > 0) return true;
+      return false;
+    }
+
     function queueForDeletion(id) {
       const item = stage.getStaged().find(it => String(it.id) === String(id));
       if (item) pendingDeletions.set(String(id), item);
@@ -22383,16 +22499,38 @@ Use this template for your response:
       // Footer actions
       onSave: async () => {
         const diff = stage.computeDiff();
-        if (diff.totalChanges === 0) { alert('No changes to save.'); return; }
+        if (diff.totalChanges === 0 && !hasReorderChanged()) { alert('No changes to save.'); return; }
+
+        // Build the user's desired final order of Memory entries: walk the
+        // rendered bubbles top-to-bottom, collect entries with their lock
+        // status. Locked-bubble entries keep their original messages on save
+        // (the "locked-stays-put" carve-out). Only unlocked entries get
+        // proportionally remapped across messages.
+        const memoryOrder = [];
+        for (const bubble of memoryBubbles) {
+          const isBubbleLocked = memoryOverrides.lockedBubbles.has(String(bubble.id));
+          for (const entry of bubble.entries) {
+            memoryOrder.push({ id: entry.id, locked: isBubbleLocked });
+          }
+        }
+
+        const summary = formatDiffSummary(diff);
+        const reorderNote = hasReorderChanged()
+          ? '\n\nMemory order will be saved (proportional message remap). Locked bubbles keep their original messages.'
+          : '';
         const confirmed = window.confirm(
-          formatDiffSummary(diff) + '\n\nThis action is permanent — there is no undo.'
+          summary + reorderNote + '\n\nThis action is permanent — there is no undo.'
         );
         if (!confirmed) return;
 
         overlay.setSaveLabel('Saving…');
         overlay.setSaveEnabled(false);
 
-        const result = await commitDiff({ baselineItems: baseline, diff });
+        const result = await commitDiff({
+          baselineItems: baseline,
+          diff,
+          memoryOrder,
+        });
         if (!result.ok) {
           alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);
           overlay.setSaveLabel('Save');

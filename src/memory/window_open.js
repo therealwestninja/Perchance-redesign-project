@@ -188,6 +188,24 @@ export async function openMemoryWindow() {
 
   // ---- helpers used by bubble-batch handlers ----
 
+  /**
+   * Returns true iff the user has applied any reorder action that would
+   * affect on-disk storage:
+   *   - A non-empty bubbleOrder (user manually ordered bubbles)
+   *   - Any bubbleCardOrder entries (user reordered within a bubble)
+   *   - Any cardToBubbleId entries (user moved a card cross-bubble)
+   *
+   * Locking alone does NOT count — lock is session-only.
+   * Returns false when the rendered order is exactly what clustering
+   * produced with no user intervention (save can skip remap step).
+   */
+  function hasReorderChanged() {
+    if (memoryOverrides.bubbleOrder.length > 0) return true;
+    if (memoryOverrides.bubbleCardOrder.size > 0) return true;
+    if (memoryOverrides.cardToBubbleId.size > 0) return true;
+    return false;
+  }
+
   function queueForDeletion(id) {
     const item = stage.getStaged().find(it => String(it.id) === String(id));
     if (item) pendingDeletions.set(String(id), item);
@@ -457,16 +475,38 @@ export async function openMemoryWindow() {
     // Footer actions
     onSave: async () => {
       const diff = stage.computeDiff();
-      if (diff.totalChanges === 0) { alert('No changes to save.'); return; }
+      if (diff.totalChanges === 0 && !hasReorderChanged()) { alert('No changes to save.'); return; }
+
+      // Build the user's desired final order of Memory entries: walk the
+      // rendered bubbles top-to-bottom, collect entries with their lock
+      // status. Locked-bubble entries keep their original messages on save
+      // (the "locked-stays-put" carve-out). Only unlocked entries get
+      // proportionally remapped across messages.
+      const memoryOrder = [];
+      for (const bubble of memoryBubbles) {
+        const isBubbleLocked = memoryOverrides.lockedBubbles.has(String(bubble.id));
+        for (const entry of bubble.entries) {
+          memoryOrder.push({ id: entry.id, locked: isBubbleLocked });
+        }
+      }
+
+      const summary = formatDiffSummary(diff);
+      const reorderNote = hasReorderChanged()
+        ? '\n\nMemory order will be saved (proportional message remap). Locked bubbles keep their original messages.'
+        : '';
       const confirmed = window.confirm(
-        formatDiffSummary(diff) + '\n\nThis action is permanent — there is no undo.'
+        summary + reorderNote + '\n\nThis action is permanent — there is no undo.'
       );
       if (!confirmed) return;
 
       overlay.setSaveLabel('Saving…');
       overlay.setSaveEnabled(false);
 
-      const result = await commitDiff({ baselineItems: baseline, diff });
+      const result = await commitDiff({
+        baselineItems: baseline,
+        diff,
+        memoryOrder,
+      });
       if (!result.ok) {
         alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);
         overlay.setSaveLabel('Save');
