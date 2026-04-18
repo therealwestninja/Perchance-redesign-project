@@ -166,6 +166,151 @@ export function rebucket({ entries, prior, k } = {}) {
     .filter(bubble => bubble.entries.length > 0);
 }
 
+/**
+ * Lock-aware bubbleize. Takes the current bubble layout + a lock set, and:
+ *
+ *   1. Extracts frozen bubbles (those whose id is in lockedBubbleIds) from
+ *      the prior layout. Their entries are taken off the table.
+ *   2. Runs fresh bubbleize on the REMAINING entries with the given k.
+ *   3. Concatenates frozen + fresh bubbles. Frozen first (they're more
+ *      meaningful to the user — they pinned them deliberately).
+ *
+ * k in this signature means "number of clusters for FREE entries only."
+ * Total displayed bubble count = lockedCount + k. Chosen this way because:
+ * the user's mental model is "I've pinned these clusters; now let me tune
+ * the rest." The k-slider acts over the unpinned portion.
+ *
+ * Entries that belong to frozen bubbles but aren't in the current entry
+ * list (stale — e.g., user deleted a card from a locked bubble) are
+ * silently dropped from the frozen copy. Frozen bubbles that end up
+ * empty are still preserved (the user locked them deliberately, they're
+ * a shell that could receive user-assigned cards).
+ *
+ * @param {Object} opts
+ * @param {BubbleEntry[]} opts.entries        All current entries (free + frozen)
+ * @param {Bubble[]} [opts.currentBubbles]    Previous layout — source of frozen bubbles
+ * @param {Set<string>} [opts.lockedBubbleIds]
+ * @param {number} [opts.k]                   Clusters for FREE entries (see doc above)
+ * @returns {Bubble[]}
+ */
+export function bubbleizeWithLocks({
+  entries,
+  currentBubbles,
+  lockedBubbleIds,
+  k,
+} = {}) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const safePrior = Array.isArray(currentBubbles) ? currentBubbles : [];
+  const locks = lockedBubbleIds instanceof Set
+    ? lockedBubbleIds
+    : new Set(Array.isArray(lockedBubbleIds) ? lockedBubbleIds : []);
+
+  // No locks? Just run the vanilla pipeline.
+  if (locks.size === 0 || safePrior.length === 0) {
+    return bubbleize({ entries: safeEntries, k });
+  }
+
+  // Index entries by id for quick lookup when reconciling frozen-bubble members.
+  const entryById = new Map();
+  for (const e of safeEntries) entryById.set(String(e.id), e);
+
+  // Build frozen bubbles by taking locked bubbles from prior, filtering their
+  // members down to only those still present in the current entry list.
+  const frozenBubbles = [];
+  const frozenEntryIds = new Set();
+  for (const bubble of safePrior) {
+    if (!locks.has(String(bubble.id))) continue;
+    const filteredEntries = [];
+    for (const e of bubble.entries) {
+      const current = entryById.get(String(e.id));
+      if (current) {
+        filteredEntries.push(current);
+        frozenEntryIds.add(String(e.id));
+      }
+    }
+    frozenBubbles.push({
+      ...bubble,
+      entries: filteredEntries,
+    });
+  }
+
+  // Free entries = everything not frozen.
+  const freeEntries = safeEntries.filter(e => !frozenEntryIds.has(String(e.id)));
+
+  // Cluster only the free entries.
+  const rawFreeBubbles = bubbleize({ entries: freeEntries, k });
+
+  // Rename free bubble IDs so they don't collide with any locked IDs.
+  // Locked bubble IDs come from a prior session and use `bubble:N`; fresh
+  // bubbleize also produces `bubble:N` starting from 0. Without renaming,
+  // a locked `bubble:0` and a fresh free `bubble:0` would both appear
+  // in the output, breaking downstream code that assumes unique IDs.
+  const freeBubbles = rawFreeBubbles.map((b, i) => ({
+    ...b,
+    id: b.isUngrouped ? b.id : `bubble:free:${i}`,
+  }));
+
+  // Frozen first, free after. Stable ordering means the user sees their pinned
+  // work at the top, and fresh clusters appear below.
+  return [...frozenBubbles, ...freeBubbles];
+}
+
+/**
+ * Lock-aware rebucket. Entries inside locked bubbles stay put; only the free
+ * portion is rebucketed against prior.
+ *
+ * @param {Object} opts
+ * @param {BubbleEntry[]} opts.entries
+ * @param {Bubble[]} [opts.prior]
+ * @param {Set<string>} [opts.lockedBubbleIds]
+ * @param {number} [opts.k]
+ * @returns {Bubble[]}
+ */
+export function rebucketWithLocks({ entries, prior, lockedBubbleIds, k } = {}) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const safePrior = Array.isArray(prior) ? prior : [];
+  const locks = lockedBubbleIds instanceof Set
+    ? lockedBubbleIds
+    : new Set(Array.isArray(lockedBubbleIds) ? lockedBubbleIds : []);
+
+  if (locks.size === 0) return rebucket({ entries: safeEntries, prior: safePrior, k });
+
+  const entryById = new Map();
+  for (const e of safeEntries) entryById.set(String(e.id), e);
+
+  // Pull frozen bubbles out of prior.
+  const frozenBubbles = [];
+  const frozenEntryIds = new Set();
+  const nonFrozenPrior = [];
+  for (const bubble of safePrior) {
+    if (locks.has(String(bubble.id))) {
+      const filteredEntries = [];
+      for (const e of bubble.entries) {
+        const current = entryById.get(String(e.id));
+        if (current) {
+          filteredEntries.push(current);
+          frozenEntryIds.add(String(e.id));
+        }
+      }
+      frozenBubbles.push({ ...bubble, entries: filteredEntries });
+    } else {
+      nonFrozenPrior.push(bubble);
+    }
+  }
+
+  const freeEntries = safeEntries.filter(e => !frozenEntryIds.has(String(e.id)));
+  const rawFreeBubbles = rebucket({ entries: freeEntries, prior: nonFrozenPrior, k });
+
+  // Rename free bubble IDs to avoid collision with locked IDs (see
+  // bubbleizeWithLocks for why).
+  const freeBubbles = rawFreeBubbles.map((b, i) => ({
+    ...b,
+    id: b.isUngrouped ? b.id : `bubble:free:${i}`,
+  }));
+
+  return [...frozenBubbles, ...freeBubbles];
+}
+
 // ---- helpers ----
 
 function hasUsableEmbedding(entry) {

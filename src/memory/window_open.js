@@ -21,7 +21,7 @@
 
 import { probeSchema, loadBaseline, commitDiff, formatDiffSummary } from './db.js';
 import { createStage } from './stage.js';
-import { bubbleize, rebucket } from './bubbles.js';
+import { bubbleize, rebucket, bubbleizeWithLocks, rebucketWithLocks } from './bubbles.js';
 import { recommendK } from './clustering.js';
 import { createOverrides, toggleLock } from './bubble_overrides.js';
 import { createMemoryWindow } from '../render/memory_window.js';
@@ -114,23 +114,56 @@ export async function openMemoryWindow() {
   function recomputeBubbles({ resetMemoryK = false, resetLoreK = false } = {}) {
     const { memory: memE, lore: lorE } = currentEntriesPerScope();
 
-    if (resetMemoryK) memoryK = recommendK(memE.length);
-    if (resetLoreK)   loreK   = recommendK(lorE.length);
+    // Count entries that are NOT in locked bubbles — these are the only
+    // ones k-means gets to cluster. If all entries are locked, k becomes
+    // moot (clamped to at least 1).
+    const memFreeCount = countFreeEntries(memE, memoryBubbles, memoryOverrides.lockedBubbles);
+    const lorFreeCount = countFreeEntries(lorE, loreBubbles,   loreOverrides.lockedBubbles);
 
-    // Clamp k to entry count so we don't attempt more clusters than entries
-    memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memE.length)));
-    loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorE.length)));
+    if (resetMemoryK) memoryK = recommendK(memFreeCount);
+    if (resetLoreK)   loreK   = recommendK(lorFreeCount);
 
-    // Rebucket preserves prior labels when entry set is unchanged.
-    // Forces fresh bubbleize when new entries appear or k changed.
-    memoryBubbles = rebucket({ entries: memE, prior: memoryBubbles, k: memoryK });
-    loreBubbles   = rebucket({ entries: lorE, prior: loreBubbles,   k: loreK });
+    // k is the count of FREE bubbles (locked bubbles don't count). Clamp
+    // against the number of free entries available, not the total.
+    memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memFreeCount)));
+    loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorFreeCount)));
+
+    // Lock-aware rebucket: frozen bubbles pass through untouched, free
+    // entries get fresh clustering.
+    memoryBubbles = rebucketWithLocks({
+      entries: memE,
+      prior: memoryBubbles,
+      lockedBubbleIds: memoryOverrides.lockedBubbles,
+      k: memoryK,
+    });
+    loreBubbles = rebucketWithLocks({
+      entries: lorE,
+      prior: loreBubbles,
+      lockedBubbleIds: loreOverrides.lockedBubbles,
+      k: loreK,
+    });
 
     // Drop expanded ids that no longer correspond to an existing bubble.
     const memIds = new Set(memoryBubbles.map(b => b.id));
     const lorIds = new Set(loreBubbles.map(b => b.id));
     for (const id of expandedMemoryIds) if (!memIds.has(id)) expandedMemoryIds.delete(id);
     for (const id of expandedLoreIds)   if (!lorIds.has(id)) expandedLoreIds.delete(id);
+  }
+
+  // Helper used by recomputeBubbles: of the currently-staged entries, how
+  // many are NOT members of any locked bubble?
+  function countFreeEntries(entries, currentBubbles, lockedBubbleIds) {
+    if (!lockedBubbleIds || lockedBubbleIds.size === 0) return entries.length;
+    const frozenIds = new Set();
+    for (const b of currentBubbles || []) {
+      if (!lockedBubbleIds.has(String(b.id))) continue;
+      for (const e of b.entries) frozenIds.add(String(e.id));
+    }
+    let count = 0;
+    for (const e of entries) {
+      if (!frozenIds.has(String(e.id))) count++;
+    }
+    return count;
   }
 
   function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
@@ -178,17 +211,29 @@ export async function openMemoryWindow() {
       refresh();
     },
 
-    // k-slider: ± per scope. When k changes, recluster fresh (not rebucket).
+    // k-slider: ± per scope. k now counts ONLY free (non-locked) bubbles.
+    // Clusters the free entries; locked bubbles pass through untouched.
     onChangeK: (scope, dir) => {
       const step = Number(dir) || 0;
       if (scope === 'memory') {
         const { memory } = currentEntriesPerScope();
-        const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memory.length)));
+        const memFreeCount = countFreeEntries(memory, memoryBubbles, memoryOverrides.lockedBubbles);
+        const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memFreeCount)));
         if (newK === memoryK) return; // clamped, no change
         memoryK = newK;
-        // Fresh re-bubble (don't preserve prior labels — user WANTED change)
-        memoryBubbles = bubbleize({ entries: memory, k: memoryK });
-        expandedMemoryIds.clear(); // ids no longer meaningful
+        memoryBubbles = bubbleizeWithLocks({
+          entries: memory,
+          currentBubbles: memoryBubbles,
+          lockedBubbleIds: memoryOverrides.lockedBubbles,
+          k: memoryK,
+        });
+        // Preserve expanded state for locked bubbles (their ids survive).
+        // Free bubbles get new ids, so drop those from expanded.
+        for (const id of expandedMemoryIds) {
+          if (!memoryOverrides.lockedBubbles.has(String(id))) {
+            expandedMemoryIds.delete(id);
+          }
+        }
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,
@@ -198,11 +243,21 @@ export async function openMemoryWindow() {
         });
       } else if (scope === 'lore') {
         const { lore } = currentEntriesPerScope();
-        const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lore.length)));
+        const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
+        const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lorFreeCount)));
         if (newK === loreK) return;
         loreK = newK;
-        loreBubbles = bubbleize({ entries: lore, k: loreK });
-        expandedLoreIds.clear();
+        loreBubbles = bubbleizeWithLocks({
+          entries: lore,
+          currentBubbles: loreBubbles,
+          lockedBubbleIds: loreOverrides.lockedBubbles,
+          k: loreK,
+        });
+        for (const id of expandedLoreIds) {
+          if (!loreOverrides.lockedBubbles.has(String(id))) {
+            expandedLoreIds.delete(id);
+          }
+        }
         overlay.updatePanels({
           memoryBubbles, loreBubbles, memoryK, loreK,
           expandedMemoryIds, expandedLoreIds,

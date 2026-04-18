@@ -16502,6 +16502,151 @@ Use this template for your response:
       .filter(bubble => bubble.entries.length > 0);
   }
 
+  /**
+   * Lock-aware bubbleize. Takes the current bubble layout + a lock set, and:
+   *
+   *   1. Extracts frozen bubbles (those whose id is in lockedBubbleIds) from
+   *      the prior layout. Their entries are taken off the table.
+   *   2. Runs fresh bubbleize on the REMAINING entries with the given k.
+   *   3. Concatenates frozen + fresh bubbles. Frozen first (they're more
+   *      meaningful to the user — they pinned them deliberately).
+   *
+   * k in this signature means "number of clusters for FREE entries only."
+   * Total displayed bubble count = lockedCount + k. Chosen this way because:
+   * the user's mental model is "I've pinned these clusters; now let me tune
+   * the rest." The k-slider acts over the unpinned portion.
+   *
+   * Entries that belong to frozen bubbles but aren't in the current entry
+   * list (stale — e.g., user deleted a card from a locked bubble) are
+   * silently dropped from the frozen copy. Frozen bubbles that end up
+   * empty are still preserved (the user locked them deliberately, they're
+   * a shell that could receive user-assigned cards).
+   *
+   * @param {Object} opts
+   * @param {BubbleEntry[]} opts.entries        All current entries (free + frozen)
+   * @param {Bubble[]} [opts.currentBubbles]    Previous layout — source of frozen bubbles
+   * @param {Set<string>} [opts.lockedBubbleIds]
+   * @param {number} [opts.k]                   Clusters for FREE entries (see doc above)
+   * @returns {Bubble[]}
+   */
+  function bubbleizeWithLocks({
+    entries,
+    currentBubbles,
+    lockedBubbleIds,
+    k,
+  } = {}) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    const safePrior = Array.isArray(currentBubbles) ? currentBubbles : [];
+    const locks = lockedBubbleIds instanceof Set
+      ? lockedBubbleIds
+      : new Set(Array.isArray(lockedBubbleIds) ? lockedBubbleIds : []);
+
+    // No locks? Just run the vanilla pipeline.
+    if (locks.size === 0 || safePrior.length === 0) {
+      return bubbleize({ entries: safeEntries, k });
+    }
+
+    // Index entries by id for quick lookup when reconciling frozen-bubble members.
+    const entryById = new Map();
+    for (const e of safeEntries) entryById.set(String(e.id), e);
+
+    // Build frozen bubbles by taking locked bubbles from prior, filtering their
+    // members down to only those still present in the current entry list.
+    const frozenBubbles = [];
+    const frozenEntryIds = new Set();
+    for (const bubble of safePrior) {
+      if (!locks.has(String(bubble.id))) continue;
+      const filteredEntries = [];
+      for (const e of bubble.entries) {
+        const current = entryById.get(String(e.id));
+        if (current) {
+          filteredEntries.push(current);
+          frozenEntryIds.add(String(e.id));
+        }
+      }
+      frozenBubbles.push({
+        ...bubble,
+        entries: filteredEntries,
+      });
+    }
+
+    // Free entries = everything not frozen.
+    const freeEntries = safeEntries.filter(e => !frozenEntryIds.has(String(e.id)));
+
+    // Cluster only the free entries.
+    const rawFreeBubbles = bubbleize({ entries: freeEntries, k });
+
+    // Rename free bubble IDs so they don't collide with any locked IDs.
+    // Locked bubble IDs come from a prior session and use `bubble:N`; fresh
+    // bubbleize also produces `bubble:N` starting from 0. Without renaming,
+    // a locked `bubble:0` and a fresh free `bubble:0` would both appear
+    // in the output, breaking downstream code that assumes unique IDs.
+    const freeBubbles = rawFreeBubbles.map((b, i) => ({
+      ...b,
+      id: b.isUngrouped ? b.id : `bubble:free:${i}`,
+    }));
+
+    // Frozen first, free after. Stable ordering means the user sees their pinned
+    // work at the top, and fresh clusters appear below.
+    return [...frozenBubbles, ...freeBubbles];
+  }
+
+  /**
+   * Lock-aware rebucket. Entries inside locked bubbles stay put; only the free
+   * portion is rebucketed against prior.
+   *
+   * @param {Object} opts
+   * @param {BubbleEntry[]} opts.entries
+   * @param {Bubble[]} [opts.prior]
+   * @param {Set<string>} [opts.lockedBubbleIds]
+   * @param {number} [opts.k]
+   * @returns {Bubble[]}
+   */
+  function rebucketWithLocks({ entries, prior, lockedBubbleIds, k } = {}) {
+    const safeEntries = Array.isArray(entries) ? entries : [];
+    const safePrior = Array.isArray(prior) ? prior : [];
+    const locks = lockedBubbleIds instanceof Set
+      ? lockedBubbleIds
+      : new Set(Array.isArray(lockedBubbleIds) ? lockedBubbleIds : []);
+
+    if (locks.size === 0) return rebucket({ entries: safeEntries, prior: safePrior, k });
+
+    const entryById = new Map();
+    for (const e of safeEntries) entryById.set(String(e.id), e);
+
+    // Pull frozen bubbles out of prior.
+    const frozenBubbles = [];
+    const frozenEntryIds = new Set();
+    const nonFrozenPrior = [];
+    for (const bubble of safePrior) {
+      if (locks.has(String(bubble.id))) {
+        const filteredEntries = [];
+        for (const e of bubble.entries) {
+          const current = entryById.get(String(e.id));
+          if (current) {
+            filteredEntries.push(current);
+            frozenEntryIds.add(String(e.id));
+          }
+        }
+        frozenBubbles.push({ ...bubble, entries: filteredEntries });
+      } else {
+        nonFrozenPrior.push(bubble);
+      }
+    }
+
+    const freeEntries = safeEntries.filter(e => !frozenEntryIds.has(String(e.id)));
+    const rawFreeBubbles = rebucket({ entries: freeEntries, prior: nonFrozenPrior, k });
+
+    // Rename free bubble IDs to avoid collision with locked IDs (see
+    // bubbleizeWithLocks for why).
+    const freeBubbles = rawFreeBubbles.map((b, i) => ({
+      ...b,
+      id: b.isUngrouped ? b.id : `bubble:free:${i}`,
+    }));
+
+    return [...frozenBubbles, ...freeBubbles];
+  }
+
   // ---- helpers ----
 
   function hasUsableEmbedding(entry) {
@@ -21585,23 +21730,56 @@ Use this template for your response:
     function recomputeBubbles({ resetMemoryK = false, resetLoreK = false } = {}) {
       const { memory: memE, lore: lorE } = currentEntriesPerScope();
 
-      if (resetMemoryK) memoryK = recommendK(memE.length);
-      if (resetLoreK)   loreK   = recommendK(lorE.length);
+      // Count entries that are NOT in locked bubbles — these are the only
+      // ones k-means gets to cluster. If all entries are locked, k becomes
+      // moot (clamped to at least 1).
+      const memFreeCount = countFreeEntries(memE, memoryBubbles, memoryOverrides.lockedBubbles);
+      const lorFreeCount = countFreeEntries(lorE, loreBubbles,   loreOverrides.lockedBubbles);
 
-      // Clamp k to entry count so we don't attempt more clusters than entries
-      memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memE.length)));
-      loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorE.length)));
+      if (resetMemoryK) memoryK = recommendK(memFreeCount);
+      if (resetLoreK)   loreK   = recommendK(lorFreeCount);
 
-      // Rebucket preserves prior labels when entry set is unchanged.
-      // Forces fresh bubbleize when new entries appear or k changed.
-      memoryBubbles = rebucket({ entries: memE, prior: memoryBubbles, k: memoryK });
-      loreBubbles   = rebucket({ entries: lorE, prior: loreBubbles,   k: loreK });
+      // k is the count of FREE bubbles (locked bubbles don't count). Clamp
+      // against the number of free entries available, not the total.
+      memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memFreeCount)));
+      loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorFreeCount)));
+
+      // Lock-aware rebucket: frozen bubbles pass through untouched, free
+      // entries get fresh clustering.
+      memoryBubbles = rebucketWithLocks({
+        entries: memE,
+        prior: memoryBubbles,
+        lockedBubbleIds: memoryOverrides.lockedBubbles,
+        k: memoryK,
+      });
+      loreBubbles = rebucketWithLocks({
+        entries: lorE,
+        prior: loreBubbles,
+        lockedBubbleIds: loreOverrides.lockedBubbles,
+        k: loreK,
+      });
 
       // Drop expanded ids that no longer correspond to an existing bubble.
       const memIds = new Set(memoryBubbles.map(b => b.id));
       const lorIds = new Set(loreBubbles.map(b => b.id));
       for (const id of expandedMemoryIds) if (!memIds.has(id)) expandedMemoryIds.delete(id);
       for (const id of expandedLoreIds)   if (!lorIds.has(id)) expandedLoreIds.delete(id);
+    }
+
+    // Helper used by recomputeBubbles: of the currently-staged entries, how
+    // many are NOT members of any locked bubble?
+    function countFreeEntries(entries, currentBubbles, lockedBubbleIds) {
+      if (!lockedBubbleIds || lockedBubbleIds.size === 0) return entries.length;
+      const frozenIds = new Set();
+      for (const b of currentBubbles || []) {
+        if (!lockedBubbleIds.has(String(b.id))) continue;
+        for (const e of b.entries) frozenIds.add(String(e.id));
+      }
+      let count = 0;
+      for (const e of entries) {
+        if (!frozenIds.has(String(e.id))) count++;
+      }
+      return count;
     }
 
     function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
@@ -21649,17 +21827,29 @@ Use this template for your response:
         refresh();
       },
 
-      // k-slider: ± per scope. When k changes, recluster fresh (not rebucket).
+      // k-slider: ± per scope. k now counts ONLY free (non-locked) bubbles.
+      // Clusters the free entries; locked bubbles pass through untouched.
       onChangeK: (scope, dir) => {
         const step = Number(dir) || 0;
         if (scope === 'memory') {
           const { memory } = currentEntriesPerScope();
-          const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memory.length)));
+          const memFreeCount = countFreeEntries(memory, memoryBubbles, memoryOverrides.lockedBubbles);
+          const newK = Math.max(1, Math.min(memoryK + step, Math.max(1, memFreeCount)));
           if (newK === memoryK) return; // clamped, no change
           memoryK = newK;
-          // Fresh re-bubble (don't preserve prior labels — user WANTED change)
-          memoryBubbles = bubbleize({ entries: memory, k: memoryK });
-          expandedMemoryIds.clear(); // ids no longer meaningful
+          memoryBubbles = bubbleizeWithLocks({
+            entries: memory,
+            currentBubbles: memoryBubbles,
+            lockedBubbleIds: memoryOverrides.lockedBubbles,
+            k: memoryK,
+          });
+          // Preserve expanded state for locked bubbles (their ids survive).
+          // Free bubbles get new ids, so drop those from expanded.
+          for (const id of expandedMemoryIds) {
+            if (!memoryOverrides.lockedBubbles.has(String(id))) {
+              expandedMemoryIds.delete(id);
+            }
+          }
           overlay.updatePanels({
             memoryBubbles, loreBubbles, memoryK, loreK,
             expandedMemoryIds, expandedLoreIds,
@@ -21669,11 +21859,21 @@ Use this template for your response:
           });
         } else if (scope === 'lore') {
           const { lore } = currentEntriesPerScope();
-          const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lore.length)));
+          const lorFreeCount = countFreeEntries(lore, loreBubbles, loreOverrides.lockedBubbles);
+          const newK = Math.max(1, Math.min(loreK + step, Math.max(1, lorFreeCount)));
           if (newK === loreK) return;
           loreK = newK;
-          loreBubbles = bubbleize({ entries: lore, k: loreK });
-          expandedLoreIds.clear();
+          loreBubbles = bubbleizeWithLocks({
+            entries: lore,
+            currentBubbles: loreBubbles,
+            lockedBubbleIds: loreOverrides.lockedBubbles,
+            k: loreK,
+          });
+          for (const id of expandedLoreIds) {
+            if (!loreOverrides.lockedBubbles.has(String(id))) {
+              expandedLoreIds.delete(id);
+            }
+          }
           overlay.updatePanels({
             memoryBubbles, loreBubbles, memoryK, loreK,
             expandedMemoryIds, expandedLoreIds,

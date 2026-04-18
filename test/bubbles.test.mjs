@@ -268,3 +268,180 @@ test('rebucket: empty bubbles are filtered out', () => {
     assert.ok(b.entries.length > 0);
   }
 });
+
+// ---- bubbleizeWithLocks ----
+
+test('bubbleizeWithLocks: no locks → same as bubbleize', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  const entries = [
+    makeEntry(1, 'a', [1, 0]),
+    makeEntry(2, 'b', [0, 1]),
+  ];
+  const a = bubbleizeWithLocks({ entries, currentBubbles: [], lockedBubbleIds: new Set(), k: 2 });
+  const b = bubbleize({ entries, k: 2 });
+  assert.equal(a.length, b.length);
+});
+
+test('bubbleizeWithLocks: locked bubble contents are preserved intact', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  const entries = [
+    makeEntry(1, 'Elara', [1, 0]),
+    makeEntry(2, 'Elara again', [0.95, 0.05]),
+    makeEntry(3, 'Vex', [0, 1]),
+    makeEntry(4, 'Vex again', [0.05, 0.9]),
+  ];
+  // Pretend clustering produced a bubble locking entries 1 & 2
+  const prior = [
+    { id: 'bubble:0', label: 'Elara', entries: [entries[0], entries[1]], isUngrouped: false },
+    { id: 'bubble:1', label: 'Vex',   entries: [entries[2], entries[3]], isUngrouped: false },
+  ];
+  const result = bubbleizeWithLocks({
+    entries,
+    currentBubbles: prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 1,
+  });
+  // Locked bubble preserved first
+  assert.equal(result[0].id, 'bubble:0');
+  assert.deepEqual(result[0].entries.map(e => e.id), [1, 2]);
+  // Free entries (3, 4) clustered into the remaining k=1 bubble(s)
+  const freeBubbles = result.slice(1);
+  const freeIds = [];
+  for (const b of freeBubbles) for (const e of b.entries) freeIds.push(e.id);
+  assert.deepEqual(freeIds.sort(), [3, 4]);
+});
+
+test('bubbleizeWithLocks: locked bubble with all members deleted still preserved (empty shell)', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  const prior = [
+    { id: 'bubble:0', label: 'Gone', entries: [makeEntry(99, 'x', [1, 0])], isUngrouped: false },
+  ];
+  // Entry 99 no longer in the current entry list
+  const entries = [makeEntry(1, 'a', [1, 0])];
+  const result = bubbleizeWithLocks({
+    entries,
+    currentBubbles: prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 1,
+  });
+  const locked = result.find(b => b.id === 'bubble:0');
+  assert.ok(locked, 'locked bubble preserved');
+  assert.equal(locked.entries.length, 0);
+});
+
+test('bubbleizeWithLocks: locked bubble uses CURRENT entry objects (fresh from input)', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  // Prior has a stale version of entry 1
+  const staleEntry = makeEntry(1, 'old text', [1, 0]);
+  const prior = [
+    { id: 'bubble:0', label: 'X', entries: [staleEntry], isUngrouped: false },
+  ];
+  const freshEntry = makeEntry(1, 'new text', [1, 0]);
+  const result = bubbleizeWithLocks({
+    entries: [freshEntry],
+    currentBubbles: prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 1,
+  });
+  // The entry in the locked bubble should be the fresh copy
+  assert.equal(result[0].entries[0].text, 'new text');
+});
+
+test('bubbleizeWithLocks: all entries locked → free clustering yields nothing', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  const entries = [
+    makeEntry(1, 'a', [1, 0]),
+    makeEntry(2, 'b', [0, 1]),
+  ];
+  const prior = [
+    { id: 'bubble:0', label: 'Everything', entries, isUngrouped: false },
+  ];
+  const result = bubbleizeWithLocks({
+    entries,
+    currentBubbles: prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 3,
+  });
+  // Only the locked bubble should render
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 'bubble:0');
+});
+
+test('bubbleizeWithLocks: locked bubbles always come first', async () => {
+  const { bubbleizeWithLocks } = await import('../src/memory/bubbles.js');
+  const entries = [
+    makeEntry(1, 'a', [1, 0]),
+    makeEntry(2, 'b', [0, 1]),
+    makeEntry(3, 'c', [0.5, 0.5]),
+  ];
+  const prior = [
+    { id: 'bubble:free', label: 'Free', entries: [entries[0]], isUngrouped: false },
+    { id: 'bubble:locked', label: 'Locked', entries: [entries[1], entries[2]], isUngrouped: false },
+  ];
+  const result = bubbleizeWithLocks({
+    entries,
+    currentBubbles: prior,
+    lockedBubbleIds: new Set(['bubble:locked']),
+    k: 1,
+  });
+  assert.equal(result[0].id, 'bubble:locked', 'locked comes first even if it wasn\'t first in prior');
+});
+
+// ---- rebucketWithLocks ----
+
+test('rebucketWithLocks: no locks → same as rebucket', async () => {
+  const { rebucketWithLocks } = await import('../src/memory/bubbles.js');
+  const entries = [makeEntry(1, 'x', [1, 0])];
+  const prior = bubbleize({ entries, k: 1 });
+  const a = rebucketWithLocks({ entries, prior, lockedBubbleIds: new Set(), k: 1 });
+  const b = rebucket({ entries, prior, k: 1 });
+  assert.equal(a.length, b.length);
+});
+
+test('rebucketWithLocks: locked bubble persists across rebucket with new entries', async () => {
+  const { rebucketWithLocks } = await import('../src/memory/bubbles.js');
+  const originalEntries = [
+    makeEntry(1, 'Elara', [1, 0]),
+    makeEntry(2, 'Elara again', [0.95, 0.05]),
+  ];
+  const prior = [
+    { id: 'bubble:0', label: 'Elara', entries: originalEntries, isUngrouped: false },
+  ];
+  const newEntry = makeEntry(3, 'Vex', [0, 1]);
+  const entriesAfter = [...originalEntries, newEntry];
+  const result = rebucketWithLocks({
+    entries: entriesAfter,
+    prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 1,
+  });
+  // Locked bubble retained with its original members
+  const locked = result.find(b => b.id === 'bubble:0');
+  assert.ok(locked);
+  assert.deepEqual(locked.entries.map(e => e.id).sort(), [1, 2]);
+  // New entry went into a non-locked bubble
+  let foundNew = false;
+  for (const b of result) {
+    if (b.id === 'bubble:0') continue;
+    if (b.entries.some(e => e.id === 3)) foundNew = true;
+  }
+  assert.ok(foundNew, 'new entry placed in a non-locked bubble');
+});
+
+test('rebucketWithLocks: member of locked bubble gets deleted — bubble becomes empty but preserved', async () => {
+  const { rebucketWithLocks } = await import('../src/memory/bubbles.js');
+  const prior = [
+    { id: 'bubble:0', label: 'Elara', entries: [makeEntry(1, 'x', [1, 0])], isUngrouped: false },
+  ];
+  // Entry 1 deleted — not in the new entry list
+  const entriesAfter = [makeEntry(2, 'y', [0, 1])];
+  const result = rebucketWithLocks({
+    entries: entriesAfter,
+    prior,
+    lockedBubbleIds: new Set(['bubble:0']),
+    k: 1,
+  });
+  const locked = result.find(b => b.id === 'bubble:0');
+  assert.ok(locked);
+  assert.equal(locked.entries.length, 0);
+});
