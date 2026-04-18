@@ -2125,17 +2125,18 @@ export const CSS = `
 }
 .pf-mem-bubble-body[hidden] { display: none; }
 
-/* Per-bubble settings footer — sits at the bottom of an expanded
-   Memory bubble's body. Small, low-visual-weight row. Currently hosts
-   the Rename button; will grow to include other per-bubble controls. */
-.pf-mem-bubble-footer {
+/* Per-bubble settings row — sits at the TOP of an expanded Memory
+   bubble's body, above the cards. Small, low-visual-weight strip.
+   Currently hosts the Rename button; will grow to include other
+   per-bubble controls. */
+.pf-mem-bubble-settings-row {
   display: flex;
   gap: 6px;
-  padding-top: 6px;
-  margin-top: 2px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
 }
-.pf-mem-bubble-footer-btn {
+.pf-mem-bubble-settings-btn {
   background: transparent;
   border: 1px solid transparent;
   color: rgba(255, 255, 255, 0.55);
@@ -2146,7 +2147,7 @@ export const CSS = `
   cursor: pointer;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
-.pf-mem-bubble-footer-btn:hover {
+.pf-mem-bubble-settings-btn:hover {
   color: rgba(216, 179, 106, 0.95);
   border-color: rgba(216, 179, 106, 0.3);
   background: rgba(216, 179, 106, 0.08);

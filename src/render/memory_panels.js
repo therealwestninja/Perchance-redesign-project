@@ -514,14 +514,15 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
     ? interleaveDropGaps(cardNodes, bubble.entries, scope, 'card', handlers, bubble.id, isLocked)
     : cardNodes;
 
-  // Settings footer — appears at the bottom of expanded Memory bubbles
+  // Settings row — appears at the TOP of expanded Memory bubbles
   // that aren't Ungrouped. Currently hosts just the Rename button.
   // Intended to grow into a home for additional per-bubble controls
   // (exclude from re-cluster, export just this bubble, etc.) without
-  // cluttering the header.
+  // cluttering the header or forcing the user to scroll past long
+  // card lists to find the controls.
   if (isExpanded && scope === 'memory' && !bubble.isUngrouped) {
-    const footer = buildBubbleFooter(bubble, scope, handlers);
-    if (footer) bodyChildren = [...bodyChildren, footer];
+    const settingsRow = buildBubbleSettingsRow(bubble, scope, handlers);
+    if (settingsRow) bodyChildren = [settingsRow, ...bodyChildren];
   }
 
   const body = h('div', {
@@ -537,42 +538,44 @@ function renderBubble(bubble, isExpanded, isLocked, scope, handlers, usageCounts
 }
 
 /**
- * Build the per-bubble settings footer — shown at the bottom of an
- * expanded Memory bubble's body. Currently just hosts the Rename
- * button; intended to grow into a home for other per-bubble controls.
+ * Build the per-bubble settings row — shown at the TOP of an expanded
+ * Memory bubble's body, above all cards. Currently just hosts the
+ * Rename button; intended to grow into a home for other per-bubble
+ * controls without adding header clutter or making users scroll past
+ * long card lists to find them.
  *
- * Returns null if nothing to show (caller just skips appending).
+ * Returns null if nothing to show (caller just skips prepending).
  */
-function buildBubbleFooter(bubble, scope, handlers) {
+function buildBubbleSettingsRow(bubble, scope, handlers) {
   const items = [];
 
   if (typeof handlers.onRenameBubble === 'function') {
     const renameBtn = h('button', {
       type: 'button',
-      class: 'pf-mem-bubble-footer-btn',
+      class: 'pf-mem-bubble-settings-btn',
       title: bubble.userRenamed
         ? 'Change the custom name for this bubble'
         : 'Give this bubble a custom name',
       onClick: (ev) => {
         ev.stopPropagation();
         // Find the label element in our bubble header and trigger the
-        // same inline-rename flow the dblclick uses. We rely on the
-        // DOM querying up from the button — the bubble element is the
-        // button's grandparent (bubble > body > footer > button).
+        // same inline-rename flow the dblclick uses. We rely on DOM
+        // querying up from the button — the bubble element is the
+        // button's ancestor.
         const bubbleEl = ev.currentTarget.closest('.pf-mem-bubble');
         if (!bubbleEl) return;
         const labelEl = bubbleEl.querySelector('.pf-mem-bubble-label');
         if (!labelEl) return;
         startInlineRename(labelEl, bubble, handlers);
       },
-    }, [bubble.userRenamed ? '✎ Rename' : '✎ Rename']);
+    }, ['✎ Rename']);
     items.push(renameBtn);
   }
 
   if (items.length === 0) return null;
 
   return h('div', {
-    class: 'pf-mem-bubble-footer',
+    class: 'pf-mem-bubble-settings-row',
     'aria-label': 'Bubble settings',
   }, items);
 }
