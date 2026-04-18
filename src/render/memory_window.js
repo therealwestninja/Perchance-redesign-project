@@ -20,6 +20,7 @@
 import { h } from '../utils/dom.js';
 import { createOverlay } from './overlay.js';
 import { createMemoryPanels } from './memory_panels.js';
+import { createMemorySettingsDrawer } from './memory_settings_drawer.js';
 
 /**
  * @param {{
@@ -42,14 +43,30 @@ export function createMemoryWindow({
   threadLabel = '',
   handlers = {},
   onClose,
+  onSettingsChange,
 } = {}) {
   const title = h('h2', { class: 'pf-mem-title' }, ['Memory & Lore']);
   const contextChip = threadLabel
     ? h('span', { class: 'pf-mem-context-chip', title: 'Active thread' }, [threadLabel])
     : null;
 
+  // Settings drawer: gear toggle lives in the header, drawer body is
+  // inserted right below the header and starts collapsed. Drawer writes
+  // changes through updateField(), which fires the global settings
+  // pub/sub; the window_open.js side of this subscribes and re-computes
+  // overrides with the new threshold.
+  const settings = createMemorySettingsDrawer({
+    onChange: (key, value) => {
+      if (typeof onSettingsChange === 'function') {
+        try { onSettingsChange(key, value); } catch { /* best-effort */ }
+      }
+    },
+  });
+
   const header = h('header', { class: 'pf-mem-header' },
-    contextChip ? [title, contextChip] : [title]
+    contextChip
+      ? [title, contextChip, settings.gearButton]
+      : [title, settings.gearButton]
   );
 
   const panels = createMemoryPanels({
@@ -111,7 +128,7 @@ export function createMemoryWindow({
     hidden: true,
   });
 
-  const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer, saveBanner]);
+  const wrapper = h('div', { class: 'pf-mem-window' }, [header, settings.drawer, panels, footer, saveBanner]);
 
   const overlay = createOverlay({
     ariaLabel: 'Memory and Lore',

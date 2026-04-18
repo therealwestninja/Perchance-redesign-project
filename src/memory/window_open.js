@@ -29,6 +29,9 @@ import { loadSnapshots, captureSnapshot, deleteSnapshot, findSnapshot, buildRest
 import { createMemoryWindow } from '../render/memory_window.js';
 import { createOverlay } from '../render/overlay.js';
 import { h } from '../utils/dom.js';
+import { bumpCounter } from '../stats/counters.js';
+import { loadSettings } from '../profile/settings_store.js';
+import { recordActivityForStreak } from '../stats/streaks.js';
 
 // ---- entry-point exposure ----
 if (typeof window !== 'undefined') {
@@ -52,6 +55,16 @@ export async function openMemoryWindow() {
     );
     return;
   }
+
+  // Count this as a successful bubble-tool open for the profile's
+  // activity counters. Done after schema probe so we don't count
+  // failed-to-open-for-reasons-outside-the-user's-control as usage.
+  bumpCounter('memoryWindowOpens');
+  // Record today as an activity day for the streak system. Idempotent
+  // within a day — multiple opens don't inflate the streak. If today
+  // is consecutive with lastActiveDay, current streak advances; if
+  // there's a gap, it resets to 1.
+  try { recordActivityForStreak(); } catch { /* non-fatal */ }
 
   // ---- load baseline ----
   let baseline;
@@ -214,8 +227,13 @@ export async function openMemoryWindow() {
     // This reconciles: bubble-order assertions, intra-bubble card-order
     // assertions, cross-bubble membership assignments. Pure-logic tests
     // in test/bubble_overrides.test.mjs cover the reconciliation rules.
-    memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
-    loreBubbles   = applyOverrides(loreOverrides,   loreBubbles);
+    //
+    // renameThreshold is user-tunable via the gear-icon settings drawer.
+    // Read fresh on every recompute so live slider drags update
+    // reconciliation without a window close/reopen cycle.
+    const renameThreshold = readRenameThreshold();
+    memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles, { renameThreshold });
+    loreBubbles   = applyOverrides(loreOverrides,   loreBubbles,   { renameThreshold });
 
     // Drop expanded ids that no longer correspond to an existing bubble.
     const memIds = new Set(memoryBubbles.map(b => b.id));
@@ -454,6 +472,7 @@ export async function openMemoryWindow() {
       if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
       const currentOrder = s.getBubbles().map(b => b.id);
       moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
+      bumpCounter('bubblesReordered');
       refresh();
     },
 
@@ -484,6 +503,7 @@ export async function openMemoryWindow() {
         if (!source) return;
         const currentCardOrder = source.entries.map(e => e.id);
         moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
+        bumpCounter('cardsReorderedInBubble');
       } else {
         // Cross-bubble: assert new membership, position within target,
         // then clean up source's card-order reference.
@@ -501,6 +521,7 @@ export async function openMemoryWindow() {
           if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
           else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
         }
+        bumpCounter('cardsReorderedCrossBubble');
       }
 
       refresh();
@@ -527,7 +548,7 @@ export async function openMemoryWindow() {
         lockedBubbleIds: s.overrides.lockedBubbles,
         k: newK,
       });
-      s.setBubbles(applyOverrides(s.overrides, clustered));
+      s.setBubbles(applyOverrides(s.overrides, clustered, { renameThreshold: readRenameThreshold() }));
 
       // Preserve expanded state for locked bubbles (their ids survive
       // across k-changes); free bubbles get fresh ids so drop those.
@@ -556,6 +577,7 @@ export async function openMemoryWindow() {
       const s = byScope(scope);
       if (!s) return;
       const nowLocked = toggleLock(s.overrides, bubbleId);
+      if (nowLocked) bumpCounter('bubblesLocked');
 
       if (s.locksPersist && activeThreadId != null) {
         if (nowLocked) {
@@ -589,6 +611,7 @@ export async function openMemoryWindow() {
       if (!s) return;
       if (!Array.isArray(memberIds) || memberIds.length === 0) return;
       renameBubble(s.overrides, memberIds, newLabel);
+      bumpCounter('bubblesRenamed');
       refresh();
     },
 
@@ -680,6 +703,8 @@ export async function openMemoryWindow() {
         return;
       }
 
+      bumpCounter('memorySaves');
+
       // Show a brief confirmation of what landed on disk. For reorder-
       // only saves the stats object has reorderedMemory/reorderedLore
       // counts; for edits/adds/deletes it has those specific counters.
@@ -700,6 +725,7 @@ export async function openMemoryWindow() {
         pendingDeletions: Array.from(pendingDeletions.values()),
         baseline,
       };
+      bumpCounter('backupsExported');
       showExportDialog(JSON.stringify(state, null, 2));
     },
 
@@ -757,6 +783,7 @@ export async function openMemoryWindow() {
           alert(`Restore failed: ${result.error}\n\nNo changes were applied.`);
           return;
         }
+        bumpCounter('snapshotsRestored');
         alert('Restore complete. Re-open the Memory window to see the restored state.');
         overlay.hide();
       });
@@ -784,12 +811,37 @@ export async function openMemoryWindow() {
     },
     threadLabel,
     handlers,
+    // Gear-drawer setting changed (e.g. rename threshold slider). Live-
+    // reapply overrides so the user sees the effect of the new threshold
+    // without closing/reopening the window. Uses the same recompute
+    // path that every other override mutation uses — no special casing.
+    onSettingsChange: (key, _value) => {
+      if (key === 'renameThreshold') {
+        refresh();
+      }
+    },
   });
 
   overlay.show();
 }
 
 // ---- helpers ----
+
+/**
+ * Read the rename-survival Jaccard threshold from settings. Clamps to
+ * [0, 1]; falls back to 0.5 on missing/malformed input. Called on every
+ * recompute so the setting is effectively hot-reloadable.
+ */
+function readRenameThreshold() {
+  try {
+    const s = loadSettings();
+    const raw = (s && s.memory && s.memory.tool && s.memory.tool.renameThreshold);
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return 0.5;
+    return Math.max(0, Math.min(1, raw));
+  } catch {
+    return 0.5;
+  }
+}
 
 async function getActiveThreadLabel() {
   try {

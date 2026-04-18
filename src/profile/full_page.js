@@ -16,6 +16,7 @@ import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
 import { createActivityBody } from '../render/activity_body.js';
 import { bumpCounter, getCounters } from '../stats/counters.js';
+import { recordActivityForStreak, getStreaks, streakStatus } from '../stats/streaks.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
 import { createActivitySparkline } from '../render/activity_sparkline.js';
@@ -73,6 +74,11 @@ export async function openFullPage() {
     settings = null;
   }
 
+  // Record today as an activity day for streak tracking. Done FIRST so
+  // even if stats loading fails, the user's streak is still credited.
+  // Idempotent within a day — repeated opens don't inflate.
+  try { recordActivityForStreak(); } catch { /* non-fatal */ }
+
   try {
     const data = await readAllStores();
     // Merge IDB-derived stats with settings-derived prompt stats so
@@ -87,6 +93,9 @@ export async function openFullPage() {
   // usage counts; stats (from Dexie) is the source for "what exists"
   // data. Together they're the full picture for unlock criteria.
   try { stats.counters = getCounters(); } catch { stats.counters = {}; }
+  // Same story for streaks — achievement criteria that gate on
+  // consecutive-day activity read stats.streaks.current.
+  try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
   try {
     unlockedIds = computeUnlockedIds(stats);
   } catch {
@@ -154,7 +163,8 @@ export async function openFullPage() {
     let freshUnlocked = unlockedIds;
     try {
       const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
-      const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters };
+      const freshStreaks  = (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })();
+      const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters, streaks: freshStreaks };
       freshUnlocked = computeUnlockedIds(freshStats);
     } catch { /* fall back to initial unlock list */ }
 
@@ -295,7 +305,11 @@ export async function openFullPage() {
   const activitySection = createSection({
     id: 'activity',
     title: 'Activity',
-    children: createActivityBody({ counters }),
+    children: createActivityBody({
+      counters,
+      streaks: (() => { try { return getStreaks(); } catch { return null; } })(),
+      streakStatus: (() => { try { return streakStatus(); } catch { return 'broken'; } })(),
+    }),
     initialState: displayState.activity || { collapsed: false, blurred: false },
   });
 

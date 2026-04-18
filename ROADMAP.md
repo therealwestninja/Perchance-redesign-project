@@ -297,37 +297,38 @@ this task is.
 
 ---
 
-## Settings modal + rename threshold slider
+## Settings modal + rename threshold slider — SHIPPED
 
-**Status: follow-up to rename-bug-fix commit.**
+**Status: shipped as a settings drawer.**
 
-The rename bug fix uses a hardcoded Jaccard threshold of 0.5 (same as
-lock reconciliation) to decide when a rename survives a membership
-change. Users may want to tune this.
+Implemented as a slide-down drawer (not a modal) triggered by a gear
+icon in the Memory window header. Keeps the tool chrome clean when
+not in use and extensible for more knobs. Changes persist via
+`updateField`, fire settings pub/sub, and trigger a live refresh of
+the bubble layout so users see the effect of their changes
+immediately without closing the window.
 
-Plan: add a `⚙` gear icon to the Memory window header. Click opens a
-modal with tool settings. First entry: rename-survival threshold slider
-(range 0–1, step 0.05, default 0.5). Persist to
-`settings.memory.tool.renameThreshold` via `settings_store`. Pass
-threshold through to `applyOverrides` in `window_open.js`.
+Shipped knob: **rename-survival threshold slider** (0–100%, step 5%,
+default 50%). Live-readable from `settings.memory.tool.renameThreshold`.
+Passed to `applyOverrides` at both call sites. Tooltip captions adapt
+in plain English as the slider moves ("Balanced — renames stick when
+membership is largely the same.").
 
-Extensible for future tunable knobs: snapshot ring-buffer size
-(currently 10), usage histogram window (currently 10 messages), lock
-reconciliation threshold (currently 0.5), etc.
+### Extension points
 
-**Scope:** ~200 lines + modal + settings plumbing + tests.
+Architected to accept more knobs by adding a row to
+`createMemorySettingsDrawer`. Candidates from the original roadmap:
 
----
+- Snapshot ring-buffer size (currently hardcoded 10)
+- Usage histogram window (currently hardcoded last-10 messages)
+- Lock reconciliation threshold (currently uses renameThreshold —
+  could decouple if users ever ask)
+- K-cluster recommendation tuning
+- Auto-save behavior (currently off by default)
 
-## "Confirm all destructive batch actions" option
-
-During 7b.3 design, the full-guard option was "confirm delete AND
-promote AND demote when any of those are done on a locked bubble."
-User chose the middle option (just delete + promote + demote confirm
-as currently shipped). The full-guard variant could become a user
-preference toggle in settings.
-
-**Scope:** ~20 lines + settings wiring.
+Each new row is ~30 lines in `memory_settings_drawer.js` + a default
+in `settings.memory.tool` + a consumer in the relevant module. No
+plumbing-pass required.
 
 ---
 
@@ -422,6 +423,15 @@ item — the core counter data is there now.
 - `stats.counters` injected by all three unlock call sites
   (full_page initial, full_page refresh, mini-card refresh).
 - 12 unit tests for the new achievement behavior.
+- Achievement unlock-date tracking (commit 3beeeb0): each unlock
+  records first-detected ISO timestamp; achievements grid shows
+  relative + absolute date.
+- **Streak tracking** (NEW): consecutive-day activity streak with
+  current + longest, "active / at-risk / broken" status, streak
+  banner in Activity section with adaptive icon/tone, 5 tiered
+  streak achievements (3/7/14/30/100 days, common→legendary).
+  recordActivityForStreak() called on profile open + memory tool
+  open. Idempotent within a UTC day.
 
 ### Remaining
 - **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
@@ -437,11 +447,6 @@ item — the core counter data is there now.
     snapshot restoration pattern, rename activity
   Each archetype = achievement that unlocks when a WEIGHTED
   combination of signals crosses a threshold. ~200 lines.
-- **Streak tracking** — add `streaks` namespace to settings.
-  Compute current + longest streak for "open profile", "complete a
-  prompt", "use memory tool". Needs a daily-rollover scheduler
-  similar to how prompts handle weeks. Unlocks:
-  "7-day streak", "30-day streak", "100-day streak". ~150 lines.
 - **Profile flair unlocks** — titles, avatar borders, accent colors
   pinned to achievements/archetypes. Requires flair-storage field
   in settings, flair-picker UI in profile, rendering in splash +

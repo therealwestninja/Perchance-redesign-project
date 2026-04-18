@@ -2440,4 +2440,172 @@ export const CSS = `
   font-weight: 600;
   opacity: 1;
 }
+
+/* ---- Memory tool settings drawer ----
+   Gear icon in window header toggles a drawer between header and
+   panels. Holds tunable knobs (currently: rename threshold). Drawer
+   is collapsed by default; slides in when opened. */
+.pf-mem-gear-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-color);
+  opacity: 0.55;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s, transform 0.2s;
+}
+.pf-mem-gear-btn:hover {
+  opacity: 0.95;
+  background: rgba(255, 255, 255, 0.04);
+}
+.pf-mem-gear-btn:focus-visible {
+  outline: 2px solid rgba(216, 179, 106, 0.6);
+  outline-offset: 2px;
+}
+.pf-mem-gear-btn-open {
+  opacity: 1;
+  background: rgba(216, 179, 106, 0.12);
+  border-color: rgba(216, 179, 106, 0.35);
+  transform: rotate(45deg);
+}
+
+.pf-mem-set-drawer {
+  background: rgba(0, 0, 0, 0.22);
+  border-bottom: 1px solid var(--border-color);
+  padding: 14px 22px;
+}
+.pf-mem-set-drawer[hidden] {
+  display: none;
+}
+.pf-mem-set-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 720px;
+}
+.pf-mem-set-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-mem-set-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pf-mem-set-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.pf-mem-set-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(216, 179, 106, 0.95);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  min-width: 40px;
+  text-align: right;
+}
+.pf-mem-set-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.pf-mem-set-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(216, 179, 106, 0.95);
+  border: 2px solid var(--bg-color, #1e1e1e);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.pf-mem-set-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.pf-mem-set-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(216, 179, 106, 0.95);
+  border: 2px solid var(--bg-color, #1e1e1e);
+  cursor: pointer;
+}
+.pf-mem-set-caption {
+  font-size: 12px;
+  opacity: 0.85;
+  color: rgba(216, 179, 106, 0.85);
+  font-style: italic;
+}
+.pf-mem-set-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.6;
+}
+
+/* ---- Streak banner in Activity section ---- */
+.pf-streak-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.18);
+}
+.pf-streak-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex: none;
+}
+.pf-streak-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pf-streak-line {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.pf-streak-sub {
+  font-size: 11px;
+  opacity: 0.7;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+.pf-streak-active {
+  background: rgba(216, 179, 106, 0.10);
+  border-color: rgba(216, 179, 106, 0.35);
+}
+.pf-streak-active .pf-streak-line {
+  color: rgba(236, 200, 130, 0.98);
+}
+.pf-streak-at-risk {
+  background: rgba(180, 140, 60, 0.08);
+  border-color: rgba(180, 140, 60, 0.3);
+}
+.pf-streak-at-risk .pf-streak-line {
+  color: rgba(210, 170, 90, 0.9);
+}
+.pf-streak-broken {
+  opacity: 0.75;
+}
 `.trim();

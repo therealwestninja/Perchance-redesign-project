@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 61 };
+  NS.__meta = { modules: 63 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14609,7 +14609,64 @@ Use this template for your response:
       counterKey: 'memoryWindowOpens',
       thresholds: { bronze: 5, silver: 25, gold: 100 },
     }),
+
+    // --- Streak-based achievements ---
+    //
+    // These unlock based on consecutive-day activity tracked by
+    // stats/streaks.js. Reaching a given streak length unlocks
+    // permanently — breaking the streak afterwards doesn't lock it
+    // again. Criteria read stats.streaks.current and stats.streaks.longest;
+    // we gate on `max(current, longest)` so users who had a long
+    // streak but broke it still keep the achievement.
+    {
+      id: 'streak_3day',
+      name: 'Three-Day Groove',
+      description: 'Active 3 days in a row.',
+      tier: 'common',
+      criteria: (s) => maxStreak(s) >= 3,
+    },
+    {
+      id: 'streak_7day',
+      name: 'Weekly Rhythm',
+      description: 'Active 7 days in a row.',
+      tier: 'uncommon',
+      criteria: (s) => maxStreak(s) >= 7,
+    },
+    {
+      id: 'streak_14day',
+      name: 'Fortnight',
+      description: 'Active 14 days in a row.',
+      tier: 'rare',
+      criteria: (s) => maxStreak(s) >= 14,
+    },
+    {
+      id: 'streak_30day',
+      name: 'Month Maker',
+      description: 'Active 30 days in a row.',
+      tier: 'epic',
+      criteria: (s) => maxStreak(s) >= 30,
+    },
+    {
+      id: 'streak_100day',
+      name: 'Centurion',
+      description: 'Active 100 days in a row.',
+      tier: 'legendary',
+      criteria: (s) => maxStreak(s) >= 100,
+    },
   ]);
+
+  /**
+   * Read the best (current or longest) streak length from a stats bundle.
+   * Used by streak-based achievement criteria. Users who set a PR and
+   * then broke the streak keep their achievement — longest is a career
+   * record, current is reachable again tomorrow.
+   */
+  function maxStreak(s) {
+    if (!s || !s.streaks) return 0;
+    const cur = Number(s.streaks.current) || 0;
+    const longest = Number(s.streaks.longest) || 0;
+    return Math.max(cur, longest);
+  }
 
   /**
    * Generate a bronze/silver/gold triple of achievements gated on a
@@ -21554,6 +21611,174 @@ Use this template for your response:
     font-weight: 600;
     opacity: 1;
   }
+
+  /* ---- Memory tool settings drawer ----
+     Gear icon in window header toggles a drawer between header and
+     panels. Holds tunable knobs (currently: rename threshold). Drawer
+     is collapsed by default; slides in when opened. */
+  .pf-mem-gear-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    opacity: 0.55;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s, background 0.15s, border-color 0.15s, transform 0.2s;
+  }
+  .pf-mem-gear-btn:hover {
+    opacity: 0.95;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .pf-mem-gear-btn:focus-visible {
+    outline: 2px solid rgba(216, 179, 106, 0.6);
+    outline-offset: 2px;
+  }
+  .pf-mem-gear-btn-open {
+    opacity: 1;
+    background: rgba(216, 179, 106, 0.12);
+    border-color: rgba(216, 179, 106, 0.35);
+    transform: rotate(45deg);
+  }
+
+  .pf-mem-set-drawer {
+    background: rgba(0, 0, 0, 0.22);
+    border-bottom: 1px solid var(--border-color);
+    padding: 14px 22px;
+  }
+  .pf-mem-set-drawer[hidden] {
+    display: none;
+  }
+  .pf-mem-set-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 720px;
+  }
+  .pf-mem-set-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pf-mem-set-row-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .pf-mem-set-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+  .pf-mem-set-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(216, 179, 106, 0.95);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    min-width: 40px;
+    text-align: right;
+  }
+  .pf-mem-set-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .pf-mem-set-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(216, 179, 106, 0.95);
+    border: 2px solid var(--bg-color, #1e1e1e);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .pf-mem-set-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+  .pf-mem-set-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(216, 179, 106, 0.95);
+    border: 2px solid var(--bg-color, #1e1e1e);
+    cursor: pointer;
+  }
+  .pf-mem-set-caption {
+    font-size: 12px;
+    opacity: 0.85;
+    color: rgba(216, 179, 106, 0.85);
+    font-style: italic;
+  }
+  .pf-mem-set-hint {
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.6;
+  }
+
+  /* ---- Streak banner in Activity section ---- */
+  .pf-streak-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .pf-streak-icon {
+    font-size: 28px;
+    line-height: 1;
+    flex: none;
+  }
+  .pf-streak-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .pf-streak-line {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+  }
+  .pf-streak-sub {
+    font-size: 11px;
+    opacity: 0.7;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.02em;
+  }
+  .pf-streak-active {
+    background: rgba(216, 179, 106, 0.10);
+    border-color: rgba(216, 179, 106, 0.35);
+  }
+  .pf-streak-active .pf-streak-line {
+    color: rgba(236, 200, 130, 0.98);
+  }
+  .pf-streak-at-risk {
+    background: rgba(180, 140, 60, 0.08);
+    border-color: rgba(180, 140, 60, 0.3);
+  }
+  .pf-streak-at-risk .pf-streak-line {
+    color: rgba(210, 170, 90, 0.9);
+  }
+  .pf-streak-broken {
+    opacity: 0.75;
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -21644,6 +21869,18 @@ Use this template for your response:
         // Pinned memories are exempt from prune. See src/memory/pins.js for
         // the API. Pins round-trip through backup/import automatically.
         pinsByThread: {},
+        // Tunable knobs for the Memory & Lore curation tool. Surfaced
+        // via the gear icon in the tool's header. All values are
+        // hot-reloaded — the window re-renders when any of these change.
+        tool: {
+          // Jaccard similarity threshold for matching a user-renamed
+          // bubble against its post-reclustering incarnation. Higher
+          // values mean renames only survive small membership changes
+          // (strict); lower values retain renames across big shifts
+          // (permissive). Default 0.5, range 0-1 step 0.05. Also used
+          // internally by lock reconciliation; see bubble_overrides.js.
+          renameThreshold: 0.5,
+        },
       },
       counters: {
         // Lifetime action counters for features the user has engaged with.
@@ -21672,6 +21909,28 @@ Use this template for your response:
         // First and last action timestamps. Set on any counter bump.
         firstUsedAt:                null,
         lastUsedAt:                 null,
+      },
+      streaks: {
+        // Consecutive-day activity streak.
+        //
+        // Rules:
+        //   - "Activity" means opening the profile, opening the Memory
+        //     tool, or completing a prompt — any signal that the user
+        //     engaged with us today.
+        //   - Same-day activity: no change (already counted).
+        //   - Next-day activity (yesterday's day-key == lastActiveDay):
+        //     current += 1; longest bumps if exceeded.
+        //   - Gap > 1 day: current resets to 1 (today starts a new
+        //     streak); longest preserved.
+        //
+        // lastActiveDay is a UTC day-key string "YYYY-MM-DD" so the
+        // rollover happens at UTC midnight for everyone. Local-midnight
+        // would be user-friendlier in each timezone, but UTC avoids
+        // the "is it a streak or not?" ambiguity around DST shifts and
+        // travel.
+        current: 0,
+        longest: 0,
+        lastActiveDay: null,
       },
     };
   }
@@ -21912,6 +22171,141 @@ Use this template for your response:
         saveSettings(settings);
       }
     } catch { /* best-effort */ }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: stats/streaks.js
+     ────────────────────────────────────────────────────────── */
+  // stats/streaks.js
+  //
+  // Consecutive-day activity streak tracking.
+  //
+  // Activity = any meaningful engagement: opening the profile, opening
+  // the Memory tool, completing a prompt. Each activity call passes
+  // through the streak updater, which is idempotent within a day so
+  // multiple calls on the same day don't inflate anything.
+  //
+  // Streak rules:
+  //   - First activity ever: current = 1, longest = 1.
+  //   - Activity on the SAME UTC day as lastActiveDay: no change.
+  //   - Activity on the day AFTER lastActiveDay: current += 1; longest
+  //     bumps if current > previous longest.
+  //   - Activity after a gap > 1 day: current = 1, longest preserved.
+  //
+  // We use UTC day-keys for consistency. Local-timezone-midnight would
+  // be user-friendlier but introduces DST/travel ambiguity. A UTC day
+  // being "the wrong shape" for a given user is a small cost; we can
+  // revisit with explicit local-day opt-in later.
+
+
+
+
+  /**
+   * Record activity for the streak system. Idempotent within a day.
+   * Returns the updated streak state so callers can surface it without
+   * a second read.
+   *
+   * @param {Date} [now=new Date()]
+   * @returns {{ current: number, longest: number, lastActiveDay: string }}
+   */
+  function recordActivityForStreak(now = new Date()) {
+    const todayKey = getCurrentDayKey(now);
+    const settings = safeLoad();
+    const streaks = (settings && settings.streaks) || { current: 0, longest: 0, lastActiveDay: null };
+
+    const lastDay = streaks.lastActiveDay;
+
+    // Same-day activity: no-op, return existing state.
+    if (lastDay === todayKey) {
+      return {
+        current: Number(streaks.current) || 0,
+        longest: Number(streaks.longest) || 0,
+        lastActiveDay: lastDay,
+      };
+    }
+
+    let current;
+    if (!lastDay) {
+      // First activity ever.
+      current = 1;
+    } else if (isConsecutiveDay(lastDay, todayKey)) {
+      current = (Number(streaks.current) || 0) + 1;
+    } else {
+      // Gap > 1 day: streak resets.
+      current = 1;
+    }
+    const longest = Math.max(Number(streaks.longest) || 0, current);
+
+    try {
+      updateField('streaks', {
+        current,
+        longest,
+        lastActiveDay: todayKey,
+      });
+    } catch { /* best-effort */ }
+
+    return { current, longest, lastActiveDay: todayKey };
+  }
+
+  /**
+   * Read the current streak state without modifying it. Safe default
+   * for missing/malformed storage.
+   *
+   * @returns {{ current: number, longest: number, lastActiveDay: string | null }}
+   */
+  function getStreaks() {
+    try {
+      const s = loadSettings();
+      const v = (s && s.streaks) || {};
+      return {
+        current: Number(v.current) || 0,
+        longest: Number(v.longest) || 0,
+        lastActiveDay: v.lastActiveDay || null,
+      };
+    } catch {
+      return { current: 0, longest: 0, lastActiveDay: null };
+    }
+  }
+
+  /**
+   * Derived state: is the current streak still "live"? A streak is
+   * live if the user was active today OR yesterday. If two or more
+   * days have passed without activity, the streak is still stored as
+   * the current value but technically "at risk" — the next activity
+   * will reset it.
+   *
+   * Used by UI to decide flame vs ember icon.
+   *
+   * @param {Date} [now=new Date()]
+   * @returns {'active' | 'at-risk' | 'broken'}
+   */
+  function streakStatus(now = new Date()) {
+    const { current, lastActiveDay } = getStreaks();
+    if (!lastActiveDay || current === 0) return 'broken';
+    const todayKey = getCurrentDayKey(now);
+    if (lastActiveDay === todayKey) return 'active';
+    if (isConsecutiveDay(lastActiveDay, todayKey)) return 'at-risk';
+    return 'broken';
+  }
+
+  // ---- helpers ----
+
+  function safeLoad() {
+    try { return loadSettings(); } catch { return null; }
+  }
+
+  /**
+   * True iff `todayKey` is exactly one day after `lastDay` in UTC.
+   * Both args are "YYYY-MM-DD" strings.
+   */
+  function isConsecutiveDay(lastDay, todayKey) {
+    if (typeof lastDay !== 'string' || typeof todayKey !== 'string') return false;
+    const a = Date.parse(lastDay + 'T00:00:00Z');
+    const b = Date.parse(todayKey + 'T00:00:00Z');
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+    const dayMs = 86400000;
+    const diff = b - a;
+    return diff === dayMs;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -23628,6 +24022,161 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/memory_settings_drawer.js
+     ────────────────────────────────────────────────────────── */
+  // render/memory_settings_drawer.js
+  //
+  // Small drawer that slides down from the Memory & Lore window header
+  // when the user clicks the gear icon. Holds tunable knobs for the
+  // bubble tool — currently just the rename-survival threshold, with
+  // room to add more as we expose internal heuristics.
+  //
+  // UX notes:
+  //   - Drawer collapses by default. Keeps the window chrome clean for
+  //     users who don't want to tune anything.
+  //   - Each row has a live label showing the current value, a slider,
+  //     and a short plain-English tip explaining what the knob does.
+  //   - Persists changes immediately (no Save button). Each row writes
+  //     through updateField() so the change fires the global settings
+  //     pub/sub and any live subscribers (notably the Memory window
+  //     itself) can re-render with the new value.
+  //   - Structured to grow — adding a second knob is one more row in
+  //     the drawer body.
+
+
+
+
+  /**
+   * Build the gear toggle button + the drawer that it controls.
+   *
+   * Returns { gearButton, drawer, toggle(visible) } so the caller can
+   * place the button in a header and the drawer below, and optionally
+   * drive the visible state externally (we also handle the click
+   * toggle internally so callers who don't care can ignore `toggle`).
+   *
+   * @param {{
+   *   onChange?: (key: string, value: any) => void
+   * }} [opts]
+   */
+  function createMemorySettingsDrawer({ onChange } = {}) {
+    // ---- drawer body ----
+
+    const settings = safeLoadSettings();
+    const initialThreshold = readRenameThreshold(settings);
+
+    // Rename threshold row: slider + live value + caption
+    const thresholdValue = h('span', { class: 'pf-mem-set-val' }, [
+      formatPct(initialThreshold),
+    ]);
+
+    const thresholdInput = h('input', {
+      type: 'range',
+      min: '0',
+      max: '1',
+      step: '0.05',
+      value: String(initialThreshold),
+      class: 'pf-mem-set-slider',
+      'aria-label': 'Rename-survival threshold',
+    });
+    thresholdInput.addEventListener('input', () => {
+      const v = Math.max(0, Math.min(1, parseFloat(thresholdInput.value) || 0.5));
+      thresholdValue.textContent = formatPct(v);
+      // Live caption echoes permissiveness in plain English as user drags.
+      thresholdCaption.textContent = describeThreshold(v);
+    });
+    thresholdInput.addEventListener('change', () => {
+      const v = Math.max(0, Math.min(1, parseFloat(thresholdInput.value) || 0.5));
+      // Round to the slider step so we don't store floating-point
+      // weirdness from imprecise drags ("0.5500000000001").
+      const rounded = Math.round(v * 20) / 20;
+      updateField('memory.tool.renameThreshold', rounded);
+      if (typeof onChange === 'function') {
+        try { onChange('renameThreshold', rounded); } catch { /* best-effort */ }
+      }
+    });
+
+    const thresholdCaption = h('div', { class: 'pf-mem-set-caption' }, [
+      describeThreshold(initialThreshold),
+    ]);
+
+    const thresholdRow = h('div', { class: 'pf-mem-set-row' }, [
+      h('div', { class: 'pf-mem-set-row-header' }, [
+        h('label', { class: 'pf-mem-set-label' }, ['Rename-survival threshold']),
+        thresholdValue,
+      ]),
+      thresholdInput,
+      thresholdCaption,
+      h('div', { class: 'pf-mem-set-hint' }, [
+        'How similar a bubble must still be to its original membership ' +
+        'for your custom label to stick when memories are added or removed. ' +
+        'Also applies to locked-bubble reconciliation.',
+      ]),
+    ]);
+
+    // ---- drawer root ----
+
+    const drawer = h('div', {
+      class: 'pf-mem-set-drawer',
+      hidden: true,
+      role: 'region',
+      'aria-label': 'Memory tool settings',
+    }, [
+      h('div', { class: 'pf-mem-set-inner' }, [thresholdRow]),
+    ]);
+
+    // ---- gear button ----
+
+    let open = false;
+    const gearButton = h('button', {
+      type: 'button',
+      class: 'pf-mem-gear-btn',
+      'aria-label': 'Memory tool settings',
+      'aria-expanded': 'false',
+      title: 'Settings',
+      onClick: () => setOpen(!open),
+    }, ['⚙']);
+
+    function setOpen(next) {
+      open = !!next;
+      drawer.hidden = !open;
+      gearButton.setAttribute('aria-expanded', String(open));
+      gearButton.classList.toggle('pf-mem-gear-btn-open', open);
+    }
+
+    return {
+      gearButton,
+      drawer,
+      toggle: setOpen,
+    };
+  }
+
+  // ---- helpers ----
+
+  function safeLoadSettings() {
+    try { return loadSettings(); } catch { return null; }
+  }
+
+  function readRenameThreshold(settings) {
+    const raw =
+      (settings && settings.memory && settings.memory.tool &&
+        settings.memory.tool.renameThreshold);
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return 0.5;
+    return Math.max(0, Math.min(1, raw));
+  }
+
+  function formatPct(v) {
+    return `${Math.round(v * 100)}%`;
+  }
+
+  function describeThreshold(v) {
+    if (v <= 0.20) return 'Very permissive — renames stick through big reshuffles.';
+    if (v <= 0.40) return 'Permissive — renames survive moderate membership changes.';
+    if (v <= 0.60) return 'Balanced — renames stick when membership is largely the same.';
+    if (v <= 0.80) return 'Strict — renames only stick to closely-matching bubbles.';
+    return 'Very strict — renames require near-identical membership to survive.';
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/memory_window.js
      ────────────────────────────────────────────────────────── */
   // render/memory_window.js
@@ -23648,6 +24197,7 @@ Use this template for your response:
   // See memory_panels.js for the state shape. At minimum:
   //   { memoryBubbles, loreBubbles, memoryK, loreK,
   //     expandedMemoryIds, expandedLoreIds, deleteCount }
+
 
 
 
@@ -23674,14 +24224,30 @@ Use this template for your response:
     threadLabel = '',
     handlers = {},
     onClose,
+    onSettingsChange,
   } = {}) {
     const title = h('h2', { class: 'pf-mem-title' }, ['Memory & Lore']);
     const contextChip = threadLabel
       ? h('span', { class: 'pf-mem-context-chip', title: 'Active thread' }, [threadLabel])
       : null;
 
+    // Settings drawer: gear toggle lives in the header, drawer body is
+    // inserted right below the header and starts collapsed. Drawer writes
+    // changes through updateField(), which fires the global settings
+    // pub/sub; the window_open.js side of this subscribes and re-computes
+    // overrides with the new threshold.
+    const settings = createMemorySettingsDrawer({
+      onChange: (key, value) => {
+        if (typeof onSettingsChange === 'function') {
+          try { onSettingsChange(key, value); } catch { /* best-effort */ }
+        }
+      },
+    });
+
     const header = h('header', { class: 'pf-mem-header' },
-      contextChip ? [title, contextChip] : [title]
+      contextChip
+        ? [title, contextChip, settings.gearButton]
+        : [title, settings.gearButton]
     );
 
     const panels = createMemoryPanels({
@@ -23743,7 +24309,7 @@ Use this template for your response:
       hidden: true,
     });
 
-    const wrapper = h('div', { class: 'pf-mem-window' }, [header, panels, footer, saveBanner]);
+    const wrapper = h('div', { class: 'pf-mem-window' }, [header, settings.drawer, panels, footer, saveBanner]);
 
     const overlay = createOverlay({
       ariaLabel: 'Memory and Lore',
@@ -23816,6 +24382,8 @@ Use this template for your response:
 
 
 
+
+
   // ---- entry-point exposure ----
   if (typeof window !== 'undefined') {
     const ns = window.__perchance_fork__ || (window.__perchance_fork__ = {});
@@ -23843,6 +24411,11 @@ Use this template for your response:
     // activity counters. Done after schema probe so we don't count
     // failed-to-open-for-reasons-outside-the-user's-control as usage.
     bumpCounter('memoryWindowOpens');
+    // Record today as an activity day for the streak system. Idempotent
+    // within a day — multiple opens don't inflate the streak. If today
+    // is consecutive with lastActiveDay, current streak advances; if
+    // there's a gap, it resets to 1.
+    try { recordActivityForStreak(); } catch { /* non-fatal */ }
 
     // ---- load baseline ----
     let baseline;
@@ -24005,8 +24578,13 @@ Use this template for your response:
       // This reconciles: bubble-order assertions, intra-bubble card-order
       // assertions, cross-bubble membership assignments. Pure-logic tests
       // in test/bubble_overrides.test.mjs cover the reconciliation rules.
-      memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles);
-      loreBubbles   = applyOverrides(loreOverrides,   loreBubbles);
+      //
+      // renameThreshold is user-tunable via the gear-icon settings drawer.
+      // Read fresh on every recompute so live slider drags update
+      // reconciliation without a window close/reopen cycle.
+      const renameThreshold = readRenameThreshold();
+      memoryBubbles = applyOverrides(memoryOverrides, memoryBubbles, { renameThreshold });
+      loreBubbles   = applyOverrides(loreOverrides,   loreBubbles,   { renameThreshold });
 
       // Drop expanded ids that no longer correspond to an existing bubble.
       const memIds = new Set(memoryBubbles.map(b => b.id));
@@ -24321,7 +24899,7 @@ Use this template for your response:
           lockedBubbleIds: s.overrides.lockedBubbles,
           k: newK,
         });
-        s.setBubbles(applyOverrides(s.overrides, clustered));
+        s.setBubbles(applyOverrides(s.overrides, clustered, { renameThreshold: readRenameThreshold() }));
 
         // Preserve expanded state for locked bubbles (their ids survive
         // across k-changes); free bubbles get fresh ids so drop those.
@@ -24584,12 +25162,37 @@ Use this template for your response:
       },
       threadLabel,
       handlers,
+      // Gear-drawer setting changed (e.g. rename threshold slider). Live-
+      // reapply overrides so the user sees the effect of the new threshold
+      // without closing/reopening the window. Uses the same recompute
+      // path that every other override mutation uses — no special casing.
+      onSettingsChange: (key, _value) => {
+        if (key === 'renameThreshold') {
+          refresh();
+        }
+      },
     });
 
     overlay.show();
   }
 
   // ---- helpers ----
+
+  /**
+   * Read the rename-survival Jaccard threshold from settings. Clamps to
+   * [0, 1]; falls back to 0.5 on missing/malformed input. Called on every
+   * recompute so the setting is effectively hot-reloadable.
+   */
+  function readRenameThreshold() {
+    try {
+      const s = loadSettings();
+      const raw = (s && s.memory && s.memory.tool && s.memory.tool.renameThreshold);
+      if (typeof raw !== 'number' || !Number.isFinite(raw)) return 0.5;
+      return Math.max(0, Math.min(1, raw));
+    } catch {
+      return 0.5;
+    }
+  }
 
   async function getActiveThreadLabel() {
     try {
@@ -26301,10 +26904,12 @@ Use this template for your response:
   /**
    * Build the body of the Activity section.
    *
-   * @param {{ counters: object }} opts - counters from getCounters()
+   * @param {{ counters: object, streaks?: object, streakStatus?: string }} opts
    */
-  function createActivityBody({ counters } = {}) {
+  function createActivityBody({ counters, streaks, streakStatus: status } = {}) {
     const c = counters || {};
+    const s = streaks || { current: 0, longest: 0, lastActiveDay: null };
+    const st = status || 'broken';
     const totalActions =
       (Number(c.memoryWindowOpens)         || 0) +
       (Number(c.memorySaves)               || 0) +
@@ -26319,7 +26924,44 @@ Use this template for your response:
       (Number(c.promptArchiveOpens)        || 0) +
       (Number(c.focusModeToggles)          || 0);
 
-    if (totalActions === 0) {
+    // Streak banner — shown above the chip grid when there's any streak
+    // history. Icon + tone shifts based on streakStatus:
+    //   'active'  — user was active TODAY: 🔥 gold flame
+    //   'at-risk' — last active yesterday but not today: ⏳ amber
+    //   'broken'  — more than a day gap: 💤 or start-new-streak prompt
+    const hasStreakData = (Number(s.current) || 0) > 0 || (Number(s.longest) || 0) > 0;
+    let streakBanner = null;
+    if (hasStreakData) {
+      let icon, tone, msg;
+      if (st === 'active') {
+        icon = '🔥';
+        tone = 'pf-streak-active';
+        msg = s.current === 1
+          ? 'Day 1 — start of a new streak!'
+          : `${s.current} days in a row — keep it going!`;
+      } else if (st === 'at-risk') {
+        icon = '⏳';
+        tone = 'pf-streak-at-risk';
+        msg = `${s.current}-day streak at risk — come back today to keep it alive.`;
+      } else {
+        icon = '💤';
+        tone = 'pf-streak-broken';
+        msg = s.longest > 0
+          ? `Last streak: ${s.longest} days. Open again tomorrow to start a new one.`
+          : 'No streak yet. Come back tomorrow to start one.';
+      }
+      streakBanner = h('div', { class: `pf-streak-banner ${tone}` }, [
+        h('span', { class: 'pf-streak-icon', 'aria-hidden': 'true' }, [icon]),
+        h('div', { class: 'pf-streak-text' }, [
+          h('div', { class: 'pf-streak-line' }, [msg]),
+          h('div', { class: 'pf-streak-sub' }, [
+            `Current ${s.current} · Longest ${s.longest}`,
+          ]),
+        ]),
+      ]);
+    }
+
+    if (totalActions === 0 && !hasStreakData) {
       return h('div', { class: 'pf-activity-empty' }, [
         'No activity tracked yet. As you curate memories, rename bubbles, ' +
         'save changes, and use other features, counts will appear here.',
@@ -26354,7 +26996,11 @@ Use this template for your response:
       ]),
     ]);
 
-    return h('div', { class: 'pf-activity' }, [grid, footer]);
+    const children = [];
+    if (streakBanner) children.push(streakBanner);
+    children.push(grid);
+    children.push(footer);
+    return h('div', { class: 'pf-activity' }, children);
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -26929,6 +27575,7 @@ Use this template for your response:
 
 
 
+
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
    * on the splash. Highest tier first; within a tier, registry order.
@@ -26967,6 +27614,11 @@ Use this template for your response:
       settings = null;
     }
 
+    // Record today as an activity day for streak tracking. Done FIRST so
+    // even if stats loading fails, the user's streak is still credited.
+    // Idempotent within a day — repeated opens don't inflate.
+    try { recordActivityForStreak(); } catch { /* non-fatal */ }
+
     try {
       const data = await readAllStores();
       // Merge IDB-derived stats with settings-derived prompt stats so
@@ -26981,6 +27633,9 @@ Use this template for your response:
     // usage counts; stats (from Dexie) is the source for "what exists"
     // data. Together they're the full picture for unlock criteria.
     try { stats.counters = getCounters(); } catch { stats.counters = {}; }
+    // Same story for streaks — achievement criteria that gate on
+    // consecutive-day activity read stats.streaks.current.
+    try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
     try {
       unlockedIds = computeUnlockedIds(stats);
     } catch {
@@ -27048,7 +27703,8 @@ Use this template for your response:
       let freshUnlocked = unlockedIds;
       try {
         const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
-        const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters };
+        const freshStreaks  = (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })();
+        const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters, streaks: freshStreaks };
         freshUnlocked = computeUnlockedIds(freshStats);
       } catch { /* fall back to initial unlock list */ }
 
@@ -27189,7 +27845,11 @@ Use this template for your response:
     const activitySection = createSection({
       id: 'activity',
       title: 'Activity',
-      children: createActivityBody({ counters }),
+      children: createActivityBody({
+        counters,
+        streaks: (() => { try { return getStreaks(); } catch { return null; } })(),
+        streakStatus: (() => { try { return streakStatus(); } catch { return 'broken'; } })(),
+      }),
       initialState: displayState.activity || { collapsed: false, blurred: false },
     });
 
@@ -27254,6 +27914,7 @@ Use this template for your response:
 
 
 
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -27286,6 +27947,14 @@ Use this template for your response:
       // inject counter data so counter-backed achievements can unlock.
       const stats = { ...computeStats(data), ...computePromptStats(settings) };
       try { stats.counters = getCounters(); } catch { stats.counters = {}; }
+      // Inject streak state for any streak-based achievement criteria.
+      // Note: we do NOT call recordActivityForStreak here — mini-card
+      // refreshes fire on every settings-changed event (many per session),
+      // and the recordActivity idempotency guard keys on day-rollover.
+      // Calling it here would be correct but noisy — cleaner to confine
+      // the "activity" signal to explicit user actions (profile open,
+      // memory tool open) that already handle it.
+      try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
       const unlockedIds = computeUnlockedIds(stats);
 
       // First deploy: treat current unlocks as "already seen" so this commit

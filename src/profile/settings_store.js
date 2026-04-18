@@ -83,6 +83,18 @@ export function defaultSettings() {
       // Pinned memories are exempt from prune. See src/memory/pins.js for
       // the API. Pins round-trip through backup/import automatically.
       pinsByThread: {},
+      // Tunable knobs for the Memory & Lore curation tool. Surfaced
+      // via the gear icon in the tool's header. All values are
+      // hot-reloaded — the window re-renders when any of these change.
+      tool: {
+        // Jaccard similarity threshold for matching a user-renamed
+        // bubble against its post-reclustering incarnation. Higher
+        // values mean renames only survive small membership changes
+        // (strict); lower values retain renames across big shifts
+        // (permissive). Default 0.5, range 0-1 step 0.05. Also used
+        // internally by lock reconciliation; see bubble_overrides.js.
+        renameThreshold: 0.5,
+      },
     },
     counters: {
       // Lifetime action counters for features the user has engaged with.
@@ -111,6 +123,28 @@ export function defaultSettings() {
       // First and last action timestamps. Set on any counter bump.
       firstUsedAt:                null,
       lastUsedAt:                 null,
+    },
+    streaks: {
+      // Consecutive-day activity streak.
+      //
+      // Rules:
+      //   - "Activity" means opening the profile, opening the Memory
+      //     tool, or completing a prompt — any signal that the user
+      //     engaged with us today.
+      //   - Same-day activity: no change (already counted).
+      //   - Next-day activity (yesterday's day-key == lastActiveDay):
+      //     current += 1; longest bumps if exceeded.
+      //   - Gap > 1 day: current resets to 1 (today starts a new
+      //     streak); longest preserved.
+      //
+      // lastActiveDay is a UTC day-key string "YYYY-MM-DD" so the
+      // rollover happens at UTC midnight for everyone. Local-midnight
+      // would be user-friendlier in each timezone, but UTC avoids
+      // the "is it a streak or not?" ambiguity around DST shifts and
+      // travel.
+      current: 0,
+      longest: 0,
+      lastActiveDay: null,
     },
   };
 }

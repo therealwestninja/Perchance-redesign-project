@@ -17,6 +17,7 @@ import { computePromptStats } from '../stats/prompt_stats.js';
 import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { getCounters } from '../stats/counters.js';
+import { recordActivityForStreak, getStreaks } from '../stats/streaks.js';
 import { createMiniCard } from '../render/mini_card.js';
 import { mountMiniCard } from './mount.js';
 import { createMemoryButton } from '../render/memory_button.js';
@@ -59,6 +60,14 @@ async function refresh(card) {
     // inject counter data so counter-backed achievements can unlock.
     const stats = { ...computeStats(data), ...computePromptStats(settings) };
     try { stats.counters = getCounters(); } catch { stats.counters = {}; }
+    // Inject streak state for any streak-based achievement criteria.
+    // Note: we do NOT call recordActivityForStreak here — mini-card
+    // refreshes fire on every settings-changed event (many per session),
+    // and the recordActivity idempotency guard keys on day-rollover.
+    // Calling it here would be correct but noisy — cleaner to confine
+    // the "activity" signal to explicit user actions (profile open,
+    // memory tool open) that already handle it.
+    try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
     const unlockedIds = computeUnlockedIds(stats);
 
     // First deploy: treat current unlocks as "already seen" so this commit

@@ -246,7 +246,64 @@ export const ACHIEVEMENTS = Object.freeze([
     counterKey: 'memoryWindowOpens',
     thresholds: { bronze: 5, silver: 25, gold: 100 },
   }),
+
+  // --- Streak-based achievements ---
+  //
+  // These unlock based on consecutive-day activity tracked by
+  // stats/streaks.js. Reaching a given streak length unlocks
+  // permanently — breaking the streak afterwards doesn't lock it
+  // again. Criteria read stats.streaks.current and stats.streaks.longest;
+  // we gate on `max(current, longest)` so users who had a long
+  // streak but broke it still keep the achievement.
+  {
+    id: 'streak_3day',
+    name: 'Three-Day Groove',
+    description: 'Active 3 days in a row.',
+    tier: 'common',
+    criteria: (s) => maxStreak(s) >= 3,
+  },
+  {
+    id: 'streak_7day',
+    name: 'Weekly Rhythm',
+    description: 'Active 7 days in a row.',
+    tier: 'uncommon',
+    criteria: (s) => maxStreak(s) >= 7,
+  },
+  {
+    id: 'streak_14day',
+    name: 'Fortnight',
+    description: 'Active 14 days in a row.',
+    tier: 'rare',
+    criteria: (s) => maxStreak(s) >= 14,
+  },
+  {
+    id: 'streak_30day',
+    name: 'Month Maker',
+    description: 'Active 30 days in a row.',
+    tier: 'epic',
+    criteria: (s) => maxStreak(s) >= 30,
+  },
+  {
+    id: 'streak_100day',
+    name: 'Centurion',
+    description: 'Active 100 days in a row.',
+    tier: 'legendary',
+    criteria: (s) => maxStreak(s) >= 100,
+  },
 ]);
+
+/**
+ * Read the best (current or longest) streak length from a stats bundle.
+ * Used by streak-based achievement criteria. Users who set a PR and
+ * then broke the streak keep their achievement — longest is a career
+ * record, current is reachable again tomorrow.
+ */
+function maxStreak(s) {
+  if (!s || !s.streaks) return 0;
+  const cur = Number(s.streaks.current) || 0;
+  const longest = Number(s.streaks.longest) || 0;
+  return Math.max(cur, longest);
+}
 
 /**
  * Generate a bronze/silver/gold triple of achievements gated on a
