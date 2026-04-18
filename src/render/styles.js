@@ -1990,51 +1990,68 @@ export const CSS = `
    sibling bubbles (in the Memory column) and between sibling cards
    (inside an expanded Memory bubble body). Become visible on dragover
    when a compatible reorder payload is hovering. */
+/* Bubble drop-gap: horizontal slots between bubbles (in the Memory/Lore
+   column) or between cards inside an expanded bubble. Become visible
+   on dragover when a compatible reorder payload is hovering.
+
+   Hit area is made larger than the visible line via transparent padding,
+   so users don't need pixel-precise aim. The visible "line" is a
+   background gradient; the element itself is taller. Keeps the visual
+   weight low while making the target generous. */
 .pf-mem-drop-gap {
-  height: 4px;
+  height: 10px;
   margin: 0;
   border-radius: 2px;
-  pointer-events: auto;   /* must be true to receive dragover/drop */
+  pointer-events: auto;
   transition: background 0.12s, height 0.12s, margin 0.12s;
+  /* Center a thin visible line inside the taller hit area */
+  background-clip: padding-box;
 }
 .pf-mem-drop-gap-bubble {
-  height: 6px;            /* bubble-level gaps slightly taller for easier target */
+  height: 14px;
 }
 .pf-mem-drop-gap-active {
-  background: rgba(216, 179, 106, 0.6);    /* gold accent */
-  height: 12px;
+  background: rgba(216, 179, 106, 0.6);
+  height: 18px;
   margin: 2px 0;
   box-shadow: 0 0 8px rgba(216, 179, 106, 0.35);
 }
 .pf-mem-drop-gap-bubble.pf-mem-drop-gap-active {
-  height: 14px;
+  height: 20px;
 }
 
-/* Drag-reorder grip handle (7c). Rendered only on Memory-scope bubbles
-   and Memory-scope cards within unlocked bubbles. 7c establishes the
-   drag source; drops become functional in 7d. */
+/* Drag-reorder grip handle. Rendered on bubble headers and on cards
+   within unlocked bubbles. Both Memory and Lore (the Lore reorder is
+   session-only, but the UI affordance is the same).
+
+   Hit target sized ~24px wide × full header height. The glyph itself
+   is narrow (double vertical bar), so the box is wider than visually
+   necessary to give a comfortable mouse target. */
 .pf-mem-bubble-grip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 22px;
-  margin-right: -2px;                 /* tighten against chevron */
+  width: 22px;
+  height: 28px;
+  margin-right: 0;
   cursor: grab;
   color: var(--text-color);
-  opacity: 0.35;
+  opacity: 0.55;
   font-size: 14px;
   line-height: 1;
   user-select: none;
-  letter-spacing: -3px;               /* pull the two ⋮ columns closer */
+  letter-spacing: -3px;
   flex-shrink: 0;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s, background 0.1s;
+  border-radius: 4px;
 }
 .pf-mem-bubble-grip:hover {
-  opacity: 0.8;
+  opacity: 0.95;
+  background: rgba(255, 255, 255, 0.06);
 }
 .pf-mem-bubble-grip:active {
   cursor: grabbing;
+  background: rgba(255, 255, 255, 0.1);
 }
 .pf-mem-bubble-grip-disabled {
   opacity: 0.15;
@@ -2042,30 +2059,34 @@ export const CSS = `
 }
 .pf-mem-bubble-grip-disabled:hover {
   opacity: 0.15;
+  background: transparent;
 }
 
 .pf-mem-card-grip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
+  width: 20px;
   min-height: 100%;
-  margin-right: 2px;
+  margin-right: 4px;
   cursor: grab;
   color: var(--text-color);
-  opacity: 0.3;
+  opacity: 0.5;
   font-size: 13px;
   line-height: 1;
   user-select: none;
   letter-spacing: -3px;
   flex-shrink: 0;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s, background 0.1s;
+  border-radius: 3px;
 }
 .pf-mem-card-grip:hover {
-  opacity: 0.7;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.06);
 }
 .pf-mem-card-grip:active {
   cursor: grabbing;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Lock toggle on bubble header */

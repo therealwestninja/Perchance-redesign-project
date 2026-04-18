@@ -262,28 +262,62 @@ export async function openMemoryWindow() {
   function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
     recomputeBubbles({ resetMemoryK, resetLoreK });
     overlay.updatePanels(panelsState());
-    overlay.setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0);
+    overlay.setSaveEnabled(hasPersistentChanges());
   }
 
   // ---- helpers used by bubble-batch handlers ----
 
   /**
-   * Returns true iff the user has applied any reorder action that would
-   * affect on-disk storage:
-   *   - A non-empty bubbleOrder (user manually ordered bubbles)
-   *   - Any bubbleCardOrder entries (user reordered within a bubble)
-   *   - Any cardToBubbleId entries (user moved a card cross-bubble)
+   * Returns true iff the user has made changes that would be persisted
+   * to disk by Save. Drives Save button enablement.
    *
-   * Locking alone does NOT count — lock is session-only.
-   * Returns false when the rendered order is exactly what clustering
-   * produced with no user intervention (save can skip remap step).
+   * Included:
+   *   - Stage mutations (add/edit/promote/demote from stage.hasChanges)
+   *   - Pending deletions queue
+   *   - Memory reorder (bubbleOrder / bubbleCardOrder / cardToBubbleId)
+   *     — all feed the proportional remap at save time (7e).
+   *
+   * NOT included (session-only, no save pathway):
+   *   - Memory locks (persisted immediately on toggle via
+   *     lock_persistence.js — already saved, not "unsaved")
+   *   - Memory rename (bubbleLabelsByStableId — session UI only)
+   *   - Any Lore overrides (Lore has no save pathway for reorder;
+   *     lore text edits DO feed stage, so stage.hasChanges catches those)
    */
-  function hasReorderChanged() {
+  function hasPersistentChanges() {
+    if (stage.hasChanges()) return true;
+    if (pendingDeletions.size > 0) return true;
     if (memoryOverrides.bubbleOrder.length > 0) return true;
     if (memoryOverrides.bubbleCardOrder.size > 0) return true;
     if (memoryOverrides.cardToBubbleId.size > 0) return true;
     return false;
   }
+
+  /**
+   * Returns true iff the user has made ANY change that would be lost
+   * on Cancel. Broader than hasPersistentChanges — includes session-
+   * only work the user did curating bubbles (rename, Lore reorder).
+   *
+   * Drives the Cancel confirmation prompt. A user who's spent 5 minutes
+   * renaming Memory bubbles expects a warning before that work
+   * evaporates, even though rename doesn't itself flow through save.
+   *
+   * Locks are NOT included (they're curation aids, not authored content;
+   * Memory locks persist anyway, Lore locks reset by design).
+   */
+  function hasAnyUnsavedChanges() {
+    if (hasPersistentChanges()) return true;
+    if (memoryOverrides.bubbleLabelsByStableId.size > 0) return true;
+    if (loreOverrides.bubbleLabelsByStableId.size > 0) return true;
+    if (loreOverrides.bubbleOrder.length > 0) return true;
+    if (loreOverrides.bubbleCardOrder.size > 0) return true;
+    if (loreOverrides.cardToBubbleId.size > 0) return true;
+    return false;
+  }
+
+  // Alias for backward compat with one existing call site in onSave.
+  // Using the new name in new code; this can go away after a sweep.
+  const hasReorderChanged = hasPersistentChanges;
 
   function queueForDeletion(id) {
     const item = stage.getStaged().find(it => String(it.id) === String(id));
@@ -576,13 +610,36 @@ export async function openMemoryWindow() {
         }
       }
 
-      const summary = formatDiffSummary(diff);
-      const reorderNote = hasReorderChanged()
+      // Build confirm message from actual state, not by concatenating
+      // pieces that don't know about each other.
+      //
+      // formatDiffSummary produces stage-level phrasing ("Save: 2 edits.
+      // Continue?"). It returns "No changes to save" when totalChanges
+      // is 0 — which is correct for the stage portion but would make
+      // the overall dialog contradict itself when the user's only
+      // changes are reorders/cross-drags.
+      const stageChanged = diff.totalChanges > 0;
+      const reorderChanged = hasReorderChanged();
+
+      let headline;
+      if (stageChanged && reorderChanged) {
+        // Both — lead with the stage summary (more specific), then
+        // mention reorder as an additional saved action.
+        const stageBits = formatDiffSummary(diff).replace(/\.\s*Continue\?$/, '');
+        headline = `${stageBits}, plus memory reorder. Continue?`;
+      } else if (stageChanged) {
+        headline = formatDiffSummary(diff);
+      } else {
+        // Reorder only — no stage changes but user moved things around.
+        // Phrase as a normal Save prompt so the dialog reads coherently.
+        headline = 'Save: memory reorder. Continue?';
+      }
+
+      const reorderNote = reorderChanged
         ? '\n\nMemory order will be saved (proportional message remap). Locked bubbles keep their original messages.'
         : '';
-      const confirmed = window.confirm(
-        summary + reorderNote + '\n\nA snapshot of the current state will be captured before saving. You can restore it from the Memory window if needed.'
-      );
+      const snapshotNote = '\n\nA snapshot of the current state will be captured before saving. You can restore it from the Memory window if needed.';
+      const confirmed = window.confirm(headline + reorderNote + snapshotNote);
       if (!confirmed) return;
 
       overlay.setSaveLabel('Saving…');
@@ -593,9 +650,19 @@ export async function openMemoryWindow() {
       // save. The user chose Save; we honor the intent either way.
       if (activeThreadId != null) {
         try {
-          captureSnapshot(activeThreadId, baseline, {
-            label: `Before save — ${formatDiffSummary(diff)}`,
-          });
+          // Build a snapshot label that reflects ALL change kinds
+          // (stage + reorder), so the Restore dialog shows a coherent
+          // description like "Before save — 2 edits + reorder" instead
+          // of "No changes to save" for reorder-only saves.
+          let snapshotLabel;
+          if (stageChanged && reorderChanged) {
+            snapshotLabel = `Before save — ${formatDiffSummary(diff).replace(/\.\s*Continue\?$/, '')} + reorder`;
+          } else if (stageChanged) {
+            snapshotLabel = `Before save — ${formatDiffSummary(diff).replace(/\.\s*Continue\?$/, '')}`;
+          } else {
+            snapshotLabel = 'Before save — memory reorder';
+          }
+          captureSnapshot(activeThreadId, baseline, { label: snapshotLabel });
         } catch (e) {
           console.warn('[pf] snapshot capture failed, proceeding with save:', e && e.message);
         }
@@ -686,7 +753,7 @@ export async function openMemoryWindow() {
     },
 
     onCancel: () => {
-      if (stage.hasChanges() || pendingDeletions.size > 0) {
+      if (hasAnyUnsavedChanges()) {
         const ok = window.confirm('Discard all unsaved changes?');
         if (!ok) return;
       }

@@ -247,6 +247,69 @@ should be non-fatal. A deeper audit should:
 
 ---
 
+## Narrow-predicate audit — "does this check everything it should?"
+
+**Status: open.** Related to the Apr 18 audit but called out as its
+own item because the SHAPE of the bug is so specific it's worth a
+dedicated pass.
+
+**The bug pattern:** a predicate was written to answer a question
+("does the user have unsaved changes?") at an early point in the
+codebase. Features were added that introduced new kinds of user-
+initiated changes (reorder overrides in 7e, rename state in the
+rename commit, Lore overrides in the parity refactor). The predicate
+was NOT updated to include the new sources. Result: the predicate
+silently under-reports.
+
+The Apr 18 softlock bug was exactly this:
+  setSaveEnabled(stage.hasChanges() || pendingDeletions.size > 0)
+returned false when the user had ONLY made reorder/rename changes,
+because neither touches `stage` or `pendingDeletions`. Save button
+disabled, user softlocked.
+
+**The audit:** grep for every function/predicate that answers a
+"does X?" question about user state. For each, inventory every
+kind of user state that currently exists, and confirm the predicate
+checks all of them.
+
+Candidate predicates to audit:
+- `hasPersistentChanges()` / `hasAnyUnsavedChanges()` — just fixed,
+  double-check I didn't miss anything
+- `stage.hasChanges()` itself — what KINDS of stage mutation does
+  it count? Does it count promotes/demotes correctly? Edits of
+  re-edited-to-original text?
+- `recomputeBubbles`' `resetMemoryK` / `resetLoreK` logic — when
+  SHOULD we reset k? Does it fire in all the right cases?
+- `diff.totalChanges` computation — same question as above
+- `needsRefresh` / `panelsState` dirty-tracking — do they consider
+  all new sources of render-affecting state?
+- Achievement unlock predicates — when a new stat lands, does each
+  achievement check the right combination?
+- Profile "has user done X?" predicates — writing streak detection,
+  memory-count milestones, etc.
+- Lock reconciliation predicates in `reconcileLocks` — does it
+  consider all shapes of membership change?
+
+**Approach:** one predicate at a time. For each:
+  1. Read the code
+  2. List every piece of state that exists right now
+  3. Confirm the predicate covers all of them
+  4. If not, broaden it or split into two predicates
+  5. Write a test that would have caught the gap
+
+**Scope:** ~5–10 predicates worth checking. Each is small (5–30
+lines of change); overall commit size depends on how many gaps exist.
+Estimate 300–600 lines total across a few commits.
+
+**Why this pattern keeps happening:** when you add a new feature that
+introduces new user state, the responsible thing is to grep for
+every predicate that might need to know about it and update each.
+That's a step that's easy to forget. The defense is periodic audits
+of "every predicate, does it cover everything?" Essentially what
+this task is.
+
+---
+
 ## Save stats / summary UI
 
 After a successful save, the window closes silently. The commitDiff
