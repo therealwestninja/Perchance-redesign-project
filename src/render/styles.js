@@ -4611,6 +4611,150 @@ body.pf-light-theme .pf-glossary-textarea {
   gap: 4px;
 }
 
+/* ---- Daily quest card ---- */
+.pf-dq-card {
+  background:
+    linear-gradient(180deg, rgba(212,168,85,0.04) 0%, transparent 40%),
+    linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+  border: 1px solid rgba(212,168,85,0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.pf-dq-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(212,168,85,0.1);
+}
+.pf-dq-icon {
+  font-size: 14px;
+  color: var(--pf-accent, #d4a855);
+}
+.pf-dq-title {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  flex: 1;
+}
+.pf-dq-date {
+  font-size: 10px;
+  color: #8b95a3;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* Sealed state */
+.pf-dq-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.pf-dq-seal:hover {
+  background: rgba(212,168,85,0.04);
+}
+.pf-dq-seal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(212,168,85,0.15), rgba(212,168,85,0.05));
+  border: 2px solid rgba(212,168,85,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  transition: transform 0.3s, border-color 0.3s;
+}
+.pf-dq-seal:hover .pf-dq-seal-icon {
+  transform: scale(1.05);
+  border-color: rgba(212,168,85,0.6);
+}
+.pf-dq-seal-label {
+  font-size: 13px;
+  color: #e8dcc4;
+  font-weight: 500;
+}
+.pf-dq-seal-hint {
+  font-size: 10px;
+  color: #8b95a3;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+}
+
+/* Breaking animation */
+.pf-dq-seal-breaking {
+  pointer-events: none;
+}
+.pf-dq-seal-breaking .pf-dq-seal-icon {
+  animation: pf-dq-break 0.6s ease-out forwards;
+}
+@keyframes pf-dq-break {
+  0% { transform: scale(1); border-color: rgba(212,168,85,0.3); }
+  30% { transform: scale(1.15); border-color: rgba(212,168,85,0.8); }
+  60% { transform: scale(1.1) rotate(5deg); }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+/* Revealed state */
+.pf-dq-body {
+  padding: 16px;
+}
+.pf-dq-body-reveal {
+  animation: pf-dq-reveal 0.4s ease-out;
+}
+@keyframes pf-dq-reveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pf-dq-theme {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.pf-dq-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e8dcc4;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  margin-bottom: 12px;
+}
+.pf-dq-complete {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(212,168,85,0.3);
+  background: transparent;
+  color: #e8dcc4;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-dq-complete:hover:not(:disabled) {
+  background: rgba(212,168,85,0.08);
+  border-color: rgba(212,168,85,0.5);
+}
+.pf-dq-done {
+  color: var(--pf-accent, #d4a855);
+  border-color: rgba(212,168,85,0.4);
+  background: rgba(212,168,85,0.06);
+  cursor: default;
+}
+
 /* ---- Code syntax highlighting (Batch 3) ----
    Token colors for regex-based highlighting of code blocks.
    Designed for dark backgrounds matching upstream's code block style. */

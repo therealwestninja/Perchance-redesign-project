@@ -94,6 +94,7 @@ export function initUserPersona() {
   saveBtn.textContent = 'Save';
   saveBtn.className = 'pf-glossary-save';
   saveBtn.addEventListener('click', () => {
+    try { bumpCounter("personaEdits"); } catch {}
     setPersona({
       name: nameInput.value.trim(),
       description: descInput.value.trim(),

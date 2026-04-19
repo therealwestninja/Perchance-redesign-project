@@ -183,7 +183,8 @@ export function initContextEditor() {
   function loadPersona() {
     try {
       const s = loadSettings();
-      const p = (s && s.profile && s.profile.userPersona) || {};
+      // Match user_persona.js: top-level s.userPersona, not s.profile.userPersona
+      const p = (s && s.userPersona) || {};
       nameInput.value = p.name || '';
       descInput.value = p.description || '';
     } catch {}
@@ -210,8 +211,8 @@ export function initContextEditor() {
         else delete s.quickReminders[String(threadId)];
         saveSettings(s);
       } else if (activeTab === 'persona') {
-        if (!s.profile) s.profile = {};
-        s.profile.userPersona = {
+        // Match user_persona.js: top-level s.userPersona
+        s.userPersona = {
           name: nameInput.value.trim(),
           description: descInput.value.trim(),
         };
@@ -244,4 +245,21 @@ export function initContextEditor() {
   if (inputArea) {
     (inputArea.parentElement || inputArea).appendChild(btn);
   }
+}
+
+/**
+ * Build the quick-reminder block for AI context injection.
+ * Reads from settings.quickReminders[threadId].
+ * Called from the aiTextPlugin monkey-patch.
+ */
+export function buildReminderBlock() {
+  try {
+    const threadId = window.currentChatId;
+    if (threadId == null) return '';
+    const s = loadSettings();
+    const map = (s && s.quickReminders) || {};
+    const text = String(map[String(threadId)] || '').trim();
+    if (!text) return '';
+    return `\n[REMINDER]\n${text}\n`;
+  } catch { return ''; }
 }

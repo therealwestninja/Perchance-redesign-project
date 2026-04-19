@@ -90,6 +90,16 @@ export function createMemoryWindow({
     onClick: () => { if (typeof handlers.onExport === 'function') handlers.onExport(); },
   }, ['Export…']);
 
+  // Import is the inverse of Export: paste a previously-exported
+  // state JSON and bring its memory/lore entries into the current
+  // thread's stage as new items. Distinct from Restore (which
+  // recovers automatic snapshots from this tool's own storage).
+  const importBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn pf-mem-btn-secondary',
+    onClick: () => { if (typeof handlers.onImport === 'function') handlers.onImport(); },
+  }, ['Import…']);
+
   const restoreBtn = h('button', {
     type: 'button',
     class: 'pf-mem-btn pf-mem-btn-secondary',
@@ -113,7 +123,7 @@ export function createMemoryWindow({
   }, ['Save']);
 
   const footer = h('footer', { class: 'pf-mem-footer' }, [
-    h('div', { class: 'pf-mem-footer-left' }, [exportBtn, restoreBtn]),
+    h('div', { class: 'pf-mem-footer-left' }, [exportBtn, importBtn, restoreBtn]),
     h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
   ]);
 

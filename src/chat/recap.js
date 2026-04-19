@@ -70,6 +70,7 @@ export function initRecap() {
 
       const recap = (result && result.text) ? result.text.trim() : '';
       if (recap) {
+        try { bumpCounter("recapUses"); } catch {}
         insertRecapMessage(recap);
       }
     } catch (e) {

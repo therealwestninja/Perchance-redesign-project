@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 118 };
+  NS.__meta = { modules: 119 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -15071,6 +15071,36 @@ Use this template for your response:
         return count >= 8;
       },
     },
+
+    // --- Daily quest ---
+    {
+      id: 'quest_seeker',
+      name: 'Quest Seeker',
+      description: 'Reveal your first daily quest.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'questsRevealed') >= 1,
+    },
+    {
+      id: 'quest_completer',
+      name: 'Quest Completer',
+      description: 'Complete 5 daily quests.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'questsCompleted') >= 5,
+    },
+    {
+      id: 'quest_devotee',
+      name: 'Quest Devotee',
+      description: 'Complete 30 daily quests.',
+      tier: 'rare',
+      criteria: (s) => cnt(s, 'questsCompleted') >= 30,
+    },
+    {
+      id: 'quest_legend',
+      name: 'Quest Legend',
+      description: 'Complete 100 daily quests.',
+      tier: 'epic',
+      criteria: (s) => cnt(s, 'questsCompleted') >= 100,
+    },
   ]);
 
   /**
@@ -15277,7 +15307,8 @@ Use this template for your response:
       ['identity_forged', 'glossary_scholar', 'lore_keeper', 'dice_roller',
        'fate_weaver', 'archivist', 'bookworm', 'previously_on', 'word_guard',
        'voice_actor', 'research_assistant', 'memory_architect',
-       'hundred_threads', 'tool_explorer', 'tool_master'].includes(id)
+       'hundred_threads', 'tool_explorer', 'tool_master',
+       'quest_seeker', 'quest_completer', 'quest_devotee', 'quest_legend'].includes(id)
     )},
   ];
 
@@ -15622,6 +15653,275 @@ Use this template for your response:
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: prompts/daily_quest.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/daily_quest.js
+  //
+  // AI-generated daily quest with a "click to reveal" sealed-card mechanic.
+  //
+  // How it works:
+  //   1. A sealed quest card appears in the Prompts section each day
+  //   2. User clicks "Reveal today's quest" → seal-break animation plays
+  //   3. While animating, aiTextPlugin generates a quest from a date-seeded theme
+  //   4. Quest text streams in as the seal opens
+  //   5. Result is cached in localStorage so re-opening shows the same quest
+  //
+  // Date seeding:
+  //   The date determines a THEME from a fixed list (deterministic hash).
+  //   The AI then generates a specific quest within that theme. The AI
+  //   output may vary per-user, but the theme is consistent globally.
+  //
+  // Quest completion:
+  //   Completing a quest bumps the 'questsCompleted' counter and is
+  //   tracked in the prompts completion system under the day key.
+
+
+
+  // 30 quest themes — the date hash picks one per day.
+  const THEMES = [
+    { seed: 'stranger',    prompt: 'Write a scene where your character meets a complete stranger who changes their perspective.' },
+    { seed: 'secret',      prompt: 'Your character discovers a secret about someone they trust. Write their reaction.' },
+    { seed: 'storm',       prompt: 'A sudden storm forces your character to take shelter somewhere unexpected.' },
+    { seed: 'memory',      prompt: 'Your character finds an object that triggers a powerful memory. Write the scene.' },
+    { seed: 'rival',       prompt: 'Your character encounters a rival. Write the confrontation — it doesn\'t have to be hostile.' },
+    { seed: 'silence',     prompt: 'Write a scene where the most important thing is what ISN\'T said.' },
+    { seed: 'gift',        prompt: 'Someone gives your character an unexpected gift. What is it, and what does it mean?' },
+    { seed: 'crossroads',  prompt: 'Your character reaches a literal or metaphorical crossroads. Which path do they take?' },
+    { seed: 'wound',       prompt: 'Your character tends to a wound — physical or emotional. Write the quiet aftermath.' },
+    { seed: 'festival',    prompt: 'Your character attends a celebration they weren\'t invited to.' },
+    { seed: 'midnight',    prompt: 'Something happens at midnight that only your character witnesses.' },
+    { seed: 'letter',      prompt: 'Your character writes or receives a letter that changes everything.' },
+    { seed: 'threshold',   prompt: 'Your character stands at a door they\'re afraid to open. What\'s on the other side?' },
+    { seed: 'mask',        prompt: 'Your character puts on a mask — literal or figurative. Who do they become?' },
+    { seed: 'bargain',     prompt: 'Your character makes a deal they might regret. Write the negotiation.' },
+    { seed: 'echo',        prompt: 'Your character hears something from the past — a voice, a song, a phrase. Write what it stirs.' },
+    { seed: 'compass',     prompt: 'Your character is lost. Not geographically — in a deeper way. Who or what guides them back?' },
+    { seed: 'forge',       prompt: 'Your character creates something — an object, a plan, a promise. Write the act of making.' },
+    { seed: 'trespass',    prompt: 'Your character enters a place where they don\'t belong. What do they find?' },
+    { seed: 'debt',        prompt: 'Someone calls in an old debt. Your character must repay it — but not with money.' },
+    { seed: 'mirror',      prompt: 'Your character sees their reflection and doesn\'t recognize who\'s looking back.' },
+    { seed: 'hunger',      prompt: 'Your character craves something they can\'t have. Write the wanting.' },
+    { seed: 'bridge',      prompt: 'Two people who have been apart meet again on a bridge. Write the reunion.' },
+    { seed: 'omen',        prompt: 'Your character notices an omen — a sign that something is about to change.' },
+    { seed: 'trade',       prompt: 'Your character must give up one thing to gain another. What do they choose?' },
+    { seed: 'sanctuary',   prompt: 'Your character finds a place of absolute safety. What makes it sacred to them?' },
+    { seed: 'shadow',      prompt: 'Your character confronts their shadow self — the version of them they try to hide.' },
+    { seed: 'lantern',     prompt: 'In complete darkness, your character finds a single light. Write toward it.' },
+    { seed: 'oath',        prompt: 'Your character swears an oath they intend to keep. Write the moment.' },
+    { seed: 'tide',        prompt: 'Something returns that your character thought was gone forever.' },
+  ];
+
+  const CACHE_KEY = 'pf:daily-quest';
+
+  /** Hash a string to a number (deterministic). */
+  function hashStr(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  }
+
+  /** Get today's theme (deterministic from date). */
+  function getTodayTheme(dayKey) {
+    const idx = hashStr(dayKey) % THEMES.length;
+    return THEMES[idx];
+  }
+
+  /** Load cached quest for today, or null. */
+  function loadCachedQuest(dayKey) {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      if (cached && cached.day === dayKey && cached.text) return cached;
+      return null;
+    } catch { return null; }
+  }
+
+  /** Cache quest result. */
+  function cacheQuest(dayKey, text, theme) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ day: dayKey, text, theme, ts: Date.now() }));
+    } catch {}
+  }
+
+  /**
+   * Create the daily quest card element.
+   * Returns a DOM element to be inserted into the prompts section.
+   */
+  function createDailyQuestCard() {
+    const dayKey = getCurrentDayKey();
+    const theme = getTodayTheme(dayKey);
+    const cached = loadCachedQuest(dayKey);
+
+    // ---- Outer card ----
+    const card = document.createElement('div');
+    card.className = 'pf-dq-card';
+
+    // ---- Header ----
+    const header = document.createElement('div');
+    header.className = 'pf-dq-header';
+
+    const icon = document.createElement('span');
+    icon.className = 'pf-dq-icon';
+    icon.textContent = '✦';
+
+    const title = document.createElement('span');
+    title.className = 'pf-dq-title';
+    title.textContent = 'DAILY QUEST';
+
+    const date = document.createElement('span');
+    date.className = 'pf-dq-date';
+    date.textContent = dayKey;
+
+    header.appendChild(icon);
+    header.appendChild(title);
+    header.appendChild(date);
+    card.appendChild(header);
+
+    if (cached) {
+      // Already revealed — show the quest
+      renderRevealed(card, cached.text, theme, dayKey);
+    } else {
+      // Sealed — show the reveal button
+      renderSealed(card, theme, dayKey);
+    }
+
+    return card;
+  }
+
+  function renderSealed(card, theme, dayKey) {
+    const seal = document.createElement('div');
+    seal.className = 'pf-dq-seal';
+
+    const sealIcon = document.createElement('div');
+    sealIcon.className = 'pf-dq-seal-icon';
+    sealIcon.textContent = '?';
+
+    const sealLabel = document.createElement('div');
+    sealLabel.className = 'pf-dq-seal-label';
+    sealLabel.textContent = 'Click to reveal today\'s quest';
+
+    const sealHint = document.createElement('div');
+    sealHint.className = 'pf-dq-seal-hint';
+    sealHint.textContent = `Theme: ${theme.seed}`;
+
+    seal.appendChild(sealIcon);
+    seal.appendChild(sealLabel);
+    seal.appendChild(sealHint);
+    card.appendChild(seal);
+
+    seal.addEventListener('click', async () => {
+      // Start break animation
+      seal.classList.add('pf-dq-seal-breaking');
+      sealIcon.textContent = '✦';
+      sealLabel.textContent = 'Generating your quest...';
+
+      // Generate quest via AI
+      let questText = theme.prompt; // fallback if AI unavailable
+      try {
+        if (window.root && typeof window.root.aiTextPlugin === 'function') {
+          const result = await window.root.aiTextPlugin({
+            instruction: [
+              `Today's theme: "${theme.seed}".`,
+              'Generate a creative writing quest for a roleplay chat user.',
+              'The quest should be a specific, actionable challenge they can do in their next chat.',
+              'Write it as a single paragraph, under 60 words.',
+              'Make it evocative and inspiring. Start with a verb.',
+              'Reply with ONLY the quest text, nothing else.',
+              '',
+              `Base prompt: ${theme.prompt}`,
+            ].join('\n'),
+            stopSequences: ['\n\n'],
+          });
+          if (result && result.text) {
+            questText = result.text.trim();
+          }
+        }
+      } catch (e) {
+        console.warn('[pf] daily quest generation failed:', e && e.message);
+      }
+
+      // Cache the result
+      cacheQuest(dayKey, questText, theme.seed);
+      try { bumpCounter('questsRevealed'); } catch {}
+
+      // Remove seal, show quest with reveal animation
+      setTimeout(() => {
+        seal.remove();
+        renderRevealed(card, questText, theme, dayKey);
+      }, 600); // matches CSS animation duration
+    }, { once: true });
+  }
+
+  function renderRevealed(card, questText, theme, dayKey) {
+    const body = document.createElement('div');
+    body.className = 'pf-dq-body pf-dq-body-reveal';
+
+    const themeLabel = document.createElement('div');
+    themeLabel.className = 'pf-dq-theme';
+    themeLabel.textContent = `✦ ${theme.seed.toUpperCase()}`;
+
+    const text = document.createElement('div');
+    text.className = 'pf-dq-text';
+    text.textContent = questText;
+
+    const completeBtn = document.createElement('button');
+    completeBtn.type = 'button';
+    completeBtn.className = 'pf-dq-complete';
+
+    // Check if already completed today
+    const completedKey = `pf:dq-done:${dayKey}`;
+    const isDone = localStorage.getItem(completedKey) === '1';
+
+    if (isDone) {
+      completeBtn.textContent = '✓ Completed';
+      completeBtn.disabled = true;
+      completeBtn.classList.add('pf-dq-done');
+    } else {
+      completeBtn.textContent = 'Mark as complete';
+      completeBtn.addEventListener('click', () => {
+        localStorage.setItem(completedKey, '1');
+        completeBtn.textContent = '✓ Completed';
+        completeBtn.disabled = true;
+        completeBtn.classList.add('pf-dq-done');
+        try { bumpCounter('questsCompleted'); } catch {}
+      }, { once: true });
+    }
+
+    body.appendChild(themeLabel);
+    body.appendChild(text);
+    body.appendChild(completeBtn);
+    card.appendChild(body);
+  }
+
+  /**
+   * Initialize daily quest — injects the card into the prompts section
+   * or near the chat input if prompts section isn't visible.
+   */
+  function initDailyQuest() {
+    if (initDailyQuest._done) return;
+    initDailyQuest._done = true;
+
+    const card = createDailyQuestCard();
+
+    // Try to insert into the prompts section
+    const promptsList = document.querySelector('.pf-prompts-list');
+    if (promptsList) {
+      promptsList.parentElement.insertBefore(card, promptsList);
+      return;
+    }
+
+    // Fallback: insert near the chat messages
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (chatEl && chatEl.parentElement) {
+      chatEl.parentElement.insertBefore(card, chatEl);
+      return;
     }
   }
 
@@ -24900,6 +25200,150 @@ Use this template for your response:
     gap: 4px;
   }
 
+  /* ---- Daily quest card ---- */
+  .pf-dq-card {
+    background:
+      linear-gradient(180deg, rgba(212,168,85,0.04) 0%, transparent 40%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .pf-dq-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(212,168,85,0.1);
+  }
+  .pf-dq-icon {
+    font-size: 14px;
+    color: var(--pf-accent, #d4a855);
+  }
+  .pf-dq-title {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    flex: 1;
+  }
+  .pf-dq-date {
+    font-size: 10px;
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+
+  /* Sealed state */
+  .pf-dq-seal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .pf-dq-seal:hover {
+    background: rgba(212,168,85,0.04);
+  }
+  .pf-dq-seal-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(212,168,85,0.15), rgba(212,168,85,0.05));
+    border: 2px solid rgba(212,168,85,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    transition: transform 0.3s, border-color 0.3s;
+  }
+  .pf-dq-seal:hover .pf-dq-seal-icon {
+    transform: scale(1.05);
+    border-color: rgba(212,168,85,0.6);
+  }
+  .pf-dq-seal-label {
+    font-size: 13px;
+    color: #e8dcc4;
+    font-weight: 500;
+  }
+  .pf-dq-seal-hint {
+    font-size: 10px;
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.06em;
+  }
+
+  /* Breaking animation */
+  .pf-dq-seal-breaking {
+    pointer-events: none;
+  }
+  .pf-dq-seal-breaking .pf-dq-seal-icon {
+    animation: pf-dq-break 0.6s ease-out forwards;
+  }
+  @keyframes pf-dq-break {
+    0% { transform: scale(1); border-color: rgba(212,168,85,0.3); }
+    30% { transform: scale(1.15); border-color: rgba(212,168,85,0.8); }
+    60% { transform: scale(1.1) rotate(5deg); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+
+  /* Revealed state */
+  .pf-dq-body {
+    padding: 16px;
+  }
+  .pf-dq-body-reveal {
+    animation: pf-dq-reveal 0.4s ease-out;
+  }
+  @keyframes pf-dq-reveal {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .pf-dq-theme {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .pf-dq-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #e8dcc4;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    margin-bottom: 12px;
+  }
+  .pf-dq-complete {
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: 1px solid rgba(212,168,85,0.3);
+    background: transparent;
+    color: #e8dcc4;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-dq-complete:hover:not(:disabled) {
+    background: rgba(212,168,85,0.08);
+    border-color: rgba(212,168,85,0.5);
+  }
+  .pf-dq-done {
+    color: var(--pf-accent, #d4a855);
+    border-color: rgba(212,168,85,0.4);
+    background: rgba(212,168,85,0.06);
+    cursor: default;
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -26742,14 +27186,51 @@ Use this template for your response:
      ────────────────────────────────────────────────────────── */
   // profile/share_code.js
   //
-  // A compact, versioned, text-only profile share code. Replaces the
-  // earlier PNG-based card flow.
+  // Compact, versioned profile share codes. Three format generations:
   //
-  // Format:
+  //   pf1: JSON → base64url (legacy, 250+ chars)
+  //   pf2: pipe-delimited → base64url (compact, ~135 chars)
+  //   pf3: binary-packed → base64url (indices, ~38 chars)
   //
-  //   pf1:<base64url-encoded JSON payload>
+  // pf3 encodes everything except the display name as numeric indices
+  // into existing registries (achievements, archetypes, accents).
+  // Only the display name is sent as raw text. This cuts codes by 85%.
   //
-  // The "pf1" prefix is a schema version. Decoders reject unknown
+  // All three formats decode transparently. New codes always use pf3.
+
+
+
+  const CODE_PREFIX = 'pf3';
+  const CURRENT_VERSION = 3;
+
+  const LIMITS = Object.freeze({
+    displayName: 40,
+    title: 60,
+    archetype: 30,
+    badgeName: 40,
+    badgeIcon: 4,
+    maxBadges: 5,
+  });
+
+  // ---- Index tables for binary packing ----
+  // Built once at module load from the registries.
+
+  const ARCHETYPE_IDS = ['newcomer','storyteller','rp','daily','twice_weekly','casual'];
+  const ACCENT_IDS = ['amber','sage','ash','clay','moss','mist','honey','rust',
+    'iron','copper','jade','slate','wine','ocean','plum','silver',
+    'pink','purple','sky','gold','ruby','teal','pearl','obsidian'];
+
+  // Achievement ID → index (0-based). Built from ACHIEVEMENTS registry.
+  const ACH_ID_TO_IDX = {};
+  const ACH_IDX_TO_OBJ = [];
+  for (let i = 0; i < ACHIEVEMENTS.length; i++) {
+    ACH_ID_TO_IDX[ACHIEVEMENTS[i].id] = i;
+    ACH_IDX_TO_OBJ[i] = ACHIEVEMENTS[i];
+  }
+
+  // Badge icon from tier — local helper to avoid load-order dependency
+  // on TIER_ICON from achievements_grid.js.
+  function badgeIconForTier(tier) { return '◆'; }
   // prefixes so a later pf2 format can ship without silently
   // misinterpreting old data. Payload JSON uses short field keys so
   // codes stay short even with more fields added later:
@@ -26782,20 +27263,6 @@ Use this template for your response:
   //   - String fields are length-capped to prevent bloated codes.
   //   - Badge list is capped to 5.
   //   - Newcomer archetype is filtered to null (noise; not a signal).
-
-  const CODE_PREFIX = 'pf1';
-  const CURRENT_VERSION = 1;
-
-  // Length caps match the old toShareViewModel limits so behaviour is
-  // consistent with the retired PNG path.
-  const LIMITS = Object.freeze({
-    displayName: 40,
-    title: 60,
-    archetype: 30,
-    badgeName: 40,
-    badgeIcon: 4,
-    maxBadges: 5,
-  });
 
   /**
    * Build a safe, whitelist-enforced view-model from raw profile
@@ -26862,19 +27329,82 @@ Use this template for your response:
    */
   function encodeShareCode(viewModel) {
     const safe = toShareViewModel(viewModel || {});
-    const payload = {
-      v: CURRENT_VERSION,
-      n: safe.displayName,
-      t: safe.title,
-      a: safe.archetype,  // may be null
-      l: safe.level,
-      c: safe.accent,     // 6-char hex without '#'
-      b: safe.pinnedBadges.map(b => ({ n: b.name, i: b.icon })),
-      x: { i: safe.xpIntoLevel, f: safe.xpForNextLevel },
-      p: round2(safe.progress01),
-    };
-    const json = JSON.stringify(payload);
-    return `${CODE_PREFIX}:${base64urlEncode(json)}`;
+
+    // pf3: binary-packed format. Everything except the display name
+    // is encoded as numeric indices into existing registries.
+    const bytes = [];
+
+    // Byte 0: version
+    bytes.push(CURRENT_VERSION);
+
+    // Byte 1: level (clamped to 0-255)
+    bytes.push(Math.min(255, safe.level));
+
+    // Byte 2: archetype index (0-5, 255 = null/Newcomer)
+    const ARCHETYPE_LABELS = ['newcomer','storyteller','roleplayer','daily user','regular','casual'];
+    let archIdx = 255;
+    if (safe.archetype) {
+      const lower = safe.archetype.toLowerCase();
+      archIdx = ARCHETYPE_IDS.indexOf(lower);
+      if (archIdx === -1) archIdx = ARCHETYPE_LABELS.indexOf(lower);
+      if (archIdx === -1) archIdx = 255;
+    }
+    bytes.push(archIdx);
+
+    // Byte 3: accent index (0-23, 255 = custom hex follows)
+    const accentId = findAccentId(safe.accent);
+    const accIdx = accentId ? ACCENT_IDS.indexOf(accentId) : -1;
+    bytes.push(accIdx >= 0 ? accIdx : 255);
+    // If not in palette, append 3 raw RGB bytes
+    const accNotInPalette = accIdx < 0;
+    if (accNotInPalette) {
+      const hex = normalizeAccent(safe.accent);
+      bytes.push(parseInt(hex.substring(0,2), 16) || 0);
+      bytes.push(parseInt(hex.substring(2,4), 16) || 0);
+      bytes.push(parseInt(hex.substring(4,6), 16) || 0);
+    }
+
+    // Byte 4: progress (0-100 integer)
+    bytes.push(Math.round(safe.progress01 * 100));
+
+    // Bytes 5-6: xpIntoLevel (uint16 big-endian)
+    const xpI = Math.min(65535, safe.xpIntoLevel);
+    bytes.push((xpI >> 8) & 0xFF, xpI & 0xFF);
+
+    // Bytes 7-8: xpForNextLevel (uint16 big-endian)
+    const xpF = Math.min(65535, safe.xpForNextLevel);
+    bytes.push((xpF >> 8) & 0xFF, xpF & 0xFF);
+
+    // Byte 9: title type + value
+    // If title matches an achievement name, send the achievement index.
+    // Otherwise send 255 (= use display name as title, or "Newcomer").
+    const titleAchIdx = findAchievementIndexByName(safe.title);
+    bytes.push(titleAchIdx !== -1 ? titleAchIdx : 255);
+
+    // Byte 10: badge count
+    const badges = safe.pinnedBadges || [];
+    bytes.push(Math.min(LIMITS.maxBadges, badges.length));
+
+    // Bytes 11+: badge achievement indices
+    for (let i = 0; i < Math.min(LIMITS.maxBadges, badges.length); i++) {
+      const bIdx = findAchievementIndexByName(badges[i].name);
+      bytes.push(bIdx !== -1 ? bIdx : 255);
+    }
+
+    // Remaining: display name as UTF-8 (length-prefixed)
+    const nameBytes = utf8Encode(safe.displayName.slice(0, LIMITS.displayName));
+    bytes.push(Math.min(255, nameBytes.length));
+    for (const b of nameBytes) bytes.push(b);
+
+    // If title was custom (idx 255), append the title text
+    if (titleAchIdx === -1 && safe.title && safe.title !== 'Newcomer') {
+      const titleBytes = utf8Encode(safe.title.slice(0, LIMITS.title));
+      bytes.push(Math.min(255, titleBytes.length));
+      for (const b of titleBytes) bytes.push(b);
+    }
+
+    const packed = new Uint8Array(bytes);
+    return `${CODE_PREFIX}:${uint8ToBase64url(packed)}`;
   }
 
   /**
@@ -26897,11 +27427,6 @@ Use this template for your response:
    * @returns {object|null}
    */
   function decodeShareCode(code) {
-    // Flip to `true` once the format is locked to start enforcing
-    // prefix + payload-version matches. Keep the check code intact
-    // so we don't have to rewrite it later.
-    const enforceVersion = false;
-
     if (typeof code !== 'string') return null;
     const trimmed = code.trim();
     const idx = trimmed.indexOf(':');
@@ -26909,54 +27434,249 @@ Use this template for your response:
     const prefix = trimmed.slice(0, idx);
     const body   = trimmed.slice(idx + 1);
 
-    // Prefix sanity: require the "pf" family marker (so random text
-    // pasted into the decoder is still rejected) but accept any
-    // numeric suffix while we iterate (pf1, pf2, pf9-draft, etc.).
     if (!/^pf\d/.test(prefix)) return null;
-    if (enforceVersion && prefix !== CODE_PREFIX) return null;
 
-    let payload;
-    try {
-      const json = base64urlDecode(body);
-      payload = JSON.parse(json);
-    } catch {
-      return null;
+    // ---- pf3: binary-packed ----
+    if (prefix === 'pf3') {
+      try { return decodePf3(body); } catch { return null; }
     }
-    if (!payload || typeof payload !== 'object') return null;
-    if (enforceVersion && payload.v !== CURRENT_VERSION) return null;
 
-    // Re-apply the same whitelist on decode. Defends against hand-
-    // crafted codes with oversized fields, injected keys, etc.
-    const badges = Array.isArray(payload.b) ? payload.b : [];
+    // ---- pf2 / pf1: text-based (legacy) ----
+    let raw;
+    try { raw = base64urlDecode(body); } catch { return null; }
+
+    // pf2: pipe-delimited
+    if (raw[0] === '2' && raw[1] === '|') return decodePf2(raw);
+
+    // pf1: JSON
+    try {
+      const payload = JSON.parse(raw);
+      if (!payload || typeof payload !== 'object') return null;
+      const badges = Array.isArray(payload.b) ? payload.b : [];
+      return {
+        source: 'shareCode',
+        displayName: String(payload.n || 'Chronicler').slice(0, LIMITS.displayName),
+        title: String(payload.t || 'Newcomer').slice(0, LIMITS.title),
+        archetype: payload.a == null ? null
+          : (String(payload.a).slice(0, LIMITS.archetype) || null),
+        level: Math.max(1, Math.floor(Number(payload.l) || 1)),
+        accent: normalizeAccent(payload.c),
+        pinnedBadges: badges.slice(0, LIMITS.maxBadges).map(b => ({
+          name: String((b && b.n) || '').slice(0, LIMITS.badgeName),
+          icon: String((b && b.i) || '◆').slice(0, LIMITS.badgeIcon),
+        })),
+        xpIntoLevel: Math.max(0, Math.floor(Number(payload.x && payload.x.i) || 0)),
+        xpForNextLevel: Math.max(1, Math.floor(Number(payload.x && payload.x.f) || 1)),
+        progress01: Math.max(0, Math.min(1, Number(payload.p) || 0)),
+      };
+    } catch { return null; }
+  }
+
+  /** Decode pf3 binary format. */
+  function decodePf3(b64body) {
+    const bytes = base64urlToUint8(b64body);
+    if (!bytes || bytes.length < 12) return null;
+
+    let pos = 0;
+    const version = bytes[pos++];
+    if (version !== 3) return null;
+
+    const level = bytes[pos++];
+    const archIdx = bytes[pos++];
+    const accIdx = bytes[pos++];
+
+    // If accent index is 255, next 3 bytes are raw RGB
+    let accentHex;
+    if (accIdx === 255) {
+      const r = bytes[pos++] || 0;
+      const g = bytes[pos++] || 0;
+      const b = bytes[pos++] || 0;
+      accentHex = r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
+    } else {
+      const accentId = accIdx < ACCENT_IDS.length ? ACCENT_IDS[accIdx] : 'amber';
+      accentHex = resolveAccentColor(accentId);
+    }
+
+    const progress = bytes[pos++];
+    const xpInto = (bytes[pos++] << 8) | bytes[pos++];
+    const xpFor = (bytes[pos++] << 8) | bytes[pos++];
+    const titleIdx = bytes[pos++];
+    const badgeCount = Math.min(LIMITS.maxBadges, bytes[pos++]);
+
+    const badges = [];
+    for (let i = 0; i < badgeCount && pos < bytes.length; i++) {
+      const bIdx = bytes[pos++];
+      const ach = ACH_IDX_TO_OBJ[bIdx];
+      if (ach) {
+        badges.push({ name: ach.name, icon: badgeIconForTier(ach.tier) });
+      } else {
+        badges.push({ name: `Achievement #${bIdx}`, icon: '◆' });
+      }
+    }
+
+    // Display name
+    const nameLen = pos < bytes.length ? bytes[pos++] : 0;
+    const nameBytes = bytes.slice(pos, pos + nameLen);
+    pos += nameLen;
+    const displayName = utf8Decode(nameBytes) || 'Chronicler';
+
+    // Title: from achievement index or custom text
+    let title = 'Newcomer';
+    if (titleIdx !== 255) {
+      const ach = ACH_IDX_TO_OBJ[titleIdx];
+      if (ach) title = ach.name;
+    } else if (pos < bytes.length) {
+      const titleLen = bytes[pos++];
+      const titleBytes = bytes.slice(pos, pos + titleLen);
+      pos += titleLen;
+      const custom = utf8Decode(titleBytes);
+      if (custom) title = custom;
+    }
+
+    // Archetype
+    const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
+    const archetype = archIdx < ARCHETYPE_LABELS.length
+      ? ARCHETYPE_LABELS[archIdx]
+      : null;
+
     return {
       source: 'shareCode',
-      displayName: String(payload.n || 'Chronicler').slice(0, LIMITS.displayName),
-      title: String(payload.t || 'Newcomer').slice(0, LIMITS.title),
-      archetype: payload.a == null
-        ? null
-        : (String(payload.a).slice(0, LIMITS.archetype) || null),
-      level: Math.max(1, Math.floor(Number(payload.l) || 1)),
-      accent: normalizeAccent(payload.c),
-      pinnedBadges: badges.slice(0, LIMITS.maxBadges).map(b => ({
-        name: String((b && b.n) || '').slice(0, LIMITS.badgeName),
-        icon: String((b && b.i) || '◆').slice(0, LIMITS.badgeIcon),
-      })),
-      xpIntoLevel: Math.max(0, Math.floor(Number(payload.x && payload.x.i) || 0)),
-      xpForNextLevel: Math.max(1, Math.floor(Number(payload.x && payload.x.f) || 1)),
-      progress01: Math.max(0, Math.min(1, Number(payload.p) || 0)),
+      displayName: displayName.slice(0, LIMITS.displayName),
+      title: title.slice(0, LIMITS.title),
+      archetype: archIdx === 255 ? null : archetype,
+      level: Math.max(1, level),
+      accent: accentHex,
+      pinnedBadges: badges,
+      xpIntoLevel: xpInto,
+      xpForNextLevel: Math.max(1, xpFor),
+      progress01: Math.max(0, Math.min(1, progress / 100)),
+    };
+  }
+
+  /** Decode pf2 pipe-delimited format. */
+  function decodePf2(raw) {
+    const parts = raw.split('|');
+    if (parts.length < 9) return null;
+
+    const pct = Math.max(0, Math.min(100, parseInt(parts[8], 10) || 0));
+    const badges = [];
+    for (let i = 9; i < parts.length && badges.length < LIMITS.maxBadges; i++) {
+      const sep = parts[i].indexOf('\x01');
+      if (sep >= 0) {
+        badges.push({
+          name: parts[i].substring(0, sep).slice(0, LIMITS.badgeName),
+          icon: parts[i].substring(sep + 1).slice(0, LIMITS.badgeIcon),
+        });
+      } else if (parts[i]) {
+        badges.push({ name: parts[i].slice(0, LIMITS.badgeName), icon: '◆' });
+      }
+    }
+
+    return {
+      source: 'shareCode',
+      displayName: String(parts[1] || 'Chronicler').slice(0, LIMITS.displayName),
+      title: String(parts[2] || 'Newcomer').slice(0, LIMITS.title),
+      archetype: parts[3] ? String(parts[3]).slice(0, LIMITS.archetype) : null,
+      level: Math.max(1, Math.floor(Number(parts[4]) || 1)),
+      accent: normalizeAccent(parts[5]),
+      pinnedBadges: badges,
+      xpIntoLevel: Math.max(0, Math.floor(Number(parts[6]) || 0)),
+      xpForNextLevel: Math.max(1, Math.floor(Number(parts[7]) || 1)),
+      progress01: pct / 100,
     };
   }
 
   // ---- helpers ----
 
   function normalizeAccent(accent) {
-    // Input forms: "#d8b36a", "d8b36a", "D8B36A", undefined
     const raw = String(accent || '').replace(/^#/, '').toLowerCase();
     return /^[0-9a-f]{6}$/.test(raw) ? raw : 'd8b36a';
   }
 
   function round2(n) {
     return Math.round(Number(n) * 100) / 100;
+  }
+
+  /** Find accent ID from hex color (reverse lookup). Returns null if not in palette. */
+  function findAccentId(hex) {
+    const normalized = (hex || '').replace('#', '').toLowerCase();
+    const map = {
+      'd8b36a':'amber', '7a9a6a':'sage', '8a8a8a':'ash', 'b08a6a':'clay',
+      '5a7a4e':'moss', '7a8a9a':'mist', 'c4a03a':'honey', 'a05a3a':'rust',
+      '6a6a7a':'iron', 'b87333':'copper', '4a9a6a':'jade', '6a7a8a':'slate',
+      '8a3a5a':'wine', '3a7a9a':'ocean', '7a4a8a':'plum', '9aaaba':'silver',
+      'c07a8a':'pink', '8a5aaa':'purple', '5a8aca':'sky', 'c4a832':'gold',
+      'aa3a3a':'ruby', '3a8a8a':'teal', 'cac8c0':'pearl', '2a2a3a':'obsidian',
+    };
+    return map[normalized] || null;
+  }
+
+  /** Find achievement index by name (case-insensitive). */
+  function findAchievementIndexByName(name) {
+    if (!name) return -1;
+    const lower = name.toLowerCase();
+    for (let i = 0; i < ACHIEVEMENTS.length; i++) {
+      if (ACHIEVEMENTS[i].name.toLowerCase() === lower) return i;
+    }
+    return -1;
+  }
+
+  /** Resolve accent ID → hex color. Simple lookup table. */
+  function resolveAccentColor(accentId) {
+    // Hardcoded subset matching flair.js ACCENTS palette.
+    const map = {
+      amber:'d8b36a', sage:'7a9a6a', ash:'8a8a8a', clay:'b08a6a',
+      moss:'5a7a4e', mist:'7a8a9a', honey:'c4a03a', rust:'a05a3a',
+      iron:'6a6a7a', copper:'b87333', jade:'4a9a6a', slate:'6a7a8a',
+      wine:'8a3a5a', ocean:'3a7a9a', plum:'7a4a8a', silver:'9aaaba',
+      pink:'c07a8a', purple:'8a5aaa', sky:'5a8aca', gold:'c4a832',
+      ruby:'aa3a3a', teal:'3a8a8a', pearl:'cac8c0', obsidian:'2a2a3a',
+    };
+    return map[accentId] || 'd8b36a';
+  }
+
+  /** UTF-8 encode string → Uint8Array. */
+  function utf8Encode(str) {
+    if (typeof TextEncoder !== 'undefined') {
+      return new TextEncoder().encode(str || '');
+    }
+    return new Uint8Array(Buffer.from(str || '', 'utf8'));
+  }
+
+  /** UTF-8 decode Uint8Array → string. */
+  function utf8Decode(bytes) {
+    if (!bytes || bytes.length === 0) return '';
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder().decode(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+    }
+    return Buffer.from(bytes).toString('utf8');
+  }
+
+  /** Uint8Array → base64url string. */
+  function uint8ToBase64url(arr) {
+    let binary = '';
+    for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+    if (typeof btoa === 'function') {
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    return Buffer.from(arr).toString('base64url');
+  }
+
+  /** Base64url string → Uint8Array. */
+  function base64urlToUint8(b64url) {
+    let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad === 2) b64 += '==';
+    else if (pad === 3) b64 += '=';
+
+    if (typeof atob === 'function') {
+      const binary = atob(b64);
+      const arr = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+      return arr;
+    }
+    const buf = Buffer.from(b64, 'base64');
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   }
 
   /**
@@ -28180,6 +28900,73 @@ Use this template for your response:
       'and avatar image are never included.',
     ]);
 
+    // ---- Code-only section (shorter, for pasting in chat) ----
+    const codeLabel = h('label', { class: 'pf-share-code-label' }, ['Short code (paste in chat)']);
+    const codeBox = h('input', {
+      type: 'text',
+      class: 'pf-field-input',
+      readonly: true,
+      value: code,
+      style: 'font-family:ui-monospace,monospace;font-size:11px;letter-spacing:0.02em;',
+      onClick: (e) => { try { e.target.select(); } catch {} },
+      onFocus: (e) => { try { e.target.select(); } catch {} },
+    });
+
+    const copyCodeBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn',
+      style: 'font-size:11px;padding:4px 10px;',
+      onClick: async () => {
+        try {
+          if (navigator && navigator.clipboard) await navigator.clipboard.writeText(code);
+          else { codeBox.focus(); codeBox.select(); document.execCommand('copy'); }
+          flash(status, 'Code copied!', 'ok');
+        } catch { flash(status, 'Copy failed', 'err'); }
+      },
+    }, ['Copy code']);
+
+    const codeRow = h('div', { style: 'display:flex;gap:6px;align-items:center;' }, [
+      h('div', { style: 'flex:1;' }, [codeBox]),
+      copyCodeBtn,
+    ]);
+
+    // ---- "View someone's profile" paste input ----
+    const pasteLabel = h('label', { class: 'pf-share-code-label' }, ['View someone\'s profile']);
+    const pasteInput = h('input', {
+      type: 'text',
+      class: 'pf-field-input',
+      placeholder: 'Paste a pf2:... or pf1:... code here',
+      style: 'font-family:ui-monospace,monospace;font-size:11px;',
+    });
+    const viewBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn',
+      style: 'font-size:11px;padding:4px 10px;',
+      onClick: () => {
+        const input = pasteInput.value.trim();
+        if (!input) return;
+        // Try to extract code from a URL or raw code
+        let codeToView = input;
+        try {
+          const url = new URL(input);
+          const h = url.searchParams.get('h');
+          if (h) codeToView = h;
+        } catch { /* not a URL — treat as raw code */ }
+        const decoded = decodeShareCode(codeToView);
+        if (decoded) {
+          overlay.hide();
+          try { openShareViewer(decoded); } catch {}
+        } else {
+          flash(status, 'Invalid code — must start with pf1: or pf2:', 'err');
+        }
+      },
+    }, ['View']);
+
+    const pasteRow = h('div', { style: 'display:flex;gap:6px;align-items:center;' }, [
+      h('div', { style: 'flex:1;' }, [pasteInput]),
+      viewBtn,
+    ]);
+
     const overlay = createOverlay({
       ariaLabel: 'Share your profile',
       children: [
@@ -28188,11 +28975,17 @@ Use this template for your response:
           previewCard,
           h('label', { class: 'pf-share-code-label' }, ['Share link']),
           urlBox,
+          codeLabel,
+          codeRow,
           status,
           privacyNote,
           h('div', { class: 'pf-share-actions' },
             [copyBtn, shareBtn, closeBtn].filter(Boolean)
           ),
+          h('div', { style: 'border-top:1px solid rgba(212,168,85,0.1);margin-top:8px;padding-top:12px;' }, [
+            pasteLabel,
+            pasteRow,
+          ]),
         ]),
       ],
     });
@@ -32572,6 +33365,12 @@ Use this template for your response:
         items.push({ icon: '⚙', label: 'Gen', detail: parts.length ? parts.join(', ') : 'defaults', active: parts.length > 0 });
       } catch { items.push({ icon: '⚙', label: 'Gen', detail: 'unavailable', active: false }); }
 
+      // Reminder
+      try {
+        const block = typeof buildReminderBlock === 'function' ? buildReminderBlock() : '';
+        items.push({ icon: '📌', label: 'Reminder', detail: block ? 'active' : 'none', active: !!block });
+      } catch { items.push({ icon: '📌', label: 'Reminder', detail: 'unavailable', active: false }); }
+
       // Render
       body.innerHTML = '';
       for (const item of items) {
@@ -33352,7 +34151,8 @@ Use this template for your response:
     function loadPersona() {
       try {
         const s = loadSettings();
-        const p = (s && s.profile && s.profile.userPersona) || {};
+        // Match user_persona.js: top-level s.userPersona, not s.profile.userPersona
+        const p = (s && s.userPersona) || {};
         nameInput.value = p.name || '';
         descInput.value = p.description || '';
       } catch {}
@@ -33379,8 +34179,8 @@ Use this template for your response:
           else delete s.quickReminders[String(threadId)];
           saveSettings(s);
         } else if (activeTab === 'persona') {
-          if (!s.profile) s.profile = {};
-          s.profile.userPersona = {
+          // Match user_persona.js: top-level s.userPersona
+          s.userPersona = {
             name: nameInput.value.trim(),
             description: descInput.value.trim(),
           };
@@ -33413,6 +34213,23 @@ Use this template for your response:
     if (inputArea) {
       (inputArea.parentElement || inputArea).appendChild(btn);
     }
+  }
+
+  /**
+   * Build the quick-reminder block for AI context injection.
+   * Reads from settings.quickReminders[threadId].
+   * Called from the aiTextPlugin monkey-patch.
+   */
+  function buildReminderBlock() {
+    try {
+      const threadId = window.currentChatId;
+      if (threadId == null) return '';
+      const s = loadSettings();
+      const map = (s && s.quickReminders) || {};
+      const text = String(map[String(threadId)] || '').trim();
+      if (!text) return '';
+      return `\n[REMINDER]\n${text}\n`;
+    } catch { return ''; }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -33925,6 +34742,7 @@ Use this template for your response:
         { name: 'document',       fn: typeof buildDocumentBlock === 'function' ? buildDocumentBlock : null },
         { name: 'anti-repetition',fn: typeof buildAntiRepetitionBlock === 'function' ? buildAntiRepetitionBlock : null },
         { name: 'persona',        fn: typeof buildPersonaBlock === 'function' ? buildPersonaBlock : null },
+        { name: 'reminder',       fn: typeof buildReminderBlock === 'function' ? buildReminderBlock : null },
       ];
 
       if (firstArg && typeof firstArg === 'object') {
@@ -40833,8 +41651,8 @@ Use this template for your response:
       }
     } catch { /* non-fatal */ }
 
-    // Glossary editor (Batch 2) — 📖 button near chat input
-    try { initGlossaryEditor(); } catch { /* non-fatal */ }
+    // Glossary editor — now handled by Context Editor (📝 tabbed modal)
+    // initGlossaryEditor() standalone button removed to avoid duplicates.
 
     // Chat export (Batch 5) — ⬇ button in chat header
     try { initChatExport(); } catch { /* non-fatal */ }
@@ -40848,32 +41666,9 @@ Use this template for your response:
       }
     } catch { /* non-fatal */ }
 
-    // User impersonation (Batch 4) — ✍ "Write for me" button
-    try {
-      if (window.root && window.root.aiTextPlugin) {
-        initImpersonation();
-      } else {
-        setTimeout(() => { try { initImpersonation(); } catch { /* non-fatal */ } }, 3000);
-      }
-    } catch { /* non-fatal */ }
-
-    // Writing enhancer (Batch 4) — ✨ polish draft text
-    try {
-      if (window.root && window.root.aiTextPlugin) {
-        initWritingEnhancer();
-      } else {
-        setTimeout(() => { try { initWritingEnhancer(); } catch { /* non-fatal */ } }, 3000);
-      }
-    } catch { /* non-fatal */ }
-
-    // Narration generation (Batch 4) — 🎬 scene narration
-    try {
-      if (window.root && window.root.aiTextPlugin) {
-        initNarration();
-      } else {
-        setTimeout(() => { try { initNarration(); } catch { /* non-fatal */ } }, 3000);
-      }
-    } catch { /* non-fatal */ }
+    // Impersonation — now handled by AI Writer (✍ mode picker)
+    // Writing enhancer — now handled by AI Writer
+    // Narration — now handled by AI Writer
 
     // Keyboard shortcuts (Batch 6)
     try { initKeyboardShortcuts(); } catch { /* non-fatal */ }
@@ -40882,7 +41677,7 @@ Use this template for your response:
     try { initPromptPresets(); } catch { /* non-fatal */ }
 
     // Quick reminder editor (Batch 6) — 📌 button near input
-    try { initQuickReminder(); } catch { /* non-fatal */ }
+    // Quick reminder — now handled by Context Editor
 
     // Fullscreen toggle (Batch 7) — ⛶ button in header
     try { initFullscreen(); } catch { /* non-fatal */ }
@@ -40954,7 +41749,7 @@ Use this template for your response:
     try { initDocAnalysis(); } catch { /* non-fatal */ }
 
     // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
-    try { initAntiRepetition(); } catch { /* non-fatal */ }
+    // Anti-repetition — now handled by Context Editor
 
     // Dice roller (Batch 8) — 🎲 button + /roll command
     try { initDiceRoller(); } catch { /* non-fatal */ }
@@ -40978,7 +41773,7 @@ Use this template for your response:
     } catch { /* non-fatal */ }
 
     // User persona editor (Batch 9) — 👤 in header
-    try { initUserPersona(); } catch { /* non-fatal */ }
+    // User persona — now handled by Context Editor
 
     // Character card import/export (Batch 9) — 🃏 in header
     try {
@@ -41021,7 +41816,7 @@ Use this template for your response:
     try { initContextDashboard(); } catch { /* non-fatal */ }
 
     // Recap — "Previously on..." narrative summary
-    try { initRecap(); } catch { /* non-fatal */ }
+    // Recap — now handled by AI Writer
 
     // Message bookmarks — star important messages
     try {
@@ -41030,6 +41825,11 @@ Use this template for your response:
       } else {
         setTimeout(() => { try { initBookmarks(); } catch { /* non-fatal */ } }, 1500);
       }
+    } catch { /* non-fatal */ }
+
+    // Daily quest — AI-generated date-seeded quest card
+    try {
+      setTimeout(() => { try { initDailyQuest(); } catch { /* non-fatal */ } }, 2000);
     } catch { /* non-fatal */ }
 
     // Initial fetch

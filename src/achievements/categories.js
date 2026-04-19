@@ -115,7 +115,8 @@ const RULES = [
     ['identity_forged', 'glossary_scholar', 'lore_keeper', 'dice_roller',
      'fate_weaver', 'archivist', 'bookworm', 'previously_on', 'word_guard',
      'voice_actor', 'research_assistant', 'memory_architect',
-     'hundred_threads', 'tool_explorer', 'tool_master'].includes(id)
+     'hundred_threads', 'tool_explorer', 'tool_master',
+     'quest_seeker', 'quest_completer', 'quest_devotee', 'quest_legend'].includes(id)
   )},
 ];
 

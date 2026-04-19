@@ -74,6 +74,7 @@ export function initDocAnalysis() {
       const text = await file.text();
       activeDocContent = text;
       activeDocName = file.name;
+      try { bumpCounter("documentUploads"); } catch {}
       status.textContent = `📄 ${file.name} (${Math.round(text.length / 1000)}k chars)`;
       status.hidden = false;
       btn.textContent = '📄';

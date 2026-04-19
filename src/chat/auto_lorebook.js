@@ -106,6 +106,7 @@ export function initAutoLorebook() {
 
         // Notify
         const count = deduped.split('\n').filter(l => l.includes('=')).length;
+        try { bumpCounter("autoLorebookUses"); } catch {}
         showToast(`Glossary updated: ${count} entries. Open 📖 to review.`);
       }
     } catch (e) {

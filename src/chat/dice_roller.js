@@ -28,6 +28,7 @@ export function initDiceRoller() {
       e.stopPropagation();
 
       const result = parseAndRoll(val);
+      try { bumpCounter("diceRolls"); } catch {}
       inputEl.value = result;
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -67,6 +68,7 @@ export function initDiceRoller() {
 }
 
 export function parseAndRoll(command) {
+      try { bumpCounter("diceRolls"); } catch {}
   // Parse: /roll 2d6+3, /roll d20, /roll 4d8-2
   const match = command.match(/\/roll\s+(\d*)d(\d+)([+-]\d+)?/i);
   if (!match) {

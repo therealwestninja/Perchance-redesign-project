@@ -24,6 +24,7 @@ function getBookmarks(threadId) {
 }
 
 function toggleBookmark(threadId, messageId) {
+      try { bumpCounter("bookmarksSet"); } catch {}
   try {
     const s = loadSettings();
     if (!s[BOOKMARKS_KEY]) s[BOOKMARKS_KEY] = {};
@@ -75,6 +76,7 @@ export function initBookmarks() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleBookmark(threadId, messageId);
+      try { bumpCounter("bookmarksSet"); } catch {}
       updateState();
     });
 

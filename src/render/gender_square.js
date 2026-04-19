@@ -77,7 +77,22 @@ export function createGenderSquare({ initialValue } = {}) {
   field.addEventListener('pointerup', endPointer);
   field.addEventListener('pointercancel', endPointer);
 
-  // Keyboard: arrow keys nudge the dot 5% per press; persists immediately
+  // Debounced persist for keyboard arrows — holding an arrow would
+  // otherwise fire updateField 20+ times per second, each triggering a
+  // localStorage write plus pub/sub broadcast (which kicks the mini-card
+  // into an IDB re-read). Visual updates still happen on every keystroke;
+  // only the persistence is debounced.
+  let persistTimer = null;
+  function schedulePersist() {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      persistTimer = null;
+      updateField('profile.genderPos', current);
+    }, 250);
+  }
+
+  // Keyboard: arrow keys nudge the dot 5% per press; visual is immediate,
+  // persistence is debounced so a held arrow isn't a write-storm.
   field.addEventListener('keydown', (ev) => {
     const step = 0.05;
     let dx = 0, dy = 0;
@@ -93,7 +108,7 @@ export function createGenderSquare({ initialValue } = {}) {
     };
     applyDotPosition(current);
     field.setAttribute('aria-valuetext', formatAria(current));
-    updateField('profile.genderPos', current);
+    schedulePersist();
   });
 
   function updateFromEvent(ev) {

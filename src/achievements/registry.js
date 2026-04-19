@@ -607,6 +607,36 @@ export const ACHIEVEMENTS = Object.freeze([
       return count >= 8;
     },
   },
+
+  // --- Daily quest ---
+  {
+    id: 'quest_seeker',
+    name: 'Quest Seeker',
+    description: 'Reveal your first daily quest.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'questsRevealed') >= 1,
+  },
+  {
+    id: 'quest_completer',
+    name: 'Quest Completer',
+    description: 'Complete 5 daily quests.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'questsCompleted') >= 5,
+  },
+  {
+    id: 'quest_devotee',
+    name: 'Quest Devotee',
+    description: 'Complete 30 daily quests.',
+    tier: 'rare',
+    criteria: (s) => cnt(s, 'questsCompleted') >= 30,
+  },
+  {
+    id: 'quest_legend',
+    name: 'Quest Legend',
+    description: 'Complete 100 daily quests.',
+    tier: 'epic',
+    criteria: (s) => cnt(s, 'questsCompleted') >= 100,
+  },
 ]);
 
 /**

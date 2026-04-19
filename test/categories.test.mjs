@@ -23,7 +23,7 @@ test('CATEGORIES: expected ids present', () => {
   const ids = CATEGORIES.map(c => c.id);
   assert.deepEqual(ids, [
     'writing', 'stories', 'prompts', 'consistency',
-    'curation', 'preservation', 'creation', 'events',
+    'curation', 'preservation', 'creation', 'events', 'tools',
   ]);
 });
 

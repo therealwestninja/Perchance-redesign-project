@@ -73,6 +73,7 @@ export function initVoice() {
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
           } else {
             textarea.textContent += transcript;
+            try { bumpCounter("voiceInputs"); } catch {}
           }
         }
       };

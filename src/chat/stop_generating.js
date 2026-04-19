@@ -101,6 +101,7 @@ export function initStopGenerating() {
       { name: 'document',       fn: typeof buildDocumentBlock === 'function' ? buildDocumentBlock : null },
       { name: 'anti-repetition',fn: typeof buildAntiRepetitionBlock === 'function' ? buildAntiRepetitionBlock : null },
       { name: 'persona',        fn: typeof buildPersonaBlock === 'function' ? buildPersonaBlock : null },
+      { name: 'reminder',       fn: typeof buildReminderBlock === 'function' ? buildReminderBlock : null },
     ];
 
     if (firstArg && typeof firstArg === 'object') {

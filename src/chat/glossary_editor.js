@@ -58,6 +58,7 @@ export function initGlossaryEditor() {
     const threadId = window.currentChatId;
     if (threadId != null) {
       saveGlossary(threadId, textarea.value);
+      try { bumpCounter("glossaryEdits"); } catch {}
     }
     close();
   });

@@ -1,8 +1,8 @@
 # Perchance AI Character Chat — Redesign Fork
 
-A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds **30+ chat tools**, a **gamified profile system**, a **memory manager**, and a **design-truth dark-parchment UI** — all running client-side in your browser with zero accounts or servers.
+A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds **35+ chat tools**, a **gamified profile system**, a **memory manager**, and a **design-truth dark-parchment UI** — all running client-side in your browser with zero accounts or servers.
 
-**112 modules · 943 tests · MIT license**
+**119 modules · 942 tests · MIT license**
 
 ---
 
@@ -73,7 +73,7 @@ Every tool lives behind a single **⚙ Tools** button that opens a popup grid �
 Avatar with ornate gold ring · display name · italic title · level chip with XP bar · hexagonal pinned badges · share button
 
 ### Gamification
-- **42 achievements** across 5 rarity tiers (Common → Legendary)
+- **91 achievements** across 5 rarity tiers (Common → Legendary)
 - **Leveling system** with XP derived from chat activity
 - **Archetype classification** based on play style
 - **24 accent colors** unlocked through achievements
@@ -111,7 +111,7 @@ The UI follows a design-truth document (`docs/design-truth/profile-card-v1.html`
 ```
 vendor/                    ← Upstream Perchance (untouched)
 src/
-  chat/        (36 files)  ← Chat tool modules
+  chat/        (42 files)  ← Chat tool modules
   render/      (20 files)  ← UI rendering
   profile/     (12 files)  ← Profile logic
   memory/      (10 files)  ← Memory manager
@@ -122,7 +122,7 @@ src/
 build/
   build.mjs                ← Bundler (single IIFE)
   perchance_2.txt          ← Final output
-test/           (48 files) ← 943 tests
+test/           (51 files) ← 942 tests
 docs/
   design-truth/            ← Visual mockups
   architecture.md          ← Technical decisions
@@ -158,3 +158,14 @@ npm run build   # → build/perchance_2.txt
 - **Research**: FurAI, Kustom-GPT, URV-AI (all MIT) — glossary algorithm, feature patterns
 - **Inspiration**: SillyTavern WorldInfo, NovelAI lorebooks
 - **License**: MIT
+
+## Recent additions (April 2026)
+
+### Daily Quests
+A sealed quest card appears each day. Click to reveal — a seal-break animation plays while the AI generates a creative writing quest from a date-seeded theme (30 themes, deterministic hash). Quest results are cached per-day. Complete quests to earn achievements.
+
+### Tool consolidation
+The **AI Writer** (✍) merges impersonation, narration, enhancer, and recap into a single mode-picker dropdown. The **Context Editor** (📝) merges glossary, banlist, reminder, and persona into a tabbed modal. The Tools menu organizes everything into labeled categories (AI, Context, World, Chat, Characters, View).
+
+### Share codes (pf3 binary format)
+Share codes are now **86% smaller** than the original format. Instead of encoding text, pf3 sends numeric indices into the achievement registry (1 byte per badge), archetype enum, and accent palette. Only the display name is raw text. A 36-char code replaces a 252-char code. All three formats (pf1/pf2/pf3) decode transparently.

@@ -107,6 +107,12 @@ export function initContextDashboard() {
       items.push({ icon: '⚙', label: 'Gen', detail: parts.length ? parts.join(', ') : 'defaults', active: parts.length > 0 });
     } catch { items.push({ icon: '⚙', label: 'Gen', detail: 'unavailable', active: false }); }
 
+    // Reminder
+    try {
+      const block = typeof buildReminderBlock === 'function' ? buildReminderBlock() : '';
+      items.push({ icon: '📌', label: 'Reminder', detail: block ? 'active' : 'none', active: !!block });
+    } catch { items.push({ icon: '📌', label: 'Reminder', detail: 'unavailable', active: false }); }
+
     // Render
     body.innerHTML = '';
     for (const item of items) {

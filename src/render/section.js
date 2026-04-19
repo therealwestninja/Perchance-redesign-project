@@ -16,7 +16,7 @@ import { updateField } from '../profile/settings_store.js';
  * }} opts
  * @returns {HTMLElement}
  */
-export function createSection({ id, title, children, initialState }) {
+export function createSection({ id, title, children, initialState, onToggled }) {
   let collapsed = !!(initialState && initialState.collapsed);
   let blurred   = !!(initialState && initialState.blurred);
 
@@ -63,7 +63,15 @@ export function createSection({ id, title, children, initialState }) {
     // performs, not the current state, so they flip as state flips.
     chevronBtn.setAttribute('aria-label', collapsed ? `Expand ${title}` : `Collapse ${title}`);
     chevronBtn.setAttribute('title', collapsed ? 'Expand' : 'Collapse');
-    if (persist) updateField(`display.sections.${id}.collapsed`, collapsed);
+    if (persist) {
+      updateField(`display.sections.${id}.collapsed`, collapsed);
+      // Fire only on USER toggles (persist=true), not on initial hydrate,
+      // so section-specific instrumentation like counter bumps don't
+      // trigger on every profile open.
+      if (typeof onToggled === 'function') {
+        try { onToggled({ collapsed, blurred }); } catch { /* best-effort */ }
+      }
+    }
   }
 
   function setBlurred(val, { persist = true } = {}) {

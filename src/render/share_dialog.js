@@ -17,7 +17,7 @@
 // No avatar, no bio, no personal details.
 
 import { h } from '../utils/dom.js';
-import { encodeShareCode, toShareViewModel, buildShareUrl } from '../profile/share_code.js';
+import { encodeShareCode, decodeShareCode, toShareViewModel, buildShareUrl } from '../profile/share_code.js';
 import { createOverlay } from './overlay.js';
 
 /**
@@ -115,6 +115,73 @@ export async function openShareDialog(vm) {
     'and avatar image are never included.',
   ]);
 
+  // ---- Code-only section (shorter, for pasting in chat) ----
+  const codeLabel = h('label', { class: 'pf-share-code-label' }, ['Short code (paste in chat)']);
+  const codeBox = h('input', {
+    type: 'text',
+    class: 'pf-field-input',
+    readonly: true,
+    value: code,
+    style: 'font-family:ui-monospace,monospace;font-size:11px;letter-spacing:0.02em;',
+    onClick: (e) => { try { e.target.select(); } catch {} },
+    onFocus: (e) => { try { e.target.select(); } catch {} },
+  });
+
+  const copyCodeBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn',
+    style: 'font-size:11px;padding:4px 10px;',
+    onClick: async () => {
+      try {
+        if (navigator && navigator.clipboard) await navigator.clipboard.writeText(code);
+        else { codeBox.focus(); codeBox.select(); document.execCommand('copy'); }
+        flash(status, 'Code copied!', 'ok');
+      } catch { flash(status, 'Copy failed', 'err'); }
+    },
+  }, ['Copy code']);
+
+  const codeRow = h('div', { style: 'display:flex;gap:6px;align-items:center;' }, [
+    h('div', { style: 'flex:1;' }, [codeBox]),
+    copyCodeBtn,
+  ]);
+
+  // ---- "View someone's profile" paste input ----
+  const pasteLabel = h('label', { class: 'pf-share-code-label' }, ['View someone\'s profile']);
+  const pasteInput = h('input', {
+    type: 'text',
+    class: 'pf-field-input',
+    placeholder: 'Paste a pf2:... or pf1:... code here',
+    style: 'font-family:ui-monospace,monospace;font-size:11px;',
+  });
+  const viewBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn',
+    style: 'font-size:11px;padding:4px 10px;',
+    onClick: () => {
+      const input = pasteInput.value.trim();
+      if (!input) return;
+      // Try to extract code from a URL or raw code
+      let codeToView = input;
+      try {
+        const url = new URL(input);
+        const h = url.searchParams.get('h');
+        if (h) codeToView = h;
+      } catch { /* not a URL — treat as raw code */ }
+      const decoded = decodeShareCode(codeToView);
+      if (decoded) {
+        overlay.hide();
+        try { openShareViewer(decoded); } catch {}
+      } else {
+        flash(status, 'Invalid code — must start with pf1: or pf2:', 'err');
+      }
+    },
+  }, ['View']);
+
+  const pasteRow = h('div', { style: 'display:flex;gap:6px;align-items:center;' }, [
+    h('div', { style: 'flex:1;' }, [pasteInput]),
+    viewBtn,
+  ]);
+
   const overlay = createOverlay({
     ariaLabel: 'Share your profile',
     children: [
@@ -123,11 +190,17 @@ export async function openShareDialog(vm) {
         previewCard,
         h('label', { class: 'pf-share-code-label' }, ['Share link']),
         urlBox,
+        codeLabel,
+        codeRow,
         status,
         privacyNote,
         h('div', { class: 'pf-share-actions' },
           [copyBtn, shareBtn, closeBtn].filter(Boolean)
         ),
+        h('div', { style: 'border-top:1px solid rgba(212,168,85,0.1);margin-top:8px;padding-top:12px;' }, [
+          pasteLabel,
+          pasteRow,
+        ]),
       ]),
     ],
   });

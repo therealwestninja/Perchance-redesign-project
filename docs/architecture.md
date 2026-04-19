@@ -273,8 +273,86 @@ These would catch more, but they'd pull in real dependencies and fight with
 the "no npm install needed" goal. For now we rely on bundle parse-check +
 manual smoke in the Perchance editor before each push.
 
+## Debugging in the Perchance iframe
+
+Our bundle runs inside the **`outputIframeEl` iframe**, not the top-level
+Perchance editor page. The iframe is on a cross-origin subdomain (see
+"The Perchance subdomain model" above), which means:
+
+**`window.__perchance_fork__` is only accessible from inside the iframe's
+JS context.** Typing it into the top-level page's DevTools console
+returns `undefined`, because CORS prevents the parent page from
+reaching into the iframe's `window`.
+
+### How to switch DevTools into the iframe context
+
+Chrome/Edge:
+1. Open DevTools (F12)
+2. Click the **context dropdown** at the top-left of the Console panel
+   (it defaults to `top`)
+3. Select the entry that matches the generator subdomain — looks like
+   `b95e4473dace29730b4433ad33b4c64c.perchance.org` or similar
+4. Now `window.__perchance_fork__` resolves
+
+Firefox:
+1. Open DevTools
+2. Click the **iframe picker** icon in the toolbar (two-squares icon,
+   sometimes labeled "cd [iframe]")
+3. Pick the generator subdomain frame
+
+Safari:
+1. Develop menu → frame selector → pick the subdomain frame
+
+### What you can do once you're in the right context
+
+```javascript
+window.__perchance_fork__
+// → { __meta: {modules: N}, openMemory: ƒ, ... }
+
+window.__perchance_fork__.openMemory()
+// Opens the Memory/Lore window
+
+document.querySelectorAll('.pf-mem-bubble').length
+// Count rendered bubbles
+
+window.memoryOverrides
+// NOT exposed. Override state is module-local. To inspect, add
+// a temporary debug exposure in window_open.js and rebuild.
+```
+
+### How this wasted days of development
+
+During commits 7a and 7b this exact issue caused multiple debugging
+rounds. Claude would tell a user "run this diagnostic in the console,"
+the user would report it returned `undefined`, and Claude would
+conclude the bundle wasn't loading. The actual problem was that the
+user was running commands in the WRONG context.
+
+**Lesson for future sessions:** if a user reports `window.__perchance_fork__`
+is undefined, first question is always "is your DevTools context set
+to the iframe?" — not "is the bundle loading?"
+
+### What context switching does NOT fix
+
+- **Inspecting iframe DOM from the parent page's Elements panel.**
+  Clicking on our bundle's DOM in the parent's Elements tab works
+  (you can see `<div class="pf-mem-panels">` etc.), but selecting it
+  DOESN'T switch the Console context. Use the console dropdown.
+
+- **Running `$0` against iframe elements from parent context.**
+  `$0` refers to the last Elements-tab selection but stays in the
+  current Console context. If you clicked something inside the iframe
+  but your context is `top`, `$0` will resolve in `top` — and probably
+  fail or return wrong results.
+
+- **Persisted breakpoints survive across iframe reloads.** But the
+  context selector resets to `top` when you refresh. After a reload,
+  re-select the subdomain frame before expecting the bundle's
+  symbols to be available.
+
 ## Common mistakes to avoid
 
+- **Don't debug from the wrong DevTools context.** Our bundle lives inside the `outputIframeEl` iframe, which is on a cross-origin subdomain. `window.__perchance_fork__` is `undefined` in the top-level page. See the "Debugging in the Perchance iframe" section above for the fix.
 - **Don't open `indexedDB` directly.** Always use `window.db.<table>.toArray()`. If you must open raw IDB for something Dexie doesn't expose, do it only AFTER confirming `window.db` is ready.
 - **Don't rely on module order for `const` initialization.** Keep top-level symbol names globally unique across all modules.
 - **Don't assume `DOMContentLoaded` = upstream ready.** Upstream's main script is deferred and may run before OR after DOMContentLoaded depending on browser. Wait on `window.db` instead.

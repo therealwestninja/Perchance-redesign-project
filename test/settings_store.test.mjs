@@ -19,6 +19,7 @@ const {
   saveSettings,
   updateField,
   defaultSettings,
+  onSettingsChange,
   AGE_RANGE_OPTIONS,
   SECTION_IDS,
 } = await import('../src/profile/settings_store.js');
@@ -138,4 +139,60 @@ test('updateField creates missing parent objects', () => {
   assert.equal(s.profile.genderPos.x01, 0.75);
   // sibling default preserved
   assert.equal(s.profile.genderPos.y01, 0.5);
+});
+
+// ---------- onSettingsChange ----------
+
+test('onSettingsChange fires after saveSettings', () => {
+  let count = 0;
+  const unsub = onSettingsChange(() => { count++; });
+
+  saveSettings(defaultSettings());
+  assert.equal(count, 1);
+
+  saveSettings(defaultSettings());
+  assert.equal(count, 2);
+
+  unsub();
+});
+
+test('onSettingsChange fires after updateField', () => {
+  let count = 0;
+  const unsub = onSettingsChange(() => { count++; });
+
+  updateField('profile.bio', 'first');
+  updateField('profile.bio', 'second');
+  assert.equal(count, 2);
+
+  unsub();
+});
+
+test('onSettingsChange unsubscribe stops further notifications', () => {
+  let count = 0;
+  const unsub = onSettingsChange(() => { count++; });
+  updateField('profile.bio', 'a');
+  assert.equal(count, 1);
+
+  unsub();
+  updateField('profile.bio', 'b');
+  assert.equal(count, 1, 'should not have fired after unsubscribe');
+});
+
+test('onSettingsChange isolates listener failures', () => {
+  let goodCount = 0;
+  const unsubBad = onSettingsChange(() => { throw new Error('boom'); });
+  const unsubGood = onSettingsChange(() => { goodCount++; });
+
+  updateField('profile.bio', 'x');
+  assert.equal(goodCount, 1, 'good listener fired even though bad one threw');
+
+  unsubBad();
+  unsubGood();
+});
+
+test('onSettingsChange returns no-op for non-function', () => {
+  const unsub = onSettingsChange('not a function');
+  assert.equal(typeof unsub, 'function');
+  // Calling the no-op should not throw
+  unsub();
 });

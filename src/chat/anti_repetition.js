@@ -158,6 +158,7 @@ export function initAntiRepetition() {
   saveBtn.addEventListener('click', () => {
     const threadId = window.currentChatId;
     if (threadId != null) saveBanlist(threadId, textarea.value);
+    try { bumpCounter("banlistEdits"); } catch {}
     close();
   });
 

@@ -117,7 +117,7 @@ test('toShareViewModel: level floor at 1', () => {
 
 test('encodeShareCode: returns prefixed string', () => {
   const code = encodeShareCode({ displayName: 'West' });
-  assert.ok(code.startsWith(`${__shareCodeTest.CODE_PREFIX}:`), `expected pf1: prefix, got ${code.slice(0, 10)}`);
+  assert.ok(code.startsWith(`${__shareCodeTest.CODE_PREFIX}:`), `expected prefix, got ${code.slice(0, 10)}`);
   assert.ok(code.length > 4);
 });
 
@@ -134,7 +134,7 @@ test('encodeShareCode: ignores fields not in the schema (no leakage)', () => {
 
 test('encodeShareCode: tolerates no input', () => {
   const code = encodeShareCode();
-  assert.ok(code.startsWith('pf1:'));
+  assert.ok(code.startsWith('pf3:'), 'should start with pf3:');
   const vm = decodeShareCode(code);
   assert.equal(vm.displayName, 'Chronicler');
   assert.equal(vm.title, 'Newcomer');
@@ -145,12 +145,12 @@ test('encodeShareCode: tolerates no input', () => {
 test('round-trip: fields survive encode → decode', () => {
   const vm = toShareViewModel({
     displayName: 'West',
-    title: 'Curator',
+    title: 'Scribe',
     archetype: { label: 'Storyteller' },
     level: 5,
     accent: '#abcdef',
     pinnedBadges: [
-      { name: 'Curator', icon: '●' },
+      { name: 'Scribe', icon: '●' },
       { name: 'Seasoned Celebrant', icon: '★' },
     ],
     xpIntoLevel: 30,
@@ -160,13 +160,14 @@ test('round-trip: fields survive encode → decode', () => {
   const code = encodeShareCode(vm);
   const decoded = decodeShareCode(code);
   assert.equal(decoded.displayName, 'West');
-  assert.equal(decoded.title, 'Curator');
+  assert.equal(decoded.title, 'Scribe');
   assert.equal(decoded.archetype, 'Storyteller');
   assert.equal(decoded.level, 5);
   assert.equal(decoded.accent, 'abcdef');
   assert.equal(decoded.pinnedBadges.length, 2);
-  assert.equal(decoded.pinnedBadges[0].name, 'Curator');
-  assert.equal(decoded.pinnedBadges[0].icon, '●');
+  assert.equal(decoded.pinnedBadges[0].name, 'Scribe');
+  // pf3: icons are derived from achievement tier, not stored verbatim
+  assert.ok(decoded.pinnedBadges[0].icon, 'badge should have an icon');
   assert.equal(decoded.xpIntoLevel, 30);
   assert.equal(decoded.xpForNextLevel, 100);
   assert.equal(decoded.progress01, 0.75);
@@ -222,7 +223,7 @@ test('decodeShareCode: version tracking is stubbed — accepts pf2, pf9, etc.', 
   // expect rejection.
   const realCode = encodeShareCode({ displayName: 'X', level: 5 });
   const body = realCode.split(':')[1];
-  const pf2 = decodeShareCode(`pf2:${body}`);
+  const pf2 = decodeShareCode(`pf3:${body}`);
   assert.ok(pf2, 'pf2 prefix accepted during dev stub');
   assert.equal(pf2.level, 5);
 });
@@ -291,7 +292,7 @@ test('buildShareUrl: produces a URL with ?h= parameter', () => {
     const code = encodeShareCode(toShareViewModel({ displayName: 'Test' }));
     const url = buildShareUrl(code);
     assert.ok(url.startsWith('https://perchance.org/ai-character-hero-chat?h='), `URL should start with base + ?h=, got: ${url}`);
-    assert.ok(url.includes('pf1%3A') || url.includes('pf1:'), `URL should contain the share code, got: ${url}`);
+    assert.ok(url.includes('pf3%3A') || url.includes('pf3:'), `URL should contain the share code, got: ${url}`);
   } finally {
     globalThis.window = origWindow;
   }

@@ -239,8 +239,8 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
-  // Glossary editor (Batch 2) — 📖 button near chat input
-  try { initGlossaryEditor(); } catch { /* non-fatal */ }
+  // Glossary editor — now handled by Context Editor (📝 tabbed modal)
+  // initGlossaryEditor() standalone button removed to avoid duplicates.
 
   // Chat export (Batch 5) — ⬇ button in chat header
   try { initChatExport(); } catch { /* non-fatal */ }
@@ -254,32 +254,9 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
-  // User impersonation (Batch 4) — ✍ "Write for me" button
-  try {
-    if (window.root && window.root.aiTextPlugin) {
-      initImpersonation();
-    } else {
-      setTimeout(() => { try { initImpersonation(); } catch { /* non-fatal */ } }, 3000);
-    }
-  } catch { /* non-fatal */ }
-
-  // Writing enhancer (Batch 4) — ✨ polish draft text
-  try {
-    if (window.root && window.root.aiTextPlugin) {
-      initWritingEnhancer();
-    } else {
-      setTimeout(() => { try { initWritingEnhancer(); } catch { /* non-fatal */ } }, 3000);
-    }
-  } catch { /* non-fatal */ }
-
-  // Narration generation (Batch 4) — 🎬 scene narration
-  try {
-    if (window.root && window.root.aiTextPlugin) {
-      initNarration();
-    } else {
-      setTimeout(() => { try { initNarration(); } catch { /* non-fatal */ } }, 3000);
-    }
-  } catch { /* non-fatal */ }
+  // Impersonation — now handled by AI Writer (✍ mode picker)
+  // Writing enhancer — now handled by AI Writer
+  // Narration — now handled by AI Writer
 
   // Keyboard shortcuts (Batch 6)
   try { initKeyboardShortcuts(); } catch { /* non-fatal */ }
@@ -288,7 +265,7 @@ export async function start() {
   try { initPromptPresets(); } catch { /* non-fatal */ }
 
   // Quick reminder editor (Batch 6) — 📌 button near input
-  try { initQuickReminder(); } catch { /* non-fatal */ }
+  // Quick reminder — now handled by Context Editor
 
   // Fullscreen toggle (Batch 7) — ⛶ button in header
   try { initFullscreen(); } catch { /* non-fatal */ }
@@ -360,7 +337,7 @@ export async function start() {
   try { initDocAnalysis(); } catch { /* non-fatal */ }
 
   // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
-  try { initAntiRepetition(); } catch { /* non-fatal */ }
+  // Anti-repetition — now handled by Context Editor
 
   // Dice roller (Batch 8) — 🎲 button + /roll command
   try { initDiceRoller(); } catch { /* non-fatal */ }
@@ -384,7 +361,7 @@ export async function start() {
   } catch { /* non-fatal */ }
 
   // User persona editor (Batch 9) — 👤 in header
-  try { initUserPersona(); } catch { /* non-fatal */ }
+  // User persona — now handled by Context Editor
 
   // Character card import/export (Batch 9) — 🃏 in header
   try {
@@ -427,7 +404,7 @@ export async function start() {
   try { initContextDashboard(); } catch { /* non-fatal */ }
 
   // Recap — "Previously on..." narrative summary
-  try { initRecap(); } catch { /* non-fatal */ }
+  // Recap — now handled by AI Writer
 
   // Message bookmarks — star important messages
   try {
@@ -436,6 +413,11 @@ export async function start() {
     } else {
       setTimeout(() => { try { initBookmarks(); } catch { /* non-fatal */ } }, 1500);
     }
+  } catch { /* non-fatal */ }
+
+  // Daily quest — AI-generated date-seeded quest card
+  try {
+    setTimeout(() => { try { initDailyQuest(); } catch { /* non-fatal */ } }, 2000);
   } catch { /* non-fatal */ }
 
   // Initial fetch
