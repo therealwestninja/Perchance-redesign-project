@@ -3137,15 +3137,44 @@ export const CSS = `
   color: rgba(0, 0, 0, 0.5);
   font-size: 13px;
   padding: 0;
+  /* Kill the browser's default click-focus outline. Without this, the
+     browser draws a thick blue/system-accent ring around the LAST-
+     CLICKED swatch and that ring never dismisses on mousemove —
+     which the eye reads as "this swatch keeps reacting to my hover."
+     Keyboard-only focus is restored explicitly via :focus-visible
+     below so accessibility isn't lost. */
+  outline: none;
   transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
 }
 .pf-accent-swatch:hover:not(:disabled) {
+  /* Hover = "you're pointing at this": prominent scale + ring.
+     Distinct visual signature from the ACTIVE state below so the
+     two never look like they're animating in lockstep. */
   transform: scale(1.1);
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.pf-accent-swatch:focus-visible {
+  /* Keyboard-only focus indicator. :focus-visible never matches on
+     mouse-click in modern browsers, so this only fires when the user
+     tabbed to the swatch — which is exactly when they need a clear
+     ring. Uses an offset outline so it sits OUTSIDE the swatch's own
+     border, keeping it visually distinct from the active state's
+     subtle border-ring + checkmark. */
+  outline: 2px dashed rgba(255, 255, 255, 0.7);
+  outline-offset: 3px;
 }
 .pf-accent-swatch-active {
-  border-color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+  /* Active = "this is your current pick": a bolder GLYPH inside (✓
+     instead of the unlocked dot — handled in details_form.js) plus
+     a subtle outline. NO scale, NO heavy white ring — those are the
+     hover state's visual signatures, and reusing them here makes
+     hovering one swatch look like it's animating another. */
+  border-color: rgba(255, 255, 255, 0.35);
+  /* The ✓ glyph itself does most of the "this is selected" work,
+     so the chrome can stay quiet. */
+  color: rgba(0, 0, 0, 0.75);
+  font-size: 16px;
+  font-weight: 700;
 }
 .pf-accent-swatch-locked {
   cursor: not-allowed;

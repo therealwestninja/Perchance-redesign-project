@@ -22885,15 +22885,44 @@ Use this template for your response:
     color: rgba(0, 0, 0, 0.5);
     font-size: 13px;
     padding: 0;
+    /* Kill the browser's default click-focus outline. Without this, the
+       browser draws a thick blue/system-accent ring around the LAST-
+       CLICKED swatch and that ring never dismisses on mousemove —
+       which the eye reads as "this swatch keeps reacting to my hover."
+       Keyboard-only focus is restored explicitly via :focus-visible
+       below so accessibility isn't lost. */
+    outline: none;
     transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
   }
   .pf-accent-swatch:hover:not(:disabled) {
+    /* Hover = "you're pointing at this": prominent scale + ring.
+       Distinct visual signature from the ACTIVE state below so the
+       two never look like they're animating in lockstep. */
     transform: scale(1.1);
-    border-color: rgba(255, 255, 255, 0.35);
+    border-color: rgba(255, 255, 255, 0.55);
+  }
+  .pf-accent-swatch:focus-visible {
+    /* Keyboard-only focus indicator. :focus-visible never matches on
+       mouse-click in modern browsers, so this only fires when the user
+       tabbed to the swatch — which is exactly when they need a clear
+       ring. Uses an offset outline so it sits OUTSIDE the swatch's own
+       border, keeping it visually distinct from the active state's
+       subtle border-ring + checkmark. */
+    outline: 2px dashed rgba(255, 255, 255, 0.7);
+    outline-offset: 3px;
   }
   .pf-accent-swatch-active {
-    border-color: rgba(255, 255, 255, 0.85);
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+    /* Active = "this is your current pick": a bolder GLYPH inside (✓
+       instead of the unlocked dot — handled in details_form.js) plus
+       a subtle outline. NO scale, NO heavy white ring — those are the
+       hover state's visual signatures, and reusing them here makes
+       hovering one swatch look like it's animating another. */
+    border-color: rgba(255, 255, 255, 0.35);
+    /* The ✓ glyph itself does most of the "this is selected" work,
+       so the chrome can stay quiet. */
+    color: rgba(0, 0, 0, 0.75);
+    font-size: 16px;
+    font-weight: 700;
   }
   .pf-accent-swatch-locked {
     cursor: not-allowed;
@@ -29604,6 +29633,23 @@ Use this template for your response:
     // their unlock hint in the title attribute. Click an unlocked one
     // to set it; click the active one again to clear back to auto.
     const accents = getAccents(stats, unlockedIds);
+
+    // Pick the inner glyph for a swatch based on its state.
+    //   locked         → 🔒
+    //   active (picked)→ ✓   ('this is what you currently have')
+    //   unlocked       → ●   ('this is available')
+    // Three distinct glyphs make the "active vs hover" question
+    // unambiguous. Previously all unlocked swatches showed ● and
+    // active state was conveyed only by a thicker white ring —
+    // that ring read too similarly to the hover ring, which made
+    // it look like hovering one swatch animated another (the
+    // permanently-active one).
+    function glyphFor(isUnlocked, isActive) {
+      if (!isUnlocked) return '🔒';
+      if (isActive)   return '✓';
+      return '●';
+    }
+
     const accentSwatches = h('div', { class: 'pf-accent-row' },
       accents.map(a => {
         const isActive = currentFlair.accent === a.id ||
@@ -29640,11 +29686,28 @@ Use this template for your response:
               const swatch = accentSwatches.children[i];
               if (!swatch) continue;
               swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
+              // Re-glyph too, otherwise the previously-active swatch keeps
+              // its ✓ and the newly-active one keeps its ● — class swap
+              // would be the only signal, which is exactly what we're
+              // moving away from.
+              const innerSpan = swatch.firstChild;
+              if (innerSpan && innerSpan.tagName === 'SPAN') {
+                innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+              }
             }
             currentFlair.accent = nextVal;
+            // Blur the clicked button. Even with our explicit
+            // outline:none + :focus-visible-only ring, some browsers
+            // briefly paint a click-focus indicator before the next
+            // mousemove / click clears it. Calling blur() puts the
+            // page back to a no-focus state immediately, so the user
+            // never sees a stale ring on the swatch they just picked.
+            // Keyboard activation still focuses it correctly because
+            // Enter/Space-on-button keeps focus before invoking onClick.
+            try { btn.blur(); } catch { /* non-fatal */ }
           },
         }, [
-          h('span', { 'aria-hidden': 'true' }, [a.isUnlocked ? '●' : '🔒']),
+          h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
         ]);
         return btn;
       })
@@ -29678,9 +29741,13 @@ Use this template for your response:
       row('Username',     usernameInput),
       row('Title',        titleSelect),
       row('Custom title', titleInput),
-      row('Accent',       accentSwatches),
+      // Multi-control rows below use groupRow (a <div role="group">) so
+      // the wrapping element doesn't implicitly associate with the first
+      // child control — which would propagate :hover to it from anywhere
+      // in the row.
+      groupRow('Accent',  accentSwatches),
       row('Age range',    ageSelect),
-      row('Gender',       h('div', { class: 'pf-field-stack' }, [
+      groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
         genderSquare,
         genderCustomInput,
       ])),
@@ -29692,6 +29759,25 @@ Use this template for your response:
 
   function row(labelText, control) {
     return h('label', { class: 'pf-field-row' }, [
+      h('span', { class: 'pf-field-label' }, [labelText]),
+      control,
+    ]);
+  }
+
+  /**
+   * Like row(), but for multi-control groups (accent picker, gender
+   * options, etc.). Uses a <div role="group"> instead of <label>
+   * because <label>-wrapping a row of N buttons makes the FIRST button
+   * the label's implicit target — every :hover inside the label fires
+   * :hover on that first button too. (Same behavior is what makes
+   * clicking a <label> focus its associated input — fine for single-
+   * control rows, broken for picker rows.)
+   *
+   * Visually identical to row() — same .pf-field-row class, same
+   * .pf-field-label span. Only the wrapper element changes.
+   */
+  function groupRow(labelText, control) {
+    return h('div', { class: 'pf-field-row', role: 'group', 'aria-label': labelText }, [
       h('span', { class: 'pf-field-label' }, [labelText]),
       control,
     ]);

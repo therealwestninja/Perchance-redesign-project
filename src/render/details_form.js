@@ -9,8 +9,9 @@ import { getInitialFromName } from '../utils/format.js';
 import { updateField, loadSettings, AGE_RANGE_OPTIONS } from '../profile/settings_store.js';
 import { createGenderSquare } from './gender_square.js';
 import { checkImageFile, resizeImageToDataURL } from '../utils/image.js';
+import { getAvailableTitles, getAccents } from '../profile/flair.js';
 
-export function createDetailsBody({ profile = {} }) {
+export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} } = {}) {
   // ---- avatar upload ----
   const avatarControl = createAvatarControl({ initialUrl: profile.avatarUrl });
 
@@ -34,15 +35,128 @@ export function createDetailsBody({ profile = {} }) {
   });
   usernameInput.value = String(profile.username || '');
 
-  // ---- title override ----
+  // ---- title: free-text override OR pick from unlocked achievements ----
+  //
+  // Previously this was a single text input ("type whatever" or fall
+  // back to auto-rarest). Now the user also sees a dropdown of titles
+  // they've actually earned, letting them wear a specific achievement
+  // instead of accepting the auto pick. Free text still wins if both
+  // are set (documented in flair.js#resolveActiveTitle).
+  const currentFlair = (profile.flair && typeof profile.flair === 'object')
+    ? profile.flair
+    : { title: null, accent: null };
+
+  const availableTitles = getAvailableTitles(unlockedIds);
+  const titleSelect = h('select', {
+    class: 'pf-field-input',
+    onChange: (ev) => {
+      const v = ev.target.value;
+      updateField('profile.flair.title', v || null);
+    },
+  }, [
+    h('option', { value: '' }, ['Auto (rarest unlocked)']),
+    ...availableTitles.map(t =>
+      h('option', {
+        value: t.id,
+        selected: t.id === currentFlair.title,
+      }, [`${t.name} (${t.tier})`])
+    ),
+  ]);
+
   const titleInput = h('input', {
     class: 'pf-field-input',
     type: 'text',
     maxlength: '40',
-    placeholder: 'Leave blank for auto (rarest achievement)',
+    placeholder: 'Or type a custom title (overrides the picker)',
     onBlur: (ev) => updateField('profile.titleOverride', ev.target.value.trim()),
   });
   titleInput.value = String(profile.titleOverride || '');
+
+  // ---- accent: themed color unlocked by achievement tiers ----
+  //
+  // Rendered as a row of swatches. Locked accents appear greyed with
+  // their unlock hint in the title attribute. Click an unlocked one
+  // to set it; click the active one again to clear back to auto.
+  const accents = getAccents(stats, unlockedIds);
+
+  // Pick the inner glyph for a swatch based on its state.
+  //   locked         → 🔒
+  //   active (picked)→ ✓   ('this is what you currently have')
+  //   unlocked       → ●   ('this is available')
+  // Three distinct glyphs make the "active vs hover" question
+  // unambiguous. Previously all unlocked swatches showed ● and
+  // active state was conveyed only by a thicker white ring —
+  // that ring read too similarly to the hover ring, which made
+  // it look like hovering one swatch animated another (the
+  // permanently-active one).
+  function glyphFor(isUnlocked, isActive) {
+    if (!isUnlocked) return '🔒';
+    if (isActive)   return '✓';
+    return '●';
+  }
+
+  const accentSwatches = h('div', { class: 'pf-accent-row' },
+    accents.map(a => {
+      const isActive = currentFlair.accent === a.id ||
+        (!currentFlair.accent && a.id === 'amber');
+      const btn = h('button', {
+        type: 'button',
+        class: [
+          'pf-accent-swatch',
+          isActive ? 'pf-accent-swatch-active' : '',
+          a.isUnlocked ? '' : 'pf-accent-swatch-locked',
+        ].filter(Boolean).join(' '),
+        'aria-label': a.isUnlocked
+          ? `Accent: ${a.label}${isActive ? ' (active)' : ''}`
+          : `Locked: ${a.description}`,
+        title: a.isUnlocked
+          ? `${a.label} — ${a.description}`
+          : `🔒 ${a.description}`,
+        disabled: !a.isUnlocked,
+        style: `--pf-accent-preview:${a.color};`,
+        onClick: () => {
+          if (!a.isUnlocked) return;
+          // Toggle: if clicked accent is already active, clear back to
+          // amber (null). Otherwise activate it.
+          const nextVal = (currentFlair.accent === a.id) ? null : a.id;
+          updateField('profile.flair.accent', nextVal);
+          // Re-render swatches in place to update active state. Quick
+          // rebuild rather than full form re-render so input focus
+          // isn't stolen from neighboring fields.
+          const updated = accents.map(x => ({
+            ...x,
+            _active: nextVal === x.id || (!nextVal && x.id === 'amber'),
+          }));
+          for (let i = 0; i < updated.length; i++) {
+            const swatch = accentSwatches.children[i];
+            if (!swatch) continue;
+            swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
+            // Re-glyph too, otherwise the previously-active swatch keeps
+            // its ✓ and the newly-active one keeps its ● — class swap
+            // would be the only signal, which is exactly what we're
+            // moving away from.
+            const innerSpan = swatch.firstChild;
+            if (innerSpan && innerSpan.tagName === 'SPAN') {
+              innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+            }
+          }
+          currentFlair.accent = nextVal;
+          // Blur the clicked button. Even with our explicit
+          // outline:none + :focus-visible-only ring, some browsers
+          // briefly paint a click-focus indicator before the next
+          // mousemove / click clears it. Calling blur() puts the
+          // page back to a no-focus state immediately, so the user
+          // never sees a stale ring on the swatch they just picked.
+          // Keyboard activation still focuses it correctly because
+          // Enter/Space-on-button keeps focus before invoking onClick.
+          try { btn.blur(); } catch { /* non-fatal */ }
+        },
+      }, [
+        h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
+      ]);
+      return btn;
+    })
+  );
 
   // ---- age range ----
   const ageSelect = h('select', {
@@ -70,9 +184,15 @@ export function createDetailsBody({ profile = {} }) {
     row('Avatar',       avatarControl),
     row('Display name', displayNameInput),
     row('Username',     usernameInput),
-    row('Title',        titleInput),
+    row('Title',        titleSelect),
+    row('Custom title', titleInput),
+    // Multi-control rows below use groupRow (a <div role="group">) so
+    // the wrapping element doesn't implicitly associate with the first
+    // child control — which would propagate :hover to it from anywhere
+    // in the row.
+    groupRow('Accent',  accentSwatches),
     row('Age range',    ageSelect),
-    row('Gender',       h('div', { class: 'pf-field-stack' }, [
+    groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
       genderSquare,
       genderCustomInput,
     ])),
@@ -84,6 +204,25 @@ export function createDetailsBody({ profile = {} }) {
 
 function row(labelText, control) {
   return h('label', { class: 'pf-field-row' }, [
+    h('span', { class: 'pf-field-label' }, [labelText]),
+    control,
+  ]);
+}
+
+/**
+ * Like row(), but for multi-control groups (accent picker, gender
+ * options, etc.). Uses a <div role="group"> instead of <label>
+ * because <label>-wrapping a row of N buttons makes the FIRST button
+ * the label's implicit target — every :hover inside the label fires
+ * :hover on that first button too. (Same behavior is what makes
+ * clicking a <label> focus its associated input — fine for single-
+ * control rows, broken for picker rows.)
+ *
+ * Visually identical to row() — same .pf-field-row class, same
+ * .pf-field-label span. Only the wrapper element changes.
+ */
+function groupRow(labelText, control) {
+  return h('div', { class: 'pf-field-row', role: 'group', 'aria-label': labelText }, [
     h('span', { class: 'pf-field-label' }, [labelText]),
     control,
   ]);
