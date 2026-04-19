@@ -144,6 +144,67 @@ export async function openFullPage() {
     const { countEventsResponded } = await import('../events/participation.js');
     stats.eventsResponded = countEventsResponded();
   } catch { stats.eventsResponded = 0; }
+
+  /**
+   * Rebuild a FRESH stats bundle for mid-session refreshes (splash
+   * redraw after a new unlock, share-dialog open, accent repaint,
+   * etc.). Starts from the init-time `stats` (which carries IDB-
+   * derived + prompt-derived data that doesn't change mid-session)
+   * and re-reads the mutable fields from their sources.
+   *
+   * Every achievement criterion that reads `stats.<x>` for a mutable
+   * source must be represented here, otherwise refresh paths will
+   * silently read stale values and criteria won't re-fire on a
+   * threshold crossing.
+   *
+   * This consolidation is deliberate: previously each refresh site
+   * re-inlined the fresh-read logic and any new stat source risked
+   * being added to some sites and not others. Keeping all refresh
+   * paths routed through this helper means "add a new stat" is a
+   * one-file change.
+   *
+   * @returns {object} merged stats bundle ready to pass to
+   *                   computeUnlockedIds or getPrimaryArchetype
+   */
+  async function buildFreshStats() {
+    const fresh = { ...stats };
+    try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
+    try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
+    try {
+      const { countEventsResponded } = await import('../events/participation.js');
+      fresh.eventsResponded = countEventsResponded();
+    } catch { fresh.eventsResponded = stats.eventsResponded || 0; }
+    // Future fields go here. Any new mutable stat source referenced
+    // by an achievement criterion (or by getPrimaryArchetype) should
+    // be re-read from its source right here; otherwise refresh sites
+    // pick up whatever stale value was in `stats` at openFullPage time.
+    return fresh;
+  }
+
+  /**
+   * Sync variant of buildFreshStats for use in sync handlers where
+   * `await` would be disruptive (e.g. accent repaint on settings-
+   * change, which fires many times per session). Reads the cheap
+   * localStorage-backed stats synchronously and carries forward the
+   * LAST-KNOWN value of any async-derived field (currently
+   * eventsResponded) from `stats`. Call sites that genuinely need
+   * a just-fetched eventsResponded should use the async form.
+   *
+   * @returns {object}
+   */
+  function buildFreshStatsSync() {
+    const fresh = { ...stats };
+    try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
+    try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
+    // eventsResponded is async (dynamic-imported participation.js) so
+    // we carry the init-time value; callers that change event state
+    // (completing a prompt in the profile) should use buildFreshStats()
+    // instead. The TYPICAL sync-path caller (accent / title repaint
+    // on a flair change) doesn't mutate events, so stale is safe.
+    fresh.eventsResponded = stats.eventsResponded || 0;
+    return fresh;
+  }
+
   try {
     unlockedIds = computeUnlockedIds(stats);
   } catch {
@@ -245,31 +306,19 @@ export async function openFullPage() {
       // Dynamic import so the share machinery loads only when the
       // user asks for it — keeps the cold-start cost of the profile
       // overlay down for the common case where nobody shares.
-      import('../render/share_dialog.js').then((mod) => {
+      import('../render/share_dialog.js').then(async (mod) => {
         // Derive the latest-display view-model from freshest settings +
         // stats — the card should reflect the user's current state
         // (flair pick, archetype, accent), not the init-time snapshot.
         let freshSettings = settings;
         try { freshSettings = loadSettings(); } catch { /* keep stale */ }
         let freshUnlocked = unlockedIds;
+        let freshArchetype = null;
         try {
-          const archeStats = {
-            ...stats,
-            counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-            streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-          };
-          freshUnlocked = computeUnlockedIds(archeStats);
+          const freshStats = await buildFreshStats();
+          freshUnlocked = computeUnlockedIds(freshStats);
+          try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
         } catch { /* fall back */ }
-        const freshArchetype = (() => {
-          try {
-            const archeStats = {
-              ...stats,
-              counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-              streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-            };
-            return getPrimaryArchetype(archeStats);
-          } catch { return null; }
-        })();
         const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
         const p = (freshSettings && freshSettings.profile) || {};
         mod.openShareDialog({
@@ -301,9 +350,14 @@ export async function openFullPage() {
     // crossed an achievement threshold.
     let freshUnlocked = unlockedIds;
     try {
-      const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
-      const freshStreaks  = (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })();
-      const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters, streaks: freshStreaks };
+      // Prompt-stats change mid-session when the user checks a prompt
+      // inside the profile, so fold them in from freshSettings. The
+      // rest of the bundle (counters/streaks/eventsResponded) comes
+      // from the helper. Sync form is fine here — this runs on every
+      // settings-changed event (many times/session) and eventsResponded
+      // doesn't shift without an explicit event-prompt completion,
+      // which the splash-refresh path doesn't perform.
+      const freshStats = { ...buildFreshStatsSync(), ...computePromptStats(freshSettings) };
       freshUnlocked = computeUnlockedIds(freshStats);
     } catch { /* fall back to initial unlock list */ }
 
@@ -312,12 +366,7 @@ export async function openFullPage() {
     // reflects live in the splash.
     let freshArchetype = null;
     try {
-      const archeStats = {
-        ...stats,
-        counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-        streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-      };
-      freshArchetype = getPrimaryArchetype(archeStats);
+      freshArchetype = getPrimaryArchetype(buildFreshStatsSync());
     } catch { /* non-fatal */ }
 
     splash.update({
@@ -522,11 +571,7 @@ export async function openFullPage() {
     try { freshSettings = loadSettings(); } catch { /* keep stale */ }
     let freshUnlocked = unlockedIds;
     try {
-      freshUnlocked = computeUnlockedIds({
-        ...stats,
-        counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-        streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-      });
+      freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
     } catch { /* fall back */ }
     const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
     overlay.style.setProperty('--pf-accent', accent.color);

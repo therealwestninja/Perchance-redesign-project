@@ -13,6 +13,37 @@ export const CSS = `
    Perchance Redesign Project — mini-card + (future) modal styles
    ============================================================ */
 
+/*
+ * Palette tokens. Global :root scope so every component — mini-card
+ * (outside overlay), splash, toasts, overlay content — resolves the
+ * same values. A theme overhaul only needs to touch this block.
+ *
+ * The *-rgb variants expose R, G, B as comma-separated numbers
+ * so rgba() can consume them: rgba(var(--pf-palette-amber-rgb), 0.5).
+ * Pair the *-rgb tokens with the hex tokens to support both usage
+ * patterns.
+ *
+ * Do NOT introduce new raw hex/rgba values elsewhere in this
+ * stylesheet. Add them here first, then reference the var from
+ * the rule site.
+ */
+:root {
+  --pf-palette-amber:       #d8b36a;
+  --pf-palette-amber-rgb:   216, 179, 106;
+  --pf-palette-amber-deep:  #b9894a;   /* gradient partner for amber */
+
+  --pf-palette-blue:        #4a90e2;
+  --pf-palette-red:         #d87a7a;
+  --pf-palette-red-rgb:     216, 122, 122;
+  --pf-palette-green:       #6ab87c;
+
+  --pf-bg-dark:             #1e1e1e;
+
+  /* Commonly-used neutral overlays */
+  --pf-overlay-dark-18:     rgba(0, 0, 0, 0.18);
+  --pf-overlay-dark-25:     rgba(0, 0, 0, 0.25);
+}
+
 .pf-mini-card {
   display: flex;
   align-items: center;
@@ -37,7 +68,7 @@ export const CSS = `
   transform: translateY(1px);
 }
 .pf-mini-card:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 
@@ -64,13 +95,13 @@ export const CSS = `
 }
 .pf-memory-button:hover {
   background: var(--box-color-hover, var(--box-color));
-  border-color: rgba(216, 179, 106, 0.4);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
 }
 .pf-memory-button:active {
   transform: translateY(1px);
 }
 .pf-memory-button:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 .pf-memory-button-icon {
@@ -158,7 +189,7 @@ export const CSS = `
   /* Warm gold accent — chosen to read well on both dark and light themes.
      Not theme-var-driven on purpose: this is the single "game accent" the
      project adds, and keeping it constant makes the UI recognizably ours. */
-  background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
   border-radius: 2px;
   transition: width 0.35s ease;
 }
@@ -184,8 +215,8 @@ export const CSS = `
    ============================================================ */
 
 @keyframes pf-mini-pending-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(216, 179, 106, 0); }
-  50%      { box-shadow: 0 0 10px 1px rgba(216, 179, 106, 0.28); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--pf-palette-amber-rgb), 0); }
+  50%      { box-shadow: 0 0 10px 1px rgba(var(--pf-palette-amber-rgb), 0.28); }
 }
 
 @keyframes pf-mini-pending-dot-pulse {
@@ -195,12 +226,12 @@ export const CSS = `
 
 .pf-mini-card-pending {
   animation: pf-mini-pending-pulse 3.5s ease-in-out infinite;
-  border-color: rgba(216, 179, 106, 0.35);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
 }
 .pf-mini-card-pending:hover {
   /* On hover, settle the glow — we've got their attention, stop waving */
   animation: none;
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 
 .pf-mini-avatar-has-dot {
@@ -214,9 +245,9 @@ export const CSS = `
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #d8b36a;
+  background: var(--pf-palette-amber);
   border: 2px solid var(--box-color, var(--background));
-  box-shadow: 0 0 4px 1px rgba(216, 179, 106, 0.5);
+  box-shadow: 0 0 4px 1px rgba(var(--pf-palette-amber-rgb), 0.5);
   animation: pf-mini-pending-dot-pulse 2.2s ease-in-out infinite;
   pointer-events: none;
 }
@@ -286,7 +317,7 @@ export const CSS = `
 }
 .pf-overlay-close:hover { background: var(--box-color-hover, var(--box-color)); }
 .pf-overlay-close:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 2px;
 }
 
@@ -317,8 +348,8 @@ export const CSS = `
   height: 88px;
   border-radius: 50%;
   background: var(--button-bg);
-  border: 2px solid #d8b36a;
-  box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--pf-palette-amber);
+  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -330,7 +361,7 @@ export const CSS = `
   font-size: 44px;
   font-weight: 600;
   line-height: 1;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
 }
 
 .pf-splash-ident {
@@ -351,7 +382,7 @@ export const CSS = `
   font-style: italic;
   font-size: 14px;
   opacity: 0.75;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
 }
 
 /* Archetype tag — small pill under the title. Only present when the
@@ -370,8 +401,8 @@ export const CSS = `
   padding: 2px 9px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.22);
-  color: var(--pf-accent, #d8b36a);
-  border: 1px solid var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
+  border: 1px solid var(--pf-accent, var(--pf-palette-amber));
   opacity: 0.85;
 }
 
@@ -383,13 +414,13 @@ export const CSS = `
 .pf-splash-level {
   flex-shrink: 0;
   padding: 4px 10px;
-  border: 1px solid rgba(216, 179, 106, 0.45);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.45);
   border-radius: 999px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   background: rgba(185, 137, 74, 0.08);
 }
 .pf-splash-level-word { opacity: 0.7; }
@@ -401,11 +432,11 @@ export const CSS = `
   background: rgba(127, 127, 127, 0.18);
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid rgba(216, 179, 106, 0.2);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.2);
 }
 .pf-splash-xpbar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
   transition: width 0.4s ease;
 }
 .pf-splash-xp-label {
@@ -427,12 +458,12 @@ export const CSS = `
   height: 36px;
   border-radius: 8px;
   background: rgba(185, 137, 74, 0.12);
-  border: 1px solid rgba(216, 179, 106, 0.35);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
 }
 .pf-splash-badge-locked {
   background: transparent;
@@ -468,11 +499,11 @@ export const CSS = `
 }
 .pf-splash-share:hover {
   opacity: 1;
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   transform: scale(1.05);
 }
 .pf-splash-share:focus-visible {
-  outline: 2px solid rgba(216, 179, 106, 0.55);
+  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
   outline-offset: 1px;
   opacity: 1;
 }
@@ -555,9 +586,9 @@ export const CSS = `
 .pf-overlay-focused .pf-splash,
 .pf-overlay-focused .pf-focus-extras {
   box-shadow:
-    0 0 0 1px rgba(216, 179, 106, 0.15),
+    0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.15),
     0 20px 60px -10px rgba(0, 0, 0, 0.65),
-    0 4px 20px rgba(216, 179, 106, 0.08);
+    0 4px 20px rgba(var(--pf-palette-amber-rgb), 0.08);
 }
 .pf-overlay-focused .pf-splash {
   padding: 36px 32px 28px;
@@ -636,7 +667,7 @@ export const CSS = `
 .pf-share-chip-icon-uncommon  { color: #6aa66a; }
 .pf-share-chip-icon-rare      { color: #6aa0d8; }
 .pf-share-chip-icon-epic      { color: #b67ad8; }
-.pf-share-chip-icon-legendary { color: #d8b36a; }
+.pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
 /* Activity sparkline — last 12 weeks of completions, Focus mode only */
 .pf-sparkline {
@@ -656,10 +687,10 @@ export const CSS = `
   fill: rgba(255, 255, 255, 0.04);
 }
 .pf-sparkline-bar {
-  fill: rgba(216, 179, 106, 0.55);
+  fill: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 .pf-sparkline-bar-current {
-  fill: #d8b36a;
+  fill: var(--pf-palette-amber);
 }
 .pf-sparkline-label {
   font-family: inherit;
@@ -671,7 +702,7 @@ export const CSS = `
   opacity: 0.55;
 }
 .pf-sparkline-label-right {
-  fill: #d8b36a;
+  fill: var(--pf-palette-amber);
   opacity: 1;
 }
 
@@ -730,13 +761,13 @@ export const CSS = `
 }
 .pf-section-ctrl:hover { opacity: 1; background: var(--box-color-hover, var(--button-bg)); }
 .pf-section-ctrl:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 .pf-section-eye[aria-pressed="true"] {
   opacity: 1;
   background: rgba(185, 137, 74, 0.12);
-  border-color: rgba(216, 179, 106, 0.45);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
 }
 
 .pf-section-body-wrap {
@@ -763,7 +794,7 @@ export const CSS = `
   -webkit-backdrop-filter: blur(1px);
 }
 .pf-section-cover:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
 }
 
 .pf-section-blurred .pf-section-body {
@@ -799,7 +830,7 @@ export const CSS = `
 }
 .pf-about-textarea:focus {
   outline: none;
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 .pf-about-counter {
   align-self: flex-end;
@@ -844,7 +875,7 @@ export const CSS = `
 }
 .pf-field-input:focus {
   outline: none;
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
 
@@ -872,8 +903,8 @@ export const CSS = `
   height: 64px;
   border-radius: 50%;
   background: var(--button-bg);
-  border: 2px solid #d8b36a;
-  box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25);
+  border: 2px solid var(--pf-palette-amber);
+  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -886,7 +917,7 @@ export const CSS = `
   font-size: 30px;
   font-weight: 600;
   line-height: 1;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
 }
 .pf-avatar-buttons {
   grid-column: 2;
@@ -908,10 +939,10 @@ export const CSS = `
   transition: border-color 0.15s, opacity 0.15s;
 }
 .pf-avatar-btn:hover {
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 .pf-avatar-btn:focus-visible {
-  outline: 2px solid rgba(216, 179, 106, 0.55);
+  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
   outline-offset: 1px;
 }
 .pf-avatar-btn-secondary {
@@ -937,7 +968,7 @@ export const CSS = `
   opacity: 1;
 }
 .pf-avatar-status-info {
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   opacity: 1;
 }
 
@@ -961,7 +992,7 @@ export const CSS = `
   width: 100%;
   height: 100%;
   background:
-    linear-gradient(180deg, rgba(216, 179, 106, 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
+    linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
     var(--textarea-bg, var(--background));
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -976,7 +1007,7 @@ export const CSS = `
   background-repeat: no-repeat;
 }
 .pf-gs-field:focus {
-  outline: 2px solid rgba(216, 179, 106, 0.55);
+  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
   outline-offset: 2px;
 }
 
@@ -985,9 +1016,9 @@ export const CSS = `
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #d8b36a;
+  background: var(--pf-palette-amber);
   border: 2px solid var(--box-color);
-  box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
   pointer-events: none;
   transition: transform 0.05s;
@@ -1024,7 +1055,7 @@ export const CSS = `
 .pf-cadence-toggle {
   display: inline-flex;
   flex-shrink: 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   border: 1px solid var(--border-color);
   border-radius: 999px;
   padding: 2px;
@@ -1048,8 +1079,8 @@ export const CSS = `
   opacity: 0.9;
 }
 .pf-cadence-btn-active {
-  background: rgba(216, 179, 106, 0.18);
-  color: #d8b36a;
+  background: rgba(var(--pf-palette-amber-rgb), 0.18);
+  color: var(--pf-palette-amber);
   opacity: 1;
 }
 
@@ -1062,8 +1093,8 @@ export const CSS = `
   gap: 10px;
 }
 .pf-event-group {
-  background: linear-gradient(180deg, rgba(216, 179, 106, 0.07) 0%, rgba(216, 179, 106, 0.03) 100%);
-  border: 1px solid rgba(216, 179, 106, 0.30);
+  background: linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.07) 0%, rgba(var(--pf-palette-amber-rgb), 0.03) 100%);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.30);
   border-radius: var(--border-radius);
   padding: 12px 14px;
 }
@@ -1088,7 +1119,7 @@ export const CSS = `
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   margin-bottom: 2px;
 }
 .pf-event-tagline {
@@ -1136,7 +1167,7 @@ export const CSS = `
 }
 .pf-prompt-item:hover {
   background: rgba(185, 137, 74, 0.06);
-  border-color: rgba(216, 179, 106, 0.25);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.25);
 }
 .pf-prompt-item-done {
   opacity: 0.55;
@@ -1155,7 +1186,7 @@ export const CSS = `
   margin-top: 2px;
   width: 16px;
   height: 16px;
-  accent-color: #d8b36a;
+  accent-color: var(--pf-palette-amber);
   cursor: pointer;
 }
 
@@ -1167,7 +1198,7 @@ export const CSS = `
 }
 .pf-prompt-item-done .pf-prompt-text {
   text-decoration: line-through;
-  text-decoration-color: rgba(216, 179, 106, 0.5);
+  text-decoration-color: rgba(var(--pf-palette-amber-rgb), 0.5);
   text-decoration-thickness: 1px;
 }
 
@@ -1201,7 +1232,7 @@ export const CSS = `
 }
 .pf-chron-num { font-weight: 600; }
 .pf-chron-denom { opacity: 0.55; font-size: 14px; }
-.pf-chron-value-maxed .pf-chron-denom { color: #d8b36a; opacity: 1; }
+.pf-chron-value-maxed .pf-chron-denom { color: var(--pf-palette-amber); opacity: 1; }
 .pf-chron-bar {
   height: 3px;
   background: rgba(127, 127, 127, 0.15);
@@ -1210,7 +1241,7 @@ export const CSS = `
 }
 .pf-chron-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
   border-radius: 2px;
   transition: width 0.4s;
 }
@@ -1248,14 +1279,14 @@ export const CSS = `
 
 /* The filled data polygon — warm gold, low alpha so grid shows through */
 .pf-radar-value-fill {
-  fill: rgba(216, 179, 106, 0.22);
-  stroke: #d8b36a;
+  fill: rgba(var(--pf-palette-amber-rgb), 0.22);
+  stroke: var(--pf-palette-amber);
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
 /* Vertex dots where the user's values land */
 .pf-radar-value-dot {
-  fill: #d8b36a;
+  fill: var(--pf-palette-amber);
   stroke: var(--box-color);
   stroke-width: 1.5;
 }
@@ -1291,7 +1322,7 @@ export const CSS = `
   letter-spacing: 0.05em;
 }
 .pf-radar-readout-value {
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   font-weight: 600;
 }
 
@@ -1335,7 +1366,7 @@ export const CSS = `
   flex-direction: column;
   gap: 6px;
   padding: 12px 14px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
 }
@@ -1356,7 +1387,7 @@ export const CSS = `
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   font-weight: 600;
 }
 .pf-archive-week-range {
@@ -1366,7 +1397,7 @@ export const CSS = `
 .pf-archive-week-count {
   font-size: 11px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   flex-shrink: 0;
 }
 .pf-archive-week-count-none {
@@ -1397,7 +1428,7 @@ export const CSS = `
   opacity: 0.4;
 }
 .pf-archive-item-done .pf-archive-check {
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   opacity: 1;
   font-weight: 600;
 }
@@ -1423,7 +1454,7 @@ export const CSS = `
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
-  color: #d8b36a;
+  color: var(--pf-palette-amber);
   opacity: 0.85;
 }
 .pf-archive-event-icon {
@@ -1447,8 +1478,8 @@ export const CSS = `
   transition: background 0.15s, border-color 0.15s;
 }
 .pf-archive-load-more:hover {
-  background: rgba(216, 179, 106, 0.08);
-  border-color: rgba(216, 179, 106, 0.45);
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
 }
 .pf-archive-end {
   align-self: center;
@@ -1495,8 +1526,8 @@ export const CSS = `
   transition: background 0.15s, border-color 0.15s;
 }
 .pf-backup-btn:hover {
-  background: rgba(216, 179, 106, 0.08);
-  border-color: rgba(216, 179, 106, 0.45);
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
 }
 .pf-backup-panel {
   display: flex;
@@ -1504,7 +1535,7 @@ export const CSS = `
   gap: 10px;
   margin-top: 4px;
   padding: 14px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
 }
@@ -1530,7 +1561,7 @@ export const CSS = `
 }
 .pf-backup-textarea:focus {
   outline: none;
-  border-color: rgba(216, 179, 106, 0.55);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
 }
 .pf-backup-actionbar {
   display: flex;
@@ -1550,8 +1581,8 @@ export const CSS = `
   cursor: pointer;
 }
 .pf-backup-action:hover {
-  background: rgba(216, 179, 106, 0.1);
-  border-color: rgba(216, 179, 106, 0.45);
+  background: rgba(var(--pf-palette-amber-rgb), 0.1);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
 }
 .pf-backup-action-danger {
   border-color: rgba(220, 80, 80, 0.45);
@@ -1611,7 +1642,7 @@ export const CSS = `
   cursor: default;
 }
 .pf-ach-card:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 .pf-ach-icon { font-size: 22px; line-height: 1; }
@@ -1643,11 +1674,11 @@ export const CSS = `
 .pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
 .pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
 .pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
-.pf-ach-tier-legendary .pf-ach-icon { color: #d8b36a; }
+.pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-palette-amber); }
 
 .pf-ach-unlocked {
   background: rgba(185, 137, 74, 0.04);
-  border-color: rgba(216, 179, 106, 0.20);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.20);
 }
 
 /* ---- Description line on cards (new in categorized view) ---- */
@@ -1695,10 +1726,10 @@ export const CSS = `
 }
 .pf-ach-tab-active {
   opacity: 1;
-  background: rgba(216, 179, 106, 0.08);
-  border-color: var(--pf-accent, rgba(216, 179, 106, 0.45));
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
+  border-color: var(--pf-accent, rgba(var(--pf-palette-amber-rgb), 0.45));
   border-bottom-color: transparent;
-  color: var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-ach-tab-icon {
   font-size: 13px;
@@ -1746,7 +1777,7 @@ export const CSS = `
 .pf-ach-pane-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-ach-pane-count {
   font-size: 12px;
@@ -1791,7 +1822,7 @@ export const CSS = `
 .pf-ach-summary-count {
   font-size: 13px;
   font-weight: 600;
-  color: var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-ach-prog-list {
   display: flex;
@@ -1823,7 +1854,7 @@ export const CSS = `
 /* ---- Progress bars (reused for summary overall + per-category + pane head) ---- */
 .pf-ach-prog-bar {
   height: 6px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -1833,7 +1864,7 @@ export const CSS = `
 }
 .pf-ach-prog-bar-fill {
   height: 100%;
-  background: var(--pf-accent, #d8b36a);
+  background: var(--pf-accent, var(--pf-palette-amber));
   transition: width 0.25s;
   border-radius: inherit;
   min-width: 0;
@@ -1936,13 +1967,13 @@ export const CSS = `
   font-weight: 600;
 }
 
-.pf-mem-col-title-danger { color: #d87a7a; }
+.pf-mem-col-title-danger { color: var(--pf-palette-red); }
 
 .pf-mem-col-count {
   font-size: 12px;
   padding: 1px 8px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   opacity: 0.85;
 }
 
@@ -1954,14 +1985,14 @@ export const CSS = `
 }
 
 .pf-mem-col-drop-over {
-  outline: 2px dashed var(--link-color, #4a90e2);
+  outline: 2px dashed var(--link-color, var(--pf-palette-blue));
   outline-offset: -6px;
   background: rgba(74, 144, 226, 0.06);
 }
 
 .pf-mem-col-delete.pf-mem-col-drop-over {
-  outline-color: #d87a7a;
-  background: rgba(216, 122, 122, 0.08);
+  outline-color: var(--pf-palette-red);
+  background: rgba(var(--pf-palette-red-rgb), 0.08);
 }
 
 /* ---- list + cards ---- */
@@ -2024,12 +2055,12 @@ export const CSS = `
 
 .pf-mem-action:hover { opacity: 1; background: var(--box-color-hover, var(--box-color)); }
 .pf-mem-action:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 
 .pf-mem-action-delete {
-  color: #d87a7a;
+  color: var(--pf-palette-red);
   font-weight: 600;
 }
 .pf-mem-action-delete:hover {
@@ -2047,7 +2078,7 @@ export const CSS = `
   gap: 4px;
   margin-left: auto;
   padding: 2px 4px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
   border-radius: 10px;
   font-size: 11px;
   opacity: 0.85;
@@ -2075,7 +2106,7 @@ export const CSS = `
 }
 .pf-mem-k-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
 .pf-mem-k-btn:focus-visible {
-  outline: 1px solid var(--link-color, #4a90e2);
+  outline: 1px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 .pf-mem-k-value {
@@ -2120,7 +2151,7 @@ export const CSS = `
   background: rgba(185, 137, 74, 0.10);
 }
 .pf-mem-bubble-header:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: -2px;
 }
 .pf-mem-bubble[aria-expanded="true"] > .pf-mem-bubble-header,
@@ -2174,7 +2205,7 @@ export const CSS = `
   letter-spacing: 0.01em;
   padding: 1px 6px;
   background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(216, 179, 106, 0.5);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.5);
   border-radius: 4px;
   color: var(--text-color);
   outline: none;
@@ -2182,7 +2213,7 @@ export const CSS = `
   min-width: 0;
 }
 .pf-mem-bubble-label-input:focus {
-  border-color: rgba(216, 179, 106, 0.9);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.9);
 }
 
 /* Stack label-on-top, preview-underneath, in a flex-column that takes
@@ -2212,7 +2243,7 @@ export const CSS = `
   font-size: 11px;
   padding: 1px 8px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
 }
@@ -2261,10 +2292,10 @@ export const CSS = `
   height: 6px;            /* bubble-level gaps slightly taller for easier target */
 }
 .pf-mem-drop-gap-active {
-  background: rgba(216, 179, 106, 0.6);    /* gold accent */
+  background: rgba(var(--pf-palette-amber-rgb), 0.6);    /* gold accent */
   height: 12px;
   margin: 2px 0;
-  box-shadow: 0 0 8px rgba(216, 179, 106, 0.35);
+  box-shadow: 0 0 8px rgba(var(--pf-palette-amber-rgb), 0.35);
 }
 .pf-mem-drop-gap-bubble.pf-mem-drop-gap-active {
   height: 14px;
@@ -2353,27 +2384,27 @@ export const CSS = `
   background: rgba(255, 255, 255, 0.06);
 }
 .pf-mem-bubble-lock:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 1px;
 }
 .pf-mem-bubble-lock-on {
   opacity: 1;
-  color: #d8b36a;                   /* gold accent for "locked" */
-  border-color: rgba(216, 179, 106, 0.35);
-  background: rgba(216, 179, 106, 0.08);
+  color: var(--pf-palette-amber);                   /* gold accent for "locked" */
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
 }
 .pf-mem-bubble-lock-on:hover {
-  background: rgba(216, 179, 106, 0.16);
+  background: rgba(var(--pf-palette-amber-rgb), 0.16);
 }
 
 /* Locked bubble header: subtle visual cue so it reads as "pinned" even
    when the lock icon is tucked to the right. Gold tint + a left border. */
 .pf-mem-bubble-header-locked {
-  background: rgba(216, 179, 106, 0.06);
-  box-shadow: inset 3px 0 0 0 rgba(216, 179, 106, 0.6);
+  background: rgba(var(--pf-palette-amber-rgb), 0.06);
+  box-shadow: inset 3px 0 0 0 rgba(var(--pf-palette-amber-rgb), 0.6);
 }
 .pf-mem-bubble-header-locked:hover {
-  background: rgba(216, 179, 106, 0.12);
+  background: rgba(var(--pf-palette-amber-rgb), 0.12);
 }
 
 /* Bubble body: the nested cards, only visible when expanded */
@@ -2408,14 +2439,14 @@ export const CSS = `
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .pf-mem-bubble-settings-btn:hover {
-  color: rgba(216, 179, 106, 0.95);
-  border-color: rgba(216, 179, 106, 0.3);
-  background: rgba(216, 179, 106, 0.08);
+  color: rgba(var(--pf-palette-amber-rgb), 0.95);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.3);
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
 }
 
 /* Nested card: slightly subdued vs. standalone cards (pre-bubble era) */
 .pf-mem-card-nested {
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
   font-size: 12px;
   padding: 8px 10px;
 }
@@ -2448,7 +2479,7 @@ export const CSS = `
   padding: 1px 8px;
   border-radius: 10px;
   background: rgba(216, 122, 122, 0.18);
-  color: #d87a7a;
+  color: var(--pf-palette-red);
   margin-left: auto;
   font-weight: 600;
 }
@@ -2516,17 +2547,17 @@ export const CSS = `
 .pf-mem-btn:hover:not(:disabled) { background: var(--box-color-hover, var(--box-color)); }
 .pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pf-mem-btn:focus-visible {
-  outline: 2px solid var(--link-color, #4a90e2);
+  outline: 2px solid var(--link-color, var(--pf-palette-blue));
   outline-offset: 2px;
 }
 
 .pf-mem-btn-primary {
-  background: #b9894a;
-  border-color: #d8b36a;
+  background: var(--pf-palette-amber-deep);
+  border-color: var(--pf-palette-amber);
   color: #1a1410;
   font-weight: 600;
 }
-.pf-mem-btn-primary:hover:not(:disabled) { background: #d8b36a; }
+.pf-mem-btn-primary:hover:not(:disabled) { background: var(--pf-palette-amber); }
 
 /* ---- export dialog ---- */
 
@@ -2549,7 +2580,7 @@ export const CSS = `
   padding: 10px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   color: var(--text-color);
   resize: vertical;
   min-height: 200px;
@@ -2573,18 +2604,18 @@ export const CSS = `
 }
 .pf-mem-import-status[hidden] { display: none; }
 .pf-mem-import-status-ok {
-  color: #6ab87c;
+  color: var(--pf-palette-green);
   background: rgba(106, 184, 124, 0.08);
   border: 1px solid rgba(106, 184, 124, 0.3);
 }
 .pf-mem-import-status-warn {
-  color: #d8b36a;
-  background: rgba(216, 179, 106, 0.08);
-  border: 1px solid rgba(216, 179, 106, 0.3);
+  color: var(--pf-palette-amber);
+  background: rgba(var(--pf-palette-amber-rgb), 0.08);
+  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.3);
 }
 .pf-mem-import-status-err {
-  color: #d87a7a;
-  background: rgba(216, 122, 122, 0.08);
+  color: var(--pf-palette-red);
+  background: rgba(var(--pf-palette-red-rgb), 0.08);
   border: 1px solid rgba(216, 122, 122, 0.3);
 }
 
@@ -2672,15 +2703,15 @@ export const CSS = `
   align-items: flex-start;
   gap: 2px;
   padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   transition: background 0.15s, border-color 0.15s;
   cursor: default;
 }
 .pf-activity-chip:hover {
-  background: rgba(0, 0, 0, 0.25);
-  border-color: rgba(216, 179, 106, 0.4);
+  background: var(--pf-overlay-dark-25);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
 }
 .pf-activity-chip-count {
   font-size: 20px;
@@ -2701,7 +2732,7 @@ export const CSS = `
 .pf-activity-chip-spark {
   margin-top: 4px;
   opacity: 0.55;
-  color: var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
   line-height: 0; /* avoid inline-SVG baseline gap */
   transition: opacity 0.15s;
 }
@@ -2752,13 +2783,13 @@ export const CSS = `
   background: rgba(255, 255, 255, 0.04);
 }
 .pf-mem-gear-btn:focus-visible {
-  outline: 2px solid rgba(216, 179, 106, 0.6);
+  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.6);
   outline-offset: 2px;
 }
 .pf-mem-gear-btn-open {
   opacity: 1;
-  background: rgba(216, 179, 106, 0.12);
-  border-color: rgba(216, 179, 106, 0.35);
+  background: rgba(var(--pf-palette-amber-rgb), 0.12);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
   transform: rotate(45deg);
 }
 
@@ -2795,7 +2826,7 @@ export const CSS = `
 .pf-mem-set-val {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(216, 179, 106, 0.95);
+  color: rgba(var(--pf-palette-amber-rgb), 0.95);
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   min-width: 40px;
   text-align: right;
@@ -2816,8 +2847,8 @@ export const CSS = `
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: rgba(216, 179, 106, 0.95);
-  border: 2px solid var(--bg-color, #1e1e1e);
+  background: rgba(var(--pf-palette-amber-rgb), 0.95);
+  border: 2px solid var(--bg-color, var(--pf-bg-dark));
   cursor: pointer;
   transition: transform 0.1s;
 }
@@ -2828,14 +2859,14 @@ export const CSS = `
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: rgba(216, 179, 106, 0.95);
-  border: 2px solid var(--bg-color, #1e1e1e);
+  background: rgba(var(--pf-palette-amber-rgb), 0.95);
+  border: 2px solid var(--bg-color, var(--pf-bg-dark));
   cursor: pointer;
 }
 .pf-mem-set-caption {
   font-size: 12px;
   opacity: 0.85;
-  color: rgba(216, 179, 106, 0.85);
+  color: rgba(var(--pf-palette-amber-rgb), 0.85);
   font-style: italic;
 }
 .pf-mem-set-hint {
@@ -2852,7 +2883,7 @@ export const CSS = `
   padding: 14px 18px;
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
 }
 .pf-streak-icon {
   font-size: 28px;
@@ -2876,8 +2907,8 @@ export const CSS = `
   letter-spacing: 0.02em;
 }
 .pf-streak-active {
-  background: rgba(216, 179, 106, 0.10);
-  border-color: rgba(216, 179, 106, 0.35);
+  background: rgba(var(--pf-palette-amber-rgb), 0.10);
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
 }
 .pf-streak-active .pf-streak-line {
   color: rgba(236, 200, 130, 0.98);
@@ -2916,7 +2947,7 @@ export const CSS = `
   background: var(--box-color);
 }
 .pf-mem-col-title-create {
-  color: #6ab87c;
+  color: var(--pf-palette-green);
 }
 .pf-mem-create-char-body {
   flex: 1;
@@ -2944,7 +2975,7 @@ export const CSS = `
   opacity: 0.85;
 }
 .pf-mem-col-create-char.pf-mem-col-drop-over {
-  outline-color: #6ab87c;
+  outline-color: var(--pf-palette-green);
   background: rgba(106, 184, 124, 0.10);
 }
 
@@ -2957,7 +2988,7 @@ export const CSS = `
   margin: 0 0 8px;
   font-size: 20px;
   font-weight: 600;
-  color: #6ab87c;
+  color: var(--pf-palette-green);
 }
 .pf-spinoff-blurb {
   margin: 0 0 18px;
@@ -2995,7 +3026,7 @@ export const CSS = `
 .pf-spinoff-preview-wrap {
   margin-bottom: 14px;
   padding: 12px 14px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   max-height: 220px;
@@ -3030,10 +3061,10 @@ export const CSS = `
   margin: 0 0 14px;
 }
 .pf-spinoff-err {
-  color: #d87a7a;
+  color: var(--pf-palette-red);
   font-size: 12px;
   padding: 8px 10px;
-  background: rgba(216, 122, 122, 0.08);
+  background: rgba(var(--pf-palette-red-rgb), 0.08);
   border: 1px solid rgba(216, 122, 122, 0.3);
   border-radius: 4px;
   margin-bottom: 12px;
@@ -3057,7 +3088,7 @@ export const CSS = `
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--pf-accent-preview, #d8b36a);
+  background: var(--pf-accent-preview, var(--pf-palette-amber));
   border: 2px solid transparent;
   cursor: pointer;
   display: inline-flex;
@@ -3085,11 +3116,11 @@ export const CSS = `
 
 /* --- accent color consumers --- */
 /* The overlay gets --pf-accent set via inline style by full_page.js.
-   Chrome that previously used the hardcoded gold (#d8b36a) now reads
+   Chrome that previously used the hardcoded gold (var(--pf-palette-amber)) now reads
    --pf-accent so the user's pick shows everywhere appropriate. The
    fallback on .pf-overlay covers the first paint before JS runs. */
 .pf-overlay {
-  --pf-accent: #d8b36a;
+  --pf-accent: var(--pf-palette-amber);
 }
 .pf-splash-title {
   color: var(--pf-accent);
@@ -3114,7 +3145,7 @@ export const CSS = `
   max-width: min(90vw, 360px);
 }
 .pf-toast {
-  background: var(--box-color, #1e1e1e);
+  background: var(--box-color, var(--pf-bg-dark));
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 14px 18px;
@@ -3134,10 +3165,10 @@ export const CSS = `
 }
 .pf-toast-info { border-color: rgba(106, 154, 216, 0.4); }
 .pf-toast-ok   { border-color: rgba(106, 184, 124, 0.4); }
-.pf-toast-warn { border-color: rgba(216, 179, 106, 0.4); }
+.pf-toast-warn { border-color: rgba(var(--pf-palette-amber-rgb), 0.4); }
 .pf-toast-celebrate {
-  border-color: rgba(216, 179, 106, 0.6);
-  background: linear-gradient(135deg, var(--box-color, #1e1e1e), rgba(216, 179, 106, 0.08));
+  border-color: rgba(var(--pf-palette-amber-rgb), 0.6);
+  background: linear-gradient(135deg, var(--box-color, var(--pf-bg-dark)), rgba(var(--pf-palette-amber-rgb), 0.08));
 }
 
 /* Personal-best toast inner layout */
@@ -3150,7 +3181,7 @@ export const CSS = `
   font-size: 10px;
   letter-spacing: 0.12em;
   font-weight: 700;
-  color: rgba(216, 179, 106, 0.95);
+  color: rgba(var(--pf-palette-amber-rgb), 0.95);
   text-transform: uppercase;
 }
 .pf-toast-pb-eyebrow-info {
@@ -3183,12 +3214,12 @@ export const CSS = `
   padding: 18px 16px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--pf-overlay-dark-18);
 }
 .pf-share-preview-name {
   font-size: 18px;
   font-weight: 600;
-  color: var(--pf-accent, #d8b36a);
+  color: var(--pf-accent, var(--pf-palette-amber));
   letter-spacing: 0.01em;
 }
 .pf-share-preview-sub {
@@ -3216,7 +3247,7 @@ export const CSS = `
   font-size: 12px;
   line-height: 1.4;
   padding: 10px 12px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--pf-overlay-dark-25);
   color: var(--text-color);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -3225,7 +3256,7 @@ export const CSS = `
   box-sizing: border-box;
 }
 .pf-share-code:focus {
-  outline: 1px solid var(--pf-accent, #d8b36a);
+  outline: 1px solid var(--pf-accent, var(--pf-palette-amber));
   outline-offset: -1px;
 }
 .pf-share-privacy {
@@ -3238,8 +3269,8 @@ export const CSS = `
   font-size: 12px;
   min-height: 16px;
 }
-.pf-share-status-ok  { color: #6ab87c; }
-.pf-share-status-err { color: #d87a7a; }
+.pf-share-status-ok  { color: var(--pf-palette-green); }
+.pf-share-status-err { color: var(--pf-palette-red); }
 .pf-share-actions {
   display: flex;
   gap: 10px;

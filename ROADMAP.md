@@ -414,6 +414,22 @@ turn comes.
 
 ---
 
+## ✓ AUDITS PHASE — CLOSED
+
+The four Audits-phase sections below (`Light audit`, `Narrow-predicate
+audit`, `Code duplication audit`, `Legacy Perchance code audit`) all
+completed. See `docs/audit-findings.md` for the indexed record of
+every finding by ID (LA-1..5, NP-1..9, CD-1..3 + CD-2a, LP-1..4) with
+commit hashes.
+
+Summary: 5 real bugs found and fixed, 1 drift-guard test shipped,
+palette consolidation (~150 raw color values) groundwork laid for
+the upcoming theme overhaul, fork-architecture discipline preserved
+(no vendor files modified). Retained full sections below for the
+detailed historical record.
+
+---
+
 ## Light audit findings (Apr 18) — needs deeper pass
 
 **Status: notes from a surface-level sweep.** A deeper audit is owed
@@ -422,12 +438,14 @@ looked suspicious or worth a closer look; most are not bugs, some are.
 
 ### Potentially-stale code
 
-- `src/utils/escape.js` exports `escapeHtml` which is referenced from
-  zero files in `src/`. Either it's dead code (delete) or it was
-  meant to be used in places that now do direct `textContent`
-  assignment (keep, find the right callers, or explicitly document as
-  "kept for future HTML-building paths"). **Action:** decide in the
-  refactor pass.
+- ~~`src/utils/escape.js` exports `escapeHtml` which is referenced from
+  zero files in `src/`.~~ **RESOLVED**: deleted. Dead code confirmed
+  via full src/ + test/ search; no call sites. Module removed from
+  manifest.json. All renderers use `textContent`-based DOM
+  construction (via `h()` helper) rather than innerHTML, so there's
+  no HTML-escaping need anywhere in the current codebase. If a
+  future path ever needs string-level HTML escaping, re-adding a
+  small helper is cheap.
 
 - `src/bootstrap.js` correctly has no importers (it's the entry point
   invoked by the manifest). Noted here so it doesn't get accidentally
@@ -441,10 +459,16 @@ direct `memoryOverrides.` and `loreOverrides.` references in:
 
   - `recomputeBubbles` — direct refs for lockedBubbles
   - `onDeletePanelDrop` — direct deletion of lockedBubbles entries
-  - `hasReorderChanged` — only checks `memoryOverrides`; should also
+  - ~~`hasReorderChanged` — only checks `memoryOverrides`; should also
     check loreOverrides for the new Lore reorder-in-session state,
     OR explicitly document that Lore reorder doesn't participate in
-    save-dirty tracking
+    save-dirty tracking~~ **RESOLVED**: already explicitly documented.
+    `hasPersistentChanges` (of which `hasReorderChanged` is an alias)
+    has a comment block listing exactly what's NOT included and why
+    — Lore has no save pathway for reorder, and Lore rename is
+    session-UI-only. `hasAnyUnsavedChanges` is the broader predicate
+    that includes Lore session state for the Cancel confirmation
+    path. Architecture is intentional.
   - `panelsState()` builder — directly references memoryOverrides,
     loreOverrides, memoryBubbles, loreBubbles
   - `onSave` — entirely Memory-specific; fine, but worth a comment
@@ -459,62 +483,75 @@ confirm each remaining gate is intentional.
 
 ### Possibly-hollow listener cleanup
 
-`grep addEventListener / removeEventListener` across src/:
+~~`grep addEventListener / removeEventListener` across src/~~
+**RESOLVED** (verified by deeper audit):
 
-  - memory_panels.js: 23 adds, 0 removes
-  - gender_square.js: 5 adds, 0 removes
-  - dom.js: 3 adds, 0 removes
-  - about_section.js: 1 add, 0 removes
-  - profile/index.js: 1 add, 0 removes
-  - bootstrap.js: 1 add, 0 removes
+Audit hypothesis was that listeners on elements replaced by
+`replaceContents` are discarded along with the detached DOM nodes.
+Hypothesis confirmed:
 
-For the panels / gender_square / form inputs, the listeners live on
-elements that get replaced wholesale by `replaceContents` on every
-render — so the DOM nodes disappear and their listeners go with them
-(no leak, since we don't retain references elsewhere). That's
-probably fine but WORTH VERIFYING in the deeper audit. If any
-element persists across renders and gets listeners re-added, we have
-an accumulating leak.
+  - `replaceContents(el, children)` in utils/dom.js calls
+    `el.replaceChildren()` (or removeChild loop) — fully detaches
+    the old subtree from the DOM.
+  - All 26 memory_panels listeners attach to locally-created
+    elements (`document.createElement` or `h()`) that are only
+    referenced inside the render scope. No module-level map, no
+    cache, no external retention path. The single module-level
+    `dragPayload` holds DATA (id, scope, entries, label strings) —
+    not DOM refs — and is nulled on dragend. Safe.
+  - gender_square.js (5), about_section.js (1), memory_window.js
+    callback-wrappers — same pattern: local elements only.
+  - profile/index.js: document-level `visibilitychange` is
+    page-lifetime; `pagehide` listener added in 2af4a1d uses
+    `{ once: true }` and auto-removes.
+  - bootstrap.js: single `DOMContentLoaded` with `{ once: true }`.
 
-The profile and bootstrap additions are one-shot on mount; those are fine.
-
-**Action:** deeper audit to verify DOM-replacement path really does
-discard old listeners, and instrument in dev-mode if uncertain.
+No accumulating-leak patterns found. The `addEventListener`-to-
+`removeEventListener` count asymmetry is a consequence of relying
+on GC-via-detach rather than explicit pairing — correct for this
+codebase's DOM-rebuild render model. No code changes needed.
 
 ### Timers
 
-  - `setInterval` in `profile/index.js` refreshes profile card
-    periodically — never cleared. On profile close, still running.
-    Probably harmless (refreshes a detached DOM node), but
-    leak-shaped.
-  - Several `setTimeout`s across details_form, overlay,
-    gender_square for debounce/focus — these are one-shot and
-    don't leak.
+~~`setInterval` in `profile/index.js` refreshes profile card
+periodically — never cleared. On profile close, still running.
+Probably harmless (refreshes a detached DOM node), but
+leak-shaped.~~ **RESOLVED** in 2af4a1d: interval now captures
+handle, self-clears when `card.isConnected` is false, and is
+cleared on `pagehide` (covers bfcache + mobile background).
 
-**Action:** add clearInterval on profile close.
-
-### Sparse test coverage on render/ modules
-
-None of the `src/render/*.js` files have unit tests. Rendering is
-historically harder to unit-test — we've leaned on the real
-Perchance integration for confidence. Reasonable for now, but means
-a regression in render code only surfaces when user hits Save or
-similar. Worth a conversation about whether we want a jsdom-based
-test harness for panels/overlay.
-
-**Action:** design decision for future. Not blocking.
+`setTimeout`s in details_form, overlay, gender_square for
+debounce/focus: one-shot, don't leak. Confirmed by inspection.
 
 ### Empty / best-effort error swallows
 
-15+ `catch { /* best-effort */ }` blocks across the codebase. Most
-wrap a localStorage.setItem or an analytics-like call that genuinely
-should be non-fatal. A deeper audit should:
+~~15+ `catch { /* best-effort */ }` blocks across the codebase.~~
+**RESOLVED** (28 catches reviewed):
 
-  - Confirm each is genuinely "should never crash the app"
-  - Verify that swallowed errors aren't hiding a real bug by logging
-    them (even at debug level) in a dev build
+All 28 catches fall into one of three legitimate patterns:
 
-**Action:** per-catch review in the refactor pass.
+1. **Analytics / counter bumps** (~11 sites). Ex: `bumpCounter`,
+   `recordUnlockDates`, `markEventsSeen`. Truly non-critical;
+   failure doesn't affect user's primary task.
+
+2. **localStorage writes** (~9 sites). Ex: counters, streaks,
+   snapshots, pins, participation. Fail modes are storage quota,
+   third-party blocker, private-mode limits — all genuinely
+   "should never crash the app for this." User's primary data
+   is in IndexedDB, not localStorage.
+
+3. **UI niceties + callback-safety wrappers** (~8 sites). Ex:
+   `e.target.select()` in share dialog, user-provided `onChange`
+   callbacks wrapped at their call sites. Defensive against
+   malformed callbacks or non-text-input elements.
+
+None of the reviewed catches hide real bugs. Pattern is correct.
+
+New utility shipped alongside this audit: `utils/best_effort.js`
+provides `bestEffort(fn, tag)` and `bestEffortAsync(fn, tag)`
+helpers that swallow-and-log-debug. Incremental adoption —
+existing inline catches are fine; new code should prefer the
+helper, and touched files can migrate their catches opportunistically.
 
 ### What I did NOT find
 

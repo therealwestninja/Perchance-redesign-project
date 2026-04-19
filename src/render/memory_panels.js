@@ -36,13 +36,70 @@ import { h, replaceContents } from '../utils/dom.js';
 let dragPayload = null;
 
 /**
+ * Wire a three-event drop-target on `el`: dragover (accept check +
+ * preventDefault + add hover class), dragleave (remove hover class),
+ * drop (preventDefault + remove hover class + invoke handler).
+ *
+ * Replaces what was previously four near-identical inline blocks
+ * across buildColumn, buildDeletePanel, buildCreateCharacterPanel,
+ * and createDropGap. A bug fix to drop-target mechanics now lands
+ * in one place.
+ *
+ * @param {HTMLElement} el
+ * @param {{
+ *   accepts:        (payload: object) => boolean,
+ *   onDrop:         (payload: object, ev: DragEvent) => void,
+ *   activeClass?:   string,    // CSS class toggled while a valid drag hovers
+ *   stopPropagation?: boolean, // true for nested gaps inside a larger drop target
+ *   useRelatedTargetDragLeave?: boolean,
+ *                              // true = only remove the class when the cursor
+ *                              // actually leaves the element's subtree
+ *                              // (relatedTarget outside). Useful for big
+ *                              // columns with internal children. Gaps set
+ *                              // this false — they're small, leaving = leaving.
+ * }} opts
+ */
+function wireDropTarget(el, {
+  accepts,
+  onDrop,
+  activeClass = 'pf-mem-col-drop-over',
+  stopPropagation = false,
+  useRelatedTargetDragLeave = true,
+}) {
+  el.addEventListener('dragover', (ev) => {
+    if (!dragPayload) return;
+    if (!accepts(dragPayload)) return;
+    ev.preventDefault();
+    if (stopPropagation) ev.stopPropagation();
+    el.classList.add(activeClass);
+  });
+  el.addEventListener('dragleave', (ev) => {
+    if (useRelatedTargetDragLeave) {
+      if (!el.contains(ev.relatedTarget)) el.classList.remove(activeClass);
+    } else {
+      el.classList.remove(activeClass);
+    }
+  });
+  el.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    if (stopPropagation) ev.stopPropagation();
+    el.classList.remove(activeClass);
+    if (!dragPayload) return;
+    if (!accepts(dragPayload)) return;
+    const payload = dragPayload;
+    dragPayload = null;
+    onDrop(payload, ev);
+  });
+}
+
+/**
  * @typedef {Object} PanelHandlers
  * @property {(id) => void} [onPromote]            single entry memory → lore
  * @property {(id) => void} [onDemote]             single entry lore → memory
  * @property {(id) => void} [onDelete]             single entry → delete queue
  * @property {(bubbleId, entries) => void} [onBubblePromote] all entries in a bubble
  * @property {(bubbleId, entries) => void} [onBubbleDemote]  all entries in a bubble
- * @property {(bubbleId, entries) => void} [onBubbleDelete]  all entries in a bubble
+ * @property {(bubbleId, entries, scope) => void} [onBubbleDelete]  all entries in a bubble
  * @property {(scope, bubbleId) => void} [onToggleBubble] expand/collapse
  * @property {(scope, bubbleId) => void} [onToggleLock]   toggle lock state
  * @property {(scope, dir) => void} [onChangeK]    +1 or -1 to k for a panel
@@ -237,47 +294,32 @@ function buildColumn({
   ]);
 
   // Drop target wiring. Accepts matching-scope entries and bubbles.
-  col.addEventListener('dragover', (ev) => {
-    if (!dragPayload) return;
-    if (dragPayload.scope !== acceptsScope) return;
-    ev.preventDefault();
-    col.classList.add('pf-mem-col-drop-over');
-  });
-  col.addEventListener('dragleave', (ev) => {
-    if (!col.contains(ev.relatedTarget)) {
-      col.classList.remove('pf-mem-col-drop-over');
-    }
-  });
-  col.addEventListener('drop', (ev) => {
-    ev.preventDefault();
-    col.classList.remove('pf-mem-col-drop-over');
-    if (!dragPayload) return;
-    if (dragPayload.scope !== acceptsScope) return;
-    const payload = dragPayload;
-    dragPayload = null;
+  wireDropTarget(col, {
+    accepts: (payload) => payload.scope === acceptsScope,
+    onDrop: (payload) => {
+      // Unified behavior (per design): a card dropped on a cross-panel
+      // column gets promoted/demoted regardless of WHERE on the card the
+      // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
+      // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
+      // for whole-bubble drags.
+      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
 
-    // Unified behavior (per design): a card dropped on a cross-panel
-    // column gets promoted/demoted regardless of WHERE on the card the
-    // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
-    // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
-    // for whole-bubble drags.
-    const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
-    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-
-    if (isCardPayload) {
-      const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
-      if (scope === 'memory' && typeof handlers.onDemote === 'function') {
-        handlers.onDemote(cardId);
-      } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
-        handlers.onPromote(cardId);
+      if (isCardPayload) {
+        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+        if (scope === 'memory' && typeof handlers.onDemote === 'function') {
+          handlers.onDemote(cardId);
+        } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
+          handlers.onPromote(cardId);
+        }
+      } else if (isBubblePayload) {
+        if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
+          handlers.onBubbleDemote(payload.bubbleId, payload.entries);
+        } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
+          handlers.onBubblePromote(payload.bubbleId, payload.entries);
+        }
       }
-    } else if (isBubblePayload) {
-      if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
-        handlers.onBubbleDemote(payload.bubbleId, payload.entries);
-      } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
-        handlers.onBubblePromote(payload.bubbleId, payload.entries);
-      }
-    }
+    },
   });
 
   return col;
@@ -295,35 +337,22 @@ function buildDeletePanel({ countEl, handlers }) {
     h('div', { class: 'pf-mem-del-body-empty', 'aria-hidden': 'true' }),
   ]);
 
-  col.addEventListener('dragover', (ev) => {
-    if (!dragPayload) return;
-    ev.preventDefault();
-    col.classList.add('pf-mem-col-drop-over');
-  });
-  col.addEventListener('dragleave', (ev) => {
-    if (!col.contains(ev.relatedTarget)) {
-      col.classList.remove('pf-mem-col-drop-over');
-    }
-  });
-  col.addEventListener('drop', (ev) => {
-    ev.preventDefault();
-    col.classList.remove('pf-mem-col-drop-over');
-    if (!dragPayload) return;
-    const payload = dragPayload;
-    dragPayload = null;
+  wireDropTarget(col, {
+    accepts: () => true,   // delete accepts anything draggable
+    onDrop: (payload) => {
+      // Same unified behavior as cross-panel columns (see buildColumn):
+      // accept both body-drag and grip-drag payloads. Delete doesn't care
+      // where you grabbed.
+      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
 
-    // Same unified behavior as cross-panel columns (see buildColumn):
-    // accept both body-drag and grip-drag payloads. Delete doesn't care
-    // where you grabbed.
-    const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
-    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-
-    if (isCardPayload && typeof handlers.onDelete === 'function') {
-      const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
-      handlers.onDelete(cardId);
-    } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
-      handlers.onBubbleDelete(payload.bubbleId, payload.entries);
-    }
+      if (isCardPayload && typeof handlers.onDelete === 'function') {
+        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+        handlers.onDelete(cardId);
+      } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
+        handlers.onBubbleDelete(payload.bubbleId, payload.entries, payload.scope);
+      }
+    },
   });
 
   return col;
@@ -357,41 +386,24 @@ function buildCreateCharacterPanel({ handlers }) {
     ]),
   ]);
 
-  col.addEventListener('dragover', (ev) => {
-    if (!dragPayload) return;
+  wireDropTarget(col, {
     // Only accept whole-bubble drops; reject single-card payloads.
-    const isBubblePayload = dragPayload.kind === 'bubble' || dragPayload.kind === 'reorder-bubble';
-    if (!isBubblePayload) return;
-    ev.preventDefault();
-    col.classList.add('pf-mem-col-drop-over');
-  });
-  col.addEventListener('dragleave', (ev) => {
-    if (!col.contains(ev.relatedTarget)) {
-      col.classList.remove('pf-mem-col-drop-over');
-    }
-  });
-  col.addEventListener('drop', (ev) => {
-    ev.preventDefault();
-    col.classList.remove('pf-mem-col-drop-over');
-    if (!dragPayload) return;
-    const payload = dragPayload;
-    dragPayload = null;
-
-    const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-    if (!isBubblePayload) return;
-    if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
-
-    if (typeof handlers.onSpinOffCharacter === 'function') {
-      // Pass scope so handler can decide how to label / route. The
-      // entries themselves are scope-agnostic — both Memory and Lore
-      // entries have a text field that maps cleanly to a lore item.
-      handlers.onSpinOffCharacter(
-        payload.scope,
-        payload.bubbleId,
-        payload.entries,
-        payload.label || ''
-      );
-    }
+    accepts: (payload) =>
+      (payload.kind === 'bubble' || payload.kind === 'reorder-bubble'),
+    onDrop: (payload) => {
+      if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
+      if (typeof handlers.onSpinOffCharacter === 'function') {
+        // Pass scope so handler can decide how to label / route. The
+        // entries themselves are scope-agnostic — both Memory and Lore
+        // entries have a text field that maps cleanly to a lore item.
+        handlers.onSpinOffCharacter(
+          payload.scope,
+          payload.bubbleId,
+          payload.entries,
+          payload.label || ''
+        );
+      }
+    },
   });
 
   return col;
@@ -702,7 +714,7 @@ function buildBubbleActions(bubble, scope, handlers) {
       'aria-label': 'Delete all',
       onClick: (ev) => {
         ev.stopPropagation();
-        handlers.onBubbleDelete(bubble.id, bubble.entries);
+        handlers.onBubbleDelete(bubble.id, bubble.entries, scope);
       },
     }, ['✕']));
   }
@@ -900,51 +912,43 @@ function createDropGap({ scope, kind, beforeId, handlers, parentBubbleId, parent
     'aria-hidden': 'true',
   });
 
-  // Check whether this gap should accept the current drag payload.
-  function accepts() {
-    if (!dragPayload) return false;
-    if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
-    if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
-    // Reorder payloads carry the source scope; a Memory bubble/card
-    // can't reorder INTO the Lore column and vice versa. (Cross-panel
-    // drops use a different payload kind — 'bubble'/'entry' — handled
-    // at the column level, not the gap level.)
-    if (dragPayload.scope !== scope) return false;
-    if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
-    return true;
-  }
-
-  gap.addEventListener('dragover', (ev) => {
-    if (!accepts()) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    gap.classList.add('pf-mem-drop-gap-active');
-  });
-  gap.addEventListener('dragleave', () => {
-    gap.classList.remove('pf-mem-drop-gap-active');
-  });
-  gap.addEventListener('drop', (ev) => {
-    if (!accepts()) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    gap.classList.remove('pf-mem-drop-gap-active');
-
-    if (kind === 'bubble') {
-      if (typeof handlers.onReorderBubble === 'function') {
-        handlers.onReorderBubble(scope, dragPayload.bubbleId, beforeId);
+  wireDropTarget(gap, {
+    accepts: (payload) => {
+      if (kind === 'bubble' && payload.kind !== 'reorder-bubble') return false;
+      if (kind === 'card'   && payload.kind !== 'reorder-card')   return false;
+      // Reorder payloads carry the source scope; a Memory bubble/card
+      // can't reorder INTO the Lore column and vice versa. (Cross-panel
+      // drops use a different payload kind — 'bubble'/'entry' — handled
+      // at the column level, not the gap level.)
+      if (payload.scope !== scope) return false;
+      if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
+      return true;
+    },
+    onDrop: (payload) => {
+      if (kind === 'bubble') {
+        if (typeof handlers.onReorderBubble === 'function') {
+          handlers.onReorderBubble(scope, payload.bubbleId, beforeId);
+        }
+      } else if (kind === 'card') {
+        if (typeof handlers.onReorderCard === 'function') {
+          handlers.onReorderCard(
+            scope,
+            payload.bubbleId,         // source bubble
+            payload.cardId,
+            parentBubbleId,           // target bubble (may differ from source in 7d.2)
+            beforeId,
+          );
+        }
       }
-    } else if (kind === 'card') {
-      if (typeof handlers.onReorderCard === 'function') {
-        handlers.onReorderCard(
-          scope,
-          dragPayload.bubbleId,     // source bubble
-          dragPayload.cardId,
-          parentBubbleId,           // target bubble (may differ from source in 7d.2)
-          beforeId,
-        );
-      }
-    }
-    dragPayload = null;
+    },
+    activeClass: 'pf-mem-drop-gap-active',
+    // Gaps live inside columns; stopPropagation keeps the column's
+    // drop handler from firing in addition to ours.
+    stopPropagation: true,
+    // Gaps are small horizontal strips — relatedTarget-based leave
+    // detection is unnecessary and actually slightly wrong (moving
+    // out of a 4px strip should ALWAYS remove the hover class).
+    useRelatedTargetDragLeave: false,
   });
 
   return gap;

@@ -386,6 +386,59 @@ export async function openMemoryWindow() {
     return window.confirm(message);
   }
 
+  /**
+   * Shared body for the three batch-bubble handlers (promote/demote/
+   * delete). Each follows the same recipe:
+   *
+   *   1. confirmIfLocked(scope, bubbleId, message) — bail if the user
+   *      declines the pinned-bubble confirmation
+   *   2. Unlock the bubble in the scope(s) the caller names and drop
+   *      the persisted lock if requested
+   *   3. For each entry in the bubble: run the per-entry action and
+   *      forget the card from the override sets passed in
+   *   4. refresh()
+   *
+   * The caller supplies exactly which overrides to clean, which mirrors
+   * the pre-refactor behavior exactly — notably, demote does NOT touch
+   * the persisted-lock map (Lore locks don't persist, and
+   * stableIdByCurrentBubble isn't currently scope-namespaced, so a
+   * Lore-bubble-id lookup could false-hit a Memory entry if the
+   * bubble:N numbering collides across scopes). The refactor is
+   * mechanical — same steps in the same order — not semantic.
+   *
+   * @param {object} opts
+   * @param {string} opts.scope                   'memory' | 'lore' | null
+   * @param {string} opts.bubbleId                the bubble being acted on (for lock confirm)
+   * @param {Array}  opts.entries                 the bubble's entries
+   * @param {string} opts.confirmMessage          message shown if the bubble is locked
+   * @param {Array<object>} opts.unlockOverrides  session override set(s) to remove bubbleId from
+   * @param {boolean} [opts.forgetPersistedLock]  whether to also drop the persisted lock
+   * @param {(e) => void} opts.perEntry           per-entry mutation (stage.promote, etc.)
+   * @param {Array<object>} opts.forgetCardsFromOverrides
+   *   override collection(s) to run forgetCard against for each entry
+   */
+  function batchBubbleOp({
+    scope,
+    bubbleId,
+    entries,
+    confirmMessage,
+    unlockOverrides,
+    forgetPersistedLock = false,
+    perEntry,
+    forgetCardsFromOverrides,
+  }) {
+    if (!confirmIfLocked(scope, bubbleId, confirmMessage)) return;
+    if (bubbleId) {
+      for (const ov of unlockOverrides) ov.lockedBubbles.delete(String(bubbleId));
+      if (forgetPersistedLock) forgetPersistedLockForBubble(bubbleId);
+    }
+    for (const e of entries) {
+      perEntry(e);
+      for (const ov of forgetCardsFromOverrides) forgetCard(ov, e.id);
+    }
+    refresh();
+  }
+
   // ---- handlers ----
 
   const handlers = {
@@ -421,27 +474,29 @@ export async function openMemoryWindow() {
     // Individual card actions inside a locked bubble don't confirm — they
     // are explicitly one-at-a-time gestures and repeated prompts would be
     // tedious.
-    onBubblePromote: (bubbleId, entries) => {
-      if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
-      if (bubbleId) {
-        memoryOverrides.lockedBubbles.delete(String(bubbleId));
-        forgetPersistedLockForBubble(bubbleId);
-      }
-      for (const e of entries) {
-        stage.promote(e.id);
-        forgetCard(memoryOverrides, e.id);
-      }
-      refresh();
-    },
-    onBubbleDemote: (bubbleId, entries) => {
-      if (!confirmIfLocked('lore', bubbleId, `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`)) return;
-      if (bubbleId) loreOverrides.lockedBubbles.delete(String(bubbleId));
-      for (const e of entries) {
-        stage.demote(e.id);
-        forgetCard(loreOverrides, e.id);
-      }
-      refresh();
-    },
+    onBubblePromote: (bubbleId, entries) => batchBubbleOp({
+      scope: 'memory',
+      bubbleId,
+      entries,
+      confirmMessage: `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`,
+      unlockOverrides: [memoryOverrides],
+      forgetPersistedLock: true,    // Memory locks persist; clear
+      perEntry: (e) => stage.promote(e.id),
+      forgetCardsFromOverrides: [memoryOverrides],
+    }),
+    onBubbleDemote: (bubbleId, entries) => batchBubbleOp({
+      scope: 'lore',
+      bubbleId,
+      entries,
+      confirmMessage: `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`,
+      unlockOverrides: [loreOverrides],
+      forgetPersistedLock: false,   // Lore locks don't persist; also
+                                    // avoids a bubble-id collision hit
+                                    // on the Memory persisted map (see
+                                    // CD-2 note in docs/audit-findings.md)
+      perEntry: (e) => stage.demote(e.id),
+      forgetCardsFromOverrides: [loreOverrides],
+    }),
     // Spin off a new character from a bubble. Non-mutating for the
     // source thread — the bubble's entries are COPIED out as seed
     // lore for the new character. Source memories remain intact.
@@ -471,22 +526,29 @@ export async function openMemoryWindow() {
       });
     },
 
-    onBubbleDelete: (bubbleId, entries) => {
-      const scope = locatedBubbleScope(bubbleId);
-      if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
-      if (bubbleId) {
-        memoryOverrides.lockedBubbles.delete(String(bubbleId));
-        loreOverrides.lockedBubbles.delete(String(bubbleId));
-        forgetPersistedLockForBubble(bubbleId);
-      }
-      for (const e of entries) {
+    onBubbleDelete: (bubbleId, entries, sourceScope) => batchBubbleOp({
+      // Use the scope the caller provides (derived from the drag
+      // payload's source panel OR the button's containing panel).
+      // Fall back to locatedBubbleScope as a defensive backup for
+      // any older callers; NEW callers should always pass sourceScope
+      // so we don't have to rely on the ambiguous Memory/Lore id
+      // lookup (see CD-2a note).
+      scope: sourceScope || locatedBubbleScope(bubbleId),
+      bubbleId,
+      entries,
+      confirmMessage: `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`,
+      unlockOverrides: [memoryOverrides, loreOverrides],
+      // Only drop the persisted-lock registration if the bubble being
+      // deleted is actually Memory-scoped. Lore bubbles share the
+      // same bubble:N id space and could false-hit a Memory persisted
+      // lock if we weren't scope-aware here.
+      forgetPersistedLock: (sourceScope || locatedBubbleScope(bubbleId)) === 'memory',
+      perEntry: (e) => {
         queueForDeletion(e.id);
         stage.remove(e.id);
-        forgetCard(memoryOverrides, e.id);
-        forgetCard(loreOverrides, e.id);
-      }
-      refresh();
-    },
+      },
+      forgetCardsFromOverrides: [memoryOverrides, loreOverrides],
+    }),
 
     // Reorder gestures (7d). Lore has no reorder at all — these handlers
     // onReorderBubble: move bubble `bubbleId` to the position just before
@@ -759,6 +821,69 @@ export async function openMemoryWindow() {
       showExportDialog(JSON.stringify(state, null, 2));
     },
 
+    // Import: inverse of Export. Opens a paste dialog; on confirm,
+    // parses the JSON and adds each memory/lore entry as a new
+    // staged item in the current thread. Items arrive as ADDITIONS
+    // (not replacements) so nothing is lost — existing stage is
+    // preserved. User can Save to persist, or Cancel to discard.
+    //
+    // We import from BOTH `stagedItems` (unpersisted edits at time of
+    // export) AND `baseline` (what was on disk at export time), so the
+    // user doesn't have to care whether the source thread had pending
+    // edits when they exported. Every unique text makes it through.
+    onImport: () => {
+      showImportDialog(async (jsonText) => {
+        let parsed;
+        try {
+          parsed = JSON.parse(jsonText);
+        } catch {
+          return { ok: false, error: 'Not valid JSON — check for typos or missing braces.' };
+        }
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          return { ok: false, error: 'Imported data must be an object.' };
+        }
+        // Accept both our schema (v1) and bare arrays of entries.
+        // Future schema bumps should read parsed.schema and migrate.
+        const sourceItems = [];
+        if (Array.isArray(parsed.baseline)) sourceItems.push(...parsed.baseline);
+        if (Array.isArray(parsed.stagedItems)) sourceItems.push(...parsed.stagedItems);
+        if (sourceItems.length === 0) {
+          return { ok: false, error: 'No memory or lore entries found in the imported data.' };
+        }
+
+        // Dedupe by (scope, text) so re-importing the same file from
+        // export+stage doesn't create two copies of every line. Also
+        // dedupe against the user's CURRENT stage so re-importing
+        // into the same thread is a no-op.
+        const existing = new Set(
+          stage.getStaged().map(it => `${it.scope}|${(it.text || '').trim()}`)
+        );
+        let memAdded = 0, loreAdded = 0;
+        for (const it of sourceItems) {
+          if (!it || !it.text) continue;
+          const scope = it.scope === 'lore' ? 'lore' : 'memory';
+          const text = String(it.text).trim();
+          if (!text) continue;
+          const key = `${scope}|${text}`;
+          if (existing.has(key)) continue;
+          existing.add(key);
+          stage.add({ scope, text });
+          if (scope === 'lore') loreAdded++; else memAdded++;
+        }
+
+        if (memAdded === 0 && loreAdded === 0) {
+          return { ok: false, error: 'Nothing new to import — all entries already in stage.' };
+        }
+
+        bumpCounter('backupsImported');
+        refresh();
+        const parts = [];
+        if (memAdded > 0)  parts.push(`${memAdded} memory ${memAdded === 1 ? 'entry' : 'entries'}`);
+        if (loreAdded > 0) parts.push(`${loreAdded} lore ${loreAdded === 1 ? 'entry' : 'entries'}`);
+        return { ok: true, message: `Imported ${parts.join(' and ')}. Save to persist.` };
+      });
+    },
+
     onRestore: () => {
       if (activeThreadId == null) {
         alert('No active thread — cannot restore.');
@@ -938,6 +1063,102 @@ function showExportDialog(jsonText) {
     ],
   });
   overlay.show();
+}
+
+/**
+ * Show a paste-in dialog for importing previously-exported JSON into
+ * the current thread's stage. The `applyFn` callback receives the raw
+ * pasted text and should return a Promise resolving to either
+ * `{ ok: true, message }` (success — we close the dialog and the
+ * caller has already applied the import) or `{ ok: false, error }`
+ * (failure — we show the error inline and leave the dialog open so
+ * the user can retry or edit their paste).
+ */
+function showImportDialog(applyFn) {
+  const textarea = h('textarea', {
+    class: 'pf-mem-export-textarea',
+    rows: '20',
+    spellcheck: 'false',
+    placeholder: 'Paste previously-exported Memory & Lore JSON here…',
+    'aria-label': 'Paste exported JSON to import',
+  });
+
+  const status = h('div', { class: 'pf-mem-import-status', hidden: true });
+
+  let busy = false;
+
+  const importBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn pf-mem-btn-primary',
+    onClick: async () => {
+      if (busy) return;
+      const text = textarea.value || '';
+      if (!text.trim()) {
+        status.textContent = 'Paste your exported JSON first.';
+        status.className = 'pf-mem-import-status pf-mem-import-status-warn';
+        status.hidden = false;
+        textarea.focus();
+        return;
+      }
+      busy = true;
+      importBtn.disabled = true;
+      cancelBtn.disabled = true;
+      importBtn.textContent = 'Importing…';
+      try {
+        const res = await applyFn(text);
+        if (res && res.ok) {
+          status.textContent = res.message || 'Imported.';
+          status.className = 'pf-mem-import-status pf-mem-import-status-ok';
+          status.hidden = false;
+          // Briefly show success, then auto-close so the user sees
+          // their new entries land in the stage.
+          setTimeout(() => overlay.hide(), 900);
+        } else {
+          status.textContent = (res && res.error) || 'Import failed.';
+          status.className = 'pf-mem-import-status pf-mem-import-status-err';
+          status.hidden = false;
+          busy = false;
+          importBtn.disabled = false;
+          cancelBtn.disabled = false;
+          importBtn.textContent = 'Import';
+        }
+      } catch (e) {
+        status.textContent = `Import failed: ${(e && e.message) || String(e)}`;
+        status.className = 'pf-mem-import-status pf-mem-import-status-err';
+        status.hidden = false;
+        busy = false;
+        importBtn.disabled = false;
+        cancelBtn.disabled = false;
+        importBtn.textContent = 'Import';
+      }
+    },
+  }, ['Import']);
+
+  const cancelBtn = h('button', {
+    type: 'button',
+    class: 'pf-mem-btn pf-mem-btn-neutral',
+    onClick: () => { if (!busy) overlay.hide(); },
+  }, ['Cancel']);
+
+  const overlay = createOverlay({
+    ariaLabel: 'Import saved state',
+    children: [
+      h('div', { class: 'pf-mem-export' }, [
+        h('h2', { class: 'pf-mem-title' }, ['Import']),
+        h('p', { class: 'pf-mem-export-hint' }, [
+          'Paste the JSON from a previous Memory & Lore Export. Entries ',
+          'will be added to your current stage as new items; existing ',
+          'entries are preserved. Use Save to persist, or Cancel in the ',
+          'main window to discard everything.',
+        ]),
+        textarea,
+        status,
+        h('div', { class: 'pf-mem-export-actions' }, [cancelBtn, importBtn]),
+      ]),
+    ],
+  });
+  overlay.show();
+  setTimeout(() => textarea.focus(), 0);
 }
 
 /**

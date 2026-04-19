@@ -154,7 +154,26 @@ export async function start() {
 
   // Periodic refresh. Cheap — IDB getAll is fast at Perchance scale,
   // and we don't hook into message events, keeping the surface tiny.
-  setInterval(() => { refresh(card); }, REFRESH_INTERVAL_MS);
+  //
+  // We hold onto the interval handle so it can be cleared on page
+  // unload (belt + suspenders against browsers that keep timers
+  // alive across bfcache navigations) AND we defensively skip the
+  // refresh if the card element has been removed from the DOM for
+  // any reason — the interval self-clears in that case so we don't
+  // keep doing IDB reads against a ghost node.
+  const refreshHandle = setInterval(() => {
+    if (!card.isConnected) {
+      clearInterval(refreshHandle);
+      return;
+    }
+    refresh(card);
+  }, REFRESH_INTERVAL_MS);
+
+  // Page unload / bfcache — clear the interval. `pagehide` fires in
+  // more cases than `beforeunload` (bfcache, mobile background, etc.)
+  // so it's the more defensive choice. One-shot; no teardown needed.
+  const onPageHide = () => { clearInterval(refreshHandle); };
+  window.addEventListener('pagehide', onPageHide, { once: true });
 
   // Refresh when the tab becomes visible again — catches "user came back
   // after a while" without waiting for the next interval tick.

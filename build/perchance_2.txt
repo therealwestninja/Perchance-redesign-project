@@ -13631,24 +13631,6 @@ Use this template for your response:
   NS.__meta = { modules: 74 };
 
   /* ──────────────────────────────────────────────────────────
-     module: utils/escape.js
-     ────────────────────────────────────────────────────────── */
-  // utils/escape.js
-  //
-  // Minimal HTML escaping. Use this whenever user-supplied text needs to flow
-  // into `innerHTML`. For DOM text nodes, prefer `textContent` instead — it
-  // does the safe thing automatically.
-
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
      ────────────────────────────────────────────────────────── */
   // utils/dom.js
@@ -13780,6 +13762,97 @@ Use this template for your response:
 
     appendChildren(el, children);
     return el;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: utils/best_effort.js
+     ────────────────────────────────────────────────────────── */
+  // utils/best_effort.js
+  //
+  // Shared pattern for "this operation should never crash the app,
+  // but I'd like to know if it fails." Wraps a callable in a try/
+  // catch and, on failure, emits a console.debug entry so developers
+  // with DevTools open see what went wrong. Returns undefined on
+  // failure. Fully inline-replaceable with the existing
+  // `try { ... } catch { /* non-fatal */ }` pattern.
+  //
+  // Why a helper, and why debug-level:
+  //
+  //   - The existing 28+ inline catches do the right thing for the
+  //     user (swallow the error), but silence means a developer
+  //     auditing storage-quota failures or quirky browser behavior
+  //     has to add ad-hoc console.logs to figure out what's going
+  //     on. A consistent debug-level log means those diagnostics are
+  //     always available; users don't see anything in the normal
+  //     console view (warn+ filter) but devs can opt in.
+  //
+  //   - Debug-level, not warn/error, because these operations ARE
+  //     expected to sometimes fail (localStorage quota, third-party
+  //     blockers, element.select() on non-text inputs) and a noisier
+  //     level would train developers to tune the logs out.
+  //
+  // Adoption is incremental — existing inline catches are safe and
+  // don't need to migrate unless someone is touching the file for
+  // another reason. New code SHOULD prefer this helper.
+  //
+  // Usage:
+  //
+  //   import { bestEffort } from '../utils/best_effort.js';
+  //
+  //   bestEffort(() => bumpCounter('shareCardOpens'), 'shareCardOpens');
+  //
+  //   // with a return value
+  //   const settings = bestEffort(() => loadSettings(), 'loadSettings');
+
+  /**
+   * Invoke `fn` and swallow any thrown error. If an error is
+   * thrown, logs it at console.debug level with the provided `tag`
+   * so developers can diagnose failures without users seeing them.
+   *
+   * @param {() => T} fn         the operation to attempt
+   * @param {string} [tag]       short human-readable label for the log
+   * @returns {T | undefined}    return value of fn, or undefined on throw
+   * @template T
+   */
+  function bestEffort(fn, tag) {
+    try {
+      return fn();
+    } catch (e) {
+      try {
+        if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+          console.debug(`[pf:best-effort] ${tag || 'operation'} failed:`, e);
+        }
+      } catch {
+        // console.debug itself could (very rarely) throw in exotic
+        // sandboxed environments. Don't let the logger undermine
+        // the swallow-and-continue guarantee.
+      }
+      return undefined;
+    }
+  }
+
+  /**
+   * Async variant. Awaits the promise `fn` returns and swallows any
+   * rejection. Same logging behavior as bestEffort. Useful for
+   * fire-and-forget promise chains where you don't care about the
+   * result but want failures visible in the debug log.
+   *
+   * @param {() => Promise<T>} fn
+   * @param {string} [tag]
+   * @returns {Promise<T | undefined>}
+   * @template T
+   */
+  async function bestEffortAsync(fn, tag) {
+    try {
+      return await fn();
+    } catch (e) {
+      try {
+        if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+          console.debug(`[pf:best-effort-async] ${tag || 'operation'} failed:`, e);
+        }
+      } catch { /* see bestEffort */ }
+      return undefined;
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -19688,6 +19761,37 @@ Use this template for your response:
      Perchance Redesign Project — mini-card + (future) modal styles
      ============================================================ */
 
+  /*
+   * Palette tokens. Global :root scope so every component — mini-card
+   * (outside overlay), splash, toasts, overlay content — resolves the
+   * same values. A theme overhaul only needs to touch this block.
+   *
+   * The *-rgb variants expose R, G, B as comma-separated numbers
+   * so rgba() can consume them: rgba(var(--pf-palette-amber-rgb), 0.5).
+   * Pair the *-rgb tokens with the hex tokens to support both usage
+   * patterns.
+   *
+   * Do NOT introduce new raw hex/rgba values elsewhere in this
+   * stylesheet. Add them here first, then reference the var from
+   * the rule site.
+   */
+  :root {
+    --pf-palette-amber:       #d8b36a;
+    --pf-palette-amber-rgb:   216, 179, 106;
+    --pf-palette-amber-deep:  #b9894a;   /* gradient partner for amber */
+
+    --pf-palette-blue:        #4a90e2;
+    --pf-palette-red:         #d87a7a;
+    --pf-palette-red-rgb:     216, 122, 122;
+    --pf-palette-green:       #6ab87c;
+
+    --pf-bg-dark:             #1e1e1e;
+
+    /* Commonly-used neutral overlays */
+    --pf-overlay-dark-18:     rgba(0, 0, 0, 0.18);
+    --pf-overlay-dark-25:     rgba(0, 0, 0, 0.25);
+  }
+
   .pf-mini-card {
     display: flex;
     align-items: center;
@@ -19712,7 +19816,7 @@ Use this template for your response:
     transform: translateY(1px);
   }
   .pf-mini-card:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
 
@@ -19739,13 +19843,13 @@ Use this template for your response:
   }
   .pf-memory-button:hover {
     background: var(--box-color-hover, var(--box-color));
-    border-color: rgba(216, 179, 106, 0.4);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
   }
   .pf-memory-button:active {
     transform: translateY(1px);
   }
   .pf-memory-button:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
   .pf-memory-button-icon {
@@ -19833,7 +19937,7 @@ Use this template for your response:
     /* Warm gold accent — chosen to read well on both dark and light themes.
        Not theme-var-driven on purpose: this is the single "game accent" the
        project adds, and keeping it constant makes the UI recognizably ours. */
-    background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+    background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
     border-radius: 2px;
     transition: width 0.35s ease;
   }
@@ -19859,8 +19963,8 @@ Use this template for your response:
      ============================================================ */
 
   @keyframes pf-mini-pending-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(216, 179, 106, 0); }
-    50%      { box-shadow: 0 0 10px 1px rgba(216, 179, 106, 0.28); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--pf-palette-amber-rgb), 0); }
+    50%      { box-shadow: 0 0 10px 1px rgba(var(--pf-palette-amber-rgb), 0.28); }
   }
 
   @keyframes pf-mini-pending-dot-pulse {
@@ -19870,12 +19974,12 @@ Use this template for your response:
 
   .pf-mini-card-pending {
     animation: pf-mini-pending-pulse 3.5s ease-in-out infinite;
-    border-color: rgba(216, 179, 106, 0.35);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
   }
   .pf-mini-card-pending:hover {
     /* On hover, settle the glow — we've got their attention, stop waving */
     animation: none;
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
 
   .pf-mini-avatar-has-dot {
@@ -19889,9 +19993,9 @@ Use this template for your response:
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #d8b36a;
+    background: var(--pf-palette-amber);
     border: 2px solid var(--box-color, var(--background));
-    box-shadow: 0 0 4px 1px rgba(216, 179, 106, 0.5);
+    box-shadow: 0 0 4px 1px rgba(var(--pf-palette-amber-rgb), 0.5);
     animation: pf-mini-pending-dot-pulse 2.2s ease-in-out infinite;
     pointer-events: none;
   }
@@ -19961,7 +20065,7 @@ Use this template for your response:
   }
   .pf-overlay-close:hover { background: var(--box-color-hover, var(--box-color)); }
   .pf-overlay-close:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 2px;
   }
 
@@ -19992,8 +20096,8 @@ Use this template for your response:
     height: 88px;
     border-radius: 50%;
     background: var(--button-bg);
-    border: 2px solid #d8b36a;
-    box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
+    border: 2px solid var(--pf-palette-amber);
+    box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20005,7 +20109,7 @@ Use this template for your response:
     font-size: 44px;
     font-weight: 600;
     line-height: 1;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
   }
 
   .pf-splash-ident {
@@ -20026,7 +20130,7 @@ Use this template for your response:
     font-style: italic;
     font-size: 14px;
     opacity: 0.75;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
   }
 
   /* Archetype tag — small pill under the title. Only present when the
@@ -20045,8 +20149,8 @@ Use this template for your response:
     padding: 2px 9px;
     border-radius: 10px;
     background: rgba(0, 0, 0, 0.22);
-    color: var(--pf-accent, #d8b36a);
-    border: 1px solid var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
+    border: 1px solid var(--pf-accent, var(--pf-palette-amber));
     opacity: 0.85;
   }
 
@@ -20058,13 +20162,13 @@ Use this template for your response:
   .pf-splash-level {
     flex-shrink: 0;
     padding: 4px 10px;
-    border: 1px solid rgba(216, 179, 106, 0.45);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.45);
     border-radius: 999px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     background: rgba(185, 137, 74, 0.08);
   }
   .pf-splash-level-word { opacity: 0.7; }
@@ -20076,11 +20180,11 @@ Use this template for your response:
     background: rgba(127, 127, 127, 0.18);
     border-radius: 4px;
     overflow: hidden;
-    border: 1px solid rgba(216, 179, 106, 0.2);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.2);
   }
   .pf-splash-xpbar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+    background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
     transition: width 0.4s ease;
   }
   .pf-splash-xp-label {
@@ -20102,12 +20206,12 @@ Use this template for your response:
     height: 36px;
     border-radius: 8px;
     background: rgba(185, 137, 74, 0.12);
-    border: 1px solid rgba(216, 179, 106, 0.35);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 16px;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
   }
   .pf-splash-badge-locked {
     background: transparent;
@@ -20143,11 +20247,11 @@ Use this template for your response:
   }
   .pf-splash-share:hover {
     opacity: 1;
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
     transform: scale(1.05);
   }
   .pf-splash-share:focus-visible {
-    outline: 2px solid rgba(216, 179, 106, 0.55);
+    outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
     outline-offset: 1px;
     opacity: 1;
   }
@@ -20230,9 +20334,9 @@ Use this template for your response:
   .pf-overlay-focused .pf-splash,
   .pf-overlay-focused .pf-focus-extras {
     box-shadow:
-      0 0 0 1px rgba(216, 179, 106, 0.15),
+      0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.15),
       0 20px 60px -10px rgba(0, 0, 0, 0.65),
-      0 4px 20px rgba(216, 179, 106, 0.08);
+      0 4px 20px rgba(var(--pf-palette-amber-rgb), 0.08);
   }
   .pf-overlay-focused .pf-splash {
     padding: 36px 32px 28px;
@@ -20311,7 +20415,7 @@ Use this template for your response:
   .pf-share-chip-icon-uncommon  { color: #6aa66a; }
   .pf-share-chip-icon-rare      { color: #6aa0d8; }
   .pf-share-chip-icon-epic      { color: #b67ad8; }
-  .pf-share-chip-icon-legendary { color: #d8b36a; }
+  .pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
   /* Activity sparkline — last 12 weeks of completions, Focus mode only */
   .pf-sparkline {
@@ -20331,10 +20435,10 @@ Use this template for your response:
     fill: rgba(255, 255, 255, 0.04);
   }
   .pf-sparkline-bar {
-    fill: rgba(216, 179, 106, 0.55);
+    fill: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
   .pf-sparkline-bar-current {
-    fill: #d8b36a;
+    fill: var(--pf-palette-amber);
   }
   .pf-sparkline-label {
     font-family: inherit;
@@ -20346,7 +20450,7 @@ Use this template for your response:
     opacity: 0.55;
   }
   .pf-sparkline-label-right {
-    fill: #d8b36a;
+    fill: var(--pf-palette-amber);
     opacity: 1;
   }
 
@@ -20405,13 +20509,13 @@ Use this template for your response:
   }
   .pf-section-ctrl:hover { opacity: 1; background: var(--box-color-hover, var(--button-bg)); }
   .pf-section-ctrl:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
   .pf-section-eye[aria-pressed="true"] {
     opacity: 1;
     background: rgba(185, 137, 74, 0.12);
-    border-color: rgba(216, 179, 106, 0.45);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
   }
 
   .pf-section-body-wrap {
@@ -20438,7 +20542,7 @@ Use this template for your response:
     -webkit-backdrop-filter: blur(1px);
   }
   .pf-section-cover:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
   }
 
   .pf-section-blurred .pf-section-body {
@@ -20474,7 +20578,7 @@ Use this template for your response:
   }
   .pf-about-textarea:focus {
     outline: none;
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
   .pf-about-counter {
     align-self: flex-end;
@@ -20519,7 +20623,7 @@ Use this template for your response:
   }
   .pf-field-input:focus {
     outline: none;
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
   .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
 
@@ -20547,8 +20651,8 @@ Use this template for your response:
     height: 64px;
     border-radius: 50%;
     background: var(--button-bg);
-    border: 2px solid #d8b36a;
-    box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.25);
+    border: 2px solid var(--pf-palette-amber);
+    box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20561,7 +20665,7 @@ Use this template for your response:
     font-size: 30px;
     font-weight: 600;
     line-height: 1;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
   }
   .pf-avatar-buttons {
     grid-column: 2;
@@ -20583,10 +20687,10 @@ Use this template for your response:
     transition: border-color 0.15s, opacity 0.15s;
   }
   .pf-avatar-btn:hover {
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
   .pf-avatar-btn:focus-visible {
-    outline: 2px solid rgba(216, 179, 106, 0.55);
+    outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
     outline-offset: 1px;
   }
   .pf-avatar-btn-secondary {
@@ -20612,7 +20716,7 @@ Use this template for your response:
     opacity: 1;
   }
   .pf-avatar-status-info {
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     opacity: 1;
   }
 
@@ -20636,7 +20740,7 @@ Use this template for your response:
     width: 100%;
     height: 100%;
     background:
-      linear-gradient(180deg, rgba(216, 179, 106, 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
+      linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
       var(--textarea-bg, var(--background));
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -20651,7 +20755,7 @@ Use this template for your response:
     background-repeat: no-repeat;
   }
   .pf-gs-field:focus {
-    outline: 2px solid rgba(216, 179, 106, 0.55);
+    outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
     outline-offset: 2px;
   }
 
@@ -20660,9 +20764,9 @@ Use this template for your response:
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #d8b36a;
+    background: var(--pf-palette-amber);
     border: 2px solid var(--box-color);
-    box-shadow: 0 0 0 1px rgba(216, 179, 106, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
     transform: translate(-50%, -50%);
     pointer-events: none;
     transition: transform 0.05s;
@@ -20699,7 +20803,7 @@ Use this template for your response:
   .pf-cadence-toggle {
     display: inline-flex;
     flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     border: 1px solid var(--border-color);
     border-radius: 999px;
     padding: 2px;
@@ -20723,8 +20827,8 @@ Use this template for your response:
     opacity: 0.9;
   }
   .pf-cadence-btn-active {
-    background: rgba(216, 179, 106, 0.18);
-    color: #d8b36a;
+    background: rgba(var(--pf-palette-amber-rgb), 0.18);
+    color: var(--pf-palette-amber);
     opacity: 1;
   }
 
@@ -20737,8 +20841,8 @@ Use this template for your response:
     gap: 10px;
   }
   .pf-event-group {
-    background: linear-gradient(180deg, rgba(216, 179, 106, 0.07) 0%, rgba(216, 179, 106, 0.03) 100%);
-    border: 1px solid rgba(216, 179, 106, 0.30);
+    background: linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.07) 0%, rgba(var(--pf-palette-amber-rgb), 0.03) 100%);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.30);
     border-radius: var(--border-radius);
     padding: 12px 14px;
   }
@@ -20763,7 +20867,7 @@ Use this template for your response:
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     margin-bottom: 2px;
   }
   .pf-event-tagline {
@@ -20811,7 +20915,7 @@ Use this template for your response:
   }
   .pf-prompt-item:hover {
     background: rgba(185, 137, 74, 0.06);
-    border-color: rgba(216, 179, 106, 0.25);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.25);
   }
   .pf-prompt-item-done {
     opacity: 0.55;
@@ -20830,7 +20934,7 @@ Use this template for your response:
     margin-top: 2px;
     width: 16px;
     height: 16px;
-    accent-color: #d8b36a;
+    accent-color: var(--pf-palette-amber);
     cursor: pointer;
   }
 
@@ -20842,7 +20946,7 @@ Use this template for your response:
   }
   .pf-prompt-item-done .pf-prompt-text {
     text-decoration: line-through;
-    text-decoration-color: rgba(216, 179, 106, 0.5);
+    text-decoration-color: rgba(var(--pf-palette-amber-rgb), 0.5);
     text-decoration-thickness: 1px;
   }
 
@@ -20876,7 +20980,7 @@ Use this template for your response:
   }
   .pf-chron-num { font-weight: 600; }
   .pf-chron-denom { opacity: 0.55; font-size: 14px; }
-  .pf-chron-value-maxed .pf-chron-denom { color: #d8b36a; opacity: 1; }
+  .pf-chron-value-maxed .pf-chron-denom { color: var(--pf-palette-amber); opacity: 1; }
   .pf-chron-bar {
     height: 3px;
     background: rgba(127, 127, 127, 0.15);
@@ -20885,7 +20989,7 @@ Use this template for your response:
   }
   .pf-chron-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #b9894a 0%, #d8b36a 100%);
+    background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
     border-radius: 2px;
     transition: width 0.4s;
   }
@@ -20923,14 +21027,14 @@ Use this template for your response:
 
   /* The filled data polygon — warm gold, low alpha so grid shows through */
   .pf-radar-value-fill {
-    fill: rgba(216, 179, 106, 0.22);
-    stroke: #d8b36a;
+    fill: rgba(var(--pf-palette-amber-rgb), 0.22);
+    stroke: var(--pf-palette-amber);
     stroke-width: 1.5;
     stroke-linejoin: round;
   }
   /* Vertex dots where the user's values land */
   .pf-radar-value-dot {
-    fill: #d8b36a;
+    fill: var(--pf-palette-amber);
     stroke: var(--box-color);
     stroke-width: 1.5;
   }
@@ -20966,7 +21070,7 @@ Use this template for your response:
     letter-spacing: 0.05em;
   }
   .pf-radar-readout-value {
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     font-weight: 600;
   }
 
@@ -21010,7 +21114,7 @@ Use this template for your response:
     flex-direction: column;
     gap: 6px;
     padding: 12px 14px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
   }
@@ -21031,7 +21135,7 @@ Use this template for your response:
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
     letter-spacing: 0.06em;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     font-weight: 600;
   }
   .pf-archive-week-range {
@@ -21041,7 +21145,7 @@ Use this template for your response:
   .pf-archive-week-count {
     font-size: 11px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     flex-shrink: 0;
   }
   .pf-archive-week-count-none {
@@ -21072,7 +21176,7 @@ Use this template for your response:
     opacity: 0.4;
   }
   .pf-archive-item-done .pf-archive-check {
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     opacity: 1;
     font-weight: 600;
   }
@@ -21098,7 +21202,7 @@ Use this template for your response:
     letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 600;
-    color: #d8b36a;
+    color: var(--pf-palette-amber);
     opacity: 0.85;
   }
   .pf-archive-event-icon {
@@ -21122,8 +21226,8 @@ Use this template for your response:
     transition: background 0.15s, border-color 0.15s;
   }
   .pf-archive-load-more:hover {
-    background: rgba(216, 179, 106, 0.08);
-    border-color: rgba(216, 179, 106, 0.45);
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
   }
   .pf-archive-end {
     align-self: center;
@@ -21170,8 +21274,8 @@ Use this template for your response:
     transition: background 0.15s, border-color 0.15s;
   }
   .pf-backup-btn:hover {
-    background: rgba(216, 179, 106, 0.08);
-    border-color: rgba(216, 179, 106, 0.45);
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
   }
   .pf-backup-panel {
     display: flex;
@@ -21179,7 +21283,7 @@ Use this template for your response:
     gap: 10px;
     margin-top: 4px;
     padding: 14px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
   }
@@ -21205,7 +21309,7 @@ Use this template for your response:
   }
   .pf-backup-textarea:focus {
     outline: none;
-    border-color: rgba(216, 179, 106, 0.55);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
   }
   .pf-backup-actionbar {
     display: flex;
@@ -21225,8 +21329,8 @@ Use this template for your response:
     cursor: pointer;
   }
   .pf-backup-action:hover {
-    background: rgba(216, 179, 106, 0.1);
-    border-color: rgba(216, 179, 106, 0.45);
+    background: rgba(var(--pf-palette-amber-rgb), 0.1);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
   }
   .pf-backup-action-danger {
     border-color: rgba(220, 80, 80, 0.45);
@@ -21286,7 +21390,7 @@ Use this template for your response:
     cursor: default;
   }
   .pf-ach-card:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
   .pf-ach-icon { font-size: 22px; line-height: 1; }
@@ -21318,11 +21422,11 @@ Use this template for your response:
   .pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
   .pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
   .pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
-  .pf-ach-tier-legendary .pf-ach-icon { color: #d8b36a; }
+  .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-palette-amber); }
 
   .pf-ach-unlocked {
     background: rgba(185, 137, 74, 0.04);
-    border-color: rgba(216, 179, 106, 0.20);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.20);
   }
 
   /* ---- Description line on cards (new in categorized view) ---- */
@@ -21370,10 +21474,10 @@ Use this template for your response:
   }
   .pf-ach-tab-active {
     opacity: 1;
-    background: rgba(216, 179, 106, 0.08);
-    border-color: var(--pf-accent, rgba(216, 179, 106, 0.45));
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
+    border-color: var(--pf-accent, rgba(var(--pf-palette-amber-rgb), 0.45));
     border-bottom-color: transparent;
-    color: var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
   }
   .pf-ach-tab-icon {
     font-size: 13px;
@@ -21421,7 +21525,7 @@ Use this template for your response:
   .pf-ach-pane-title {
     font-size: 16px;
     font-weight: 600;
-    color: var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
   }
   .pf-ach-pane-count {
     font-size: 12px;
@@ -21466,7 +21570,7 @@ Use this template for your response:
   .pf-ach-summary-count {
     font-size: 13px;
     font-weight: 600;
-    color: var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
   }
   .pf-ach-prog-list {
     display: flex;
@@ -21498,7 +21602,7 @@ Use this template for your response:
   /* ---- Progress bars (reused for summary overall + per-category + pane head) ---- */
   .pf-ach-prog-bar {
     height: 6px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     border-radius: 3px;
     overflow: hidden;
   }
@@ -21508,7 +21612,7 @@ Use this template for your response:
   }
   .pf-ach-prog-bar-fill {
     height: 100%;
-    background: var(--pf-accent, #d8b36a);
+    background: var(--pf-accent, var(--pf-palette-amber));
     transition: width 0.25s;
     border-radius: inherit;
     min-width: 0;
@@ -21611,13 +21715,13 @@ Use this template for your response:
     font-weight: 600;
   }
 
-  .pf-mem-col-title-danger { color: #d87a7a; }
+  .pf-mem-col-title-danger { color: var(--pf-palette-red); }
 
   .pf-mem-col-count {
     font-size: 12px;
     padding: 1px 8px;
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     opacity: 0.85;
   }
 
@@ -21629,14 +21733,14 @@ Use this template for your response:
   }
 
   .pf-mem-col-drop-over {
-    outline: 2px dashed var(--link-color, #4a90e2);
+    outline: 2px dashed var(--link-color, var(--pf-palette-blue));
     outline-offset: -6px;
     background: rgba(74, 144, 226, 0.06);
   }
 
   .pf-mem-col-delete.pf-mem-col-drop-over {
-    outline-color: #d87a7a;
-    background: rgba(216, 122, 122, 0.08);
+    outline-color: var(--pf-palette-red);
+    background: rgba(var(--pf-palette-red-rgb), 0.08);
   }
 
   /* ---- list + cards ---- */
@@ -21699,12 +21803,12 @@ Use this template for your response:
 
   .pf-mem-action:hover { opacity: 1; background: var(--box-color-hover, var(--box-color)); }
   .pf-mem-action:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
 
   .pf-mem-action-delete {
-    color: #d87a7a;
+    color: var(--pf-palette-red);
     font-weight: 600;
   }
   .pf-mem-action-delete:hover {
@@ -21722,7 +21826,7 @@ Use this template for your response:
     gap: 4px;
     margin-left: auto;
     padding: 2px 4px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
     border-radius: 10px;
     font-size: 11px;
     opacity: 0.85;
@@ -21750,7 +21854,7 @@ Use this template for your response:
   }
   .pf-mem-k-btn:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
   .pf-mem-k-btn:focus-visible {
-    outline: 1px solid var(--link-color, #4a90e2);
+    outline: 1px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
   .pf-mem-k-value {
@@ -21795,7 +21899,7 @@ Use this template for your response:
     background: rgba(185, 137, 74, 0.10);
   }
   .pf-mem-bubble-header:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: -2px;
   }
   .pf-mem-bubble[aria-expanded="true"] > .pf-mem-bubble-header,
@@ -21849,7 +21953,7 @@ Use this template for your response:
     letter-spacing: 0.01em;
     padding: 1px 6px;
     background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(216, 179, 106, 0.5);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.5);
     border-radius: 4px;
     color: var(--text-color);
     outline: none;
@@ -21857,7 +21961,7 @@ Use this template for your response:
     min-width: 0;
   }
   .pf-mem-bubble-label-input:focus {
-    border-color: rgba(216, 179, 106, 0.9);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.9);
   }
 
   /* Stack label-on-top, preview-underneath, in a flex-column that takes
@@ -21887,7 +21991,7 @@ Use this template for your response:
     font-size: 11px;
     padding: 1px 8px;
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     font-variant-numeric: tabular-nums;
     opacity: 0.8;
   }
@@ -21936,10 +22040,10 @@ Use this template for your response:
     height: 6px;            /* bubble-level gaps slightly taller for easier target */
   }
   .pf-mem-drop-gap-active {
-    background: rgba(216, 179, 106, 0.6);    /* gold accent */
+    background: rgba(var(--pf-palette-amber-rgb), 0.6);    /* gold accent */
     height: 12px;
     margin: 2px 0;
-    box-shadow: 0 0 8px rgba(216, 179, 106, 0.35);
+    box-shadow: 0 0 8px rgba(var(--pf-palette-amber-rgb), 0.35);
   }
   .pf-mem-drop-gap-bubble.pf-mem-drop-gap-active {
     height: 14px;
@@ -22028,27 +22132,27 @@ Use this template for your response:
     background: rgba(255, 255, 255, 0.06);
   }
   .pf-mem-bubble-lock:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 1px;
   }
   .pf-mem-bubble-lock-on {
     opacity: 1;
-    color: #d8b36a;                   /* gold accent for "locked" */
-    border-color: rgba(216, 179, 106, 0.35);
-    background: rgba(216, 179, 106, 0.08);
+    color: var(--pf-palette-amber);                   /* gold accent for "locked" */
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
   }
   .pf-mem-bubble-lock-on:hover {
-    background: rgba(216, 179, 106, 0.16);
+    background: rgba(var(--pf-palette-amber-rgb), 0.16);
   }
 
   /* Locked bubble header: subtle visual cue so it reads as "pinned" even
      when the lock icon is tucked to the right. Gold tint + a left border. */
   .pf-mem-bubble-header-locked {
-    background: rgba(216, 179, 106, 0.06);
-    box-shadow: inset 3px 0 0 0 rgba(216, 179, 106, 0.6);
+    background: rgba(var(--pf-palette-amber-rgb), 0.06);
+    box-shadow: inset 3px 0 0 0 rgba(var(--pf-palette-amber-rgb), 0.6);
   }
   .pf-mem-bubble-header-locked:hover {
-    background: rgba(216, 179, 106, 0.12);
+    background: rgba(var(--pf-palette-amber-rgb), 0.12);
   }
 
   /* Bubble body: the nested cards, only visible when expanded */
@@ -22083,14 +22187,14 @@ Use this template for your response:
     transition: color 0.15s, background 0.15s, border-color 0.15s;
   }
   .pf-mem-bubble-settings-btn:hover {
-    color: rgba(216, 179, 106, 0.95);
-    border-color: rgba(216, 179, 106, 0.3);
-    background: rgba(216, 179, 106, 0.08);
+    color: rgba(var(--pf-palette-amber-rgb), 0.95);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.3);
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
   }
 
   /* Nested card: slightly subdued vs. standalone cards (pre-bubble era) */
   .pf-mem-card-nested {
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
     font-size: 12px;
     padding: 8px 10px;
   }
@@ -22123,7 +22227,7 @@ Use this template for your response:
     padding: 1px 8px;
     border-radius: 10px;
     background: rgba(216, 122, 122, 0.18);
-    color: #d87a7a;
+    color: var(--pf-palette-red);
     margin-left: auto;
     font-weight: 600;
   }
@@ -22191,17 +22295,17 @@ Use this template for your response:
   .pf-mem-btn:hover:not(:disabled) { background: var(--box-color-hover, var(--box-color)); }
   .pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .pf-mem-btn:focus-visible {
-    outline: 2px solid var(--link-color, #4a90e2);
+    outline: 2px solid var(--link-color, var(--pf-palette-blue));
     outline-offset: 2px;
   }
 
   .pf-mem-btn-primary {
-    background: #b9894a;
-    border-color: #d8b36a;
+    background: var(--pf-palette-amber-deep);
+    border-color: var(--pf-palette-amber);
     color: #1a1410;
     font-weight: 600;
   }
-  .pf-mem-btn-primary:hover:not(:disabled) { background: #d8b36a; }
+  .pf-mem-btn-primary:hover:not(:disabled) { background: var(--pf-palette-amber); }
 
   /* ---- export dialog ---- */
 
@@ -22224,7 +22328,7 @@ Use this template for your response:
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     color: var(--text-color);
     resize: vertical;
     min-height: 200px;
@@ -22248,18 +22352,18 @@ Use this template for your response:
   }
   .pf-mem-import-status[hidden] { display: none; }
   .pf-mem-import-status-ok {
-    color: #6ab87c;
+    color: var(--pf-palette-green);
     background: rgba(106, 184, 124, 0.08);
     border: 1px solid rgba(106, 184, 124, 0.3);
   }
   .pf-mem-import-status-warn {
-    color: #d8b36a;
-    background: rgba(216, 179, 106, 0.08);
-    border: 1px solid rgba(216, 179, 106, 0.3);
+    color: var(--pf-palette-amber);
+    background: rgba(var(--pf-palette-amber-rgb), 0.08);
+    border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.3);
   }
   .pf-mem-import-status-err {
-    color: #d87a7a;
-    background: rgba(216, 122, 122, 0.08);
+    color: var(--pf-palette-red);
+    background: rgba(var(--pf-palette-red-rgb), 0.08);
     border: 1px solid rgba(216, 122, 122, 0.3);
   }
 
@@ -22347,15 +22451,15 @@ Use this template for your response:
     align-items: flex-start;
     gap: 2px;
     padding: 10px 14px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
     transition: background 0.15s, border-color 0.15s;
     cursor: default;
   }
   .pf-activity-chip:hover {
-    background: rgba(0, 0, 0, 0.25);
-    border-color: rgba(216, 179, 106, 0.4);
+    background: var(--pf-overlay-dark-25);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
   }
   .pf-activity-chip-count {
     font-size: 20px;
@@ -22376,7 +22480,7 @@ Use this template for your response:
   .pf-activity-chip-spark {
     margin-top: 4px;
     opacity: 0.55;
-    color: var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
     line-height: 0; /* avoid inline-SVG baseline gap */
     transition: opacity 0.15s;
   }
@@ -22427,13 +22531,13 @@ Use this template for your response:
     background: rgba(255, 255, 255, 0.04);
   }
   .pf-mem-gear-btn:focus-visible {
-    outline: 2px solid rgba(216, 179, 106, 0.6);
+    outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.6);
     outline-offset: 2px;
   }
   .pf-mem-gear-btn-open {
     opacity: 1;
-    background: rgba(216, 179, 106, 0.12);
-    border-color: rgba(216, 179, 106, 0.35);
+    background: rgba(var(--pf-palette-amber-rgb), 0.12);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
     transform: rotate(45deg);
   }
 
@@ -22470,7 +22574,7 @@ Use this template for your response:
   .pf-mem-set-val {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(216, 179, 106, 0.95);
+    color: rgba(var(--pf-palette-amber-rgb), 0.95);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     min-width: 40px;
     text-align: right;
@@ -22491,8 +22595,8 @@ Use this template for your response:
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: rgba(216, 179, 106, 0.95);
-    border: 2px solid var(--bg-color, #1e1e1e);
+    background: rgba(var(--pf-palette-amber-rgb), 0.95);
+    border: 2px solid var(--bg-color, var(--pf-bg-dark));
     cursor: pointer;
     transition: transform 0.1s;
   }
@@ -22503,14 +22607,14 @@ Use this template for your response:
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: rgba(216, 179, 106, 0.95);
-    border: 2px solid var(--bg-color, #1e1e1e);
+    background: rgba(var(--pf-palette-amber-rgb), 0.95);
+    border: 2px solid var(--bg-color, var(--pf-bg-dark));
     cursor: pointer;
   }
   .pf-mem-set-caption {
     font-size: 12px;
     opacity: 0.85;
-    color: rgba(216, 179, 106, 0.85);
+    color: rgba(var(--pf-palette-amber-rgb), 0.85);
     font-style: italic;
   }
   .pf-mem-set-hint {
@@ -22527,7 +22631,7 @@ Use this template for your response:
     padding: 14px 18px;
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
   }
   .pf-streak-icon {
     font-size: 28px;
@@ -22551,8 +22655,8 @@ Use this template for your response:
     letter-spacing: 0.02em;
   }
   .pf-streak-active {
-    background: rgba(216, 179, 106, 0.10);
-    border-color: rgba(216, 179, 106, 0.35);
+    background: rgba(var(--pf-palette-amber-rgb), 0.10);
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
   }
   .pf-streak-active .pf-streak-line {
     color: rgba(236, 200, 130, 0.98);
@@ -22591,7 +22695,7 @@ Use this template for your response:
     background: var(--box-color);
   }
   .pf-mem-col-title-create {
-    color: #6ab87c;
+    color: var(--pf-palette-green);
   }
   .pf-mem-create-char-body {
     flex: 1;
@@ -22619,7 +22723,7 @@ Use this template for your response:
     opacity: 0.85;
   }
   .pf-mem-col-create-char.pf-mem-col-drop-over {
-    outline-color: #6ab87c;
+    outline-color: var(--pf-palette-green);
     background: rgba(106, 184, 124, 0.10);
   }
 
@@ -22632,7 +22736,7 @@ Use this template for your response:
     margin: 0 0 8px;
     font-size: 20px;
     font-weight: 600;
-    color: #6ab87c;
+    color: var(--pf-palette-green);
   }
   .pf-spinoff-blurb {
     margin: 0 0 18px;
@@ -22670,7 +22774,7 @@ Use this template for your response:
   .pf-spinoff-preview-wrap {
     margin-bottom: 14px;
     padding: 12px 14px;
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
     border: 1px solid var(--border-color);
     border-radius: 6px;
     max-height: 220px;
@@ -22705,10 +22809,10 @@ Use this template for your response:
     margin: 0 0 14px;
   }
   .pf-spinoff-err {
-    color: #d87a7a;
+    color: var(--pf-palette-red);
     font-size: 12px;
     padding: 8px 10px;
-    background: rgba(216, 122, 122, 0.08);
+    background: rgba(var(--pf-palette-red-rgb), 0.08);
     border: 1px solid rgba(216, 122, 122, 0.3);
     border-radius: 4px;
     margin-bottom: 12px;
@@ -22732,7 +22836,7 @@ Use this template for your response:
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: var(--pf-accent-preview, #d8b36a);
+    background: var(--pf-accent-preview, var(--pf-palette-amber));
     border: 2px solid transparent;
     cursor: pointer;
     display: inline-flex;
@@ -22760,11 +22864,11 @@ Use this template for your response:
 
   /* --- accent color consumers --- */
   /* The overlay gets --pf-accent set via inline style by full_page.js.
-     Chrome that previously used the hardcoded gold (#d8b36a) now reads
+     Chrome that previously used the hardcoded gold (var(--pf-palette-amber)) now reads
      --pf-accent so the user's pick shows everywhere appropriate. The
      fallback on .pf-overlay covers the first paint before JS runs. */
   .pf-overlay {
-    --pf-accent: #d8b36a;
+    --pf-accent: var(--pf-palette-amber);
   }
   .pf-splash-title {
     color: var(--pf-accent);
@@ -22789,7 +22893,7 @@ Use this template for your response:
     max-width: min(90vw, 360px);
   }
   .pf-toast {
-    background: var(--box-color, #1e1e1e);
+    background: var(--box-color, var(--pf-bg-dark));
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 14px 18px;
@@ -22809,10 +22913,10 @@ Use this template for your response:
   }
   .pf-toast-info { border-color: rgba(106, 154, 216, 0.4); }
   .pf-toast-ok   { border-color: rgba(106, 184, 124, 0.4); }
-  .pf-toast-warn { border-color: rgba(216, 179, 106, 0.4); }
+  .pf-toast-warn { border-color: rgba(var(--pf-palette-amber-rgb), 0.4); }
   .pf-toast-celebrate {
-    border-color: rgba(216, 179, 106, 0.6);
-    background: linear-gradient(135deg, var(--box-color, #1e1e1e), rgba(216, 179, 106, 0.08));
+    border-color: rgba(var(--pf-palette-amber-rgb), 0.6);
+    background: linear-gradient(135deg, var(--box-color, var(--pf-bg-dark)), rgba(var(--pf-palette-amber-rgb), 0.08));
   }
 
   /* Personal-best toast inner layout */
@@ -22825,7 +22929,7 @@ Use this template for your response:
     font-size: 10px;
     letter-spacing: 0.12em;
     font-weight: 700;
-    color: rgba(216, 179, 106, 0.95);
+    color: rgba(var(--pf-palette-amber-rgb), 0.95);
     text-transform: uppercase;
   }
   .pf-toast-pb-eyebrow-info {
@@ -22858,12 +22962,12 @@ Use this template for your response:
     padding: 18px 16px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    background: rgba(0, 0, 0, 0.18);
+    background: var(--pf-overlay-dark-18);
   }
   .pf-share-preview-name {
     font-size: 18px;
     font-weight: 600;
-    color: var(--pf-accent, #d8b36a);
+    color: var(--pf-accent, var(--pf-palette-amber));
     letter-spacing: 0.01em;
   }
   .pf-share-preview-sub {
@@ -22891,7 +22995,7 @@ Use this template for your response:
     font-size: 12px;
     line-height: 1.4;
     padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--pf-overlay-dark-25);
     color: var(--text-color);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -22900,7 +23004,7 @@ Use this template for your response:
     box-sizing: border-box;
   }
   .pf-share-code:focus {
-    outline: 1px solid var(--pf-accent, #d8b36a);
+    outline: 1px solid var(--pf-accent, var(--pf-palette-amber));
     outline-offset: -1px;
   }
   .pf-share-privacy {
@@ -22913,8 +23017,8 @@ Use this template for your response:
     font-size: 12px;
     min-height: 16px;
   }
-  .pf-share-status-ok  { color: #6ab87c; }
-  .pf-share-status-err { color: #d87a7a; }
+  .pf-share-status-ok  { color: var(--pf-palette-green); }
+  .pf-share-status-err { color: var(--pf-palette-red); }
   .pf-share-actions {
     display: flex;
     gap: 10px;
@@ -25832,13 +25936,70 @@ Use this template for your response:
   let dragPayload = null;
 
   /**
+   * Wire a three-event drop-target on `el`: dragover (accept check +
+   * preventDefault + add hover class), dragleave (remove hover class),
+   * drop (preventDefault + remove hover class + invoke handler).
+   *
+   * Replaces what was previously four near-identical inline blocks
+   * across buildColumn, buildDeletePanel, buildCreateCharacterPanel,
+   * and createDropGap. A bug fix to drop-target mechanics now lands
+   * in one place.
+   *
+   * @param {HTMLElement} el
+   * @param {{
+   *   accepts:        (payload: object) => boolean,
+   *   onDrop:         (payload: object, ev: DragEvent) => void,
+   *   activeClass?:   string,    // CSS class toggled while a valid drag hovers
+   *   stopPropagation?: boolean, // true for nested gaps inside a larger drop target
+   *   useRelatedTargetDragLeave?: boolean,
+   *                              // true = only remove the class when the cursor
+   *                              // actually leaves the element's subtree
+   *                              // (relatedTarget outside). Useful for big
+   *                              // columns with internal children. Gaps set
+   *                              // this false — they're small, leaving = leaving.
+   * }} opts
+   */
+  function wireDropTarget(el, {
+    accepts,
+    onDrop,
+    activeClass = 'pf-mem-col-drop-over',
+    stopPropagation = false,
+    useRelatedTargetDragLeave = true,
+  }) {
+    el.addEventListener('dragover', (ev) => {
+      if (!dragPayload) return;
+      if (!accepts(dragPayload)) return;
+      ev.preventDefault();
+      if (stopPropagation) ev.stopPropagation();
+      el.classList.add(activeClass);
+    });
+    el.addEventListener('dragleave', (ev) => {
+      if (useRelatedTargetDragLeave) {
+        if (!el.contains(ev.relatedTarget)) el.classList.remove(activeClass);
+      } else {
+        el.classList.remove(activeClass);
+      }
+    });
+    el.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      if (stopPropagation) ev.stopPropagation();
+      el.classList.remove(activeClass);
+      if (!dragPayload) return;
+      if (!accepts(dragPayload)) return;
+      const payload = dragPayload;
+      dragPayload = null;
+      onDrop(payload, ev);
+    });
+  }
+
+  /**
    * @typedef {Object} PanelHandlers
    * @property {(id) => void} [onPromote]            single entry memory → lore
    * @property {(id) => void} [onDemote]             single entry lore → memory
    * @property {(id) => void} [onDelete]             single entry → delete queue
    * @property {(bubbleId, entries) => void} [onBubblePromote] all entries in a bubble
    * @property {(bubbleId, entries) => void} [onBubbleDemote]  all entries in a bubble
-   * @property {(bubbleId, entries) => void} [onBubbleDelete]  all entries in a bubble
+   * @property {(bubbleId, entries, scope) => void} [onBubbleDelete]  all entries in a bubble
    * @property {(scope, bubbleId) => void} [onToggleBubble] expand/collapse
    * @property {(scope, bubbleId) => void} [onToggleLock]   toggle lock state
    * @property {(scope, dir) => void} [onChangeK]    +1 or -1 to k for a panel
@@ -26033,47 +26194,32 @@ Use this template for your response:
     ]);
 
     // Drop target wiring. Accepts matching-scope entries and bubbles.
-    col.addEventListener('dragover', (ev) => {
-      if (!dragPayload) return;
-      if (dragPayload.scope !== acceptsScope) return;
-      ev.preventDefault();
-      col.classList.add('pf-mem-col-drop-over');
-    });
-    col.addEventListener('dragleave', (ev) => {
-      if (!col.contains(ev.relatedTarget)) {
-        col.classList.remove('pf-mem-col-drop-over');
-      }
-    });
-    col.addEventListener('drop', (ev) => {
-      ev.preventDefault();
-      col.classList.remove('pf-mem-col-drop-over');
-      if (!dragPayload) return;
-      if (dragPayload.scope !== acceptsScope) return;
-      const payload = dragPayload;
-      dragPayload = null;
+    wireDropTarget(col, {
+      accepts: (payload) => payload.scope === acceptsScope,
+      onDrop: (payload) => {
+        // Unified behavior (per design): a card dropped on a cross-panel
+        // column gets promoted/demoted regardless of WHERE on the card the
+        // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
+        // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
+        // for whole-bubble drags.
+        const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+        const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
 
-      // Unified behavior (per design): a card dropped on a cross-panel
-      // column gets promoted/demoted regardless of WHERE on the card the
-      // user grabbed it. So both 'entry' (card body drag) and 'reorder-card'
-      // (grip drag) are treated the same. Ditto 'bubble' vs 'reorder-bubble'
-      // for whole-bubble drags.
-      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
-      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-
-      if (isCardPayload) {
-        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
-        if (scope === 'memory' && typeof handlers.onDemote === 'function') {
-          handlers.onDemote(cardId);
-        } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
-          handlers.onPromote(cardId);
+        if (isCardPayload) {
+          const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+          if (scope === 'memory' && typeof handlers.onDemote === 'function') {
+            handlers.onDemote(cardId);
+          } else if (scope === 'lore' && typeof handlers.onPromote === 'function') {
+            handlers.onPromote(cardId);
+          }
+        } else if (isBubblePayload) {
+          if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
+            handlers.onBubbleDemote(payload.bubbleId, payload.entries);
+          } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
+            handlers.onBubblePromote(payload.bubbleId, payload.entries);
+          }
         }
-      } else if (isBubblePayload) {
-        if (scope === 'memory' && typeof handlers.onBubbleDemote === 'function') {
-          handlers.onBubbleDemote(payload.bubbleId, payload.entries);
-        } else if (scope === 'lore' && typeof handlers.onBubblePromote === 'function') {
-          handlers.onBubblePromote(payload.bubbleId, payload.entries);
-        }
-      }
+      },
     });
 
     return col;
@@ -26091,35 +26237,22 @@ Use this template for your response:
       h('div', { class: 'pf-mem-del-body-empty', 'aria-hidden': 'true' }),
     ]);
 
-    col.addEventListener('dragover', (ev) => {
-      if (!dragPayload) return;
-      ev.preventDefault();
-      col.classList.add('pf-mem-col-drop-over');
-    });
-    col.addEventListener('dragleave', (ev) => {
-      if (!col.contains(ev.relatedTarget)) {
-        col.classList.remove('pf-mem-col-drop-over');
-      }
-    });
-    col.addEventListener('drop', (ev) => {
-      ev.preventDefault();
-      col.classList.remove('pf-mem-col-drop-over');
-      if (!dragPayload) return;
-      const payload = dragPayload;
-      dragPayload = null;
+    wireDropTarget(col, {
+      accepts: () => true,   // delete accepts anything draggable
+      onDrop: (payload) => {
+        // Same unified behavior as cross-panel columns (see buildColumn):
+        // accept both body-drag and grip-drag payloads. Delete doesn't care
+        // where you grabbed.
+        const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
+        const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
 
-      // Same unified behavior as cross-panel columns (see buildColumn):
-      // accept both body-drag and grip-drag payloads. Delete doesn't care
-      // where you grabbed.
-      const isCardPayload   = payload.kind === 'entry'  || payload.kind === 'reorder-card';
-      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-
-      if (isCardPayload && typeof handlers.onDelete === 'function') {
-        const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
-        handlers.onDelete(cardId);
-      } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
-        handlers.onBubbleDelete(payload.bubbleId, payload.entries);
-      }
+        if (isCardPayload && typeof handlers.onDelete === 'function') {
+          const cardId = payload.kind === 'entry' ? payload.id : payload.cardId;
+          handlers.onDelete(cardId);
+        } else if (isBubblePayload && typeof handlers.onBubbleDelete === 'function') {
+          handlers.onBubbleDelete(payload.bubbleId, payload.entries, payload.scope);
+        }
+      },
     });
 
     return col;
@@ -26153,41 +26286,24 @@ Use this template for your response:
       ]),
     ]);
 
-    col.addEventListener('dragover', (ev) => {
-      if (!dragPayload) return;
+    wireDropTarget(col, {
       // Only accept whole-bubble drops; reject single-card payloads.
-      const isBubblePayload = dragPayload.kind === 'bubble' || dragPayload.kind === 'reorder-bubble';
-      if (!isBubblePayload) return;
-      ev.preventDefault();
-      col.classList.add('pf-mem-col-drop-over');
-    });
-    col.addEventListener('dragleave', (ev) => {
-      if (!col.contains(ev.relatedTarget)) {
-        col.classList.remove('pf-mem-col-drop-over');
-      }
-    });
-    col.addEventListener('drop', (ev) => {
-      ev.preventDefault();
-      col.classList.remove('pf-mem-col-drop-over');
-      if (!dragPayload) return;
-      const payload = dragPayload;
-      dragPayload = null;
-
-      const isBubblePayload = payload.kind === 'bubble' || payload.kind === 'reorder-bubble';
-      if (!isBubblePayload) return;
-      if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
-
-      if (typeof handlers.onSpinOffCharacter === 'function') {
-        // Pass scope so handler can decide how to label / route. The
-        // entries themselves are scope-agnostic — both Memory and Lore
-        // entries have a text field that maps cleanly to a lore item.
-        handlers.onSpinOffCharacter(
-          payload.scope,
-          payload.bubbleId,
-          payload.entries,
-          payload.label || ''
-        );
-      }
+      accepts: (payload) =>
+        (payload.kind === 'bubble' || payload.kind === 'reorder-bubble'),
+      onDrop: (payload) => {
+        if (!Array.isArray(payload.entries) || payload.entries.length === 0) return;
+        if (typeof handlers.onSpinOffCharacter === 'function') {
+          // Pass scope so handler can decide how to label / route. The
+          // entries themselves are scope-agnostic — both Memory and Lore
+          // entries have a text field that maps cleanly to a lore item.
+          handlers.onSpinOffCharacter(
+            payload.scope,
+            payload.bubbleId,
+            payload.entries,
+            payload.label || ''
+          );
+        }
+      },
     });
 
     return col;
@@ -26498,7 +26614,7 @@ Use this template for your response:
         'aria-label': 'Delete all',
         onClick: (ev) => {
           ev.stopPropagation();
-          handlers.onBubbleDelete(bubble.id, bubble.entries);
+          handlers.onBubbleDelete(bubble.id, bubble.entries, scope);
         },
       }, ['✕']));
     }
@@ -26696,51 +26812,43 @@ Use this template for your response:
       'aria-hidden': 'true',
     });
 
-    // Check whether this gap should accept the current drag payload.
-    function accepts() {
-      if (!dragPayload) return false;
-      if (kind === 'bubble' && dragPayload.kind !== 'reorder-bubble') return false;
-      if (kind === 'card'   && dragPayload.kind !== 'reorder-card')   return false;
-      // Reorder payloads carry the source scope; a Memory bubble/card
-      // can't reorder INTO the Lore column and vice versa. (Cross-panel
-      // drops use a different payload kind — 'bubble'/'entry' — handled
-      // at the column level, not the gap level.)
-      if (dragPayload.scope !== scope) return false;
-      if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
-      return true;
-    }
-
-    gap.addEventListener('dragover', (ev) => {
-      if (!accepts()) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      gap.classList.add('pf-mem-drop-gap-active');
-    });
-    gap.addEventListener('dragleave', () => {
-      gap.classList.remove('pf-mem-drop-gap-active');
-    });
-    gap.addEventListener('drop', (ev) => {
-      if (!accepts()) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      gap.classList.remove('pf-mem-drop-gap-active');
-
-      if (kind === 'bubble') {
-        if (typeof handlers.onReorderBubble === 'function') {
-          handlers.onReorderBubble(scope, dragPayload.bubbleId, beforeId);
+    wireDropTarget(gap, {
+      accepts: (payload) => {
+        if (kind === 'bubble' && payload.kind !== 'reorder-bubble') return false;
+        if (kind === 'card'   && payload.kind !== 'reorder-card')   return false;
+        // Reorder payloads carry the source scope; a Memory bubble/card
+        // can't reorder INTO the Lore column and vice versa. (Cross-panel
+        // drops use a different payload kind — 'bubble'/'entry' — handled
+        // at the column level, not the gap level.)
+        if (payload.scope !== scope) return false;
+        if (kind === 'card' && parentBubbleLocked) return false; // 7d.2: locked target seals in AND out
+        return true;
+      },
+      onDrop: (payload) => {
+        if (kind === 'bubble') {
+          if (typeof handlers.onReorderBubble === 'function') {
+            handlers.onReorderBubble(scope, payload.bubbleId, beforeId);
+          }
+        } else if (kind === 'card') {
+          if (typeof handlers.onReorderCard === 'function') {
+            handlers.onReorderCard(
+              scope,
+              payload.bubbleId,         // source bubble
+              payload.cardId,
+              parentBubbleId,           // target bubble (may differ from source in 7d.2)
+              beforeId,
+            );
+          }
         }
-      } else if (kind === 'card') {
-        if (typeof handlers.onReorderCard === 'function') {
-          handlers.onReorderCard(
-            scope,
-            dragPayload.bubbleId,     // source bubble
-            dragPayload.cardId,
-            parentBubbleId,           // target bubble (may differ from source in 7d.2)
-            beforeId,
-          );
-        }
-      }
-      dragPayload = null;
+      },
+      activeClass: 'pf-mem-drop-gap-active',
+      // Gaps live inside columns; stopPropagation keeps the column's
+      // drop handler from firing in addition to ours.
+      stopPropagation: true,
+      // Gaps are small horizontal strips — relatedTarget-based leave
+      // detection is unnecessary and actually slightly wrong (moving
+      // out of a 4px strip should ALWAYS remove the hover class).
+      useRelatedTargetDragLeave: false,
     });
 
     return gap;
@@ -27836,6 +27944,59 @@ Use this template for your response:
       return window.confirm(message);
     }
 
+    /**
+     * Shared body for the three batch-bubble handlers (promote/demote/
+     * delete). Each follows the same recipe:
+     *
+     *   1. confirmIfLocked(scope, bubbleId, message) — bail if the user
+     *      declines the pinned-bubble confirmation
+     *   2. Unlock the bubble in the scope(s) the caller names and drop
+     *      the persisted lock if requested
+     *   3. For each entry in the bubble: run the per-entry action and
+     *      forget the card from the override sets passed in
+     *   4. refresh()
+     *
+     * The caller supplies exactly which overrides to clean, which mirrors
+     * the pre-refactor behavior exactly — notably, demote does NOT touch
+     * the persisted-lock map (Lore locks don't persist, and
+     * stableIdByCurrentBubble isn't currently scope-namespaced, so a
+     * Lore-bubble-id lookup could false-hit a Memory entry if the
+     * bubble:N numbering collides across scopes). The refactor is
+     * mechanical — same steps in the same order — not semantic.
+     *
+     * @param {object} opts
+     * @param {string} opts.scope                   'memory' | 'lore' | null
+     * @param {string} opts.bubbleId                the bubble being acted on (for lock confirm)
+     * @param {Array}  opts.entries                 the bubble's entries
+     * @param {string} opts.confirmMessage          message shown if the bubble is locked
+     * @param {Array<object>} opts.unlockOverrides  session override set(s) to remove bubbleId from
+     * @param {boolean} [opts.forgetPersistedLock]  whether to also drop the persisted lock
+     * @param {(e) => void} opts.perEntry           per-entry mutation (stage.promote, etc.)
+     * @param {Array<object>} opts.forgetCardsFromOverrides
+     *   override collection(s) to run forgetCard against for each entry
+     */
+    function batchBubbleOp({
+      scope,
+      bubbleId,
+      entries,
+      confirmMessage,
+      unlockOverrides,
+      forgetPersistedLock = false,
+      perEntry,
+      forgetCardsFromOverrides,
+    }) {
+      if (!confirmIfLocked(scope, bubbleId, confirmMessage)) return;
+      if (bubbleId) {
+        for (const ov of unlockOverrides) ov.lockedBubbles.delete(String(bubbleId));
+        if (forgetPersistedLock) forgetPersistedLockForBubble(bubbleId);
+      }
+      for (const e of entries) {
+        perEntry(e);
+        for (const ov of forgetCardsFromOverrides) forgetCard(ov, e.id);
+      }
+      refresh();
+    }
+
     // ---- handlers ----
 
     const handlers = {
@@ -27871,27 +28032,29 @@ Use this template for your response:
       // Individual card actions inside a locked bubble don't confirm — they
       // are explicitly one-at-a-time gestures and repeated prompts would be
       // tedious.
-      onBubblePromote: (bubbleId, entries) => {
-        if (!confirmIfLocked('memory', bubbleId, `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`)) return;
-        if (bubbleId) {
-          memoryOverrides.lockedBubbles.delete(String(bubbleId));
-          forgetPersistedLockForBubble(bubbleId);
-        }
-        for (const e of entries) {
-          stage.promote(e.id);
-          forgetCard(memoryOverrides, e.id);
-        }
-        refresh();
-      },
-      onBubbleDemote: (bubbleId, entries) => {
-        if (!confirmIfLocked('lore', bubbleId, `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`)) return;
-        if (bubbleId) loreOverrides.lockedBubbles.delete(String(bubbleId));
-        for (const e of entries) {
-          stage.demote(e.id);
-          forgetCard(loreOverrides, e.id);
-        }
-        refresh();
-      },
+      onBubblePromote: (bubbleId, entries) => batchBubbleOp({
+        scope: 'memory',
+        bubbleId,
+        entries,
+        confirmMessage: `Promote all contents of this pinned bubble to Lore? The bubble will also be unlocked.`,
+        unlockOverrides: [memoryOverrides],
+        forgetPersistedLock: true,    // Memory locks persist; clear
+        perEntry: (e) => stage.promote(e.id),
+        forgetCardsFromOverrides: [memoryOverrides],
+      }),
+      onBubbleDemote: (bubbleId, entries) => batchBubbleOp({
+        scope: 'lore',
+        bubbleId,
+        entries,
+        confirmMessage: `Demote all contents of this pinned bubble to Memory? The bubble will also be unlocked.`,
+        unlockOverrides: [loreOverrides],
+        forgetPersistedLock: false,   // Lore locks don't persist; also
+                                      // avoids a bubble-id collision hit
+                                      // on the Memory persisted map (see
+                                      // CD-2 note in docs/audit-findings.md)
+        perEntry: (e) => stage.demote(e.id),
+        forgetCardsFromOverrides: [loreOverrides],
+      }),
       // Spin off a new character from a bubble. Non-mutating for the
       // source thread — the bubble's entries are COPIED out as seed
       // lore for the new character. Source memories remain intact.
@@ -27921,22 +28084,29 @@ Use this template for your response:
         });
       },
 
-      onBubbleDelete: (bubbleId, entries) => {
-        const scope = locatedBubbleScope(bubbleId);
-        if (!confirmIfLocked(scope, bubbleId, `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`)) return;
-        if (bubbleId) {
-          memoryOverrides.lockedBubbles.delete(String(bubbleId));
-          loreOverrides.lockedBubbles.delete(String(bubbleId));
-          forgetPersistedLockForBubble(bubbleId);
-        }
-        for (const e of entries) {
+      onBubbleDelete: (bubbleId, entries, sourceScope) => batchBubbleOp({
+        // Use the scope the caller provides (derived from the drag
+        // payload's source panel OR the button's containing panel).
+        // Fall back to locatedBubbleScope as a defensive backup for
+        // any older callers; NEW callers should always pass sourceScope
+        // so we don't have to rely on the ambiguous Memory/Lore id
+        // lookup (see CD-2a note).
+        scope: sourceScope || locatedBubbleScope(bubbleId),
+        bubbleId,
+        entries,
+        confirmMessage: `Delete all ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} in this pinned bubble? The bubble itself will also be removed.`,
+        unlockOverrides: [memoryOverrides, loreOverrides],
+        // Only drop the persisted-lock registration if the bubble being
+        // deleted is actually Memory-scoped. Lore bubbles share the
+        // same bubble:N id space and could false-hit a Memory persisted
+        // lock if we weren't scope-aware here.
+        forgetPersistedLock: (sourceScope || locatedBubbleScope(bubbleId)) === 'memory',
+        perEntry: (e) => {
           queueForDeletion(e.id);
           stage.remove(e.id);
-          forgetCard(memoryOverrides, e.id);
-          forgetCard(loreOverrides, e.id);
-        }
-        refresh();
-      },
+        },
+        forgetCardsFromOverrides: [memoryOverrides, loreOverrides],
+      }),
 
       // Reorder gestures (7d). Lore has no reorder at all — these handlers
       // onReorderBubble: move bubble `bubbleId` to the position just before
@@ -31294,6 +31464,67 @@ Use this template for your response:
       const { countEventsResponded } = await import('../events/participation.js');
       stats.eventsResponded = countEventsResponded();
     } catch { stats.eventsResponded = 0; }
+
+    /**
+     * Rebuild a FRESH stats bundle for mid-session refreshes (splash
+     * redraw after a new unlock, share-dialog open, accent repaint,
+     * etc.). Starts from the init-time `stats` (which carries IDB-
+     * derived + prompt-derived data that doesn't change mid-session)
+     * and re-reads the mutable fields from their sources.
+     *
+     * Every achievement criterion that reads `stats.<x>` for a mutable
+     * source must be represented here, otherwise refresh paths will
+     * silently read stale values and criteria won't re-fire on a
+     * threshold crossing.
+     *
+     * This consolidation is deliberate: previously each refresh site
+     * re-inlined the fresh-read logic and any new stat source risked
+     * being added to some sites and not others. Keeping all refresh
+     * paths routed through this helper means "add a new stat" is a
+     * one-file change.
+     *
+     * @returns {object} merged stats bundle ready to pass to
+     *                   computeUnlockedIds or getPrimaryArchetype
+     */
+    async function buildFreshStats() {
+      const fresh = { ...stats };
+      try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
+      try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
+      try {
+        const { countEventsResponded } = await import('../events/participation.js');
+        fresh.eventsResponded = countEventsResponded();
+      } catch { fresh.eventsResponded = stats.eventsResponded || 0; }
+      // Future fields go here. Any new mutable stat source referenced
+      // by an achievement criterion (or by getPrimaryArchetype) should
+      // be re-read from its source right here; otherwise refresh sites
+      // pick up whatever stale value was in `stats` at openFullPage time.
+      return fresh;
+    }
+
+    /**
+     * Sync variant of buildFreshStats for use in sync handlers where
+     * `await` would be disruptive (e.g. accent repaint on settings-
+     * change, which fires many times per session). Reads the cheap
+     * localStorage-backed stats synchronously and carries forward the
+     * LAST-KNOWN value of any async-derived field (currently
+     * eventsResponded) from `stats`. Call sites that genuinely need
+     * a just-fetched eventsResponded should use the async form.
+     *
+     * @returns {object}
+     */
+    function buildFreshStatsSync() {
+      const fresh = { ...stats };
+      try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
+      try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
+      // eventsResponded is async (dynamic-imported participation.js) so
+      // we carry the init-time value; callers that change event state
+      // (completing a prompt in the profile) should use buildFreshStats()
+      // instead. The TYPICAL sync-path caller (accent / title repaint
+      // on a flair change) doesn't mutate events, so stale is safe.
+      fresh.eventsResponded = stats.eventsResponded || 0;
+      return fresh;
+    }
+
     try {
       unlockedIds = computeUnlockedIds(stats);
     } catch {
@@ -31395,31 +31626,19 @@ Use this template for your response:
         // Dynamic import so the share machinery loads only when the
         // user asks for it — keeps the cold-start cost of the profile
         // overlay down for the common case where nobody shares.
-        import('../render/share_dialog.js').then((mod) => {
+        import('../render/share_dialog.js').then(async (mod) => {
           // Derive the latest-display view-model from freshest settings +
           // stats — the card should reflect the user's current state
           // (flair pick, archetype, accent), not the init-time snapshot.
           let freshSettings = settings;
           try { freshSettings = loadSettings(); } catch { /* keep stale */ }
           let freshUnlocked = unlockedIds;
+          let freshArchetype = null;
           try {
-            const archeStats = {
-              ...stats,
-              counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-              streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-            };
-            freshUnlocked = computeUnlockedIds(archeStats);
+            const freshStats = await buildFreshStats();
+            freshUnlocked = computeUnlockedIds(freshStats);
+            try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
           } catch { /* fall back */ }
-          const freshArchetype = (() => {
-            try {
-              const archeStats = {
-                ...stats,
-                counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-                streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-              };
-              return getPrimaryArchetype(archeStats);
-            } catch { return null; }
-          })();
           const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
           const p = (freshSettings && freshSettings.profile) || {};
           mod.openShareDialog({
@@ -31451,9 +31670,14 @@ Use this template for your response:
       // crossed an achievement threshold.
       let freshUnlocked = unlockedIds;
       try {
-        const freshCounters = (() => { try { return getCounters(); } catch { return {}; } })();
-        const freshStreaks  = (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })();
-        const freshStats = { ...stats, ...computePromptStats(freshSettings), counters: freshCounters, streaks: freshStreaks };
+        // Prompt-stats change mid-session when the user checks a prompt
+        // inside the profile, so fold them in from freshSettings. The
+        // rest of the bundle (counters/streaks/eventsResponded) comes
+        // from the helper. Sync form is fine here — this runs on every
+        // settings-changed event (many times/session) and eventsResponded
+        // doesn't shift without an explicit event-prompt completion,
+        // which the splash-refresh path doesn't perform.
+        const freshStats = { ...buildFreshStatsSync(), ...computePromptStats(freshSettings) };
         freshUnlocked = computeUnlockedIds(freshStats);
       } catch { /* fall back to initial unlock list */ }
 
@@ -31462,12 +31686,7 @@ Use this template for your response:
       // reflects live in the splash.
       let freshArchetype = null;
       try {
-        const archeStats = {
-          ...stats,
-          counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-          streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-        };
-        freshArchetype = getPrimaryArchetype(archeStats);
+        freshArchetype = getPrimaryArchetype(buildFreshStatsSync());
       } catch { /* non-fatal */ }
 
       splash.update({
@@ -31672,11 +31891,7 @@ Use this template for your response:
       try { freshSettings = loadSettings(); } catch { /* keep stale */ }
       let freshUnlocked = unlockedIds;
       try {
-        freshUnlocked = computeUnlockedIds({
-          ...stats,
-          counters: (() => { try { return getCounters(); } catch { return {}; } })(),
-          streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
-        });
+        freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
       } catch { /* fall back */ }
       const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
       overlay.style.setProperty('--pf-accent', accent.color);
@@ -31845,7 +32060,26 @@ Use this template for your response:
 
     // Periodic refresh. Cheap — IDB getAll is fast at Perchance scale,
     // and we don't hook into message events, keeping the surface tiny.
-    setInterval(() => { refresh(card); }, REFRESH_INTERVAL_MS);
+    //
+    // We hold onto the interval handle so it can be cleared on page
+    // unload (belt + suspenders against browsers that keep timers
+    // alive across bfcache navigations) AND we defensively skip the
+    // refresh if the card element has been removed from the DOM for
+    // any reason — the interval self-clears in that case so we don't
+    // keep doing IDB reads against a ghost node.
+    const refreshHandle = setInterval(() => {
+      if (!card.isConnected) {
+        clearInterval(refreshHandle);
+        return;
+      }
+      refresh(card);
+    }, REFRESH_INTERVAL_MS);
+
+    // Page unload / bfcache — clear the interval. `pagehide` fires in
+    // more cases than `beforeunload` (bfcache, mobile background, etc.)
+    // so it's the more defensive choice. One-shot; no teardown needed.
+    const onPageHide = () => { clearInterval(refreshHandle); };
+    window.addEventListener('pagehide', onPageHide, { once: true });
 
     // Refresh when the tab becomes visible again — catches "user came back
     // after a while" without waiting for the next interval tick.
