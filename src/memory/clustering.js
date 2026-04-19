@@ -250,9 +250,27 @@ export function kmeans({ vectors, k, maxIterations = 100, seed } = {}) {
  * @param {number} n  entry count
  * @returns {number} recommended k, always >= 1
  */
-export function recommendK(n) {
+/**
+ * Recommend a K value for kmeans given N items.
+ *
+ * Returns 1 for trivially small inputs (≤3 items: just show them all
+ * as "bubbles of one"), otherwise scales as ~sqrt(n/2) clamped to
+ * [3, 15]. The clamp keeps small datasets from being over-clustered
+ * and large ones from being unwieldy.
+ *
+ * Optional `prefMultiplier` (default 1.0): user preference for sparser
+ * (<1) or denser (>1) bubble structure. Applied to the sqrt result
+ * BEFORE the [3, 15] clamp so the user can't escape the sanity bounds
+ * but can express "I prefer smaller groups" or "I prefer fewer bigger
+ * groups." Read from settings.memory.tool.kPrefMultiplier by callers
+ * who care; default behavior (1.0) is exactly the pre-#5 algorithm.
+ */
+export function recommendK(n, prefMultiplier = 1) {
   if (!Number.isFinite(n) || n <= 0) return 1;
   if (n <= 3) return n;
-  const raw = Math.round(Math.sqrt(n / 2));
+  const mult = (typeof prefMultiplier === 'number' && Number.isFinite(prefMultiplier) && prefMultiplier > 0)
+    ? prefMultiplier
+    : 1;
+  const raw = Math.round(Math.sqrt(n / 2) * mult);
   return Math.max(3, Math.min(15, raw));
 }

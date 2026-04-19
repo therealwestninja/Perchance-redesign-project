@@ -212,3 +212,56 @@ test('kmeans: every cluster center returned has correct dimension', () => {
     assert.equal(c.length, dim);
   }
 });
+
+// ---- recommendK with prefMultiplier (#5d) ----
+
+test('recommendK: prefMultiplier defaults to 1 (no behavior change without arg)', () => {
+  // Multi-arg call equals single-arg call when multiplier is 1.
+  for (const n of [4, 10, 50, 200, 1000]) {
+    assert.equal(recommendK(n, 1), recommendK(n), `n=${n}`);
+  }
+});
+
+test('recommendK: multiplier > 1 returns at least the default for moderate inputs', () => {
+  // 2x should give >= the default for moderate-to-large inputs.
+  // (Trivially small inputs (≤3) ignore the multiplier — they always
+  // return n.) Sanity bound [3, 15] still applies, so we can't go above 15.
+  for (const n of [10, 50, 200]) {
+    const base = recommendK(n);
+    const denser = recommendK(n, 2);
+    assert.ok(denser >= base, `n=${n}: denser=${denser} should be >= base=${base}`);
+  }
+});
+
+test('recommendK: multiplier < 1 returns at most the default', () => {
+  for (const n of [10, 50, 200, 500]) {
+    const base = recommendK(n);
+    const sparser = recommendK(n, 0.5);
+    assert.ok(sparser <= base, `n=${n}: sparser=${sparser} should be <= base=${base}`);
+  }
+});
+
+test('recommendK: sanity bounds [3, 15] apply regardless of multiplier', () => {
+  // Even with extreme multipliers, k stays in [3, 15] for non-trivial n.
+  for (const n of [10, 100, 10000]) {
+    const huge = recommendK(n, 100);
+    assert.ok(huge <= 15, `n=${n} mult=100: ${huge} should be <= 15`);
+    const tiny = recommendK(n, 0.001);
+    assert.ok(tiny >= 3, `n=${n} mult=0.001: ${tiny} should be >= 3`);
+  }
+});
+
+test('recommendK: invalid multiplier falls back to 1', () => {
+  // NaN, negative, zero, non-number — all treated as 1.
+  for (const bad of [NaN, -1, 0, 'abc', null, undefined]) {
+    assert.equal(recommendK(50, bad), recommendK(50, 1), `bad input ${bad}`);
+  }
+});
+
+test('recommendK: trivially small inputs ignore the multiplier', () => {
+  // n <= 3 always returns n, regardless of multiplier.
+  assert.equal(recommendK(0, 2), 1);
+  assert.equal(recommendK(1, 0.5), 1);
+  assert.equal(recommendK(2, 100), 2);
+  assert.equal(recommendK(3, 0.01), 3);
+});

@@ -3,56 +3,58 @@
 Future improvements that aren't urgent or don't belong in the current
 sprint. Ordered by rough priority, not schedule.
 
+---
+
+## ✓ ROADMAP DIRECTIVE — CLEARED (Apr 2026 session)
+
+User said "do all in order, no notes." All listed roadmap items
+have been shipped:
+
+  fbb25f3  feat: 8 legendary capstones — make the endgame palette earnable
+  62d5f33  feat: targeted persistence for memory reorder
+  abeab52  feat: per-thread counter breakdowns
+  f07da3e  feat: persist lore order via settings
+  d277ea8  feat: settings drawer extension - tunable snapshot cap
+
+Test count grew 855 → 899 across these 5 commits (+44 net).
+All tests passing. Build clean.
+
+The "Latent UX bug sweep" item was started but skipped per user
+direction. Initial pass found no actionable issues — Bug 1's
+`<label>` pattern occurred once and was already fixed; other
+selectable-item patterns showed visually distinct active vs hover
+states. Can be picked back up if specific reports surface.
+
+Remaining unaddressed items in this file are explicitly
+"Remaining candidates" / aspirational, not scheduled work.
+
 
 ---
 
-## Memory reorder: targeted persistence (post-7e)
+## Memory reorder: targeted persistence (post-7e) — SHIPPED
 
-**What 7e shipped (baseline):** Proportional message-id remapping. On save,
-the final rendered order of unlocked-bubble memories is projected across
-the thread's messages — each memory in rendered position `i` out of `N` lands
-in the message at position `floor(i * M / N)` where `M` is message count.
-Memories in locked bubbles are untouched (see the `locked-stays-put` carve-out
-in `commitDiff`). This is the same approach upstream uses in its own `/mem`
-editor, so behavior is consistent for users who know both tools.
+**Status: shipped this session as commit `62d5f33`.**
 
-**Limitation:** If the user edits a single text string but doesn't reorder
-anything, they still avoid the remap (7e skips remap when the order hasn't
-changed). But if they reorder even one card, EVERY unlocked memory's
-message-assignment is rewritten. For users who reorder surgically — move
-one card, leave everything else alone — this is overkill.
+Three-bucket partition in `commitDiff` distinguishes locked /
+userMoved / untouched entries. Only userMoved entries get
+proportional remap (by FULL-order rank, preserving "where I
+dragged it" semantics). Untouched entries keep their on-disk
+`(messageId, level, indexInLevel)` tuple — no silent drift.
 
-**Targeted persistence (future work):**
+Provenance source: `bubble_overrides.userMovedCardIds`, populated
+by `assignCardToBubble` (cross-bubble drop) and `moveCardBefore`
+(within-bubble drag), pruned by `forgetCard`. Cards re-clustered
+by k-means alone are NOT in the set.
 
-Only rewrite message-assignments for memories the user actually moved.
-Distinguish:
-- Card was reordered WITHIN its bubble: message-assignment unchanged
-  (bubble boundaries don't correspond to message boundaries)
-- Card was moved CROSS-BUBBLE: message-assignment should reflect the
-  user's new desired position
-- Card was locked at open time and stayed locked: untouched (same as 7e)
-- Card was never touched: untouched
+Lazy message prefetch: only messages currently holding a userMoved
+entry's slot OR destined to receive one. For a 1000-message thread
+with a single dragged card, prefetch goes from 1000 down to 2.
 
-**Implementation sketch:**
-- bubble_overrides.js already tracks `cardToBubbleId` assignments.
-  Each entry in that map represents an explicit user relocation.
-- Extend `bubbleCardOrder` with a provenance flag: "was this order
-  entry authored by the user or reconstructed from clustering?"
-- On save, only rewrite message-assignment for (a) cards with an
-  entry in `cardToBubbleId`, and (b) cards in bubbles whose
-  `bubbleCardOrder` is user-authored.
-- For everyone else, preserve `(messageId, level, indexInLevel)`.
+`stats.preservedMemory` exposed for the future "what we DIDN'T do"
+side of the save summary.
 
-**Risk notes:** The "user-authored bubbleCardOrder" distinction needs
-to NOT set the flag during `moveCardBefore` calls made during the
-cross-bubble-drop sequence (where we're synthesizing the order from the
-current state, not the user directly typing "position this here").
-Some cross-bubble drops DO warrant marking as user-authored (user is
-literally dropping this card at this position in the target). Some don't.
-This distinction needs careful design.
-
-**Scope estimate:** ~300 lines + new provenance tracking + tests.
-2-3 commits.
+4 new tests. Stale-baseline guard fixtures updated to tag
+`userMoved: true` so the captured-text path stays exercised.
 
 
 ---
@@ -106,20 +108,31 @@ and let users fill avatar/scenario/etc. before the character lands.
 
 ---
 
-## Lore reorder via invented order field
+## Lore reorder via invented order field — SHIPPED
 
-**Status:** Rejected during 7-series planning ("If order doesn't matter
-for Lore, then it doesn't need to be sorted"). Keeping on the roadmap
-in case the opinion shifts once other features land.
+**Status: shipped this session as commit `f07da3e`. Originally
+rejected; opinion shifted, implementation was redesigned to
+sidestep the schema-divergence concern.**
 
-Upstream's lore schema has no order column. Adding one means our fork
-diverges: our writes include an `order` field that upstream silently
-ignores. Our reads would honor it. This creates a "lore order" that
-only exists inside our tool — fine for cosmetic sorting, weird for
-anything else.
+The original objection ("if order doesn't matter for Lore, it
+doesn't need sorting") was really about not polluting upstream's
+lore schema with a field upstream silently ignores.
 
-**Scope:** ~80 lines in db.js (migration + read/write honoring order)
-+ UI wiring to enable Lore grips (currently hardcoded off).
+The shipped implementation stores the order in OUR settings
+(`settings.loreOrderByBookId`) rather than in upstream's lore
+table. Upstream stays untouched. If the user uninstalls our tool,
+their lore data is bit-identical to what they started with — no
+orphan field. Implicitly opt-in: until you reorder a book, no
+persisted order exists for it.
+
+New module `src/memory/lore_order.js` with 4 exports:
+`loadLoreOrder`, `persistLoreOrder` (empty array deletes the
+entry), `sortLoreByPersistedOrder` (in-list first by rank,
+not-in-list at end stable), `forgetLoreFromOrder` (called on
+lore deletion).
+
+Wired into `loadBaseline` (read-side sort) and `commitDiff`
+(post-tx persist + delete-prune). 16 new tests.
 
 ---
 
@@ -145,18 +158,44 @@ membership is largely the same.").
 ### Extension points
 
 Architected to accept more knobs by adding a row to
-`createMemorySettingsDrawer`. Candidates from the original roadmap:
+`createMemorySettingsDrawer`. Pattern established by the snapshot-
+cap extension below: hardcoded constant → live settings read with
+bounds + clamping → drawer slider. Each new row is ~30 lines in
+`memory_settings_drawer.js` + a default in `settings.memory.tool`
++ a consumer in the relevant module. No plumbing-pass required.
 
-- Snapshot ring-buffer size (currently hardcoded 10)
-- Usage histogram window (currently hardcoded last-10 messages)
-- Lock reconciliation threshold (currently uses renameThreshold —
-  could decouple if users ever ask)
-- K-cluster recommendation tuning
-- Auto-save behavior (currently off by default)
+**SHIPPED extensions:**
+- **Snapshot ring-buffer size** (commit `d277ea8`): was hardcoded 10
+  per thread. Now slider 5..25 step 5, default 10. Stored at
+  `settings.memory.tool.maxSnapshots`. Read live, lazy retrim on
+  cap-lower. `SNAPSHOT_CAP_BOUNDS` exported as single source of truth.
+  6 tests.
 
-Each new row is ~30 lines in `memory_settings_drawer.js` + a default
-in `settings.memory.tool` + a consumer in the relevant module. No
-plumbing-pass required.
+- **Usage histogram window** (this batch): was hardcoded `lastN=10`.
+  Now slider 5..50 step 5, default 10. Stored at
+  `settings.memory.tool.usageWindow`. Drives the "recently used" dot
+  indicator on cards — wider window = more memories flagged as
+  recently relevant.
+
+- **Lock reconciliation threshold** (this batch): was reusing the
+  rename threshold. Decoupled per ROADMAP. Slider 0..1 step 0.05.
+  Stored at `settings.memory.tool.lockReconcileThreshold`. Default
+  falls through to the rename threshold value, then to library
+  default 0.5 — so existing users see no behavior change unless they
+  explicitly set this slider.
+
+- **K-cluster preference** (this batch): `recommendK(n)` extended to
+  `recommendK(n, prefMultiplier=1)`. Multiplier applied before the
+  [3, 15] sanity clamp. Slider 0.5x..2x step 0.25, default 1x.
+  Stored at `settings.memory.tool.kPrefMultiplier`. <1x = sparser
+  bubbles, >1x = denser. 6 new clustering tests verify multiplier
+  behavior + sanity bounds.
+
+(Auto-save was previously listed as a candidate but removed per
+user direction. Not pursuing — the Memory tool's save is destructive
+enough that the explicit two-step confirm is the right interaction;
+auto-save would either need a confirm-before-write flow that defeats
+its purpose, or genuinely surprise users mid-edit. No win there.)
 
 
 
@@ -199,10 +238,20 @@ plumbing-pass required.
   (SVG convention), width-span normalization, and non-numeric
   value coercion.
 
-### Still open
-- **Per-thread counter breakdowns.** Today counters are global;
-  breaking them down per-thread could surface "your Davie thread
-  has the most memory edits" kind of insights. ~200 lines.
+### Shipped (continued)
+- **Per-thread counter breakdowns** (NEW, this session, commit `abeab52`):
+  Counters that previously aggregated globally now also tally per-
+  thread. New storage at `settings.countersByThread[threadId][counterName]`,
+  written by extending `bumpCounter(name, n, threadId?)`. Memory tool's
+  9 thread-scoped bumps wire `activeThreadId`; backups stay profile-
+  level, not thread-tagged. New readers `getCountersByThread()` and
+  `getTopThreadsForCounter(name, limit)`. Activity section gains a
+  "By thread" strip below the chip grid showing top 3 threads per
+  counter ("Most-saved threads: Davie (12) · Eli (8) · Mira (3)").
+  Thread NAMES resolved at openFullPage time via `db.threads.bulkGet`
+  with serial-get fallback; deleted threads degrade gracefully to
+  "Thread #&lt;id&gt;". `resetCounters` clears per-thread tally too.
+  7 new tests.
 
 ### Shipped (continued)
 - **Weekly prompts completed BY CATEGORY tracking** (NEW):

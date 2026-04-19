@@ -131,6 +131,115 @@ export function createMemorySettingsDrawer({ onChange } = {}) {
     ]),
   ]);
 
+  // ---- Usage histogram window (#5b) ----
+  // Drives the "recently used" dot indicator on cards. Default 10 messages.
+  const initialUsageWindow = readUsageWindow(settings);
+  const usageWindowValue = h('span', { class: 'pf-mem-set-val' }, [String(initialUsageWindow)]);
+  const usageWindowInput = h('input', {
+    type: 'range', min: '5', max: '50', step: '5',
+    value: String(initialUsageWindow),
+    class: 'pf-mem-set-slider',
+    'aria-label': 'Usage histogram window (last N messages)',
+  });
+  usageWindowInput.addEventListener('input', () => {
+    const v = clampUsageWindow(parseInt(usageWindowInput.value, 10));
+    usageWindowValue.textContent = String(v);
+  });
+  usageWindowInput.addEventListener('change', () => {
+    const v = clampUsageWindow(parseInt(usageWindowInput.value, 10));
+    updateField('memory.tool.usageWindow', v);
+    if (typeof onChange === 'function') {
+      try { onChange('usageWindow', v); } catch { /* best-effort */ }
+    }
+  });
+  const usageWindowRow = h('div', { class: 'pf-mem-set-row' }, [
+    h('div', { class: 'pf-mem-set-row-header' }, [
+      h('label', { class: 'pf-mem-set-label' }, ['Usage histogram window']),
+      usageWindowValue,
+    ]),
+    usageWindowInput,
+    h('div', { class: 'pf-mem-set-hint' }, [
+      'How many of the most-recent messages to look at when deciding which ' +
+      'memories show the "recently used" dot. Larger window = more memories ' +
+      'flagged as recently relevant. Takes effect on the next time you ' +
+      'open the Memory tool.',
+    ]),
+  ]);
+
+  // ---- Lock reconciliation threshold (#5c) ----
+  // How similar a fresh-cluster bubble must be to its persisted-locked
+  // counterpart for the lock to transfer. Decoupled from rename
+  // threshold per ROADMAP. Default falls through to renameThreshold,
+  // then to library default 0.5 if unset.
+  const initialLockThresh = readLockReconcileThreshold(settings, initialThreshold);
+  const lockThreshValue = h('span', { class: 'pf-mem-set-val' }, [formatPct(initialLockThresh)]);
+  const lockThreshInput = h('input', {
+    type: 'range', min: '0', max: '1', step: '0.05',
+    value: String(initialLockThresh),
+    class: 'pf-mem-set-slider',
+    'aria-label': 'Lock reconciliation threshold',
+  });
+  lockThreshInput.addEventListener('input', () => {
+    const v = Math.max(0, Math.min(1, parseFloat(lockThreshInput.value) || 0.5));
+    lockThreshValue.textContent = formatPct(v);
+  });
+  lockThreshInput.addEventListener('change', () => {
+    const v = Math.max(0, Math.min(1, parseFloat(lockThreshInput.value) || 0.5));
+    const rounded = Math.round(v * 20) / 20;
+    updateField('memory.tool.lockReconcileThreshold', rounded);
+    if (typeof onChange === 'function') {
+      try { onChange('lockReconcileThreshold', rounded); } catch { /* best-effort */ }
+    }
+  });
+  const lockThreshRow = h('div', { class: 'pf-mem-set-row' }, [
+    h('div', { class: 'pf-mem-set-row-header' }, [
+      h('label', { class: 'pf-mem-set-label' }, ['Lock reconciliation threshold']),
+      lockThreshValue,
+    ]),
+    lockThreshInput,
+    h('div', { class: 'pf-mem-set-hint' }, [
+      'How similar a re-clustered bubble must be to your previously-' +
+      'locked one for the lock to transfer to it. Defaults to the rename ' +
+      'threshold above, but you can decouple them here.',
+    ]),
+  ]);
+
+  // ---- K-cluster preference (#5d) ----
+  // Multiplier on recommendK output: < 1 means sparser bubbles (more,
+  // smaller groups), > 1 means denser (fewer, bigger groups). Sanity
+  // bounds [3, 15] still apply inside recommendK.
+  const initialKPref = readKPrefMultiplier(settings);
+  const kPrefValue = h('span', { class: 'pf-mem-set-val' }, [formatMultiplier(initialKPref)]);
+  const kPrefInput = h('input', {
+    type: 'range', min: '0.5', max: '2', step: '0.25',
+    value: String(initialKPref),
+    class: 'pf-mem-set-slider',
+    'aria-label': 'Bubble grouping preference',
+  });
+  kPrefInput.addEventListener('input', () => {
+    const v = clampKPref(parseFloat(kPrefInput.value));
+    kPrefValue.textContent = formatMultiplier(v);
+  });
+  kPrefInput.addEventListener('change', () => {
+    const v = clampKPref(parseFloat(kPrefInput.value));
+    updateField('memory.tool.kPrefMultiplier', v);
+    if (typeof onChange === 'function') {
+      try { onChange('kPrefMultiplier', v); } catch { /* best-effort */ }
+    }
+  });
+  const kPrefRow = h('div', { class: 'pf-mem-set-row' }, [
+    h('div', { class: 'pf-mem-set-row-header' }, [
+      h('label', { class: 'pf-mem-set-label' }, ['Bubble grouping preference']),
+      kPrefValue,
+    ]),
+    kPrefInput,
+    h('div', { class: 'pf-mem-set-hint' }, [
+      'Tilts the auto-recommended K-value toward more groups (denser, >1×) ' +
+      'or fewer groups (sparser, <1×). Sanity bounds still apply — K stays ' +
+      'in [3, 15] regardless. Takes effect on the next Memory tool open.',
+    ]),
+  ]);
+
   // ---- drawer root ----
 
   const drawer = h('div', {
@@ -139,7 +248,13 @@ export function createMemorySettingsDrawer({ onChange } = {}) {
     role: 'region',
     'aria-label': 'Memory tool settings',
   }, [
-    h('div', { class: 'pf-mem-set-inner' }, [thresholdRow, maxSnapsRow]),
+    h('div', { class: 'pf-mem-set-inner' }, [
+      thresholdRow,
+      lockThreshRow,
+      kPrefRow,
+      usageWindowRow,
+      maxSnapsRow,
+    ]),
   ]);
 
   // ---- gear button ----
@@ -208,4 +323,57 @@ function clampMaxSnapshots(v) {
   // Round to step (5) for tidy storage values
   const stepped = Math.round(n / 5) * 5;
   return Math.max(SNAPSHOT_CAP_BOUNDS.min, Math.min(SNAPSHOT_CAP_BOUNDS.max, stepped));
+}
+
+// ---- Usage window helpers (#5b) ----
+// 5..50 step 5, default 10 messages.
+function readUsageWindow(settings) {
+  const raw = (settings && settings.memory && settings.memory.tool &&
+    settings.memory.tool.usageWindow);
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return 10;
+  return clampUsageWindow(raw);
+}
+function clampUsageWindow(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 10;
+  const stepped = Math.round(n / 5) * 5;
+  return Math.max(5, Math.min(50, stepped));
+}
+
+// ---- Lock reconciliation threshold helpers (#5c) ----
+// 0..1 step 0.05. Default falls through to the rename threshold so
+// the user's pre-decoupling experience is preserved unless they
+// explicitly set this slider.
+function readLockReconcileThreshold(settings, fallbackThreshold) {
+  const raw = (settings && settings.memory && settings.memory.tool &&
+    settings.memory.tool.lockReconcileThreshold);
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Math.max(0, Math.min(1, raw));
+  }
+  if (typeof fallbackThreshold === 'number' && Number.isFinite(fallbackThreshold)) {
+    return Math.max(0, Math.min(1, fallbackThreshold));
+  }
+  return 0.5;
+}
+
+// ---- K-cluster preference multiplier helpers (#5d) ----
+// 0.5x..2x step 0.25, default 1x. Sanity bounds [3, 15] still
+// applied inside recommendK regardless of this multiplier.
+function readKPrefMultiplier(settings) {
+  const raw = (settings && settings.memory && settings.memory.tool &&
+    settings.memory.tool.kPrefMultiplier);
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return 1;
+  return clampKPref(raw);
+}
+function clampKPref(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  // Round to step 0.25 for tidy storage
+  const stepped = Math.round(n * 4) / 4;
+  return Math.max(0.5, Math.min(2, stepped));
+}
+function formatMultiplier(v) {
+  // 1.0 → "1×"; 1.25 → "1.25×"; trim trailing zeros for cleanness
+  const fixed = (Math.round(v * 100) / 100).toString();
+  return `${fixed}×`;
 }

@@ -86,7 +86,18 @@ export async function openMemoryWindow() {
   // on cards. Load failure is non-fatal — cards just render without dots.
   let usageHistogram = { memoryCounts: new Map(), loreCounts: new Map(), messagesScanned: 0 };
   try {
-    usageHistogram = await loadUsageHistogram({ lastN: 10 });
+    // Window is user-tunable via the gear-icon settings drawer
+    // (settings.memory.tool.usageWindow). Defaults to 10. Read inline
+    // here so changes take effect on the next window open.
+    let usageWindow = 10;
+    try {
+      const s = (typeof loadSettings === 'function') ? loadSettings() : null;
+      const raw = s && s.memory && s.memory.tool && s.memory.tool.usageWindow;
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        usageWindow = Math.max(5, Math.min(50, Math.round(raw)));
+      }
+    } catch { /* defensive */ }
+    usageHistogram = await loadUsageHistogram({ lastN: usageWindow });
   } catch { /* soft-fail — dots are a hint, not core functionality */ }
 
   const threadLabel = await getActiveThreadLabel();
@@ -110,8 +121,19 @@ export async function openMemoryWindow() {
   const initialMemoryEntries = stage.getStaged().filter(it => it.scope === 'memory').map(asBubbleEntry);
   const initialLoreEntries   = stage.getStaged().filter(it => it.scope === 'lore').map(asBubbleEntry);
 
-  let memoryK = recommendK(initialMemoryEntries.length);
-  let loreK   = recommendK(initialLoreEntries.length);
+  // K-cluster preference (sparser/denser bubbles): drawer slider
+  // 0.5x..2x, default 1x. Sanity bounds inside recommendK still
+  // clamp the result to [3, 15].
+  let kPrefMultiplier = 1;
+  try {
+    const s = loadSettings();
+    const raw = s && s.memory && s.memory.tool && s.memory.tool.kPrefMultiplier;
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+      kPrefMultiplier = Math.max(0.5, Math.min(2, raw));
+    }
+  } catch { /* defensive */ }
+  let memoryK = recommendK(initialMemoryEntries.length, kPrefMultiplier);
+  let loreK   = recommendK(initialLoreEntries.length, kPrefMultiplier);
 
   let memoryBubbles = bubbleize({ entries: initialMemoryEntries, k: memoryK });
   let loreBubbles   = bubbleize({ entries: initialLoreEntries,   k: loreK });
@@ -137,7 +159,29 @@ export async function openMemoryWindow() {
   const stableIdByCurrentBubble = new Map(); // bubbleId → stableId
   if (activeThreadId != null) {
     const persistedMemLocks = loadLocks(activeThreadId);
-    const { lockedBubbleIds, transferredIds } = reconcileLocks(memoryBubbles, persistedMemLocks);
+    // Lock reconciliation threshold: how similar a fresh-cluster
+    // bubble must be to its persisted-locked counterpart for the lock
+    // to transfer. User-tunable via the gear-icon settings drawer
+    // (settings.memory.tool.lockReconcileThreshold). Falls through to
+    // the rename threshold if unset, then to library default 0.5 — so
+    // existing users see no behavior change unless they explicitly set
+    // it.
+    let reconcileThreshold;
+    try {
+      const s = loadSettings();
+      const tool = s && s.memory && s.memory.tool;
+      const raw = tool && tool.lockReconcileThreshold;
+      if (typeof raw === 'number' && Number.isFinite(raw)) {
+        reconcileThreshold = Math.max(0, Math.min(1, raw));
+      } else {
+        const rt = tool && tool.renameThreshold;
+        reconcileThreshold = (typeof rt === 'number' && Number.isFinite(rt))
+          ? Math.max(0, Math.min(1, rt))
+          : undefined; // let reconcileLocks use its own default
+      }
+    } catch { /* defensive */ }
+    const opts = (reconcileThreshold == null) ? undefined : { threshold: reconcileThreshold };
+    const { lockedBubbleIds, transferredIds } = reconcileLocks(memoryBubbles, persistedMemLocks, opts);
     for (const id of lockedBubbleIds) memoryOverrides.lockedBubbles.add(String(id));
     for (const t of transferredIds) {
       stableIdByCurrentBubble.set(String(t.newBubbleId), t.stableId);
