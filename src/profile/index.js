@@ -239,6 +239,9 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
+  // Glossary editor (Batch 2) — 📖 button near chat input
+  try { initGlossaryEditor(); } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 

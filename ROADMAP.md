@@ -7,69 +7,88 @@ sprint. Ordered by rough priority, not schedule.
 
 ## Competitive upgrade path (Apr 2026)
 
-Feature gap analysis from reviewing two MIT-licensed Perchance forks
-(FurAI and Kustom-GPT). Reusing their code where possible to save
+Feature gap analysis from reviewing three MIT-licensed Perchance forks
+(FurAI, Kustom-GPT, URV-AI). Reusing their code where possible to save
 development time. Code first, design/polish last.
 
-### Batch 1 — Chat UX fundamentals (HIGH impact, moderate scope)
-- [ ] Message controls: copy, edit, delete per message
-- [ ] Regenerate last AI response
-- [ ] Chat search (sidebar thread filter)
-- [ ] Stop-generating button
+### Batch 1 — Chat UX fundamentals ✅ COMPLETE
+- [x] Message controls: copy, edit, delete per message (6e8006f)
+- [x] Regenerate last AI response (6e8006f)
+- [x] Chat search (sidebar thread filter) (324aa89)
+- [x] Stop-generating button (c83db99)
 
-Source: FurAI message controls (MutationObserver pattern, delegated
-click handler). Kustom-GPT stop-generating (abort controller pattern).
+Source: FurAI message controls, Kustom-GPT stop-generating.
 
 ### Batch 2 — AI intelligence (HIGH impact, medium scope)
-- [ ] Dynamic glossary / context-aware lore injection (only inject
-      lore when keywords match recent messages — saves tokens)
+- [x] Dynamic glossary / context-aware lore injection (d33e20a)
 - [ ] Auto-summary compression for older messages
-- [ ] Token count awareness / display
+- [x] Token count awareness / display (d33e20a)
 
-Source: FurAI dynamic glossary (keyword matching in
-buildTruncatedHistory). FurAI auto-summary compression.
+Source: FurAI dynamic glossary. FurAI auto-summary. URV-AI summaries
+(openSummaryModal, renderSummariesView).
 
 ### Batch 3 — Voice + code (MEDIUM impact, medium scope)
 - [ ] Voice input (Web Speech API → text)
 - [ ] Voice output (TTS with rate/pitch controls)
 - [ ] Code syntax highlighting in AI responses
 
-Source: Kustom-GPT voice input/output (initVoiceOutput, startRecording,
-stopRecording, loadVoices). Kustom-GPT code highlighting.
+Source: Kustom-GPT voice I/O. URV-AI code blocks (setupCodeBlockListeners,
+hljs theme integration).
 
-### Batch 4 — Image generation (MEDIUM impact, higher scope)
+### Batch 4 — Image generation + AI tools (MEDIUM impact, higher scope)
 - [ ] Image generation per message (via Perchance text-to-image plugin)
 - [ ] Writing enhancer / "Magic Wand" (rewrite user text before sending)
+- [ ] User impersonation (AI writes as user — for RP continuity)
+- [ ] Narration generation (generate scene narration on demand)
 
-Source: FurAI image generation (generateImagesForMessage). FurAI
-enhancer (enhanceText, openEnhancerSettingsModal).
+Source: FurAI image gen. FurAI enhancer. URV-AI impersonation
+(generateUserImpersonation) and narration (generateNarration).
 
-### Batch 5 — Character management (MEDIUM impact, medium scope)
+### Batch 5 — Thread + character management (MEDIUM impact, medium scope)
+- [ ] Thread pinning (pin threads to top of sidebar)
+- [ ] Thread archiving (hide old threads without deleting)
+- [ ] Bulk thread operations (multi-select + delete/archive)
 - [ ] Character browser/grid with search
-- [ ] Chat folders / pinned chats
+- [ ] Chat folders
 - [ ] Chat import/export (full thread data)
 
-Source: FurAI characters modal (renderCharactersGrid,
-openCharactersModal). FurAI folder system (createNewFolderPrompt,
-openFolderOptions). FurAI import/export modals.
+Source: URV-AI thread pinning (togglePinThread), archiving
+(toggleArchiveThread, openArchiveModal), bulk operations
+(toggleBulkSelectMode, updateBulkActionBar). FurAI characters
+modal, folder system, import/export.
 
 ### Batch 6 — Advanced (LOWER priority, higher scope)
+- [ ] Conversation branching / tree navigation
+- [ ] Prompt presets (save/load prompt templates)
+- [ ] Quick reminder editor (edit reminder message inline)
+- [ ] Show AI reasoning / thinking toggle
 - [ ] Local LLM connection support (Ollama, KoboldCPP, etc.)
 - [ ] Advanced generation settings (temperature, max tokens)
+- [ ] Document / file analysis (upload + chat about docs)
+- [ ] Web search integration (search web from chat)
+- [ ] Vision / image understanding (describe uploaded images)
+- [ ] Multiple API providers
 - [ ] Visual Novel mode (sprite layer, backgrounds)
 - [ ] Keyboard shortcuts
 
-Source: Kustom-GPT local LLM (initLocalLLM, generateFromLocalLLM,
-7 provider presets). FurAI VN mode (vnOverlay, renderVnSprites).
+Source: URV-AI branching (createNode, handleGraftNode, openTreeMap),
+presets (applyPreset), reminder (openReminderModal), reasoning
+(toggleReasoning), document mode (toggleDocumentMode), web search
+(handleLocalWebSearch), vision (generateVisionResponse), multiple
+APIs (generateExternalModelResponse). Kustom-GPT local LLM. FurAI
+VN mode.
 
 ### Batch 7 — Design polish (LAST)
 - [ ] Dark/light theme toggle (full reskin)
 - [ ] Custom backgrounds per chat
+- [ ] Font customization (family + size)
+- [ ] Fullscreen mode
 - [ ] UI animation polish
 - [ ] Mobile-responsive refinements
 
-Source: both forks have theme toggles. FurAI has custom backgrounds.
-Design pass happens after all functional work is done.
+Source: all three forks have theme toggles. FurAI backgrounds.
+URV-AI font controls (updateAppFontFamily, updateAppFontSize),
+fullscreen (toggleAppFullscreen).
 
 ---
 

@@ -54,6 +54,7 @@
     "chat/message_controls.js",
     "chat/chat_search.js",
     "chat/glossary.js",
+    "chat/glossary_editor.js",
     "chat/token_display.js",
     "chat/stop_generating.js",
     "render/memory_panels.js",
