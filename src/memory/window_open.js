@@ -57,12 +57,21 @@ export async function openMemoryWindow() {
     return;
   }
 
+  // Snapshot activeThreadId ONCE at the top so every per-thread
+  // tagging downstream (counter bumps, lock reconcile, lore order)
+  // attributes to the same thread even if the user rapidly switches
+  // threads in upstream Perchance during this function's lifetime.
+  // Without this snapshot, the line-65 counter bump and the
+  // line-~150 lock-reconcile could read different values from
+  // window.activeThreadId — small but real race.
+  const sessionThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+
   // Count this as a successful bubble-tool open for the profile's
   // activity counters. Done after schema probe so we don't count
   // failed-to-open-for-reasons-outside-the-user's-control as usage.
   // Per-thread tally (#3) wired here too — opening the Memory tool
   // is naturally scoped to whatever thread is currently active.
-  bumpCounter('memoryWindowOpens', 1, (typeof window !== 'undefined') ? window.activeThreadId : null);
+  bumpCounter('memoryWindowOpens', 1, sessionThreadId);
   // Record today as an activity day for the streak system. Idempotent
   // within a day — multiple opens don't inflate the streak. If today
   // is consecutive with lastActiveDay, current streak advances; if
@@ -152,7 +161,9 @@ export async function openMemoryWindow() {
   // Lore locks aren't persisted (Lore has no lock UI that matters in
   // practice since Lore has no reorder, but we'd extend the same shape
   // here if we ever did).
-  const activeThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+  // Reuses the sessionThreadId snapshot taken at the top of this
+  // function — see comment there for why we don't re-read window.activeThreadId.
+  const activeThreadId = sessionThreadId;
   // Map from stable-id to its persisted lock record, needed so we can
   // forget a persisted lock when the user unlocks its current-session
   // counterpart. Populated during reconciliation below.

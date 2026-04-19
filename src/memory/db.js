@@ -612,19 +612,6 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
             .catch(() => []);
 
           if (messages.length > 0) {
-            // Prefetch the messages we'll touch — only those (a) holding
-            // a userMoved entry's current slot (we're emptying it) and
-            // (b) destined to receive a userMoved entry (we're writing
-            // to memoriesEndingHere[1]). This is a STRICT SUBSET of the
-            // previous "every message in the thread" prefetch, which
-            // means TARGETED save touches far less of the disk than
-            // the old algorithm did.
-            const touchedMsgIds = new Set();
-            for (const item of toRemap) {
-              const coord = parseMemId(item.id);
-              if (coord) touchedMsgIds.add(coord.messageId);
-            }
-
             // Capture each userMoved entry's current text + embedding
             // BEFORE tombstoning its slot. Same stale-baseline guard as
             // the previous algorithm — see the long comment in the

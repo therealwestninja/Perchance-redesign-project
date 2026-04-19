@@ -19928,19 +19928,6 @@ Use this template for your response:
               .catch(() => []);
 
             if (messages.length > 0) {
-              // Prefetch the messages we'll touch — only those (a) holding
-              // a userMoved entry's current slot (we're emptying it) and
-              // (b) destined to receive a userMoved entry (we're writing
-              // to memoriesEndingHere[1]). This is a STRICT SUBSET of the
-              // previous "every message in the thread" prefetch, which
-              // means TARGETED save touches far less of the disk than
-              // the old algorithm did.
-              const touchedMsgIds = new Set();
-              for (const item of toRemap) {
-                const coord = parseMemId(item.id);
-                if (coord) touchedMsgIds.add(coord.messageId);
-              }
-
               // Capture each userMoved entry's current text + embedding
               // BEFORE tombstoning its slot. Same stale-baseline guard as
               // the previous algorithm — see the long comment in the
@@ -24183,6 +24170,39 @@ Use this template for your response:
     }
     rows.sort((a, b) => b.count - a.count);
     return rows.slice(0, Math.max(0, limit | 0));
+  }
+
+  /**
+   * Drop per-thread counter entries for threads that no longer exist
+   * in upstream Dexie. Best-effort prune to bound storage growth for
+   * users whose thread counts churn over time.
+   *
+   * Called opportunistically by getTopThreadsForCounter (lazy, so the
+   * cleanup runs at most once per profile-page open). Caller passes
+   * `liveThreadIds` (Set of stringified ids known to exist); any
+   * countersByThread entry whose key is NOT in the set gets dropped.
+   *
+   * Pure no-op when liveThreadIds is null/empty/undefined — defensive
+   * for callers that can't cheaply enumerate threads.
+   *
+   * @param {Set<string>|null|undefined} liveThreadIds
+   */
+  function pruneCountersByThread(liveThreadIds) {
+    if (!liveThreadIds || typeof liveThreadIds.has !== 'function' || liveThreadIds.size === 0) return;
+    try {
+      const settings = loadSettings();
+      const byThread = settings && settings.countersByThread;
+      if (!byThread || typeof byThread !== 'object') return;
+      const keys = Object.keys(byThread);
+      let droppedAny = false;
+      for (const k of keys) {
+        if (!liveThreadIds.has(String(k))) {
+          delete byThread[k];
+          droppedAny = true;
+        }
+      }
+      if (droppedAny) saveSettings(settings);
+    } catch { /* best-effort */ }
   }
 
   /**
@@ -28696,12 +28716,21 @@ Use this template for your response:
       return;
     }
 
+    // Snapshot activeThreadId ONCE at the top so every per-thread
+    // tagging downstream (counter bumps, lock reconcile, lore order)
+    // attributes to the same thread even if the user rapidly switches
+    // threads in upstream Perchance during this function's lifetime.
+    // Without this snapshot, the line-65 counter bump and the
+    // line-~150 lock-reconcile could read different values from
+    // window.activeThreadId — small but real race.
+    const sessionThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+
     // Count this as a successful bubble-tool open for the profile's
     // activity counters. Done after schema probe so we don't count
     // failed-to-open-for-reasons-outside-the-user's-control as usage.
     // Per-thread tally (#3) wired here too — opening the Memory tool
     // is naturally scoped to whatever thread is currently active.
-    bumpCounter('memoryWindowOpens', 1, (typeof window !== 'undefined') ? window.activeThreadId : null);
+    bumpCounter('memoryWindowOpens', 1, sessionThreadId);
     // Record today as an activity day for the streak system. Idempotent
     // within a day — multiple opens don't inflate the streak. If today
     // is consecutive with lastActiveDay, current streak advances; if
@@ -28791,7 +28820,9 @@ Use this template for your response:
     // Lore locks aren't persisted (Lore has no lock UI that matters in
     // practice since Lore has no reorder, but we'd extend the same shape
     // here if we ever did).
-    const activeThreadId = (typeof window !== 'undefined') ? window.activeThreadId : null;
+    // Reuses the sessionThreadId snapshot taken at the top of this
+    // function — see comment there for why we don't re-read window.activeThreadId.
+    const activeThreadId = sessionThreadId;
     // Map from stable-id to its persisted lock record, needed so we can
     // forget a persisted lock when the user unlocks its current-session
     // counterpart. Populated during reconciliation below.
@@ -33158,6 +33189,18 @@ Use this template for your response:
             threadNamesById[String(row.id)] = row.name;
           }
         }
+        // Opportunistic prune of stale per-thread counters (#3 follow-up).
+        // We just enumerated live threads anyway — pass the live set so
+        // pruneCountersByThread can drop entries for threads the user
+        // deleted upstream. Bounded growth without a separate scan.
+        // Build the live set from rows that came back non-null, regardless
+        // of whether they had a name; non-null === thread still exists.
+        const liveSet = new Set(
+          (rows || [])
+            .filter(r => r && r.id != null)
+            .map(r => String(r.id))
+        );
+        try { pruneCountersByThread(liveSet); } catch { /* best-effort */ }
       }
     } catch { /* best-effort; empty map → fallback labels in builder */ }
 

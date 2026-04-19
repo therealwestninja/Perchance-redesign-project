@@ -374,3 +374,49 @@ test('threadId is coerced to string for storage-key safety', async () => {
   assert.equal(byThread['42'].memorySaves, 2);
   assert.equal(Object.keys(byThread).length, 1);
 });
+
+// ---------------------------------------------------------------
+// Per-thread prune (#3 follow-up: bug-hunt cleanup)
+// ---------------------------------------------------------------
+
+test('pruneCountersByThread: drops keys not in liveThreadIds', async () => {
+  const { bumpCounter, getCountersByThread, pruneCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 10);
+  bumpCounter('memorySaves', 1, 20);
+  bumpCounter('memorySaves', 1, 30);
+  // Threads 10 and 30 are still live; 20 was deleted upstream.
+  pruneCountersByThread(new Set(['10', '30']));
+  const byThread = getCountersByThread();
+  assert.deepEqual(Object.keys(byThread).sort(), ['10', '30']);
+  assert.equal(byThread['10'].memorySaves, 1);
+  assert.equal(byThread['30'].memorySaves, 1);
+});
+
+test('pruneCountersByThread: no-op on null/empty/undefined live set', async () => {
+  const { bumpCounter, getCountersByThread, pruneCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 10);
+  bumpCounter('memorySaves', 1, 20);
+  pruneCountersByThread(null);
+  pruneCountersByThread(undefined);
+  pruneCountersByThread(new Set()); // empty
+  assert.deepEqual(Object.keys(getCountersByThread()).sort(), ['10', '20']);
+});
+
+test('pruneCountersByThread: no-op when nothing to drop', async () => {
+  const { bumpCounter, getCountersByThread, pruneCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 10);
+  bumpCounter('memorySaves', 1, 20);
+  pruneCountersByThread(new Set(['10', '20', '30'])); // 30 not in storage
+  assert.deepEqual(Object.keys(getCountersByThread()).sort(), ['10', '20']);
+});
+
+test('pruneCountersByThread: stringifies live ids for matching', async () => {
+  const { bumpCounter, getCountersByThread, pruneCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 10);
+  bumpCounter('memorySaves', 1, 20);
+  // Pass the set with string '10' but expect '20' to be dropped
+  // because it's not in the set. Real callers always stringify, but
+  // verify the matching is correct.
+  pruneCountersByThread(new Set(['10']));
+  assert.deepEqual(Object.keys(getCountersByThread()), ['10']);
+});

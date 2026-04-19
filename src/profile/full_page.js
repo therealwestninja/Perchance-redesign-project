@@ -15,7 +15,7 @@ import { createPromptsBody } from '../render/prompts_section.js';
 import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
 import { createActivityBody } from '../render/activity_body.js';
-import { bumpCounter, getCounters, getCountersByThread } from '../stats/counters.js';
+import { bumpCounter, getCounters, getCountersByThread, pruneCountersByThread } from '../stats/counters.js';
 import { recordActivityForStreak, getStreaks, streakStatus } from '../stats/streaks.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
@@ -510,6 +510,18 @@ export async function openFullPage() {
           threadNamesById[String(row.id)] = row.name;
         }
       }
+      // Opportunistic prune of stale per-thread counters (#3 follow-up).
+      // We just enumerated live threads anyway — pass the live set so
+      // pruneCountersByThread can drop entries for threads the user
+      // deleted upstream. Bounded growth without a separate scan.
+      // Build the live set from rows that came back non-null, regardless
+      // of whether they had a name; non-null === thread still exists.
+      const liveSet = new Set(
+        (rows || [])
+          .filter(r => r && r.id != null)
+          .map(r => String(r.id))
+      );
+      try { pruneCountersByThread(liveSet); } catch { /* best-effort */ }
     }
   } catch { /* best-effort; empty map → fallback labels in builder */ }
 

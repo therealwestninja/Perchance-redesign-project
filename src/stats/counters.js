@@ -303,6 +303,39 @@ export function getTopThreadsForCounter(name, limit = 3) {
 }
 
 /**
+ * Drop per-thread counter entries for threads that no longer exist
+ * in upstream Dexie. Best-effort prune to bound storage growth for
+ * users whose thread counts churn over time.
+ *
+ * Called opportunistically by getTopThreadsForCounter (lazy, so the
+ * cleanup runs at most once per profile-page open). Caller passes
+ * `liveThreadIds` (Set of stringified ids known to exist); any
+ * countersByThread entry whose key is NOT in the set gets dropped.
+ *
+ * Pure no-op when liveThreadIds is null/empty/undefined — defensive
+ * for callers that can't cheaply enumerate threads.
+ *
+ * @param {Set<string>|null|undefined} liveThreadIds
+ */
+export function pruneCountersByThread(liveThreadIds) {
+  if (!liveThreadIds || typeof liveThreadIds.has !== 'function' || liveThreadIds.size === 0) return;
+  try {
+    const settings = loadSettings();
+    const byThread = settings && settings.countersByThread;
+    if (!byThread || typeof byThread !== 'object') return;
+    const keys = Object.keys(byThread);
+    let droppedAny = false;
+    for (const k of keys) {
+      if (!liveThreadIds.has(String(k))) {
+        delete byThread[k];
+        droppedAny = true;
+      }
+    }
+    if (droppedAny) saveSettings(settings);
+  } catch { /* best-effort */ }
+}
+
+/**
  * Expose dayKey and pruneByDay for tests. Not part of the public API
  * for other modules — use the series/map readers above.
  */
