@@ -20,25 +20,36 @@ test('computePromptStats: empty settings → zeroed', () => {
   assert.deepEqual(computePromptStats({}), {
     promptsCompletedTotal: 0,
     promptsWeeksActive: 0,
+    promptsByCategory: { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 },
+    promptCategoriesTouched: 0,
   });
 });
 
 test('computePromptStats: undefined / null / malformed → zeroed (no throw)', () => {
+  const zeroCat = { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 };
   assert.deepEqual(computePromptStats(undefined), {
     promptsCompletedTotal: 0, promptsWeeksActive: 0,
+    promptsByCategory: zeroCat, promptCategoriesTouched: 0,
   });
   assert.deepEqual(computePromptStats(null), {
     promptsCompletedTotal: 0, promptsWeeksActive: 0,
+    promptsByCategory: zeroCat, promptCategoriesTouched: 0,
   });
   assert.deepEqual(computePromptStats({ prompts: 'not an object' }), {
     promptsCompletedTotal: 0, promptsWeeksActive: 0,
+    promptsByCategory: zeroCat, promptCategoriesTouched: 0,
   });
 });
 
 test('computePromptStats: single week with one completion', () => {
   const s = { prompts: { completedByWeek: { '2026-W16': ['p-a'] } } };
+  // 'p-a' is not a real ID so it contributes to the total but not to any
+  // category bucket — same behavior as the "ignores unknown prompt ids"
+  // guarantee in prompt_categories.test.mjs.
   assert.deepEqual(computePromptStats(s), {
     promptsCompletedTotal: 1, promptsWeeksActive: 1,
+    promptsByCategory: { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 },
+    promptCategoriesTouched: 0,
   });
 });
 
@@ -54,6 +65,8 @@ test('computePromptStats: multiple weeks', () => {
   };
   assert.deepEqual(computePromptStats(s), {
     promptsCompletedTotal: 6, promptsWeeksActive: 3,
+    promptsByCategory: { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 },
+    promptCategoriesTouched: 0,
   });
 });
 
@@ -69,6 +82,8 @@ test('computePromptStats: empty-array weeks don\'t count toward weeksActive', ()
   };
   assert.deepEqual(computePromptStats(s), {
     promptsCompletedTotal: 1, promptsWeeksActive: 1,
+    promptsByCategory: { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 },
+    promptCategoriesTouched: 0,
   });
 });
 
@@ -84,6 +99,8 @@ test('computePromptStats: non-array week values skipped defensively', () => {
   };
   assert.deepEqual(computePromptStats(s), {
     promptsCompletedTotal: 2, promptsWeeksActive: 1,
+    promptsByCategory: { character: 0, dialogue: 0, atmosphere: 0, craft: 0, connection: 0 },
+    promptCategoriesTouched: 0,
   });
 });
 

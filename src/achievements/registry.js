@@ -286,6 +286,58 @@ export const ACHIEVEMENTS = Object.freeze([
     criteria: (s) => Number((s && s.eventsResponded) || 0) >= 15,
   },
 
+  // --- Prompt variety & specialization ---
+  //
+  // Variety rewards breadth: touching all 5 prompt categories.
+  // Specialist rewards depth: completing many prompts from a single
+  // category (tier 10/30/60 across the peak category, so the user
+  // doesn't need to spread the count — one intense category counts).
+  //
+  // Criteria read stats.promptCategoriesTouched and
+  // stats.promptsByCategory, both injected by computePromptStats.
+  {
+    id: 'well_rounded_bronze',
+    name: 'Well-Rounded',
+    description: 'Completed prompts in 3 different categories.',
+    tier: 'common',
+    criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 3,
+  },
+  {
+    id: 'well_rounded_silver',
+    name: 'Range',
+    description: 'Completed prompts in 4 different categories.',
+    tier: 'rare',
+    criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 4,
+  },
+  {
+    id: 'well_rounded_gold',
+    name: 'Versatile',
+    description: 'Completed prompts in all 5 categories.',
+    tier: 'epic',
+    criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 5,
+  },
+  {
+    id: 'specialist_bronze',
+    name: 'Specialist',
+    description: 'Completed 10 prompts in one category.',
+    tier: 'common',
+    criteria: (s) => peakCategoryCount(s) >= 10,
+  },
+  {
+    id: 'specialist_silver',
+    name: 'Devoted',
+    description: 'Completed 30 prompts in one category.',
+    tier: 'rare',
+    criteria: (s) => peakCategoryCount(s) >= 30,
+  },
+  {
+    id: 'specialist_gold',
+    name: 'Virtuoso',
+    description: 'Completed 60 prompts in one category.',
+    tier: 'epic',
+    criteria: (s) => peakCategoryCount(s) >= 60,
+  },
+
   // --- Streak-based achievements ---
   //
   // These unlock based on consecutive-day activity tracked by
@@ -342,6 +394,25 @@ function maxStreak(s) {
   const cur = Number(s.streaks.current) || 0;
   const longest = Number(s.streaks.longest) || 0;
   return Math.max(cur, longest);
+}
+
+/**
+ * Find the highest per-category completion count in a stats bundle.
+ * Used by Specialist tier criteria — the tier unlocks on the PEAK
+ * category, not a total. Rewards depth: users can hit the tier by
+ * concentrating on one preferred category rather than having to
+ * spread completions evenly.
+ *
+ * Reads stats.promptsByCategory, populated by computePromptStats.
+ */
+function peakCategoryCount(s) {
+  if (!s || !s.promptsByCategory || typeof s.promptsByCategory !== 'object') return 0;
+  let peak = 0;
+  for (const v of Object.values(s.promptsByCategory)) {
+    const n = Number(v) || 0;
+    if (n > peak) peak = n;
+  }
+  return peak;
 }
 
 /**

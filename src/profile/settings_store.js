@@ -79,7 +79,10 @@ export function defaultSettings() {
       // Lifetime sums preserved when GC prunes old completedByWeek
       // entries. Added to the current-entries sum when computing stats
       // so achievements don't regress across the retention boundary.
-      historicalTotals: { total: 0, weeksActive: 0 },
+      // `byCategory`: per-category breakdown preserved by GC so
+      // variety-based achievements (Well-Rounded tier family) have
+      // the right totals even after history is cleared.
+      historicalTotals: { total: 0, weeksActive: 0, byCategory: {} },
       // Last week the user opened the profile. Drives the "new week"
       // pulse on the mini-card.
       lastSeenWeek: null,

@@ -83,7 +83,9 @@ const RULES = [
      'cast_of_five', 'cast_of_twenty', 'cartographer', 'worldbuilder'].includes(id)
   )},
   { cat: 'prompts',      match: id => (
-    id.startsWith('first_prompt') || id.startsWith('prompt_') || id === 'weekly_regular'
+    id.startsWith('first_prompt') || id.startsWith('prompt_') ||
+    id === 'weekly_regular' ||
+    id.startsWith('well_rounded_') || id.startsWith('specialist_')
   )},
   { cat: 'consistency',  match: id => (
     id.startsWith('active_') || id === 'dedicated' || id.startsWith('streak_')

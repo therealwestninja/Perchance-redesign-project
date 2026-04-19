@@ -200,14 +200,34 @@ plumbing-pass required.
   value coercion.
 
 ### Still open
-- **Weekly prompts completed BY CATEGORY tracking.** Currently we
-  track completedByWeek as a flat list. A category breakdown
-  (writing prompt vs roleplay prompt vs worldbuilding, etc.) would
-  let us surface "your preferred prompt type" and tier achievements
-  on variety. ~100 lines.
 - **Per-thread counter breakdowns.** Today counters are global;
   breaking them down per-thread could surface "your Davie thread
   has the most memory edits" kind of insights. ~200 lines.
+
+### Shipped (continued)
+- **Weekly prompts completed BY CATEGORY tracking** (NEW):
+  Added a `category` field to every prompt in the registry
+  (character / dialogue / atmosphere / craft / connection — 5
+  buckets distributed across the 40 shipped prompts as 11/9/6/7/7).
+  New `PROMPT_CATEGORIES` export.
+  `computePromptStats` now returns `promptsByCategory` (per-category
+  completion counts) and `promptCategoriesTouched` (count of
+  distinct categories with ≥1 completion). Both roll in
+  `historicalTotals.byCategory` so counts survive GC — the Clear
+  History action preserves per-category totals into the historical
+  bucket before dropping old weeks. Two new tiered achievement
+  families land in the `prompts` categorization bucket:
+  **Well-Rounded / Range / Versatile** (common/rare/epic) — gated
+  on 3/4/5 distinct categories touched; and
+  **Specialist / Devoted / Virtuoso** (common/rare/epic) — gated
+  on 10/30/60 completions in the PEAK category (not total —
+  rewards depth on one preferred type rather than even spread).
+  `peakCategoryCount(stats)` helper reads across
+  `stats.promptsByCategory` and takes the max. 16 new unit tests
+  cover registry integrity (every prompt has a valid category),
+  per-category stats computation, historical-totals folding,
+  unknown-prompt-id safety, peak-vs-sum distinction, malformed-input
+  safety, and the GC-preserves-byCategory guarantee.
 
 ### Shipped (continued)
 - **Holiday event participation states** (NEW): richer engagement
@@ -294,21 +314,36 @@ item — the core counter data is there now.
   without reopening the profile. 18 unit tests covering each
   archetype's winning profile, edge cases (null/negative/extreme
   inputs), purity, and Newcomer fallback.
-- **Shareable profile cards** (NEW): canvas-rendered 1080×1080
-  PNG with display name, avatar, earned title, level + XP bar,
-  archetype pill, up to 5 pinned badges. Rendered client-side
-  entirely — nothing leaves the browser. Delivery: Download PNG
-  (always), Copy image (if ClipboardItem supported), Share… (if
-  Web Share API with files supports it). Privacy: strict whitelist
-  in `toShareViewModel` — bio, username, age range, custom gender
-  text, and raw counter values are NEVER included; avatar must
-  be a data: URL (rejects external fetches); accent must be valid
-  hex. Button appears as a second icon ▤ on the splash next to
-  the existing ◉ focus-mode icon. Share dialog is code-split
-  (dynamic import) so the share machinery only loads when asked
-  for. 11 unit tests on the privacy whitelist (each private field
-  verified absent; length clamping; avatar URL validation; Newcomer
-  archetype filtered from card).
+- **Shareable profile share codes** (NEW, replaces earlier PNG
+  path): compact text string encoding the public-display fields of
+  your profile — something you COPY and paste, not something you
+  DOWNLOAD. Format `pf1:<base64url-encoded JSON>` with short field
+  keys (`n`/`t`/`a`/`l`/`c`/`b`/`x`/`p`) for compactness. No image
+  data, no avatar — truly text-only, pastes cleanly into Discord/
+  DMs/chat. Benefits over the earlier canvas-PNG flow: no blob
+  pipeline, no clipboard-image permission, no metadata surface to
+  audit, same paste path works in every text medium. Privacy
+  whitelist (same contract as the earlier path) is applied on both
+  encode AND decode — hand-crafted codes with oversized or
+  extraneous fields are re-trimmed to the schema. VERSION
+  TRACKING IS CURRENTLY STUBBED — `decodeShareCode` accepts any
+  `pf<digit>:` prefix and any payload `v:` value so the format can
+  iterate freely during development. When the schema stabilizes,
+  flipping `enforceVersion = true` in decode engages the version
+  gating (the code path is already written, just inert). Button
+  appears as ▤ on the splash next to the ◉ focus-mode icon. Share
+  dialog shows a human-readable preview (name · level · title ·
+  archetype · badges), a read-only textarea with select-on-focus,
+  Copy + (optional) native Share. Dialog is code-split via dynamic
+  import so the share machinery only loads when asked for. 28 unit
+  tests covering whitelist (extraneous fields dropped, Newcomer
+  archetype filtered, length caps, max-badges cap, accent
+  normalization with/without '#', progress clamp, level floor),
+  encode (deterministic, no-input tolerance, leakage resistance),
+  round-trip (every field, null archetype, unicode names, source
+  tag), and decode rejection (non-string, no colon, malformed
+  base64, non-JSON, non-pf prefixes) plus two tests documenting
+  the dev-stub version-acceptance behavior.
 - **Summary notifications** (NEW): weekly "what you did" recap
   toast. On profile open, if a week has passed since the last
   snapshot AND the user has non-zero counter deltas, surfaces a
@@ -350,11 +385,11 @@ item — the core counter data is there now.
 All user-requested gamification items from this arc are shipped:
 tiered counter achievements, achievement unlock dates, streak
 tracking, profile flair unlocks, personal-best notifications,
-user archetype classification, shareable profile cards, weekly
-summary notifications. Plus the Celebrant tier family (tied to
-holiday-events participation tracking) and a UX refactor that
-categorizes all 61 shipped achievements into a tabbed browser
-so the grid stays browsable as new tiers are added.
+user archetype classification, shareable profile codes (text-only,
+no image), weekly summary notifications. Plus the Celebrant tier
+family (tied to holiday-events participation tracking) and a UX
+refactor that categorizes all 67 shipped achievements into a
+tabbed browser so the grid stays browsable as new tiers are added.
 
 ### Remaining
 (none)

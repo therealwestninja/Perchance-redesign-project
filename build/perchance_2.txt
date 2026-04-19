@@ -14155,10 +14155,14 @@ Use this template for your response:
   // So achievement signals ("100 prompts completed") never regress when
   // GC runs — the count is preserved in historicalTotals before deletion.
 
+
+
   /**
    * @typedef {Object} PromptStats
-   * @property {number} promptsCompletedTotal  Sum across all weeks of completed prompt IDs
-   * @property {number} promptsWeeksActive     Number of distinct weeks with ≥1 completion
+   * @property {number} promptsCompletedTotal     Sum across all weeks of completed prompt IDs
+   * @property {number} promptsWeeksActive        Number of distinct weeks with ≥1 completion
+   * @property {Object<string, number>} promptsByCategory  { character: N, ... } completion counts per category
+   * @property {number} promptCategoriesTouched    Count of distinct categories with ≥1 completion
    */
 
   /**
@@ -14173,16 +14177,40 @@ Use this template for your response:
     let total = Number(hist.total) || 0;
     let weeksActive = Number(hist.weeksActive) || 0;
 
+    // Per-category accumulator. Start from historical per-category
+    // totals (preserved by GC on prune) so counts never regress.
+    const byCategory = {};
+    for (const cat of PROMPT_CATEGORIES) byCategory[cat.id] = 0;
+    const histByCat = (hist && hist.byCategory && typeof hist.byCategory === 'object')
+      ? hist.byCategory : {};
+    for (const cat of PROMPT_CATEGORIES) {
+      byCategory[cat.id] += Number(histByCat[cat.id]) || 0;
+    }
+
     for (const weekKey of Object.keys(byWeek)) {
       const list = byWeek[weekKey];
       if (!Array.isArray(list) || list.length === 0) continue;
       total += list.length;
       weeksActive += 1;
+      for (const id of list) {
+        const p = getPromptById(id);
+        if (p && p.category && byCategory[p.category] !== undefined) {
+          byCategory[p.category] += 1;
+        }
+      }
+    }
+
+    // Count distinct categories touched (any value > 0).
+    let categoriesTouched = 0;
+    for (const cat of PROMPT_CATEGORIES) {
+      if (byCategory[cat.id] > 0) categoriesTouched += 1;
     }
 
     return {
       promptsCompletedTotal: total,
       promptsWeeksActive: weeksActive,
+      promptsByCategory: byCategory,
+      promptCategoriesTouched: categoriesTouched,
     };
   }
 
@@ -14649,6 +14677,58 @@ Use this template for your response:
       criteria: (s) => Number((s && s.eventsResponded) || 0) >= 15,
     },
 
+    // --- Prompt variety & specialization ---
+    //
+    // Variety rewards breadth: touching all 5 prompt categories.
+    // Specialist rewards depth: completing many prompts from a single
+    // category (tier 10/30/60 across the peak category, so the user
+    // doesn't need to spread the count — one intense category counts).
+    //
+    // Criteria read stats.promptCategoriesTouched and
+    // stats.promptsByCategory, both injected by computePromptStats.
+    {
+      id: 'well_rounded_bronze',
+      name: 'Well-Rounded',
+      description: 'Completed prompts in 3 different categories.',
+      tier: 'common',
+      criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 3,
+    },
+    {
+      id: 'well_rounded_silver',
+      name: 'Range',
+      description: 'Completed prompts in 4 different categories.',
+      tier: 'rare',
+      criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 4,
+    },
+    {
+      id: 'well_rounded_gold',
+      name: 'Versatile',
+      description: 'Completed prompts in all 5 categories.',
+      tier: 'epic',
+      criteria: (s) => Number((s && s.promptCategoriesTouched) || 0) >= 5,
+    },
+    {
+      id: 'specialist_bronze',
+      name: 'Specialist',
+      description: 'Completed 10 prompts in one category.',
+      tier: 'common',
+      criteria: (s) => peakCategoryCount(s) >= 10,
+    },
+    {
+      id: 'specialist_silver',
+      name: 'Devoted',
+      description: 'Completed 30 prompts in one category.',
+      tier: 'rare',
+      criteria: (s) => peakCategoryCount(s) >= 30,
+    },
+    {
+      id: 'specialist_gold',
+      name: 'Virtuoso',
+      description: 'Completed 60 prompts in one category.',
+      tier: 'epic',
+      criteria: (s) => peakCategoryCount(s) >= 60,
+    },
+
     // --- Streak-based achievements ---
     //
     // These unlock based on consecutive-day activity tracked by
@@ -14705,6 +14785,25 @@ Use this template for your response:
     const cur = Number(s.streaks.current) || 0;
     const longest = Number(s.streaks.longest) || 0;
     return Math.max(cur, longest);
+  }
+
+  /**
+   * Find the highest per-category completion count in a stats bundle.
+   * Used by Specialist tier criteria — the tier unlocks on the PEAK
+   * category, not a total. Rewards depth: users can hit the tier by
+   * concentrating on one preferred category rather than having to
+   * spread completions evenly.
+   *
+   * Reads stats.promptsByCategory, populated by computePromptStats.
+   */
+  function peakCategoryCount(s) {
+    if (!s || !s.promptsByCategory || typeof s.promptsByCategory !== 'object') return 0;
+    let peak = 0;
+    for (const v of Object.values(s.promptsByCategory)) {
+      const n = Number(v) || 0;
+      if (n > peak) peak = n;
+    }
+    return peak;
   }
 
   /**
@@ -14847,7 +14946,9 @@ Use this template for your response:
        'cast_of_five', 'cast_of_twenty', 'cartographer', 'worldbuilder'].includes(id)
     )},
     { cat: 'prompts',      match: id => (
-      id.startsWith('first_prompt') || id.startsWith('prompt_') || id === 'weekly_regular'
+      id.startsWith('first_prompt') || id.startsWith('prompt_') ||
+      id === 'weekly_regular' ||
+      id.startsWith('well_rounded_') || id.startsWith('specialist_')
     )},
     { cat: 'consistency',  match: id => (
       id.startsWith('active_') || id === 'dedicated' || id.startsWith('streak_')
@@ -14985,48 +15086,88 @@ Use this template for your response:
   // is shipped, it should never change or be removed (or old completion
   // records orphan). Deprecations: comment out the entry but leave the ID
   // reservation in a comment.
+  //
+  // Each prompt carries a `category` — one of five buckets (character,
+  // dialogue, atmosphere, craft, connection). Categories unlock variety
+  // achievements ("Well-Rounded" tier family) and can surface a user's
+  // favorite prompt type. Once assigned, a prompt's category should not
+  // change (breaks per-category completion stats for existing users).
+
+  /**
+   * Prompt categories, in render order. Each has:
+   *   - id: stable slug used in stats/achievement criteria
+   *   - label: user-facing short name
+   *   - description: short explainer shown in UI contexts where space allows
+   */
+  const PROMPT_CATEGORIES = Object.freeze([
+    {
+      id: 'character',
+      label: 'Character',
+      description: 'Inner life, contradictions, change of heart, self-discovery.',
+    },
+    {
+      id: 'dialogue',
+      label: 'Dialogue',
+      description: 'Conversations, revelations, arguments, apologies.',
+    },
+    {
+      id: 'atmosphere',
+      label: 'Atmosphere',
+      description: 'Quiet moments, places, weather, mood-first scenes.',
+    },
+    {
+      id: 'craft',
+      label: 'Craft',
+      description: 'Structural challenges — real-time, object-focused, framing.',
+    },
+    {
+      id: 'connection',
+      label: 'Connection',
+      description: 'Between-characters moments — reunions, kindness, strangers.',
+    },
+  ]);
 
   const PROMPTS = Object.freeze([
-    { id: 'p-new-character',         text: 'Write a scene with a character you haven\'t used before.' },
-    { id: 'p-unexpected-turn',       text: 'Let a conversation go somewhere unexpected.' },
-    { id: 'p-contradiction',         text: 'Give a character a contradiction — something they say they believe versus what they actually do.' },
-    { id: 'p-quiet-moment',          text: 'Write a moment of quiet. Nothing dramatic. Just atmosphere.' },
-    { id: 'p-new-setting',           text: 'Spend a session in a setting you haven\'t explored.' },
-    { id: 'p-unresolved-disagreement', text: 'Have two characters disagree, and don\'t resolve it.' },
-    { id: 'p-dramatic-lie',          text: 'Write a scene where someone lies, and the reader knows it.' },
-    { id: 'p-minor-spotlight',       text: 'Let a minor character steal the scene.' },
-    { id: 'p-place-by-absence',      text: 'Describe a place through what\'s missing from it.' },
-    { id: 'p-happy-goodbye',         text: 'Write a goodbye that isn\'t sad.' },
-    { id: 'p-changed-mind',          text: 'Let a character change their mind about something.' },
-    { id: 'p-real-time',             text: 'Write a scene that takes place in about ten minutes of real time.' },
-    { id: 'p-mid-argument',          text: 'Start a scene in the middle of an argument.' },
-    { id: 'p-stranger-moment',       text: 'Write a brief moment between strangers.' },
-    { id: 'p-admission',             text: 'Have a character admit they were wrong about something.' },
-    { id: 'p-self-surprise',         text: 'Let a character surprise themselves.' },
-    { id: 'p-a-meal',                text: 'Write a meal — grand feast, quiet breakfast, anything in between.' },
-    { id: 'p-story-within',          text: 'Let a character tell a story within the story.' },
-    { id: 'p-nothing-happens',       text: 'Write a scene where nothing much happens, and let that be okay.' },
-    { id: 'p-unexpected-skill',      text: 'Give a character an unexpected skill.' },
-    { id: 'p-before-change',         text: 'Write the moment just before something changes forever.' },
-    { id: 'p-shared-silence',        text: 'Have two characters share a silence.' },
-    { id: 'p-small-fear',            text: 'Let a character be afraid of something small.' },
-    { id: 'p-a-promise',             text: 'Write a promise — kept or broken, your call.' },
-    { id: 'p-worst-timing',          text: 'Set a scene at the worst possible time for one of the characters.' },
-    { id: 'p-forgotten-rediscovery', text: 'Let a character rediscover something they\'d forgotten.' },
-    { id: 'p-apology',               text: 'Write an apology.' },
-    { id: 'p-wrong-about',           text: 'Let a character be wrong about another character.' },
-    { id: 'p-reunion',               text: 'Write a reunion.' },
-    { id: 'p-revelation',            text: 'Have a character reveal something they\'ve been hiding.' },
-    { id: 'p-bad-news',              text: 'Write a scene where someone gets bad news.' },
-    { id: 'p-out-of-character',      text: 'Let a character do something out of character.' },
-    { id: 'p-small-kindness',        text: 'Write a moment of kindness between people who barely know each other.' },
-    { id: 'p-object-focused',        text: 'Set a scene that revolves around a specific object.' },
-    { id: 'p-graceful-failure',      text: 'Let a character fail gracefully.' },
-    { id: 'p-weather-matters',       text: 'Write a scene where the weather matters.' },
-    { id: 'p-small-notice',          text: 'Have a character notice something small but important.' },
-    { id: 'p-first-meeting-twist',   text: 'Write a first meeting that isn\'t what it seems.' },
-    { id: 'p-genuine-happiness',     text: 'Let a character be genuinely happy.' },
-    { id: 'p-a-question',            text: 'Write a scene that ends on a question.' },
+    { id: 'p-new-character',         category: 'craft',      text: 'Write a scene with a character you haven\'t used before.' },
+    { id: 'p-unexpected-turn',       category: 'dialogue',   text: 'Let a conversation go somewhere unexpected.' },
+    { id: 'p-contradiction',         category: 'character',  text: 'Give a character a contradiction — something they say they believe versus what they actually do.' },
+    { id: 'p-quiet-moment',          category: 'atmosphere', text: 'Write a moment of quiet. Nothing dramatic. Just atmosphere.' },
+    { id: 'p-new-setting',           category: 'craft',      text: 'Spend a session in a setting you haven\'t explored.' },
+    { id: 'p-unresolved-disagreement', category: 'dialogue', text: 'Have two characters disagree, and don\'t resolve it.' },
+    { id: 'p-dramatic-lie',          category: 'dialogue',   text: 'Write a scene where someone lies, and the reader knows it.' },
+    { id: 'p-minor-spotlight',       category: 'connection', text: 'Let a minor character steal the scene.' },
+    { id: 'p-place-by-absence',      category: 'atmosphere', text: 'Describe a place through what\'s missing from it.' },
+    { id: 'p-happy-goodbye',         category: 'connection', text: 'Write a goodbye that isn\'t sad.' },
+    { id: 'p-changed-mind',          category: 'character',  text: 'Let a character change their mind about something.' },
+    { id: 'p-real-time',             category: 'craft',      text: 'Write a scene that takes place in about ten minutes of real time.' },
+    { id: 'p-mid-argument',          category: 'dialogue',   text: 'Start a scene in the middle of an argument.' },
+    { id: 'p-stranger-moment',       category: 'connection', text: 'Write a brief moment between strangers.' },
+    { id: 'p-admission',             category: 'character',  text: 'Have a character admit they were wrong about something.' },
+    { id: 'p-self-surprise',         category: 'character',  text: 'Let a character surprise themselves.' },
+    { id: 'p-a-meal',                category: 'atmosphere', text: 'Write a meal — grand feast, quiet breakfast, anything in between.' },
+    { id: 'p-story-within',          category: 'craft',      text: 'Let a character tell a story within the story.' },
+    { id: 'p-nothing-happens',       category: 'atmosphere', text: 'Write a scene where nothing much happens, and let that be okay.' },
+    { id: 'p-unexpected-skill',      category: 'character',  text: 'Give a character an unexpected skill.' },
+    { id: 'p-before-change',         category: 'craft',      text: 'Write the moment just before something changes forever.' },
+    { id: 'p-shared-silence',        category: 'atmosphere', text: 'Have two characters share a silence.' },
+    { id: 'p-small-fear',            category: 'character',  text: 'Let a character be afraid of something small.' },
+    { id: 'p-a-promise',             category: 'dialogue',   text: 'Write a promise — kept or broken, your call.' },
+    { id: 'p-worst-timing',          category: 'connection', text: 'Set a scene at the worst possible time for one of the characters.' },
+    { id: 'p-forgotten-rediscovery', category: 'connection', text: 'Let a character rediscover something they\'d forgotten.' },
+    { id: 'p-apology',               category: 'dialogue',   text: 'Write an apology.' },
+    { id: 'p-wrong-about',           category: 'character',  text: 'Let a character be wrong about another character.' },
+    { id: 'p-reunion',               category: 'connection', text: 'Write a reunion.' },
+    { id: 'p-revelation',            category: 'dialogue',   text: 'Have a character reveal something they\'ve been hiding.' },
+    { id: 'p-bad-news',              category: 'dialogue',   text: 'Write a scene where someone gets bad news.' },
+    { id: 'p-out-of-character',      category: 'character',  text: 'Let a character do something out of character.' },
+    { id: 'p-small-kindness',        category: 'connection', text: 'Write a moment of kindness between people who barely know each other.' },
+    { id: 'p-object-focused',        category: 'craft',      text: 'Set a scene that revolves around a specific object.' },
+    { id: 'p-graceful-failure',      category: 'character',  text: 'Let a character fail gracefully.' },
+    { id: 'p-weather-matters',       category: 'atmosphere', text: 'Write a scene where the weather matters.' },
+    { id: 'p-small-notice',          category: 'character',  text: 'Have a character notice something small but important.' },
+    { id: 'p-first-meeting-twist',   category: 'craft',      text: 'Write a first meeting that isn\'t what it seems.' },
+    { id: 'p-genuine-happiness',     category: 'character',  text: 'Let a character be genuinely happy.' },
+    { id: 'p-a-question',            category: 'dialogue',   text: 'Write a scene that ends on a question.' },
   ]);
 
   /**
@@ -15362,6 +15503,7 @@ Use this template for your response:
 
 
 
+
   /**
    * Retention window used by any scoped-clear variants. Currently unused
    * by the default Clear action (which clears everything before the
@@ -15403,11 +15545,23 @@ Use this template for your response:
 
     let droppedCompletions = 0;
     let droppedActiveWeeks = 0;
+    // Per-category buckets accumulated from dropped weeks. These roll
+    // into historicalTotals.byCategory so computePromptStats can still
+    // read per-category counts after old weeks are pruned.
+    const droppedByCat = {};
+    for (const cat of PROMPT_CATEGORIES) droppedByCat[cat.id] = 0;
+
     for (const key of drop) {
       const list = byWeek[key];
       if (!Array.isArray(list)) continue;
       droppedCompletions += list.length;
       if (list.length > 0) droppedActiveWeeks += 1;
+      for (const id of list) {
+        const p = getPromptById(id);
+        if (p && p.category && droppedByCat[p.category] !== undefined) {
+          droppedByCat[p.category] += 1;
+        }
+      }
     }
 
     const nextByWeek = {};
@@ -15418,6 +15572,12 @@ Use this template for your response:
     const prevHist = (settings.prompts && settings.prompts.historicalTotals) || {};
     const prevTotal = Number(prevHist.total) || 0;
     const prevWeeks = Number(prevHist.weeksActive) || 0;
+    const prevByCat = (prevHist.byCategory && typeof prevHist.byCategory === 'object')
+      ? prevHist.byCategory : {};
+    const mergedByCat = {};
+    for (const cat of PROMPT_CATEGORIES) {
+      mergedByCat[cat.id] = (Number(prevByCat[cat.id]) || 0) + (droppedByCat[cat.id] || 0);
+    }
 
     const nextSettings = {
       ...settings,
@@ -15427,6 +15587,7 @@ Use this template for your response:
         historicalTotals: {
           total: prevTotal + droppedCompletions,
           weeksActive: prevWeeks + droppedActiveWeeks,
+          byCategory: mergedByCat,
         },
       },
     };
@@ -22679,23 +22840,68 @@ Use this template for your response:
     opacity: 0.7;
   }
 
-  /* ---- Share dialog ---- */
+  /* ---- Share dialog (text-code flow) ---- */
   .pf-share-body {
     padding: 24px 28px;
-    max-width: 580px;
+    max-width: 520px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
   }
+  /* Compact preview card — shows what's packed into the code in a
+     human-readable form. Replaces the old 1080^2 PNG preview. */
   .pf-share-preview {
-    display: block;
-    width: 100%;
-    max-width: 420px;
-    aspect-ratio: 1 / 1;
-    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 16px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    background: #111;
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .pf-share-preview-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--pf-accent, #d8b36a);
+    letter-spacing: 0.01em;
+  }
+  .pf-share-preview-sub {
+    font-size: 12px;
+    opacity: 0.75;
+  }
+  .pf-share-preview-badges {
+    font-size: 16px;
+    letter-spacing: 6px;
+    opacity: 0.9;
+    margin-top: 2px;
+  }
+  .pf-share-code-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    margin-top: 4px;
+  }
+  /* The code textarea. Monospace + small so the string fits on one
+     or two lines without horizontal scroll. Read-only. */
+  .pf-share-code {
+    width: 100%;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    resize: vertical;
+    word-break: break-all;
+    box-sizing: border-box;
+  }
+  .pf-share-code:focus {
+    outline: 1px solid var(--pf-accent, #d8b36a);
+    outline-offset: -1px;
   }
   .pf-share-privacy {
     font-size: 11px;
@@ -22801,7 +23007,10 @@ Use this template for your response:
         // Lifetime sums preserved when GC prunes old completedByWeek
         // entries. Added to the current-entries sum when computing stats
         // so achievements don't regress across the retention boundary.
-        historicalTotals: { total: 0, weeksActive: 0 },
+        // `byCategory`: per-category breakdown preserved by GC so
+        // variety-based achievements (Well-Rounded tier family) have
+        // the right totals even after history is cleared.
+        historicalTotals: { total: 0, weeksActive: 0, byCategory: {} },
         // Last week the user opened the profile. Drives the "new week"
         // pulse on the mini-card.
         lastSeenWeek: null,
@@ -24151,6 +24360,277 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: profile/share_code.js
+     ────────────────────────────────────────────────────────── */
+  // profile/share_code.js
+  //
+  // A compact, versioned, text-only profile share code. Replaces the
+  // earlier PNG-based card flow.
+  //
+  // Format:
+  //
+  //   pf1:<base64url-encoded JSON payload>
+  //
+  // The "pf1" prefix is a schema version. Decoders reject unknown
+  // prefixes so a later pf2 format can ship without silently
+  // misinterpreting old data. Payload JSON uses short field keys so
+  // codes stay short even with more fields added later:
+  //
+  //   { v: 1,                  payload schema version (also in prefix, repeated for robustness)
+  //     n: "Display Name",     n = name
+  //     t: "Earned Title",     t = title
+  //     a: "archetype label",  a = archetype (null/omitted if Newcomer)
+  //     l: 5,                  l = level
+  //     c: "d8b36a",           c = accent hex (no '#' to save 1 char)
+  //     b: [                   b = badges; up to 5
+  //       { n: "Curator", i: "●" },
+  //       ...
+  //     ],
+  //     x: { i: 30, f: 100 },  x = XP: into level / for next level
+  //     p: 0.30,               p = progress 0..1
+  //   }
+  //
+  // IMPORTANT: there is no avatar / image data here. Codes are
+  // strictly text descriptors — small enough to paste into chat and
+  // safe from metadata leakage. Reconstruction of a visual card is
+  // not a goal of this module; downstream UI can render a preview
+  // from the decoded fields if it wants to.
+  //
+  // PRIVACY CONTRACT (same as the old PNG flow, enforced on encode):
+  //   - Accepts only the public-display fields.
+  //   - DOES NOT accept bio, username, age range, custom gender text,
+  //     raw counter values, or any unlisted field.
+  //   - Accent is coerced to /^[0-9a-f]{6}$/i (strips '#').
+  //   - String fields are length-capped to prevent bloated codes.
+  //   - Badge list is capped to 5.
+  //   - Newcomer archetype is filtered to null (noise; not a signal).
+
+  const CODE_PREFIX = 'pf1';
+  const CURRENT_VERSION = 1;
+
+  // Length caps match the old toShareViewModel limits so behaviour is
+  // consistent with the retired PNG path.
+  const LIMITS = Object.freeze({
+    displayName: 40,
+    title: 60,
+    archetype: 30,
+    badgeName: 40,
+    badgeIcon: 4,
+    maxBadges: 5,
+  });
+
+  /**
+   * Build a safe, whitelist-enforced view-model from raw profile
+   * inputs. Same privacy contract as the old PNG flow. Accepts a
+   * superset-shaped object and keeps only the fields we'll encode.
+   *
+   * Returns a view-model suitable for encodeShareCode(), or for UI
+   * preview rendering.
+   *
+   * @param {object} raw
+   * @returns {object}
+   */
+  function toShareViewModel({
+    displayName,
+    title,
+    archetype,
+    level,
+    accent,
+    pinnedBadges,
+    xpIntoLevel,
+    xpForNextLevel,
+    progress01,
+  } = {}) {
+    // Accept either the raw { label } object from profile/archetypes.js
+    // OR an already-normalized string (e.g., when the caller chains
+    // toShareViewModel(toShareViewModel(vm)) — idempotency matters
+    // since encodeShareCode defensively re-filters its input).
+    let archetypeLabel = null;
+    if (archetype && typeof archetype === 'object' && archetype.label) {
+      archetypeLabel = String(archetype.label);
+    } else if (typeof archetype === 'string') {
+      archetypeLabel = archetype;
+    }
+    if (archetypeLabel === 'Newcomer') archetypeLabel = null;
+
+    return {
+      displayName: String(displayName || 'Chronicler').slice(0, LIMITS.displayName),
+      title: String(title || 'Newcomer').slice(0, LIMITS.title),
+      archetype: archetypeLabel ? archetypeLabel.slice(0, LIMITS.archetype) : null,
+      level: Math.max(1, Math.floor(Number(level) || 1)),
+      accent: normalizeAccent(accent),
+      pinnedBadges: Array.isArray(pinnedBadges)
+        ? pinnedBadges.slice(0, LIMITS.maxBadges).map(b => ({
+            name: String((b && b.name) || '').slice(0, LIMITS.badgeName),
+            icon: String((b && b.icon) || '◆').slice(0, LIMITS.badgeIcon),
+          }))
+        : [],
+      xpIntoLevel: Math.max(0, Math.floor(Number(xpIntoLevel) || 0)),
+      xpForNextLevel: Math.max(1, Math.floor(Number(xpForNextLevel) || 1)),
+      progress01: Math.max(0, Math.min(1, Number(progress01) || 0)),
+    };
+  }
+
+  /**
+   * Encode a view-model into a share code string.
+   *
+   *   encodeShareCode(viewModel) => 'pf1:eyJ2Ijox...'
+   *
+   * Safe against extraneous caller fields — the payload is built from
+   * the fixed schema below, so extras in the input are ignored.
+   *
+   * @param {object} viewModel  output of toShareViewModel
+   * @returns {string}
+   */
+  function encodeShareCode(viewModel) {
+    const safe = toShareViewModel(viewModel || {});
+    const payload = {
+      v: CURRENT_VERSION,
+      n: safe.displayName,
+      t: safe.title,
+      a: safe.archetype,  // may be null
+      l: safe.level,
+      c: safe.accent,     // 6-char hex without '#'
+      b: safe.pinnedBadges.map(b => ({ n: b.name, i: b.icon })),
+      x: { i: safe.xpIntoLevel, f: safe.xpForNextLevel },
+      p: round2(safe.progress01),
+    };
+    const json = JSON.stringify(payload);
+    return `${CODE_PREFIX}:${base64urlEncode(json)}`;
+  }
+
+  /**
+   * Decode a share code back to a view-model. Returns null only if
+   * the code is truly malformed — unparseable base64, non-JSON
+   * payload, etc. Never throws.
+   *
+   * VERSION TRACKING IS CURRENTLY STUBBED OUT (see
+   * `enforceVersion = false` below). While the format is still in
+   * flux, we accept any `pf*:` prefix and any `v:` value so schema
+   * changes during development don't invalidate codes in flight.
+   * When the format stabilizes, flip `enforceVersion` to `true` and
+   * update the tests that round-trip at specific versions.
+   *
+   * The returned shape matches toShareViewModel's output, with one
+   * addition: a `source: 'shareCode'` tag so UI code can tell
+   * decoded codes apart from locally-built view-models.
+   *
+   * @param {string} code
+   * @returns {object|null}
+   */
+  function decodeShareCode(code) {
+    // Flip to `true` once the format is locked to start enforcing
+    // prefix + payload-version matches. Keep the check code intact
+    // so we don't have to rewrite it later.
+    const enforceVersion = false;
+
+    if (typeof code !== 'string') return null;
+    const trimmed = code.trim();
+    const idx = trimmed.indexOf(':');
+    if (idx < 0) return null;
+    const prefix = trimmed.slice(0, idx);
+    const body   = trimmed.slice(idx + 1);
+
+    // Prefix sanity: require the "pf" family marker (so random text
+    // pasted into the decoder is still rejected) but accept any
+    // numeric suffix while we iterate (pf1, pf2, pf9-draft, etc.).
+    if (!/^pf\d/.test(prefix)) return null;
+    if (enforceVersion && prefix !== CODE_PREFIX) return null;
+
+    let payload;
+    try {
+      const json = base64urlDecode(body);
+      payload = JSON.parse(json);
+    } catch {
+      return null;
+    }
+    if (!payload || typeof payload !== 'object') return null;
+    if (enforceVersion && payload.v !== CURRENT_VERSION) return null;
+
+    // Re-apply the same whitelist on decode. Defends against hand-
+    // crafted codes with oversized fields, injected keys, etc.
+    const badges = Array.isArray(payload.b) ? payload.b : [];
+    return {
+      source: 'shareCode',
+      displayName: String(payload.n || 'Chronicler').slice(0, LIMITS.displayName),
+      title: String(payload.t || 'Newcomer').slice(0, LIMITS.title),
+      archetype: payload.a == null
+        ? null
+        : (String(payload.a).slice(0, LIMITS.archetype) || null),
+      level: Math.max(1, Math.floor(Number(payload.l) || 1)),
+      accent: normalizeAccent(payload.c),
+      pinnedBadges: badges.slice(0, LIMITS.maxBadges).map(b => ({
+        name: String((b && b.n) || '').slice(0, LIMITS.badgeName),
+        icon: String((b && b.i) || '◆').slice(0, LIMITS.badgeIcon),
+      })),
+      xpIntoLevel: Math.max(0, Math.floor(Number(payload.x && payload.x.i) || 0)),
+      xpForNextLevel: Math.max(1, Math.floor(Number(payload.x && payload.x.f) || 1)),
+      progress01: Math.max(0, Math.min(1, Number(payload.p) || 0)),
+    };
+  }
+
+  // ---- helpers ----
+
+  function normalizeAccent(accent) {
+    // Input forms: "#d8b36a", "d8b36a", "D8B36A", undefined
+    const raw = String(accent || '').replace(/^#/, '').toLowerCase();
+    return /^[0-9a-f]{6}$/.test(raw) ? raw : 'd8b36a';
+  }
+
+  function round2(n) {
+    return Math.round(Number(n) * 100) / 100;
+  }
+
+  /**
+   * Base64url encode (URL-safe base64, no padding). Works in both
+   * browser and Node test environments.
+   */
+  function base64urlEncode(str) {
+    // Prefer TextEncoder + btoa path for wide support; fall back to
+    // Buffer in Node test contexts where btoa may still exist but
+    // TextEncoder could be the cleaner bridge.
+    let b64;
+    if (typeof btoa === 'function') {
+      // Handle multi-byte characters correctly via URI-encode detour
+      const bytes = new TextEncoder().encode(str);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      b64 = btoa(binary);
+    } else {
+      // Node-native fallback
+      b64 = Buffer.from(str, 'utf8').toString('base64');
+    }
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function base64urlDecode(b64url) {
+    // Restore padding
+    let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad === 2) b64 += '==';
+    else if (pad === 3) b64 += '=';
+    else if (pad === 1) throw new Error('malformed base64');
+
+    if (typeof atob === 'function') {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    }
+    return Buffer.from(b64, 'base64').toString('utf8');
+  }
+
+  /**
+   * Test-only export — exposes internal constants for assertions.
+   * Renamed from `__test` to avoid top-level collision with the
+   * counters.js `__test` export (the bundler concatenates modules
+   * into a single IIFE, so identical export names clash).
+   */
+  const __shareCodeTest = { LIMITS, CODE_PREFIX, CURRENT_VERSION };
+
+  /* ──────────────────────────────────────────────────────────
      module: profile/summary_notifications.js
      ────────────────────────────────────────────────────────── */
   // profile/summary_notifications.js
@@ -25158,419 +25638,107 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
-     module: render/share_card.js
-     ────────────────────────────────────────────────────────── */
-  // render/share_card.js
-  //
-  // Canvas-rendered shareable profile card.
-  //
-  // Takes a safe view-model (name, title, archetype, level, accent,
-  // pinned badges, optional avatar) and produces a square PNG image
-  // suitable for posting or copying. Rendered entirely client-side;
-  // nothing leaves the browser.
-  //
-  // Privacy contract: the fields this module accepts are ONLY the
-  // public-display fields of the profile (display name, avatar the
-  // user chose, achievement-derived title, archetype, level, badge
-  // names). It does NOT accept — and will not render — bio,
-  // username, age range, custom gender text, or raw counter values.
-  // The caller is responsible for constructing the view-model from
-  // those public fields only.
-
-  const CARD_SIZE = 1080;                // square, Instagram/X-friendly
-  const BG = '#151515';                  // dark base matching site aesthetic
-  const BG_ACCENT_ALPHA = 0.14;          // how strongly the accent tints the bg
-
-  /**
-   * Produce a Blob for the rendered card. Async because avatar images
-   * have to load first.
-   *
-   * @param {{
-   *   displayName: string,
-   *   title: string,
-   *   archetype: string|null,
-   *   level: number,
-   *   accent: string,                    hex like '#d8b36a'
-   *   avatarUrl: string|null,            data URL or null
-   *   pinnedBadges: Array<{ name: string, icon: string }>,
-   *   xpLabel: string,
-   *   progress01: number,
-   * }} vm
-   * @returns {Promise<Blob|null>} PNG blob, or null if Canvas isn't available
-   */
-  async function renderShareCard(vm) {
-    if (typeof document === 'undefined') return null;
-    const canvas = document.createElement('canvas');
-    canvas.width = CARD_SIZE;
-    canvas.height = CARD_SIZE;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    drawBackground(ctx, vm.accent || '#d8b36a');
-    if (vm.avatarUrl) {
-      try { await drawAvatar(ctx, vm.avatarUrl); }
-      catch { drawAvatarFallback(ctx, vm.displayName || 'Chronicler'); }
-    } else {
-      drawAvatarFallback(ctx, vm.displayName || 'Chronicler');
-    }
-    drawIdentity(ctx, vm);
-    drawLevelBar(ctx, vm);
-    drawBadges(ctx, vm.pinnedBadges || [], vm.accent || '#d8b36a');
-    drawFooter(ctx);
-
-    return new Promise((resolve) => {
-      try {
-        canvas.toBlob((blob) => resolve(blob), 'image/png');
-      } catch {
-        resolve(null);
-      }
-    });
-  }
-
-  /**
-   * Build a safe view-model from the live profile state. Accepts the
-   * same kind of bundle full_page.js passes into splash.update(), plus
-   * an explicit accent hex. EXCLUDES every field not listed in the
-   * privacy contract above.
-   */
-  function toShareViewModel({
-    displayName,
-    title,
-    archetype,
-    level,
-    accent,
-    avatarUrl,
-    pinnedBadges,
-    xpIntoLevel,
-    xpForNextLevel,
-    progress01,
-  }) {
-    // Whitelist explicitly — new fields from callers don't land in the
-    // card unless we add them here.
-    return {
-      displayName: String(displayName || 'Chronicler').slice(0, 40),
-      title: String(title || 'Newcomer').slice(0, 60),
-      archetype: archetype && typeof archetype === 'object' && archetype.label !== 'Newcomer'
-        ? String(archetype.label).slice(0, 30)
-        : null,
-      level: Math.max(1, Math.floor(Number(level) || 1)),
-      accent: /^#[0-9a-f]{6}$/i.test(String(accent || '')) ? accent : '#d8b36a',
-      avatarUrl: typeof avatarUrl === 'string' && avatarUrl.startsWith('data:') ? avatarUrl : null,
-      pinnedBadges: Array.isArray(pinnedBadges)
-        ? pinnedBadges.slice(0, 5).map(b => ({
-            name: String((b && b.name) || '').slice(0, 40),
-            icon: String((b && b.icon) || '◆').slice(0, 4),
-          }))
-        : [],
-      xpLabel: `${Math.floor(Number(xpIntoLevel) || 0)} / ${Math.floor(Number(xpForNextLevel) || 1)} XP`,
-      progress01: Math.max(0, Math.min(1, Number(progress01) || 0)),
-    };
-  }
-
-  // ---- drawing primitives ----
-
-  function drawBackground(ctx, accent) {
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
-    // Radial accent wash from top
-    const grad = ctx.createRadialGradient(CARD_SIZE / 2, 180, 40, CARD_SIZE / 2, 180, 900);
-    grad.addColorStop(0, withAlpha(accent, BG_ACCENT_ALPHA));
-    grad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
-    // Thin accent border
-    ctx.strokeStyle = withAlpha(accent, 0.6);
-    ctx.lineWidth = 4;
-    ctx.strokeRect(20, 20, CARD_SIZE - 40, CARD_SIZE - 40);
-  }
-
-  async function drawAvatar(ctx, url) {
-    const img = await loadImage(url);
-    const size = 240;
-    const cx = CARD_SIZE / 2;
-    const cy = 230;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
-    ctx.restore();
-    // Ring
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size / 2 + 2, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  function drawAvatarFallback(ctx, name) {
-    const size = 240;
-    const cx = CARD_SIZE / 2;
-    const cy = 230;
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = 'bold 100px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(initialOf(name), cx, cy + 8);
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  function drawIdentity(ctx, vm) {
-    const cx = CARD_SIZE / 2;
-    // Name
-    ctx.fillStyle = '#f0ebe0';
-    ctx.font = 'bold 56px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(truncate(vm.displayName, 24), cx, 400);
-    // Title
-    ctx.fillStyle = vm.accent;
-    ctx.font = 'italic 30px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`— ${truncate(vm.title, 30)} —`, cx, 476);
-    // Archetype pill (if present)
-    if (vm.archetype) {
-      const label = vm.archetype.toUpperCase();
-      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-      const metrics = ctx.measureText(label);
-      const padX = 18, padY = 10;
-      const pillW = metrics.width + padX * 2;
-      const pillH = 36;
-      const pillX = cx - pillW / 2;
-      const pillY = 528;
-      roundRect(ctx, pillX, pillY, pillW, pillH, 18);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.fill();
-      ctx.strokeStyle = vm.accent;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = vm.accent;
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, cx, pillY + pillH / 2 + 1);
-    }
-  }
-
-  function drawLevelBar(ctx, vm) {
-    const cx = CARD_SIZE / 2;
-    const barY = 620;
-    const barW = 640, barH = 14;
-    const barX = cx - barW / 2;
-    // Level label
-    ctx.fillStyle = vm.accent;
-    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(`Lv ${vm.level}`, cx, 588);
-    // Bar bg
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    roundRect(ctx, barX, barY, barW, barH, barH / 2);
-    ctx.fill();
-    // Bar fill
-    if (vm.progress01 > 0) {
-      const fillW = Math.max(barH, barW * vm.progress01);
-      ctx.fillStyle = vm.accent;
-      roundRect(ctx, barX, barY, fillW, barH, barH / 2);
-      ctx.fill();
-    }
-    // XP label
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '18px system-ui, -apple-system, sans-serif';
-    ctx.fillText(vm.xpLabel, cx, barY + barH + 12);
-  }
-
-  function drawBadges(ctx, badges, accent) {
-    if (!badges.length) return;
-    const cx = CARD_SIZE / 2;
-    const y = 740;
-    const count = Math.min(5, badges.length);
-    const gap = 20;
-    const iconSize = 70;
-    const totalW = count * iconSize + (count - 1) * gap;
-    let x = cx - totalW / 2;
-    for (let i = 0; i < count; i++) {
-      const b = badges[i];
-      // Ring
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.beginPath();
-      ctx.arc(x + iconSize / 2, y + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = withAlpha(accent, 0.6);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // Icon glyph
-      ctx.fillStyle = accent;
-      ctx.font = '38px system-ui, -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(b.icon || '◆', x + iconSize / 2, y + iconSize / 2 + 2);
-      x += iconSize + gap;
-    }
-  }
-
-  function drawFooter(ctx) {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = '16px system-ui, -apple-system, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText('Perchance AI Character Chat', CARD_SIZE / 2, CARD_SIZE - 60);
-  }
-
-  // ---- helpers ----
-
-  function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = (e) => reject(e);
-      img.src = src;
-    });
-  }
-
-  function roundRect(ctx, x, y, w, h, r) {
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y,     x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x,     y + h, rr);
-    ctx.arcTo(x,     y + h, x,     y,     rr);
-    ctx.arcTo(x,     y,     x + w, y,     rr);
-    ctx.closePath();
-  }
-
-  function withAlpha(hex, alpha) {
-    const m = /^#([0-9a-f]{6})$/i.exec(String(hex || ''));
-    if (!m) return `rgba(216,179,106,${alpha})`;
-    const r = parseInt(m[1].slice(0, 2), 16);
-    const g = parseInt(m[1].slice(2, 4), 16);
-    const b = parseInt(m[1].slice(4, 6), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-
-  function truncate(s, max) {
-    const str = String(s || '');
-    return str.length > max ? str.slice(0, max - 1) + '…' : str;
-  }
-
-  function initialOf(name) {
-    const s = String(name || '').trim();
-    if (!s) return '?';
-    return s.charAt(0).toUpperCase();
-  }
-
-  /* ──────────────────────────────────────────────────────────
      module: render/share_dialog.js
      ────────────────────────────────────────────────────────── */
   // render/share_dialog.js
   //
-  // Dialog shown when the user wants to share their profile card.
-  // Renders a PNG via share_card.renderShareCard, previews it, and
-  // offers Download / Copy / (if supported) native Share actions.
+  // Dialog shown when the user wants to share their profile.
   //
-  // Self-contained — accepts a view-model and an overlay-mounter;
-  // no direct dependency on full_page.js so it can be composed from
-  // elsewhere later (e.g., Milestones page, summary-notifications).
+  // Produces a short, versioned share code (see profile/share_code.js)
+  // — a text string the user can paste anywhere that accepts text.
+  // No PNG, no avatar data, nothing you can't read with your eyes.
+  // The card is now something you COPY, not something you DOWNLOAD.
+  //
+  // Why text-only: simpler (no canvas/blob pipeline), safer (no image
+  // metadata to audit, no clipboard-write permission needed beyond
+  // plain text), and it pastes cleanly into chat, DMs, forums, etc.
+  // When we want to add new fields later we bump the format version
+  // in share_code.js; old codes stay decodable.
 
 
 
 
 
   /**
-   * Open a share dialog on top of the current UI. Self-installs its
-   * own overlay (separate from the main profile overlay) so the user
-   * doesn't lose their place when they close the card.
+   * Open the share dialog. Renders a read-only textarea with the
+   * user's share code and offers Copy + (optional) native Share.
    *
-   * @param {object} vm    raw inputs; passed through toShareViewModel
-   *                       for whitelist filtering
+   * @param {object} vm   raw view-model, same shape the old PNG path
+   *                      accepted. toShareViewModel filters it.
    */
   async function openShareDialog(vm) {
     const safeVm = toShareViewModel(vm || {});
+    const code = encodeShareCode(safeVm);
 
-    const previewImg = h('img', {
-      class: 'pf-share-preview',
-      alt: 'Your profile card',
-    });
     const status = h('div', { class: 'pf-share-status', 'aria-live': 'polite' });
 
-    let blob = null;
-    try {
-      blob = await renderShareCard(safeVm);
-    } catch (e) {
-      status.textContent = `Couldn't render the card: ${(e && e.message) || e}`;
-      status.className = 'pf-share-status pf-share-status-err';
-    }
-    if (blob) {
-      previewImg.src = URL.createObjectURL(blob);
-    }
+    // Read-only code box. Textarea (not input) so long codes wrap
+    // cleanly instead of horizontally scrolling. readonly + select
+    // all on focus for easy keyboard-copy workflow.
+    const codeBox = h('textarea', {
+      class: 'pf-share-code',
+      readonly: true,
+      rows: '4',
+      spellcheck: 'false',
+      'aria-label': 'Your share code',
+      onClick: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
+      onFocus: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
+    });
+    codeBox.value = code;
 
-    const downloadBtn = h('button', {
-      type: 'button',
-      class: 'pf-mem-btn pf-mem-btn-primary',
-      disabled: !blob,
-      onClick: () => {
-        if (!blob) return;
-        const filename = `${sanitizeFilename(safeVm.displayName)}-profile.png`;
-        const a = h('a', { href: URL.createObjectURL(blob), download: filename });
-        document.body.appendChild(a);
-        try { a.click(); } finally { a.remove(); }
-        flash(status, 'Saved.', 'ok');
-      },
-    }, ['Download PNG']);
+    // Human-readable preview of what's packed into the code, so users
+    // can see what they're about to paste. Purely decorative — the
+    // code itself is the source of truth.
+    const badgePreview = (safeVm.pinnedBadges || [])
+      .map(b => b.icon || '◆').join(' ');
+    const previewLines = [
+      h('div', { class: 'pf-share-preview-name' }, [safeVm.displayName]),
+      h('div', { class: 'pf-share-preview-sub' }, [
+        `Lv ${safeVm.level} · ${safeVm.title}` +
+        (safeVm.archetype ? ` · ${safeVm.archetype}` : ''),
+      ]),
+      badgePreview
+        ? h('div', { class: 'pf-share-preview-badges' }, [badgePreview])
+        : null,
+    ].filter(Boolean);
+
+    const previewCard = h('div', { class: 'pf-share-preview' }, previewLines);
 
     const copyBtn = h('button', {
       type: 'button',
-      class: 'pf-mem-btn pf-mem-btn-secondary',
-      disabled: !blob || typeof ClipboardItem === 'undefined',
-      title: typeof ClipboardItem === 'undefined'
-        ? 'Clipboard image copy not supported in this browser'
-        : 'Copy card to clipboard',
+      class: 'pf-mem-btn pf-mem-btn-primary',
       onClick: async () => {
-        if (!blob) return;
         try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ [blob.type]: blob }),
-          ]);
+          if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(code);
+          } else {
+            // Fallback: rely on the textarea select + execCommand
+            codeBox.focus();
+            codeBox.select();
+            try { document.execCommand('copy'); }
+            catch { throw new Error('clipboard not supported'); }
+          }
           flash(status, 'Copied to clipboard.', 'ok');
         } catch (e) {
           flash(status, `Copy failed: ${(e && e.message) || 'browser blocked it'}`, 'err');
         }
       },
-    }, ['Copy image']);
+    }, ['Copy code']);
 
-    // Web Share API — if available, many mobile browsers will route
-    // this to the native share sheet (Messages, mail, social apps).
-    // We only render the button when support is present so desktop
-    // users don't see a non-functional button.
+    // Web Share API — text share is broadly supported on mobile
+    // without the file-upload gating the old PNG flow needed.
     let shareBtn = null;
-    const canShare =
-      typeof navigator !== 'undefined' &&
-      typeof navigator.canShare === 'function' &&
-      blob && navigator.canShare({
-        files: [new File([blob], 'profile.png', { type: blob.type })],
-      });
-    if (canShare) {
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       shareBtn = h('button', {
         type: 'button',
         class: 'pf-mem-btn pf-mem-btn-secondary',
         onClick: async () => {
           try {
-            const file = new File([blob], 'profile.png', { type: blob.type });
             await navigator.share({
-              files: [file],
               title: `${safeVm.displayName}'s profile`,
-              text: `Lv ${safeVm.level} · ${safeVm.title}`,
+              text: code,
             });
           } catch (e) {
-            // User-canceled share is noisy on some platforms — swallow AbortError
             if (e && e.name !== 'AbortError') {
               flash(status, `Share failed: ${e.message || e}`, 'err');
             }
@@ -25586,21 +25754,23 @@ Use this template for your response:
     }, ['Close']);
 
     const privacyNote = h('p', { class: 'pf-share-privacy' }, [
-      'Only your display name, avatar, earned title, level, archetype, ',
-      'and achievement badges appear on the card. Bio and personal ',
-      'details are never included.',
+      'Share codes contain only your display name, earned title, ',
+      'level, archetype, and pinned badges. Bio, personal details, ',
+      'and avatar image are never included.',
     ]);
 
     const overlay = createOverlay({
-      ariaLabel: 'Share your profile card',
+      ariaLabel: 'Share your profile',
       children: [
         h('div', { class: 'pf-share-body' }, [
-          h('h2', { class: 'pf-mem-title' }, ['Profile card']),
-          previewImg,
+          h('h2', { class: 'pf-mem-title' }, ['Share your profile']),
+          previewCard,
+          h('label', { class: 'pf-share-code-label' }, ['Share code']),
+          codeBox,
           status,
           privacyNote,
           h('div', { class: 'pf-share-actions' },
-            [downloadBtn, copyBtn, shareBtn, closeBtn].filter(Boolean)
+            [copyBtn, shareBtn, closeBtn].filter(Boolean)
           ),
         ]),
       ],
@@ -25619,12 +25789,6 @@ Use this template for your response:
         el.className = 'pf-share-status';
       }
     }, 2500);
-  }
-
-  function sanitizeFilename(name) {
-    return String(name || 'profile')
-      .replace(/[^\w\-]/g, '_')
-      .slice(0, 32) || 'profile';
   }
 
   /* ──────────────────────────────────────────────────────────

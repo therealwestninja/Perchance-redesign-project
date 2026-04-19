@@ -3165,23 +3165,68 @@ export const CSS = `
   opacity: 0.7;
 }
 
-/* ---- Share dialog ---- */
+/* ---- Share dialog (text-code flow) ---- */
 .pf-share-body {
   padding: 24px 28px;
-  max-width: 580px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
+/* Compact preview card — shows what's packed into the code in a
+   human-readable form. Replaces the old 1080^2 PNG preview. */
 .pf-share-preview {
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  aspect-ratio: 1 / 1;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 16px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
-  background: #111;
+  background: rgba(0, 0, 0, 0.18);
+}
+.pf-share-preview-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--pf-accent, #d8b36a);
+  letter-spacing: 0.01em;
+}
+.pf-share-preview-sub {
+  font-size: 12px;
+  opacity: 0.75;
+}
+.pf-share-preview-badges {
+  font-size: 16px;
+  letter-spacing: 6px;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+.pf-share-code-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+/* The code textarea. Monospace + small so the string fits on one
+   or two lines without horizontal scroll. Read-only. */
+.pf-share-code {
+  width: 100%;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  resize: vertical;
+  word-break: break-all;
+  box-sizing: border-box;
+}
+.pf-share-code:focus {
+  outline: 1px solid var(--pf-accent, #d8b36a);
+  outline-offset: -1px;
 }
 .pf-share-privacy {
   font-size: 11px;

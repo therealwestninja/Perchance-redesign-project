@@ -1,104 +1,102 @@
 // render/share_dialog.js
 //
-// Dialog shown when the user wants to share their profile card.
-// Renders a PNG via share_card.renderShareCard, previews it, and
-// offers Download / Copy / (if supported) native Share actions.
+// Dialog shown when the user wants to share their profile.
 //
-// Self-contained — accepts a view-model and an overlay-mounter;
-// no direct dependency on full_page.js so it can be composed from
-// elsewhere later (e.g., Milestones page, summary-notifications).
+// Produces a short, versioned share code (see profile/share_code.js)
+// — a text string the user can paste anywhere that accepts text.
+// No PNG, no avatar data, nothing you can't read with your eyes.
+// The card is now something you COPY, not something you DOWNLOAD.
+//
+// Why text-only: simpler (no canvas/blob pipeline), safer (no image
+// metadata to audit, no clipboard-write permission needed beyond
+// plain text), and it pastes cleanly into chat, DMs, forums, etc.
+// When we want to add new fields later we bump the format version
+// in share_code.js; old codes stay decodable.
 
-import { h, replaceContents } from '../utils/dom.js';
-import { renderShareCard, toShareViewModel } from './share_card.js';
+import { h } from '../utils/dom.js';
+import { encodeShareCode, toShareViewModel } from '../profile/share_code.js';
 import { createOverlay } from './overlay.js';
 
 /**
- * Open a share dialog on top of the current UI. Self-installs its
- * own overlay (separate from the main profile overlay) so the user
- * doesn't lose their place when they close the card.
+ * Open the share dialog. Renders a read-only textarea with the
+ * user's share code and offers Copy + (optional) native Share.
  *
- * @param {object} vm    raw inputs; passed through toShareViewModel
- *                       for whitelist filtering
+ * @param {object} vm   raw view-model, same shape the old PNG path
+ *                      accepted. toShareViewModel filters it.
  */
 export async function openShareDialog(vm) {
   const safeVm = toShareViewModel(vm || {});
+  const code = encodeShareCode(safeVm);
 
-  const previewImg = h('img', {
-    class: 'pf-share-preview',
-    alt: 'Your profile card',
-  });
   const status = h('div', { class: 'pf-share-status', 'aria-live': 'polite' });
 
-  let blob = null;
-  try {
-    blob = await renderShareCard(safeVm);
-  } catch (e) {
-    status.textContent = `Couldn't render the card: ${(e && e.message) || e}`;
-    status.className = 'pf-share-status pf-share-status-err';
-  }
-  if (blob) {
-    previewImg.src = URL.createObjectURL(blob);
-  }
+  // Read-only code box. Textarea (not input) so long codes wrap
+  // cleanly instead of horizontally scrolling. readonly + select
+  // all on focus for easy keyboard-copy workflow.
+  const codeBox = h('textarea', {
+    class: 'pf-share-code',
+    readonly: true,
+    rows: '4',
+    spellcheck: 'false',
+    'aria-label': 'Your share code',
+    onClick: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
+    onFocus: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
+  });
+  codeBox.value = code;
 
-  const downloadBtn = h('button', {
-    type: 'button',
-    class: 'pf-mem-btn pf-mem-btn-primary',
-    disabled: !blob,
-    onClick: () => {
-      if (!blob) return;
-      const filename = `${sanitizeFilename(safeVm.displayName)}-profile.png`;
-      const a = h('a', { href: URL.createObjectURL(blob), download: filename });
-      document.body.appendChild(a);
-      try { a.click(); } finally { a.remove(); }
-      flash(status, 'Saved.', 'ok');
-    },
-  }, ['Download PNG']);
+  // Human-readable preview of what's packed into the code, so users
+  // can see what they're about to paste. Purely decorative — the
+  // code itself is the source of truth.
+  const badgePreview = (safeVm.pinnedBadges || [])
+    .map(b => b.icon || '◆').join(' ');
+  const previewLines = [
+    h('div', { class: 'pf-share-preview-name' }, [safeVm.displayName]),
+    h('div', { class: 'pf-share-preview-sub' }, [
+      `Lv ${safeVm.level} · ${safeVm.title}` +
+      (safeVm.archetype ? ` · ${safeVm.archetype}` : ''),
+    ]),
+    badgePreview
+      ? h('div', { class: 'pf-share-preview-badges' }, [badgePreview])
+      : null,
+  ].filter(Boolean);
+
+  const previewCard = h('div', { class: 'pf-share-preview' }, previewLines);
 
   const copyBtn = h('button', {
     type: 'button',
-    class: 'pf-mem-btn pf-mem-btn-secondary',
-    disabled: !blob || typeof ClipboardItem === 'undefined',
-    title: typeof ClipboardItem === 'undefined'
-      ? 'Clipboard image copy not supported in this browser'
-      : 'Copy card to clipboard',
+    class: 'pf-mem-btn pf-mem-btn-primary',
     onClick: async () => {
-      if (!blob) return;
       try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ [blob.type]: blob }),
-        ]);
+        if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+        } else {
+          // Fallback: rely on the textarea select + execCommand
+          codeBox.focus();
+          codeBox.select();
+          try { document.execCommand('copy'); }
+          catch { throw new Error('clipboard not supported'); }
+        }
         flash(status, 'Copied to clipboard.', 'ok');
       } catch (e) {
         flash(status, `Copy failed: ${(e && e.message) || 'browser blocked it'}`, 'err');
       }
     },
-  }, ['Copy image']);
+  }, ['Copy code']);
 
-  // Web Share API — if available, many mobile browsers will route
-  // this to the native share sheet (Messages, mail, social apps).
-  // We only render the button when support is present so desktop
-  // users don't see a non-functional button.
+  // Web Share API — text share is broadly supported on mobile
+  // without the file-upload gating the old PNG flow needed.
   let shareBtn = null;
-  const canShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.canShare === 'function' &&
-    blob && navigator.canShare({
-      files: [new File([blob], 'profile.png', { type: blob.type })],
-    });
-  if (canShare) {
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     shareBtn = h('button', {
       type: 'button',
       class: 'pf-mem-btn pf-mem-btn-secondary',
       onClick: async () => {
         try {
-          const file = new File([blob], 'profile.png', { type: blob.type });
           await navigator.share({
-            files: [file],
             title: `${safeVm.displayName}'s profile`,
-            text: `Lv ${safeVm.level} · ${safeVm.title}`,
+            text: code,
           });
         } catch (e) {
-          // User-canceled share is noisy on some platforms — swallow AbortError
           if (e && e.name !== 'AbortError') {
             flash(status, `Share failed: ${e.message || e}`, 'err');
           }
@@ -114,21 +112,23 @@ export async function openShareDialog(vm) {
   }, ['Close']);
 
   const privacyNote = h('p', { class: 'pf-share-privacy' }, [
-    'Only your display name, avatar, earned title, level, archetype, ',
-    'and achievement badges appear on the card. Bio and personal ',
-    'details are never included.',
+    'Share codes contain only your display name, earned title, ',
+    'level, archetype, and pinned badges. Bio, personal details, ',
+    'and avatar image are never included.',
   ]);
 
   const overlay = createOverlay({
-    ariaLabel: 'Share your profile card',
+    ariaLabel: 'Share your profile',
     children: [
       h('div', { class: 'pf-share-body' }, [
-        h('h2', { class: 'pf-mem-title' }, ['Profile card']),
-        previewImg,
+        h('h2', { class: 'pf-mem-title' }, ['Share your profile']),
+        previewCard,
+        h('label', { class: 'pf-share-code-label' }, ['Share code']),
+        codeBox,
         status,
         privacyNote,
         h('div', { class: 'pf-share-actions' },
-          [downloadBtn, copyBtn, shareBtn, closeBtn].filter(Boolean)
+          [copyBtn, shareBtn, closeBtn].filter(Boolean)
         ),
       ]),
     ],
@@ -147,10 +147,4 @@ function flash(el, text, kind) {
       el.className = 'pf-share-status';
     }
   }, 2500);
-}
-
-function sanitizeFilename(name) {
-  return String(name || 'profile')
-    .replace(/[^\w\-]/g, '_')
-    .slice(0, 32) || 'profile';
 }
