@@ -1,62 +1,58 @@
 // prompts/daily_quest.js
 //
-// AI-generated daily quest with a "click to reveal" sealed-card mechanic.
+// AI-generated daily quests with sealed-card "prize" reveal mechanic.
 //
-// How it works:
-//   1. A sealed quest card appears in the Prompts section each day
-//   2. User clicks "Reveal today's quest" → seal-break animation plays
-//   3. While animating, aiTextPlugin generates a quest from a date-seeded theme
-//   4. Quest text streams in as the seal opens
-//   5. Result is cached in localStorage so re-opening shows the same quest
+// Shows 3 sealed quest cards per day. Each card:
+//   1. Displays a sealed "?" with a theme hint
+//   2. On click → seal-break animation (1.2s) plays
+//   3. During animation → AI generates a unique quest
+//   4. After seal breaks → quest text types in character-by-character
+//   5. Result cached so re-visits show the same quest
 //
-// Date seeding:
-//   The date determines a THEME from a fixed list (deterministic hash).
-//   The AI then generates a specific quest within that theme. The AI
-//   output may vary per-user, but the theme is consistent globally.
-//
-// Quest completion:
-//   Completing a quest bumps the 'questsCompleted' counter and is
-//   tracked in the prompts completion system under the day key.
+// The animation is deliberately long enough to cover the AI response
+// time, so the user experiences a smooth "unwrapping" rather than
+// a loading spinner.
 
 import { getCurrentDayKey } from './scheduler.js';
 
-// 30 quest themes — the date hash picks one per day.
+// 30 quest themes — 3 are picked per day via date hash.
 const THEMES = [
-  { seed: 'stranger',    prompt: 'Write a scene where your character meets a complete stranger who changes their perspective.' },
-  { seed: 'secret',      prompt: 'Your character discovers a secret about someone they trust. Write their reaction.' },
-  { seed: 'storm',       prompt: 'A sudden storm forces your character to take shelter somewhere unexpected.' },
-  { seed: 'memory',      prompt: 'Your character finds an object that triggers a powerful memory. Write the scene.' },
-  { seed: 'rival',       prompt: 'Your character encounters a rival. Write the confrontation — it doesn\'t have to be hostile.' },
-  { seed: 'silence',     prompt: 'Write a scene where the most important thing is what ISN\'T said.' },
-  { seed: 'gift',        prompt: 'Someone gives your character an unexpected gift. What is it, and what does it mean?' },
-  { seed: 'crossroads',  prompt: 'Your character reaches a literal or metaphorical crossroads. Which path do they take?' },
-  { seed: 'wound',       prompt: 'Your character tends to a wound — physical or emotional. Write the quiet aftermath.' },
-  { seed: 'festival',    prompt: 'Your character attends a celebration they weren\'t invited to.' },
-  { seed: 'midnight',    prompt: 'Something happens at midnight that only your character witnesses.' },
-  { seed: 'letter',      prompt: 'Your character writes or receives a letter that changes everything.' },
-  { seed: 'threshold',   prompt: 'Your character stands at a door they\'re afraid to open. What\'s on the other side?' },
-  { seed: 'mask',        prompt: 'Your character puts on a mask — literal or figurative. Who do they become?' },
-  { seed: 'bargain',     prompt: 'Your character makes a deal they might regret. Write the negotiation.' },
-  { seed: 'echo',        prompt: 'Your character hears something from the past — a voice, a song, a phrase. Write what it stirs.' },
-  { seed: 'compass',     prompt: 'Your character is lost. Not geographically — in a deeper way. Who or what guides them back?' },
-  { seed: 'forge',       prompt: 'Your character creates something — an object, a plan, a promise. Write the act of making.' },
-  { seed: 'trespass',    prompt: 'Your character enters a place where they don\'t belong. What do they find?' },
-  { seed: 'debt',        prompt: 'Someone calls in an old debt. Your character must repay it — but not with money.' },
-  { seed: 'mirror',      prompt: 'Your character sees their reflection and doesn\'t recognize who\'s looking back.' },
-  { seed: 'hunger',      prompt: 'Your character craves something they can\'t have. Write the wanting.' },
-  { seed: 'bridge',      prompt: 'Two people who have been apart meet again on a bridge. Write the reunion.' },
-  { seed: 'omen',        prompt: 'Your character notices an omen — a sign that something is about to change.' },
-  { seed: 'trade',       prompt: 'Your character must give up one thing to gain another. What do they choose?' },
-  { seed: 'sanctuary',   prompt: 'Your character finds a place of absolute safety. What makes it sacred to them?' },
-  { seed: 'shadow',      prompt: 'Your character confronts their shadow self — the version of them they try to hide.' },
-  { seed: 'lantern',     prompt: 'In complete darkness, your character finds a single light. Write toward it.' },
-  { seed: 'oath',        prompt: 'Your character swears an oath they intend to keep. Write the moment.' },
-  { seed: 'tide',        prompt: 'Something returns that your character thought was gone forever.' },
+  { seed: 'stranger',    icon: '👤', prompt: 'a scene where your character meets a complete stranger who changes their perspective' },
+  { seed: 'secret',      icon: '🤫', prompt: 'your character discovering a secret about someone they trust' },
+  { seed: 'storm',       icon: '⛈',  prompt: 'a sudden storm forcing your character to take shelter somewhere unexpected' },
+  { seed: 'memory',      icon: '💭', prompt: 'your character finding an object that triggers a powerful memory' },
+  { seed: 'rival',       icon: '⚔',  prompt: 'your character encountering a rival — the confrontation doesn\'t have to be hostile' },
+  { seed: 'silence',     icon: '🤐', prompt: 'a scene where the most important thing is what ISN\'T said' },
+  { seed: 'gift',        icon: '🎁', prompt: 'someone giving your character an unexpected gift' },
+  { seed: 'crossroads',  icon: '🔀', prompt: 'your character reaching a literal or metaphorical crossroads' },
+  { seed: 'wound',       icon: '🩹', prompt: 'your character tending to a wound — physical or emotional' },
+  { seed: 'festival',    icon: '🎭', prompt: 'your character attending a celebration they weren\'t invited to' },
+  { seed: 'midnight',    icon: '🌙', prompt: 'something happening at midnight that only your character witnesses' },
+  { seed: 'letter',      icon: '✉',  prompt: 'your character writing or receiving a letter that changes everything' },
+  { seed: 'threshold',   icon: '🚪', prompt: 'your character standing at a door they\'re afraid to open' },
+  { seed: 'mask',        icon: '🎭', prompt: 'your character putting on a mask — literal or figurative' },
+  { seed: 'bargain',     icon: '🤝', prompt: 'your character making a deal they might regret' },
+  { seed: 'echo',        icon: '🔔', prompt: 'your character hearing something from the past — a voice, a song, a phrase' },
+  { seed: 'compass',     icon: '🧭', prompt: 'your character being lost — not geographically, but in a deeper way' },
+  { seed: 'forge',       icon: '🔨', prompt: 'your character creating something — an object, a plan, a promise' },
+  { seed: 'trespass',    icon: '⚠',  prompt: 'your character entering a place where they don\'t belong' },
+  { seed: 'debt',        icon: '📜', prompt: 'someone calling in an old debt — not repayable with money' },
+  { seed: 'mirror',      icon: '🪞', prompt: 'your character seeing their reflection and not recognizing who\'s looking back' },
+  { seed: 'hunger',      icon: '🔥', prompt: 'your character craving something they can\'t have' },
+  { seed: 'bridge',      icon: '🌉', prompt: 'two people who have been apart meeting again' },
+  { seed: 'omen',        icon: '✨', prompt: 'your character noticing a sign that something is about to change' },
+  { seed: 'trade',       icon: '⚖',  prompt: 'your character giving up one thing to gain another' },
+  { seed: 'sanctuary',   icon: '🏠', prompt: 'your character finding a place of absolute safety' },
+  { seed: 'shadow',      icon: '👥', prompt: 'your character confronting the version of themselves they try to hide' },
+  { seed: 'lantern',     icon: '🏮', prompt: 'your character finding a single light in complete darkness' },
+  { seed: 'oath',        icon: '🤞', prompt: 'your character swearing an oath they intend to keep' },
+  { seed: 'tide',        icon: '🌊', prompt: 'something returning that your character thought was gone forever' },
 ];
 
-const CACHE_KEY = 'pf:daily-quest';
+const QUESTS_PER_DAY = 3;
+const CACHE_PREFIX = 'pf:dq:';
 
-/** Hash a string to a number (deterministic). */
+/** Deterministic hash. */
 function hashStr(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
@@ -65,76 +61,117 @@ function hashStr(str) {
   return Math.abs(h);
 }
 
-/** Get today's theme (deterministic from date). */
-function getTodayTheme(dayKey) {
-  const idx = hashStr(dayKey) % THEMES.length;
-  return THEMES[idx];
+/** Pick N themes for today (deterministic, no repeats). */
+function getTodayThemes(dayKey, count) {
+  // Seeded shuffle of indices
+  const indices = Array.from({ length: THEMES.length }, (_, i) => i);
+  const seed = hashStr(dayKey);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = (hashStr(`${seed}:${i}`) % (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices.slice(0, count).map(i => THEMES[i]);
 }
 
-/** Load cached quest for today, or null. */
-function loadCachedQuest(dayKey) {
+/** Load cached quest result, or null. */
+function loadCached(dayKey, idx) {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(`${CACHE_PREFIX}${dayKey}:${idx}`);
     if (!raw) return null;
-    const cached = JSON.parse(raw);
-    if (cached && cached.day === dayKey && cached.text) return cached;
-    return null;
+    return JSON.parse(raw);
   } catch { return null; }
 }
 
 /** Cache quest result. */
-function cacheQuest(dayKey, text, theme) {
+function saveCache(dayKey, idx, text, theme) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ day: dayKey, text, theme, ts: Date.now() }));
+    localStorage.setItem(`${CACHE_PREFIX}${dayKey}:${idx}`,
+      JSON.stringify({ text, theme, ts: Date.now() }));
   } catch {}
 }
 
-/**
- * Create the daily quest card element.
- * Returns a DOM element to be inserted into the prompts section.
- */
-export function createDailyQuestCard() {
-  const dayKey = getCurrentDayKey();
-  const theme = getTodayTheme(dayKey);
-  const cached = loadCachedQuest(dayKey);
+/** Typewriter effect — reveals text character by character. */
+function typewrite(el, text, speed = 20) {
+  el.textContent = '';
+  let i = 0;
+  const tick = () => {
+    if (i < text.length) {
+      el.textContent += text[i++];
+      setTimeout(tick, speed);
+    }
+  };
+  tick();
+}
 
-  // ---- Outer card ----
+/** Generate quest text via AI, with fallback. */
+async function generateQuest(theme) {
+  try {
+    if (window.root && typeof window.root.aiTextPlugin === 'function') {
+      const result = await window.root.aiTextPlugin({
+        instruction: [
+          `Theme: "${theme.seed}" — ${theme.prompt}.`,
+          '',
+          'Write a single creative writing quest for a roleplay chat user.',
+          'It should be a specific, actionable challenge they can do in their next conversation.',
+          'Be evocative and specific. Start with an action verb. Under 50 words.',
+          'Reply with ONLY the quest text.',
+        ].join('\n'),
+        stopSequences: ['\n\n'],
+      });
+      const text = result && (result.text || (typeof result === 'string' ? result : ''));
+      if (text && text.trim().length > 10) return text.trim();
+    }
+  } catch (e) {
+    console.warn('[pf] quest AI generation failed:', e && e.message);
+  }
+
+  // AI unavailable — generate a themed fallback locally
+  const verbs = ['Write', 'Describe', 'Create', 'Explore', 'Imagine', 'Craft', 'Develop', 'Show us'];
+  const verb = verbs[hashStr(theme.seed) % verbs.length];
+  return `${verb} ${theme.prompt}. Make it personal to your character — what would they feel, do, or say?`;
+}
+
+/**
+ * Build a single sealed quest card.
+ */
+function createQuestCard(theme, dayKey, idx) {
+  const cached = loadCached(dayKey, idx);
+
   const card = document.createElement('div');
   card.className = 'pf-dq-card';
 
-  // ---- Header ----
+  // Header
   const header = document.createElement('div');
   header.className = 'pf-dq-header';
 
-  const icon = document.createElement('span');
-  icon.className = 'pf-dq-icon';
-  icon.textContent = '✦';
+  const headerIcon = document.createElement('span');
+  headerIcon.className = 'pf-dq-icon';
+  headerIcon.textContent = theme.icon;
 
-  const title = document.createElement('span');
-  title.className = 'pf-dq-title';
-  title.textContent = 'DAILY QUEST';
+  const headerTitle = document.createElement('span');
+  headerTitle.className = 'pf-dq-title';
+  headerTitle.textContent = `QUEST ${idx + 1}`;
 
-  const date = document.createElement('span');
-  date.className = 'pf-dq-date';
-  date.textContent = dayKey;
+  const headerDate = document.createElement('span');
+  headerDate.className = 'pf-dq-date';
+  headerDate.textContent = dayKey;
 
-  header.appendChild(icon);
-  header.appendChild(title);
-  header.appendChild(date);
+  header.appendChild(headerIcon);
+  header.appendChild(headerTitle);
+  header.appendChild(headerDate);
   card.appendChild(header);
 
-  if (cached) {
-    // Already revealed — show the quest
-    renderRevealed(card, cached.text, theme, dayKey);
+  if (cached && cached.text) {
+    renderRevealed(card, cached.text, theme, dayKey, idx, false);
   } else {
-    // Sealed — show the reveal button
-    renderSealed(card, theme, dayKey);
+    renderSealed(card, theme, dayKey, idx);
   }
 
   return card;
 }
 
-function renderSealed(card, theme, dayKey) {
+/** Render the sealed "?" state. */
+function renderSealed(card, theme, dayKey, idx) {
   const seal = document.createElement('div');
   seal.className = 'pf-dq-seal';
 
@@ -144,89 +181,71 @@ function renderSealed(card, theme, dayKey) {
 
   const sealLabel = document.createElement('div');
   sealLabel.className = 'pf-dq-seal-label';
-  sealLabel.textContent = 'Click to reveal today\'s quest';
+  sealLabel.textContent = 'Click to reveal';
 
   const sealHint = document.createElement('div');
   sealHint.className = 'pf-dq-seal-hint';
-  sealHint.textContent = `Theme: ${theme.seed}`;
+  sealHint.textContent = theme.seed;
 
   seal.appendChild(sealIcon);
   seal.appendChild(sealLabel);
   seal.appendChild(sealHint);
   card.appendChild(seal);
 
+  let clicked = false;
   seal.addEventListener('click', async () => {
-    // Start break animation
+    if (clicked) return;
+    clicked = true;
+
+    // Phase 1: seal-break animation (1.2s)
     seal.classList.add('pf-dq-seal-breaking');
-    sealIcon.textContent = '✦';
-    sealLabel.textContent = 'Generating your quest...';
+    sealIcon.textContent = theme.icon;
+    sealLabel.textContent = '...';
+    sealHint.textContent = '';
 
-    // Generate quest via AI
-    let questText = theme.prompt; // fallback if AI unavailable
-    try {
-      if (window.root && typeof window.root.aiTextPlugin === 'function') {
-        const result = await window.root.aiTextPlugin({
-          instruction: [
-            `Today's theme: "${theme.seed}".`,
-            'Generate a creative writing quest for a roleplay chat user.',
-            'The quest should be a specific, actionable challenge they can do in their next chat.',
-            'Write it as a single paragraph, under 60 words.',
-            'Make it evocative and inspiring. Start with a verb.',
-            'Reply with ONLY the quest text, nothing else.',
-            '',
-            `Base prompt: ${theme.prompt}`,
-          ].join('\n'),
-          stopSequences: ['\n\n'],
-        });
-        if (result && result.text) {
-          questText = result.text.trim();
-        }
-      }
-    } catch (e) {
-      console.warn('[pf] daily quest generation failed:', e && e.message);
-    }
+    // Phase 2: AI generates quest during animation
+    const questText = await generateQuest(theme);
 
-    // Cache the result
-    cacheQuest(dayKey, questText, theme.seed);
+    // Cache result
+    saveCache(dayKey, idx, questText, theme.seed);
     try { bumpCounter('questsRevealed'); } catch {}
 
-    // Remove seal, show quest with reveal animation
+    // Phase 3: remove seal after animation, typewrite the quest
     setTimeout(() => {
       seal.remove();
-      renderRevealed(card, questText, theme, dayKey);
-    }, 600); // matches CSS animation duration
-  }, { once: true });
+      renderRevealed(card, questText, theme, dayKey, idx, true);
+    }, 1200);
+  });
 }
 
-function renderRevealed(card, questText, theme, dayKey) {
+/** Render the revealed quest. */
+function renderRevealed(card, questText, theme, dayKey, idx, animate) {
   const body = document.createElement('div');
-  body.className = 'pf-dq-body pf-dq-body-reveal';
+  body.className = 'pf-dq-body' + (animate ? ' pf-dq-body-reveal' : '');
 
   const themeLabel = document.createElement('div');
   themeLabel.className = 'pf-dq-theme';
-  themeLabel.textContent = `✦ ${theme.seed.toUpperCase()}`;
+  themeLabel.textContent = `${theme.icon} ${theme.seed.toUpperCase()}`;
 
   const text = document.createElement('div');
   text.className = 'pf-dq-text';
-  text.textContent = questText;
 
   const completeBtn = document.createElement('button');
   completeBtn.type = 'button';
   completeBtn.className = 'pf-dq-complete';
 
-  // Check if already completed today
-  const completedKey = `pf:dq-done:${dayKey}`;
+  const completedKey = `pf:dq-done:${dayKey}:${idx}`;
   const isDone = localStorage.getItem(completedKey) === '1';
 
   if (isDone) {
-    completeBtn.textContent = '✓ Completed';
+    completeBtn.textContent = '✓ Done';
     completeBtn.disabled = true;
     completeBtn.classList.add('pf-dq-done');
   } else {
-    completeBtn.textContent = 'Mark as complete';
+    completeBtn.textContent = 'Complete';
     completeBtn.addEventListener('click', () => {
       localStorage.setItem(completedKey, '1');
-      completeBtn.textContent = '✓ Completed';
+      completeBtn.textContent = '✓ Done';
       completeBtn.disabled = true;
       completeBtn.classList.add('pf-dq-done');
       try { bumpCounter('questsCompleted'); } catch {}
@@ -237,29 +256,54 @@ function renderRevealed(card, questText, theme, dayKey) {
   body.appendChild(text);
   body.appendChild(completeBtn);
   card.appendChild(body);
+
+  // Typewrite effect on reveal, instant on cached
+  if (animate) {
+    typewrite(text, questText, 18);
+  } else {
+    text.textContent = questText;
+  }
 }
 
 /**
- * Initialize daily quest — injects the card into the prompts section
- * or near the chat input if prompts section isn't visible.
+ * Initialize daily quests. Creates 3 sealed quest cards and
+ * injects them into the prompts section or near chat messages.
  */
 export function initDailyQuest() {
   if (initDailyQuest._done) return;
   initDailyQuest._done = true;
 
-  const card = createDailyQuestCard();
+  const dayKey = getCurrentDayKey();
+  const themes = getTodayThemes(dayKey, QUESTS_PER_DAY);
 
-  // Try to insert into the prompts section
+  // Container for all quest cards
+  const container = document.createElement('div');
+  container.className = 'pf-dq-container';
+
+  // Section header
+  const sectionHeader = document.createElement('div');
+  sectionHeader.className = 'pf-dq-section-header';
+  sectionHeader.textContent = 'DAILY QUESTS';
+  container.appendChild(sectionHeader);
+
+  // Create quest cards
+  for (let i = 0; i < themes.length; i++) {
+    container.appendChild(createQuestCard(themes[i], dayKey, i));
+  }
+
+  // Insert into the page
   const promptsList = document.querySelector('.pf-prompts-list');
-  if (promptsList) {
-    promptsList.parentElement.insertBefore(card, promptsList);
+  if (promptsList && promptsList.parentElement) {
+    promptsList.parentElement.insertBefore(container, promptsList);
     return;
   }
 
-  // Fallback: insert near the chat messages
   const chatEl = document.getElementById('chatMessagesEl');
   if (chatEl && chatEl.parentElement) {
-    chatEl.parentElement.insertBefore(card, chatEl);
+    chatEl.parentElement.insertBefore(container, chatEl);
     return;
   }
+
+  // Last resort: append to body
+  document.body.appendChild(container);
 }

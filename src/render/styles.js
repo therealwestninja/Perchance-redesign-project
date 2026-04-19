@@ -4523,7 +4523,20 @@ body.pf-light-theme .pf-glossary-textarea {
   gap: 4px;
 }
 
-/* ---- Daily quest card ---- */
+/* ---- Daily quest cards ---- */
+.pf-dq-container {
+  margin-bottom: 16px;
+}
+.pf-dq-section-header {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
 .pf-dq-card {
   background:
     linear-gradient(180deg, rgba(212,168,85,0.04) 0%, transparent 40%),
@@ -4531,7 +4544,7 @@ body.pf-light-theme .pf-glossary-textarea {
   border: 1px solid rgba(212,168,85,0.2);
   border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .pf-dq-header {
   display: flex;
@@ -4564,8 +4577,8 @@ body.pf-light-theme .pf-glossary-textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 28px 16px;
+  gap: 6px;
+  padding: 20px 16px;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -4573,26 +4586,26 @@ body.pf-light-theme .pf-glossary-textarea {
   background: rgba(212,168,85,0.04);
 }
 .pf-dq-seal-icon {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(212,168,85,0.15), rgba(212,168,85,0.05));
   border: 2px solid rgba(212,168,85,0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 20px;
   color: var(--pf-accent, #d4a855);
   font-family: Georgia, 'Times New Roman', serif;
   font-weight: 600;
   transition: transform 0.3s, border-color 0.3s;
 }
 .pf-dq-seal:hover .pf-dq-seal-icon {
-  transform: scale(1.05);
+  transform: scale(1.08);
   border-color: rgba(212,168,85,0.6);
 }
 .pf-dq-seal-label {
-  font-size: 13px;
+  font-size: 12px;
   color: #e8dcc4;
   font-weight: 500;
 }
@@ -4601,20 +4614,30 @@ body.pf-light-theme .pf-glossary-textarea {
   color: #8b95a3;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-/* Breaking animation */
+/* Breaking animation — 1.2s to cover AI response time */
 .pf-dq-seal-breaking {
   pointer-events: none;
 }
 .pf-dq-seal-breaking .pf-dq-seal-icon {
-  animation: pf-dq-break 0.6s ease-out forwards;
+  animation: pf-dq-break 1.2s ease-out forwards;
+}
+.pf-dq-seal-breaking .pf-dq-seal-label {
+  animation: pf-dq-shimmer 0.8s ease-in-out infinite;
 }
 @keyframes pf-dq-break {
   0% { transform: scale(1); border-color: rgba(212,168,85,0.3); }
-  30% { transform: scale(1.15); border-color: rgba(212,168,85,0.8); }
-  60% { transform: scale(1.1) rotate(5deg); }
+  20% { transform: scale(1.2); border-color: rgba(212,168,85,0.8); }
+  40% { transform: scale(1.15) rotate(3deg); }
+  60% { transform: scale(1.1) rotate(-3deg); border-color: rgba(212,168,85,1); }
+  80% { transform: scale(1.3); opacity: 0.6; }
   100% { transform: scale(0); opacity: 0; }
+}
+@keyframes pf-dq-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 /* Revealed state */

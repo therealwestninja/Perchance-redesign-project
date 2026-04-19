@@ -17,8 +17,14 @@ export function initToolsMenu() {
   if (initToolsMenu._done) return;
   initToolsMenu._done = true;
 
-  // Delay slightly to ensure all other modules have injected their buttons
-  setTimeout(collectButtons, 500);
+  // Run after all other modules have had time to inject their buttons.
+  // Many modules use 1500-3000ms fallback timers, so we wait longer.
+  setTimeout(() => {
+    if (!collectButtons()) {
+      // Retry once more — some modules may still be initializing
+      setTimeout(collectButtons, 3000);
+    }
+  }, 3500);
 }
 
 function collectButtons() {
@@ -31,7 +37,7 @@ function collectButtons() {
   const header = document.querySelector('.chat-header-right') ||
                  document.querySelector('.chat-header');
 
-  if (!inputParent && !header) return;
+  if (!inputParent && !header) return false;
 
   // Collect all tool buttons from both areas
   const allItems = [];
@@ -50,7 +56,7 @@ function collectButtons() {
   gather(inputParent);
   gather(header);
 
-  if (allItems.length < 4) return;
+  if (allItems.length < 3) return false;
 
   // Categorize by title/content
   const CATEGORIES = [
@@ -164,4 +170,5 @@ function collectButtons() {
   } else if (header) {
     header.appendChild(container);
   }
+  return true;
 }
