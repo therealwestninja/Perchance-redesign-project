@@ -19,6 +19,10 @@ import { formatNumber, formatPercent, getInitialFromName } from '../utils/format
  * @property {number} xpIntoLevel
  * @property {number} xpForNextLevel
  * @property {number} progress01            0..1 progress toward next level
+ * @property {number} [pendingCount]        count of unseen noteworthy events
+ * @property {boolean} [isFreshlyIncreased] true if pendingCount just rose
+ *                                          this refresh — triggers a brief
+ *                                          louder pulse to draw the eye
  */
 
 /**
@@ -35,15 +39,41 @@ export function createMiniCard({ onOpen } = {}) {
   const metaEl = h('div', { class: 'pf-mini-meta' });
   const barFillEl = h('div', { class: 'pf-mini-bar-fill', style: { width: '0%' } });
 
+  // Fresh-pulse timer: when isFreshlyIncreased fires, we apply the
+  // pf-mini-card-fresh class for ~10s then strip it so the amplified
+  // "hey look" pulse settles back into the ambient pending pulse.
+  // Stored at closure scope so successive updates can cancel-and-restart
+  // the timer — a second landing during the window extends the attention-
+  // grab rather than cutting it short.
+  let freshPulseTimerId = null;
+  // Duration is a little longer than the CSS (~9.9s for 3 iterations)
+  // so the class-strip always follows the final paint tick.
+  const FRESH_PULSE_MS = 10500;
+
   const root = h('div', {
     class: 'pf-mini-card',
     role: 'button',
     tabindex: '0',
     'aria-label': 'Open profile',
-    onClick: () => { if (typeof onOpen === 'function') onOpen(); },
+    onClick: () => {
+      // User engaged — cancel any in-flight fresh-pulse so re-opening
+      // the profile doesn't leave the card "waving" after the user has
+      // clearly seen the signal.
+      if (freshPulseTimerId !== null) {
+        try { clearTimeout(freshPulseTimerId); } catch { /* non-fatal */ }
+        freshPulseTimerId = null;
+        root.classList.remove('pf-mini-card-fresh');
+      }
+      if (typeof onOpen === 'function') onOpen();
+    },
     onKeydown: (ev) => {
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault();
+        if (freshPulseTimerId !== null) {
+          try { clearTimeout(freshPulseTimerId); } catch { /* non-fatal */ }
+          freshPulseTimerId = null;
+          root.classList.remove('pf-mini-card-fresh');
+        }
         if (typeof onOpen === 'function') onOpen();
       }
     },
@@ -88,11 +118,27 @@ export function createMiniCard({ onOpen } = {}) {
 
     barFillEl.style.width = pct;
 
-    // Pulse / indicator dot when there are unseen noteworthy events
-    // (achievement unlocks for now — will cover quests/events later).
+    // Pulse / indicator dot when there are unseen noteworthy events.
+    // Covers: newly-unlocked achievements, a new week's prompts the user
+    // hasn't acknowledged, and active holiday/observance events.
     const hasPending = Number(vm.pendingCount) > 0;
     root.classList.toggle('pf-mini-card-pending', hasPending);
     avatarEl.classList.toggle('pf-mini-avatar-has-dot', hasPending);
+
+    // Fresh landing? Apply the louder "friendly neighbor waving" pulse
+    // for ~10s. Cancel any prior timer so a rapid-succession of landings
+    // (two achievements in a row) extends the attention-grab rather than
+    // resetting to the ambient pulse mid-burst.
+    if (vm.isFreshlyIncreased && hasPending) {
+      if (freshPulseTimerId !== null) {
+        try { clearTimeout(freshPulseTimerId); } catch { /* non-fatal */ }
+      }
+      root.classList.add('pf-mini-card-fresh');
+      freshPulseTimerId = setTimeout(() => {
+        root.classList.remove('pf-mini-card-fresh');
+        freshPulseTimerId = null;
+      }, FRESH_PULSE_MS);
+    }
 
     // aria-label gets the count so screen readers announce it.
     if (hasPending) {

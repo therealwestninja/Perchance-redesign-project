@@ -35,11 +35,14 @@ import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completio
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
-import { resolveActiveTitle, resolveActiveAccent } from './flair.js';
+import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars } from './flair.js';
 import { checkAndUpdateBests } from './personal_bests.js';
 import { getPrimaryArchetype } from './archetypes.js';
 import { checkSummary } from './summary_notifications.js';
-import { showToast } from '../render/toast.js';
+// showToast import removed — profile-open no longer surfaces personal-
+// best or weekly-summary toasts. The mini-card pulse + in-splash
+// reveal handle that signal now. toast.js stays in-tree for future
+// callers (save failures, destructive-op undo, etc.).
 
 /**
  * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -55,37 +58,6 @@ function pickPinnedBadges(unlockedIds, n = 6) {
     name: a.name,
     icon: TIER_ICON[a.tier] || '◆',
   }));
-}
-
-/**
- * Build a DOM node for a personal-best toast. Two-line layout: an
- * eyebrow "NEW RECORD" label above a single-sentence summary like
- * "1,200 words written (was 1,000)". Kept as DOM rather than a
- * plain string so the eyebrow can be styled separately.
- *
- * @param {{ label: string, formatted: string, previous: number }} imp
- */
-function buildPersonalBestMessage(imp) {
-  return h('div', { class: 'pf-toast-pb' }, [
-    h('div', { class: 'pf-toast-pb-eyebrow' }, ['🏆 NEW PERSONAL BEST']),
-    h('div', { class: 'pf-toast-pb-line' }, [imp.formatted]),
-    h('div', { class: 'pf-toast-pb-sub' }, [
-      `Previous best: ${imp.previous.toLocaleString()} ${imp.label}`,
-    ]),
-  ]);
-}
-
-/**
- * Build a DOM node for a weekly-summary toast. Single line above a
- * "📅 THIS WEEK" eyebrow, matching the personal-best visual pattern.
- *
- * @param {{ line: string, deltas: Array }} summary
- */
-function buildSummaryMessage(summary) {
-  return h('div', { class: 'pf-toast-pb' }, [
-    h('div', { class: 'pf-toast-pb-eyebrow pf-toast-pb-eyebrow-info' }, ['📅 WEEKLY RECAP']),
-    h('div', { class: 'pf-toast-pb-line' }, [summary.line]),
-  ]);
 }
 
 /**
@@ -227,45 +199,28 @@ export async function openFullPage() {
   try { markDaySeen(); } catch { /* non-fatal */ }
 
   // Personal-best detection. Compares current stats against stored
-  // peaks, updates peaks if any improved, returns improvements to
-  // surface. Done AFTER achievement acknowledgment so the user's
-  // "open profile → see your wins" moment flows as one experience.
+  // peaks, updates peaks if any improved. The IMPROVEMENTS themselves
+  // are no longer surfaced as pop-up celebration toasts — the mini-card
+  // pulse (wider when pendingCount increases) now handles "hey come
+  // look" and the personal-bests chips inside the splash reveal what
+  // changed once the profile is open. Keeps the "friendly neighbor
+  // waving you over" energy the user asked for, rather than bolting on
+  // a distracting toast stack over their chat.
   //
-  // Toast fires async so it doesn't block profile render. If the
-  // user just crossed 3 metrics at once we stack them — showToast
-  // is built to support stacking natively.
-  try {
-    const improvements = checkAndUpdateBests(stats);
-    // Defer so the overlay paints before toasts stack over it. Small
-    // delay also feels more deliberate than an instant pop.
-    if (improvements.length > 0) {
-      setTimeout(() => {
-        for (const imp of improvements) {
-          showToast(
-            buildPersonalBestMessage(imp),
-            { kind: 'celebrate', ms: 6000 }
-          );
-        }
-      }, 600);
-    }
-  } catch { /* non-fatal */ }
+  // We still call checkAndUpdateBests for its side effect — persisting
+  // new peak values. That state feeds the chips inside the profile,
+  // which is where the reveal now lives.
+  try { checkAndUpdateBests(stats); } catch { /* non-fatal */ }
 
-  // Weekly activity summary. If a week has passed since the last
-  // snapshot AND the user has non-zero activity deltas, fire a
-  // single summary toast listing the top 3. Quiet weeks are
-  // silent; busy weeks show a celebratory recap. Opens the same
-  // toast lane so it stacks with personal-best toasts cleanly
-  // when both fire in the same session.
+  // Weekly activity summary. We still call checkSummary for its side
+  // effect (resetting the weekly-snapshot window + updating the
+  // activity-summary section data), but no longer surface it as a
+  // toast. The user will see the summary in the activity section
+  // when they open the profile. Same rationale as personal bests:
+  // pulse to invite, splash to reveal.
   try {
     const counters = (() => { try { return getCounters(); } catch { return {}; } })();
-    const summary = checkSummary(counters);
-    if (summary && summary.kind === 'summary') {
-      // Deferred slightly longer than personal bests so they stack
-      // in a logical order (wins first, then summary).
-      setTimeout(() => {
-        showToast(buildSummaryMessage(summary), { kind: 'info', ms: 7000 });
-      }, 1400);
-    }
+    checkSummary(counters);
   } catch { /* non-fatal */ }
 
   const activeEvents = getActiveEvents();
@@ -390,8 +345,9 @@ export async function openFullPage() {
     // handles the initial paint.
     if (overlay && overlay.style) {
       try {
-        const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+        const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
         overlay.style.setProperty('--pf-accent', accent.color);
+        overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
       } catch { /* non-fatal */ }
     }
 
@@ -573,8 +529,13 @@ export async function openFullPage() {
     try {
       freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
     } catch { /* fall back */ }
-    const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+    // Set BOTH custom properties so rules using either the solid hex
+    // (var(--pf-accent)) or a shaded rgba (rgba(var(--pf-accent-rgb), <a>))
+    // pick up the chosen accent. The -rgb form is derived via hexToRgb
+    // so accents defined with any '#rrggbb' value get full shading support.
+    const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
     overlay.style.setProperty('--pf-accent', accent.color);
+    overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
   }
   applyAccent();
 

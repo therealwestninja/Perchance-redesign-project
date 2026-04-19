@@ -32,8 +32,13 @@ const REFRESH_INTERVAL_MS = 30_000;
 
 /**
  * Build a mini-card view model from current stats + profile settings.
+ *
+ * `isFreshlyIncreased` is true when pendingCount just bumped up from the
+ * previous refresh's value — the mini-card uses that signal to throw a
+ * brief, more attention-getting "hey look over here" pulse on top of its
+ * ambient pending pulse. See mini_card.js for the render-time wiring.
  */
-function buildViewModel(stats, profile, pendingCount = 0) {
+function buildViewModel(stats, profile, pendingCount = 0, isFreshlyIncreased = false) {
   const xp = xpFromStats(stats);
   const lvl = levelFromXP(xp);
   return {
@@ -44,7 +49,36 @@ function buildViewModel(stats, profile, pendingCount = 0) {
     xpForNextLevel: lvl.xpForNextLevel,
     progress01: lvl.progress01,
     pendingCount,
+    isFreshlyIncreased,
   };
+}
+
+// Module-local: last pendingCount we sent to the card. Lets the refresh()
+// loop detect NEW pending events (vs. ambient pending) so the mini-card
+// can fire an extra-attention pulse for freshly-landed things — the
+// "friendly neighbor waving you over" signal. Initialized lazily on the
+// first refresh (to `null` so the first render never false-fires).
+let lastPendingCountSeen = null;
+
+/**
+ * Pure detector for "did pendingCount just rise?". Extracted so the
+ * rule is unit-testable without a live IDB or DOM. The three-case
+ * truth table:
+ *   previous=null, current=anything   → false  (first render baseline)
+ *   previous=N,    current<=N         → false  (same or decreased)
+ *   previous=N,    current>N          → true   (fresh landing)
+ *
+ * Called from refresh() as part of the view-model build; the return
+ * value is then passed through to mini_card.js which applies the
+ * transient .pf-mini-card-fresh class.
+ *
+ * @param {number|null} previous - last rendered pendingCount, or null
+ * @param {number}      current  - just-computed pendingCount
+ * @returns {boolean} true only when current strictly exceeds a known previous
+ */
+export function detectFreshIncrease(previous, current) {
+  if (previous === null || previous === undefined) return false;
+  return Number(current) > Number(previous);
 }
 
 /**
@@ -98,7 +132,22 @@ async function refresh(card) {
       (newPromptsPending ? 1 : 0) +
       pendingEvents.length;
 
-    card.update(buildViewModel(stats, settings && settings.profile, pendingCount));
+    // Detect a freshly-landed pending event: on the second+ refresh of
+    // the session, if the count STRICTLY increased vs. what we rendered
+    // last time, flag it for the mini-card's extra-attention pulse. The
+    // null check (in detectFreshIncrease) prevents the very first render
+    // from false-firing (e.g. if the user already has 3 pending from
+    // last session — we don't want the wave on page load, only when
+    // something NEW appears).
+    const isFreshlyIncreased = detectFreshIncrease(lastPendingCountSeen, pendingCount);
+    lastPendingCountSeen = pendingCount;
+
+    card.update(buildViewModel(
+      stats,
+      settings && settings.profile,
+      pendingCount,
+      isFreshlyIncreased,
+    ));
   } catch (e) {
     if (!refresh._warned) {
       refresh._warned = true;

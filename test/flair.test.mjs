@@ -1,0 +1,263 @@
+// test/flair.test.mjs
+//
+// Unit tests for src/profile/flair.js. Focuses on:
+//   - getAvailableTitles returns unlocked achievements sorted by rarity
+//   - getAccents reports isUnlocked correctly per tier-count criterion
+//   - resolveActiveTitle fallback chain (pick → override → auto → default)
+//   - resolveActiveAccent fallback chain (pick-if-valid → default)
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+const {
+  ACCENTS,
+  getAvailableTitles,
+  getAccents,
+  resolveActiveTitle,
+  resolveActiveAccent,
+  resolveAccentVars,
+  hexToRgb,
+} = await import('../src/profile/flair.js');
+
+// ---- getAvailableTitles ----
+
+test('getAvailableTitles: returns only unlocked achievements', () => {
+  const titles = getAvailableTitles(['first_word', 'first_character']);
+  const names = titles.map(t => t.name);
+  assert.ok(names.includes('First Word'));
+  assert.ok(names.includes('First Character'));
+});
+
+test('getAvailableTitles: sorts by tier rank descending', () => {
+  // first_word is common; streak_100day is legendary. Pass both; legendary first.
+  const titles = getAvailableTitles(['first_word', 'streak_100day']);
+  assert.equal(titles[0].tier, 'legendary');
+  assert.equal(titles[1].tier, 'common');
+});
+
+test('getAvailableTitles: empty input returns empty array', () => {
+  assert.deepEqual(getAvailableTitles([]), []);
+  assert.deepEqual(getAvailableTitles(null), []);
+});
+
+test('getAvailableTitles: unknown IDs are ignored', () => {
+  const titles = getAvailableTitles(['bogus_id', 'first_word']);
+  assert.equal(titles.length, 1);
+  assert.equal(titles[0].id, 'first_word');
+});
+
+// ---- getAccents ----
+
+test('getAccents: amber always unlocked', () => {
+  const all = getAccents({}, []);
+  const amber = all.find(a => a.id === 'amber');
+  assert.ok(amber);
+  assert.equal(amber.isUnlocked, true);
+});
+
+test('getAccents: slate unlocks at 5 silver-tier achievements (new palette)', () => {
+  // Slate was bumped from bronze (3 commons) to silver (5 rares) in the
+  // 24-accent palette revamp — it now sits in row 2 alongside the
+  // other metals + jewels.
+  const at4  = getAccents({}, ['curator_silver', 'namer_silver',
+                               'organizer_silver', 'shuffler_silver']);
+  const at5  = getAccents({}, ['curator_silver', 'namer_silver',
+                               'organizer_silver', 'shuffler_silver',
+                               'sorter_silver']);
+  assert.equal(at4.find(a => a.id === 'slate').isUnlocked, false);
+  assert.equal(at5.find(a => a.id === 'slate').isUnlocked, true);
+});
+
+test('getAccents: moss unlocks at 1 bronze-tier achievement', () => {
+  const below = getAccents({}, []);
+  const at    = getAccents({}, ['first_word']);
+  assert.equal(below.find(a => a.id === 'moss').isUnlocked, false);
+  assert.equal(at.find(a => a.id === 'moss').isUnlocked, true);
+});
+
+test('getAccents: first-4 starter accents (amber/sage/ash/clay) are always available', () => {
+  const all = getAccents({}, []);
+  for (const id of ['amber', 'sage', 'ash', 'clay']) {
+    const entry = all.find(a => a.id === id);
+    assert.ok(entry, `accent '${id}' should exist`);
+    assert.equal(entry.isUnlocked, true, `accent '${id}' should be free`);
+  }
+});
+
+test('getAccents: pink requires 1 legendary AND all 5 prompt categories', () => {
+  // Only legendary — not enough
+  const onlyLegend = getAccents({ promptCategoriesTouched: 3 }, ['streak_100day']);
+  assert.equal(onlyLegend.find(a => a.id === 'pink').isUnlocked, false);
+  // Only breadth — not enough
+  const onlyBreadth = getAccents({ promptCategoriesTouched: 5 }, []);
+  assert.equal(onlyBreadth.find(a => a.id === 'pink').isUnlocked, false);
+  // Both — unlocked
+  const both = getAccents({ promptCategoriesTouched: 5 }, ['streak_100day']);
+  assert.equal(both.find(a => a.id === 'pink').isUnlocked, true);
+});
+
+test('getAccents: purple requires 1 legendary AND 30-day streak', () => {
+  const weak  = getAccents({ streaks: { longest: 10 } }, ['streak_100day']);
+  const ready = getAccents({ streaks: { longest: 30 } }, ['streak_100day']);
+  assert.equal(weak.find(a => a.id === 'purple').isUnlocked, false);
+  assert.equal(ready.find(a => a.id === 'purple').isUnlocked, true);
+});
+
+test('getAccents: sky requires 1 legendary AND 5 events responded', () => {
+  const weak  = getAccents({ eventsResponded: 3 }, ['streak_100day']);
+  const ready = getAccents({ eventsResponded: 5 }, ['streak_100day']);
+  assert.equal(weak.find(a => a.id === 'sky').isUnlocked, false);
+  assert.equal(ready.find(a => a.id === 'sky').isUnlocked, true);
+});
+
+test('getAccents: obsidian is the hardest — currently unreachable until more legendaries ship', () => {
+  // Only 1 achievement with tier='legendary' exists today (streak_100day).
+  // Obsidian requires ≥5 legendaries + max breadth + 30-day streak +
+  // 15 events — it's an aspirational slot reserved for later when the
+  // registry grows. This test verifies it's correctly LOCKED with the
+  // best reachable state today, so it stays locked until more legendaries
+  // exist.
+  const best = getAccents(
+    { promptCategoriesTouched: 5, streaks: { longest: 100 }, eventsResponded: 20 },
+    ['streak_100day'], // only legendary currently available
+  );
+  assert.equal(best.find(a => a.id === 'obsidian').isUnlocked, false);
+  // Missing breadth → stays locked regardless of other conditions
+  const missingBreadth = getAccents(
+    { promptCategoriesTouched: 4, streaks: { longest: 30 }, eventsResponded: 15 },
+    ['streak_100day'],
+  );
+  assert.equal(missingBreadth.find(a => a.id === 'obsidian').isUnlocked, false);
+});
+
+test('getAccents: total accent count is 24 (full 3-row palette)', () => {
+  const all = getAccents({}, []);
+  assert.equal(all.length, 24);
+});
+
+test('getAccents: returns every accent regardless of unlock state', () => {
+  const all = getAccents({}, []);
+  assert.equal(all.length, ACCENTS.length);
+});
+
+// ---- resolveActiveTitle ----
+
+test('resolveActiveTitle: uses flair.title pick when unlocked', () => {
+  const title = resolveActiveTitle(
+    { profile: { flair: { title: 'first_word' } } },
+    ['first_word']
+  );
+  assert.equal(title, 'First Word');
+});
+
+test('resolveActiveTitle: ignores flair.title when pick not unlocked', () => {
+  // Picked 'streak_100day' but they don't actually have it — should fall
+  // through to titleOverride or auto.
+  const title = resolveActiveTitle(
+    { profile: { flair: { title: 'streak_100day' }, titleOverride: 'Hand-typed' } },
+    ['first_word']
+  );
+  assert.equal(title, 'Hand-typed');
+});
+
+test('resolveActiveTitle: titleOverride wins when no flair pick', () => {
+  const title = resolveActiveTitle(
+    { profile: { titleOverride: 'Hand-typed' } },
+    ['first_word']
+  );
+  assert.equal(title, 'Hand-typed');
+});
+
+test('resolveActiveTitle: falls back to rarest unlocked when no override', () => {
+  const title = resolveActiveTitle(
+    { profile: {} },
+    ['first_word', 'streak_100day']
+  );
+  // streak_100day is legendary → rarest of the unlocked set
+  assert.equal(title, 'Centurion');
+});
+
+test('resolveActiveTitle: falls back to Newcomer when nothing', () => {
+  assert.equal(resolveActiveTitle({}, []), 'Newcomer');
+  assert.equal(resolveActiveTitle(null, null), 'Newcomer');
+});
+
+// ---- resolveActiveAccent ----
+
+test('resolveActiveAccent: uses picked accent when unlocked', () => {
+  // 'moss' in the 24-accent palette unlocks at 1 bronze achievement
+  const accent = resolveActiveAccent(
+    { profile: { flair: { accent: 'moss' } } },
+    {},
+    ['first_word']
+  );
+  assert.equal(accent.id, 'moss');
+});
+
+test('resolveActiveAccent: falls back to amber if pick not unlocked', () => {
+  const accent = resolveActiveAccent(
+    { profile: { flair: { accent: 'obsidian' } } },
+    {}, // no stats
+    [] // no achievements, so obsidian definitely locked
+  );
+  assert.equal(accent.id, 'amber');
+});
+
+test('resolveActiveAccent: falls back to amber when no settings', () => {
+  assert.equal(resolveActiveAccent(null, {}, []).id, 'amber');
+  assert.equal(resolveActiveAccent({}, {}, []).id, 'amber');
+});
+
+test('resolveActiveAccent: returns color alongside id', () => {
+  const accent = resolveActiveAccent({}, {}, []);
+  assert.equal(typeof accent.color, 'string');
+  assert.match(accent.color, /^#[0-9a-f]{6}$/i);
+});
+
+// ---- hexToRgb helper ----
+
+test('hexToRgb: converts #rrggbb hex to comma-separated rgb triple', () => {
+  assert.equal(hexToRgb('#d8b36a'), '216, 179, 106');
+  assert.equal(hexToRgb('#000000'), '0, 0, 0');
+  assert.equal(hexToRgb('#ffffff'), '255, 255, 255');
+});
+
+test('hexToRgb: tolerates shorthand #rgb', () => {
+  assert.equal(hexToRgb('#fff'), '255, 255, 255');
+  assert.equal(hexToRgb('#abc'), '170, 187, 204');
+});
+
+test('hexToRgb: tolerates missing leading #', () => {
+  assert.equal(hexToRgb('d8b36a'), '216, 179, 106');
+});
+
+test('hexToRgb: falls back to amber rgb on malformed input', () => {
+  const AMBER = '216, 179, 106';
+  assert.equal(hexToRgb(''), AMBER);
+  assert.equal(hexToRgb('not-a-color'), AMBER);
+  assert.equal(hexToRgb(null), AMBER);
+  assert.equal(hexToRgb(undefined), AMBER);
+  assert.equal(hexToRgb(42), AMBER);
+  assert.equal(hexToRgb('#gggggg'), AMBER);
+});
+
+// ---- resolveAccentVars ----
+
+test('resolveAccentVars: returns { id, color, rgb } for the default amber', () => {
+  const vars = resolveAccentVars({}, {}, []);
+  assert.equal(vars.id, 'amber');
+  assert.equal(vars.color, '#d8b36a');
+  assert.equal(vars.rgb, '216, 179, 106');
+});
+
+test('resolveAccentVars: derives rgb from a picked unlocked accent', () => {
+  const vars = resolveAccentVars(
+    { profile: { flair: { accent: 'moss' } } },
+    {},
+    ['first_word']  // unlocks moss (1 bronze)
+  );
+  assert.equal(vars.id, 'moss');
+  assert.equal(vars.color, '#5a7a4e');
+  // moss hex → rgb
+  assert.equal(vars.rgb, '90, 122, 78');
+});

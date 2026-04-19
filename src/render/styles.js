@@ -95,7 +95,7 @@ export const CSS = `
 }
 .pf-memory-button:hover {
   background: var(--box-color-hover, var(--box-color));
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
 }
 .pf-memory-button:active {
   transform: translateY(1px);
@@ -189,7 +189,7 @@ export const CSS = `
   /* Warm gold accent — chosen to read well on both dark and light themes.
      Not theme-var-driven on purpose: this is the single "game accent" the
      project adds, and keeping it constant makes the UI recognizably ours. */
-  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-accent, var(--pf-palette-amber)) 100%);
   border-radius: 2px;
   transition: width 0.35s ease;
 }
@@ -215,8 +215,8 @@ export const CSS = `
    ============================================================ */
 
 @keyframes pf-mini-pending-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--pf-palette-amber-rgb), 0); }
-  50%      { box-shadow: 0 0 10px 1px rgba(var(--pf-palette-amber-rgb), 0.28); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0); }
+  50%      { box-shadow: 0 0 10px 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.28); }
 }
 
 @keyframes pf-mini-pending-dot-pulse {
@@ -224,14 +224,49 @@ export const CSS = `
   50%      { transform: scale(1.18); opacity: 0.70; }
 }
 
+/* "Friendly neighbor waving you over" pulse — fires when pendingCount
+   just increased (a newly-unlocked achievement, completed event, or
+   fresh prompt week landed). Wider reach + stronger peak than the
+   ambient pending pulse, but FINITE: three iterations (~9.9s) then
+   settle to the ambient pulse. Animation uses both transform AND the
+   wider shadow so it reads even in a reduced-color-contrast theme. */
+@keyframes pf-mini-pending-fresh-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 18px 4px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.48);
+    transform: scale(1.015);
+  }
+}
+
 .pf-mini-card-pending {
   animation: pf-mini-pending-pulse 3.5s ease-in-out infinite;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
 }
 .pf-mini-card-pending:hover {
   /* On hover, settle the glow — we've got their attention, stop waving */
   animation: none;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+}
+.pf-mini-card-fresh {
+  /* Stack the fresh pulse ON TOP of the ambient pending pulse by using
+     a composite animation list. Both animations target box-shadow +
+     transform — browsers interpolate the stronger one's contribution
+     first, then fall back to the ambient after the fresh iterations
+     exhaust. Three iterations × 3.3s = 9.9s attention-grab, then the
+     JS-side timer strips this class and we're back to ambient pulse. */
+  animation:
+    pf-mini-pending-fresh-pulse 3.3s ease-in-out 3,
+    pf-mini-pending-pulse       3.5s ease-in-out infinite;
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+}
+.pf-mini-card-fresh:hover {
+  /* Same "got your attention, stop waving" behavior as the ambient
+     pending pulse — kill the animation when the user's clearly engaged. */
+  animation: none;
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.65);
 }
 
 .pf-mini-avatar-has-dot {
@@ -245,9 +280,9 @@ export const CSS = `
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--pf-palette-amber);
+  background: var(--pf-accent, var(--pf-palette-amber));
   border: 2px solid var(--box-color, var(--background));
-  box-shadow: 0 0 4px 1px rgba(var(--pf-palette-amber-rgb), 0.5);
+  box-shadow: 0 0 4px 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
   animation: pf-mini-pending-dot-pulse 2.2s ease-in-out infinite;
   pointer-events: none;
 }
@@ -256,6 +291,7 @@ export const CSS = `
    but keep the dot + border so the state is still conveyed visually. */
 @media (prefers-reduced-motion: reduce) {
   .pf-mini-card-pending          { animation: none; }
+  .pf-mini-card-fresh            { animation: none; }
   .pf-mini-avatar-has-dot::after { animation: none; }
 }
 
@@ -348,8 +384,8 @@ export const CSS = `
   height: 88px;
   border-radius: 50%;
   background: var(--button-bg);
-  border: 2px solid var(--pf-palette-amber);
-  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--pf-accent, var(--pf-palette-amber));
+  box-shadow: 0 0 0 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -361,7 +397,7 @@ export const CSS = `
   font-size: 44px;
   font-weight: 600;
   line-height: 1;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 
 .pf-splash-ident {
@@ -382,7 +418,7 @@ export const CSS = `
   font-style: italic;
   font-size: 14px;
   opacity: 0.75;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 
 /* Archetype tag — small pill under the title. Only present when the
@@ -414,13 +450,13 @@ export const CSS = `
 .pf-splash-level {
   flex-shrink: 0;
   padding: 4px 10px;
-  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.45);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
   border-radius: 999px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   background: rgba(185, 137, 74, 0.08);
 }
 .pf-splash-level-word { opacity: 0.7; }
@@ -432,11 +468,11 @@ export const CSS = `
   background: rgba(127, 127, 127, 0.18);
   border-radius: 4px;
   overflow: hidden;
-  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.2);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
 }
 .pf-splash-xpbar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-accent, var(--pf-palette-amber)) 100%);
   transition: width 0.4s ease;
 }
 .pf-splash-xp-label {
@@ -458,12 +494,12 @@ export const CSS = `
   height: 36px;
   border-radius: 8px;
   background: rgba(185, 137, 74, 0.12);
-  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.35);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-splash-badge-locked {
   background: transparent;
@@ -499,11 +535,11 @@ export const CSS = `
 }
 .pf-splash-share:hover {
   opacity: 1;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   transform: scale(1.05);
 }
 .pf-splash-share:focus-visible {
-  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
+  outline: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   outline-offset: 1px;
   opacity: 1;
 }
@@ -586,9 +622,9 @@ export const CSS = `
 .pf-overlay-focused .pf-splash,
 .pf-overlay-focused .pf-focus-extras {
   box-shadow:
-    0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.15),
+    0 0 0 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15),
     0 20px 60px -10px rgba(0, 0, 0, 0.65),
-    0 4px 20px rgba(var(--pf-palette-amber-rgb), 0.08);
+    0 4px 20px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
 }
 .pf-overlay-focused .pf-splash {
   padding: 36px 32px 28px;
@@ -687,10 +723,10 @@ export const CSS = `
   fill: rgba(255, 255, 255, 0.04);
 }
 .pf-sparkline-bar {
-  fill: rgba(var(--pf-palette-amber-rgb), 0.55);
+  fill: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
 }
 .pf-sparkline-bar-current {
-  fill: var(--pf-palette-amber);
+  fill: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-sparkline-label {
   font-family: inherit;
@@ -702,7 +738,7 @@ export const CSS = `
   opacity: 0.55;
 }
 .pf-sparkline-label-right {
-  fill: var(--pf-palette-amber);
+  fill: var(--pf-accent, var(--pf-palette-amber));
   opacity: 1;
 }
 
@@ -830,7 +866,7 @@ export const CSS = `
 }
 .pf-about-textarea:focus {
   outline: none;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
 }
 .pf-about-counter {
   align-self: flex-end;
@@ -875,7 +911,7 @@ export const CSS = `
 }
 .pf-field-input:focus {
   outline: none;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
 }
 .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
 
@@ -903,8 +939,8 @@ export const CSS = `
   height: 64px;
   border-radius: 50%;
   background: var(--button-bg);
-  border: 2px solid var(--pf-palette-amber);
-  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.25);
+  border: 2px solid var(--pf-accent, var(--pf-palette-amber));
+  box-shadow: 0 0 0 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -917,7 +953,7 @@ export const CSS = `
   font-size: 30px;
   font-weight: 600;
   line-height: 1;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
 }
 .pf-avatar-buttons {
   grid-column: 2;
@@ -939,10 +975,10 @@ export const CSS = `
   transition: border-color 0.15s, opacity 0.15s;
 }
 .pf-avatar-btn:hover {
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
 }
 .pf-avatar-btn:focus-visible {
-  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
+  outline: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   outline-offset: 1px;
 }
 .pf-avatar-btn-secondary {
@@ -968,7 +1004,7 @@ export const CSS = `
   opacity: 1;
 }
 .pf-avatar-status-info {
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   opacity: 1;
 }
 
@@ -992,7 +1028,7 @@ export const CSS = `
   width: 100%;
   height: 100%;
   background:
-    linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
+    linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06) 0%, rgba(0, 0, 0, 0.1) 100%),
     var(--textarea-bg, var(--background));
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -1007,7 +1043,7 @@ export const CSS = `
   background-repeat: no-repeat;
 }
 .pf-gs-field:focus {
-  outline: 2px solid rgba(var(--pf-palette-amber-rgb), 0.55);
+  outline: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   outline-offset: 2px;
 }
 
@@ -1016,9 +1052,9 @@ export const CSS = `
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--pf-palette-amber);
+  background: var(--pf-accent, var(--pf-palette-amber));
   border: 2px solid var(--box-color);
-  box-shadow: 0 0 0 1px rgba(var(--pf-palette-amber-rgb), 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.6), 0 2px 6px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
   pointer-events: none;
   transition: transform 0.05s;
@@ -1079,8 +1115,8 @@ export const CSS = `
   opacity: 0.9;
 }
 .pf-cadence-btn-active {
-  background: rgba(var(--pf-palette-amber-rgb), 0.18);
-  color: var(--pf-palette-amber);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.18);
+  color: var(--pf-accent, var(--pf-palette-amber));
   opacity: 1;
 }
 
@@ -1093,8 +1129,8 @@ export const CSS = `
   gap: 10px;
 }
 .pf-event-group {
-  background: linear-gradient(180deg, rgba(var(--pf-palette-amber-rgb), 0.07) 0%, rgba(var(--pf-palette-amber-rgb), 0.03) 100%);
-  border: 1px solid rgba(var(--pf-palette-amber-rgb), 0.30);
+  background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.07) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.03) 100%);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.30);
   border-radius: var(--border-radius);
   padding: 12px 14px;
 }
@@ -1119,7 +1155,7 @@ export const CSS = `
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   margin-bottom: 2px;
 }
 .pf-event-tagline {
@@ -1167,7 +1203,7 @@ export const CSS = `
 }
 .pf-prompt-item:hover {
   background: rgba(185, 137, 74, 0.06);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.25);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
 }
 .pf-prompt-item-done {
   opacity: 0.55;
@@ -1186,7 +1222,7 @@ export const CSS = `
   margin-top: 2px;
   width: 16px;
   height: 16px;
-  accent-color: var(--pf-palette-amber);
+  accent-color: var(--pf-accent, var(--pf-palette-amber));
   cursor: pointer;
 }
 
@@ -1198,7 +1234,7 @@ export const CSS = `
 }
 .pf-prompt-item-done .pf-prompt-text {
   text-decoration: line-through;
-  text-decoration-color: rgba(var(--pf-palette-amber-rgb), 0.5);
+  text-decoration-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
   text-decoration-thickness: 1px;
 }
 
@@ -1241,7 +1277,7 @@ export const CSS = `
 }
 .pf-chron-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-palette-amber) 100%);
+  background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-accent, var(--pf-palette-amber)) 100%);
   border-radius: 2px;
   transition: width 0.4s;
 }
@@ -1279,14 +1315,14 @@ export const CSS = `
 
 /* The filled data polygon — warm gold, low alpha so grid shows through */
 .pf-radar-value-fill {
-  fill: rgba(var(--pf-palette-amber-rgb), 0.22);
-  stroke: var(--pf-palette-amber);
+  fill: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.22);
+  stroke: var(--pf-accent, var(--pf-palette-amber));
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
 /* Vertex dots where the user's values land */
 .pf-radar-value-dot {
-  fill: var(--pf-palette-amber);
+  fill: var(--pf-accent, var(--pf-palette-amber));
   stroke: var(--box-color);
   stroke-width: 1.5;
 }
@@ -1322,7 +1358,7 @@ export const CSS = `
   letter-spacing: 0.05em;
 }
 .pf-radar-readout-value {
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   font-weight: 600;
 }
 
@@ -1387,7 +1423,7 @@ export const CSS = `
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 11px;
   letter-spacing: 0.06em;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   font-weight: 600;
 }
 .pf-archive-week-range {
@@ -1397,7 +1433,7 @@ export const CSS = `
 .pf-archive-week-count {
   font-size: 11px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   flex-shrink: 0;
 }
 .pf-archive-week-count-none {
@@ -1428,7 +1464,7 @@ export const CSS = `
   opacity: 0.4;
 }
 .pf-archive-item-done .pf-archive-check {
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   opacity: 1;
   font-weight: 600;
 }
@@ -1454,7 +1490,7 @@ export const CSS = `
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--pf-palette-amber);
+  color: var(--pf-accent, var(--pf-palette-amber));
   opacity: 0.85;
 }
 .pf-archive-event-icon {
@@ -1478,8 +1514,8 @@ export const CSS = `
   transition: background 0.15s, border-color 0.15s;
 }
 .pf-archive-load-more:hover {
-  background: rgba(var(--pf-palette-amber-rgb), 0.08);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
 }
 .pf-archive-end {
   align-self: center;
@@ -1526,8 +1562,8 @@ export const CSS = `
   transition: background 0.15s, border-color 0.15s;
 }
 .pf-backup-btn:hover {
-  background: rgba(var(--pf-palette-amber-rgb), 0.08);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
 }
 .pf-backup-panel {
   display: flex;
@@ -1561,7 +1597,7 @@ export const CSS = `
 }
 .pf-backup-textarea:focus {
   outline: none;
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.55);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
 }
 .pf-backup-actionbar {
   display: flex;
@@ -1581,8 +1617,8 @@ export const CSS = `
   cursor: pointer;
 }
 .pf-backup-action:hover {
-  background: rgba(var(--pf-palette-amber-rgb), 0.1);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
 }
 .pf-backup-action-danger {
   border-color: rgba(220, 80, 80, 0.45);
@@ -1678,7 +1714,7 @@ export const CSS = `
 
 .pf-ach-unlocked {
   background: rgba(185, 137, 74, 0.04);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.20);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.20);
 }
 
 /* ---- Description line on cards (new in categorized view) ---- */
@@ -2711,7 +2747,7 @@ export const CSS = `
 }
 .pf-activity-chip:hover {
   background: var(--pf-overlay-dark-25);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.4);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
 }
 .pf-activity-chip-count {
   font-size: 20px;
@@ -2907,8 +2943,8 @@ export const CSS = `
   letter-spacing: 0.02em;
 }
 .pf-streak-active {
-  background: rgba(var(--pf-palette-amber-rgb), 0.10);
-  border-color: rgba(var(--pf-palette-amber-rgb), 0.35);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.10);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
 }
 .pf-streak-active .pf-streak-line {
   color: rgba(236, 200, 130, 0.98);
@@ -3080,9 +3116,13 @@ export const CSS = `
 
 /* ---- Flair: accent swatch picker + accent color consumers ---- */
 .pf-accent-row {
+  /* 8 swatches × 34px + 7 gaps × 8px = 328px.
+     max-width forces wrap at 8 so the picker reads as 3 clean rows of 8
+     regardless of how wide the parent field is. */
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  max-width: 328px;
 }
 .pf-accent-swatch {
   width: 34px;
@@ -3121,6 +3161,7 @@ export const CSS = `
    fallback on .pf-overlay covers the first paint before JS runs. */
 .pf-overlay {
   --pf-accent: var(--pf-palette-amber);
+  --pf-accent-rgb: var(--pf-palette-amber-rgb);
 }
 .pf-splash-title {
   color: var(--pf-accent);
