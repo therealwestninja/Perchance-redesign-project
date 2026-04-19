@@ -294,3 +294,83 @@ test('bumpCounter: prunes old entries on write', async () => {
   const byDay = getCountersByDay();
   assert.ok(!('2024-01-01' in byDay));
 });
+
+// ---------------------------------------------------------------
+// Per-thread counter breakdowns (#3)
+// ---------------------------------------------------------------
+
+test('bumpCounter with threadId stores under countersByThread', async () => {
+  const { bumpCounter, getCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 42);
+  bumpCounter('memorySaves', 2, 42);
+  bumpCounter('memorySaves', 5, 7);
+  const byThread = getCountersByThread();
+  assert.equal(byThread['42'].memorySaves, 3);
+  assert.equal(byThread['7'].memorySaves, 5);
+});
+
+test('bumpCounter without threadId leaves countersByThread untouched', async () => {
+  const { bumpCounter, getCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1);            // no threadId
+  bumpCounter('memorySaves', 1, null);      // explicit null
+  const byThread = getCountersByThread();
+  assert.deepEqual(byThread, {});
+});
+
+test('bumpCounter still increments lifetime + day counters when threadId given', async () => {
+  const { bumpCounter, getCounters, getCounterSeriesByDay } = await loadCounters();
+  bumpCounter('memorySaves', 1, 42);
+  bumpCounter('memorySaves', 1, 7);
+  // Lifetime counter aggregates across threads
+  assert.equal(getCounters().memorySaves, 2);
+  // Per-day series also aggregates (today's value)
+  const series = getCounterSeriesByDay('memorySaves', 1);
+  assert.equal(series[0], 2);
+});
+
+test('getTopThreadsForCounter returns sorted descending, limited', async () => {
+  const { bumpCounter, getTopThreadsForCounter } = await loadCounters();
+  bumpCounter('memorySaves', 3,  10);
+  bumpCounter('memorySaves', 8,  20);
+  bumpCounter('memorySaves', 5,  30);
+  bumpCounter('memorySaves', 1,  40);
+  const top = getTopThreadsForCounter('memorySaves', 3);
+  assert.equal(top.length, 3);
+  assert.deepEqual(top.map(r => r.threadId), ['20', '30', '10']);
+  assert.deepEqual(top.map(r => r.count),    [8, 5, 3]);
+});
+
+test('getTopThreadsForCounter excludes zero-count threads', async () => {
+  const { bumpCounter, getTopThreadsForCounter } = await loadCounters();
+  bumpCounter('memorySaves',         5, 10);
+  bumpCounter('cardsReorderedInBubble', 3, 20); // different counter
+  // Asking for memorySaves should NOT include thread 20
+  const top = getTopThreadsForCounter('memorySaves', 5);
+  assert.equal(top.length, 1);
+  assert.equal(top[0].threadId, '10');
+});
+
+test('getTopThreadsForCounter handles missing counter / empty data gracefully', async () => {
+  const { getTopThreadsForCounter } = await loadCounters();
+  assert.deepEqual(getTopThreadsForCounter('nonexistentCounter', 3), []);
+  assert.deepEqual(getTopThreadsForCounter('', 3), []);
+  assert.deepEqual(getTopThreadsForCounter(null, 3), []);
+});
+
+test('resetCounters clears per-thread tally too', async () => {
+  const { bumpCounter, resetCounters, getCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 42);
+  bumpCounter('bubblesLocked', 3, 42);
+  resetCounters();
+  assert.deepEqual(getCountersByThread(), {});
+});
+
+test('threadId is coerced to string for storage-key safety', async () => {
+  const { bumpCounter, getCountersByThread } = await loadCounters();
+  bumpCounter('memorySaves', 1, 42);     // numeric
+  bumpCounter('memorySaves', 1, '42');   // string of same value
+  const byThread = getCountersByThread();
+  // Both writes hit the same key
+  assert.equal(byThread['42'].memorySaves, 2);
+  assert.equal(Object.keys(byThread).length, 1);
+});

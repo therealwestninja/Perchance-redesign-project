@@ -14,7 +14,7 @@
 
 import { h } from '../utils/dom.js';
 import { createSparkline } from './sparkline.js';
-import { getCounterSeriesByDay } from '../stats/counters.js';
+import { getCounterSeriesByDay, getTopThreadsForCounter } from '../stats/counters.js';
 
 /**
  * Display metadata for each counter. Order here drives render order.
@@ -75,11 +75,40 @@ function formatCount(n) {
 }
 
 /**
+ * Per-counter spec for the "Top threads" strip at the bottom of the
+ * Activity section. Each row shows the user's top N threads for one
+ * counter, sourced from settings.countersByThread (#3). Only counters
+ * that meaningfully vary by thread are listed here — backups (which
+ * are profile-level) and tool opens (which can spike from a single
+ * exploratory session) are deliberately omitted.
+ *
+ * label  user-facing row title
+ * key    matches the counter field name
+ * limit  how many top threads to surface for this row
+ */
+const PER_THREAD_BREAKDOWNS = [
+  { key: 'memorySaves',                label: 'Most-saved threads',     limit: 3 },
+  { key: 'cardsReorderedInBubble',     label: 'Most-curated threads',   limit: 3 },
+  { key: 'cardsReorderedCrossBubble',  label: 'Most-shuffled threads',  limit: 3 },
+  { key: 'bubblesRenamed',             label: 'Most-named threads',     limit: 3 },
+  { key: 'charactersSpawned',          label: 'Most-spawned-from threads', limit: 3 },
+];
+
+/**
  * Build the body of the Activity section.
  *
- * @param {{ counters: object, streaks?: object, streakStatus?: string }} opts
+ * @param {{
+ *   counters: object,
+ *   streaks?: object,
+ *   streakStatus?: string,
+ *   threadNamesById?: Object<string, string>,
+ * }} opts
+ *   threadNamesById is consumed by the per-thread breakdown strip
+ *   (#3). Caller (profile/index.js) is responsible for resolving
+ *   names from upstream Dexie before render — keeps this builder
+ *   pure-sync.
  */
-export function createActivityBody({ counters, streaks, streakStatus: status } = {}) {
+export function createActivityBody({ counters, streaks, streakStatus: status, threadNamesById } = {}) {
   const c = counters || {};
   const s = streaks || { current: 0, longest: 0, lastActiveDay: null };
   const st = status || 'broken';
@@ -173,6 +202,49 @@ export function createActivityBody({ counters, streaks, streakStatus: status } =
 
   const grid = h('div', { class: 'pf-activity-grid' }, chipNodes);
 
+  // ---- Top Threads strip (#3) ----
+  // For each PER_THREAD_BREAKDOWNS spec, surface up to N top threads
+  // for that counter. Skipped silently if the user has zero per-thread
+  // data for the counter (common case: brand-new install, or counters
+  // that just haven't been thread-tagged yet).
+  //
+  // Thread NAMES are looked up from threadNamesById (caller-supplied).
+  // For ids not in the map (e.g. thread was deleted upstream since the
+  // counter was tagged), we fall back to the bare id as 'Thread #<id>'
+  // — the breakdown stays useful even when the source thread is gone.
+  const namesMap = (threadNamesById && typeof threadNamesById === 'object')
+    ? threadNamesById
+    : {};
+  const breakdownRows = [];
+  for (const spec of PER_THREAD_BREAKDOWNS) {
+    const top = getTopThreadsForCounter(spec.key, spec.limit);
+    if (top.length === 0) continue;
+    const cells = top.map((row, i) => {
+      const name = (typeof namesMap[row.threadId] === 'string' && namesMap[row.threadId])
+        ? namesMap[row.threadId]
+        : `Thread #${row.threadId}`;
+      // 'Davie (12)'  with a separator dot between cells.
+      const text = `${name} (${row.count})`;
+      const node = h('span', { class: 'pf-thread-breakdown-cell' }, [text]);
+      // Separator BEFORE every cell except the first.
+      if (i === 0) return node;
+      return h('span', { class: 'pf-thread-breakdown-row-inner' }, [
+        h('span', { class: 'pf-thread-breakdown-sep', 'aria-hidden': 'true' }, [' · ']),
+        node,
+      ]);
+    });
+    breakdownRows.push(h('div', { class: 'pf-thread-breakdown-row' }, [
+      h('span', { class: 'pf-thread-breakdown-label' }, [spec.label, ': ']),
+      h('span', { class: 'pf-thread-breakdown-cells' }, cells),
+    ]));
+  }
+  const breakdownStrip = breakdownRows.length > 0
+    ? h('div', { class: 'pf-thread-breakdown' }, [
+        h('div', { class: 'pf-thread-breakdown-heading' }, ['By thread']),
+        ...breakdownRows,
+      ])
+    : null;
+
   // Footer strip — first/last activity timestamps for context.
   const footer = h('div', { class: 'pf-activity-footer' }, [
     h('span', {}, [
@@ -188,6 +260,7 @@ export function createActivityBody({ counters, streaks, streakStatus: status } =
   const children = [];
   if (streakBanner) children.push(streakBanner);
   children.push(grid);
+  if (breakdownStrip) children.push(breakdownStrip);
   children.push(footer);
   return h('div', { class: 'pf-activity' }, children);
 }

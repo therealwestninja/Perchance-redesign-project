@@ -22705,6 +22705,53 @@ Use this template for your response:
     opacity: 1;
   }
 
+  /* ---- Per-thread breakdown strip (#3) ----
+     Sits between the chip grid and the timestamp footer. Same muted
+     tone as the footer (12px, 0.7 opacity), with a small heading and
+     one row per breakdown counter. Each row reads like a sentence:
+     "Most-saved threads: Davie (12) · Eli (8) · Mira (3)". Renders
+     only when there is per-thread data; never adds an empty section. */
+  .pf-thread-breakdown {
+    font-size: 12px;
+    opacity: 0.85;
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  }
+  .pf-thread-breakdown-heading {
+    font-weight: 600;
+    opacity: 0.7;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 2px;
+  }
+  .pf-thread-breakdown-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .pf-thread-breakdown-label {
+    font-weight: 600;
+    opacity: 0.85;
+    white-space: nowrap;
+  }
+  .pf-thread-breakdown-cells {
+    display: inline;
+  }
+  .pf-thread-breakdown-row-inner {
+    display: inline;
+  }
+  .pf-thread-breakdown-cell {
+    white-space: nowrap;
+  }
+  .pf-thread-breakdown-sep {
+    opacity: 0.5;
+  }
+
   /* ---- Memory tool settings drawer ----
      Gear icon in window header toggles a drawer between header and
      panels. Holds tunable knobs (currently: rename threshold). Drawer
@@ -23660,6 +23707,12 @@ Use this template for your response:
    * firstUsedAt (set-once) and lastUsedAt (always) timestamps, and
    * bumps today's per-day bucket in countersByDay.
    *
+   * If `threadId` is supplied (non-null), ALSO bumps the per-thread
+   * tally at settings.countersByThread[threadId][name]. This enables
+   * the "your most-edited thread is X" surface in the Profile Activity
+   * section. Pass null/undefined when the action isn't tied to a
+   * specific thread (e.g. backup export from the profile UI).
+   *
    * Missing counters are created at 0 before the bump, which means a
    * new counter name added in code lands smoothly on existing profiles
    * — the counter appears at `n` on first bump.
@@ -23668,8 +23721,10 @@ Use this template for your response:
    *
    * @param {string} name - The counter field name, e.g. 'memoryWindowOpens'
    * @param {number} [n=1] - Increment amount
+   * @param {number|string|null} [threadId=null] - Optional Dexie thread id
+   *   to also tally against. Coerced to string for storage-key safety.
    */
-  function bumpCounter(name, n = 1) {
+  function bumpCounter(name, n = 1, threadId = null) {
     if (typeof name !== 'string' || !name) return;
     const delta = Number(n) || 0;
     if (delta <= 0) return;
@@ -23700,6 +23755,25 @@ Use this template for your response:
       const dayCurrent = Number(settings.countersByDay[key][name]) || 0;
       settings.countersByDay[key][name] = dayCurrent + delta;
       pruneByDay(settings.countersByDay, now);
+
+      // Per-thread tally (#3). Only when caller provided a threadId.
+      // Stored at settings.countersByThread[<idAsString>][name]. NOT
+      // pruned when the upstream thread is deleted — pruning would need
+      // a Dexie scan on every bump, and per-thread storage is small
+      // (~14 counters × ~10 bytes = 140 bytes per thread). For very
+      // long-lived profiles this could be revisited, but the bloat
+      // is bounded by the user's cumulative thread count.
+      if (threadId != null) {
+        const tid = String(threadId);
+        if (!settings.countersByThread || typeof settings.countersByThread !== 'object') {
+          settings.countersByThread = {};
+        }
+        if (!settings.countersByThread[tid] || typeof settings.countersByThread[tid] !== 'object') {
+          settings.countersByThread[tid] = {};
+        }
+        const tCurrent = Number(settings.countersByThread[tid][name]) || 0;
+        settings.countersByThread[tid][name] = tCurrent + delta;
+      }
 
       saveSettings(settings);
     } catch { /* best-effort */ }
@@ -23765,6 +23839,10 @@ Use this template for your response:
         settings.counters.lastUsedAt = keep.lastUsedAt;
       }
       settings.countersByDay = {};
+      // Per-thread tally also cleared on reset (#3) — this is what the
+      // user expects from "reset all counters" rather than orphaned
+      // per-thread breakdowns surviving a global reset.
+      settings.countersByThread = {};
       saveSettings(settings);
     } catch { /* best-effort */ }
   }
@@ -23815,6 +23893,55 @@ Use this template for your response:
       }
     }
     return out;
+  }
+
+  /**
+   * Return the full countersByThread object. Returns an empty object
+   * if storage is unavailable or the field is missing.
+   *
+   * Shape:
+   *   { '<threadId>': { memorySaves: 8, bubblesLocked: 2, ... }, ... }
+   *
+   * Note: keys are STRINGS (Dexie thread ids coerced for storage-key
+   * safety). Callers needing numeric ids should Number() them.
+   */
+  function getCountersByThread() {
+    try {
+      const settings = loadSettings();
+      const byThread = (settings && settings.countersByThread) || {};
+      return { ...byThread };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Return the top N threads ranked by their tally for `name`, descending.
+   * Threads with zero or missing tally for that counter are excluded.
+   *
+   * Shape:
+   *   [{ threadId: '12', count: 8 }, { threadId: '7', count: 5 }, ...]
+   *
+   * Used by the Profile Activity section to surface "your most-X thread
+   * is Y" insights. The threadId values here are storage keys (strings);
+   * the caller is expected to look up the human-readable thread name
+   * from upstream Dexie at render time.
+   *
+   * @param {string} name Counter key
+   * @param {number} [limit=3] Max rows to return
+   * @returns {Array<{ threadId: string, count: number }>}
+   */
+  function getTopThreadsForCounter(name, limit = 3) {
+    if (typeof name !== 'string' || !name) return [];
+    const byThread = getCountersByThread();
+    const rows = [];
+    for (const [tid, tally] of Object.entries(byThread)) {
+      if (!tally || typeof tally !== 'object') continue;
+      const count = Number(tally[name]) || 0;
+      if (count > 0) rows.push({ threadId: tid, count });
+    }
+    rows.sort((a, b) => b.count - a.count);
+    return rows.slice(0, Math.max(0, limit | 0));
   }
 
   /**
@@ -28103,7 +28230,9 @@ Use this template for your response:
     // Count this as a successful bubble-tool open for the profile's
     // activity counters. Done after schema probe so we don't count
     // failed-to-open-for-reasons-outside-the-user's-control as usage.
-    bumpCounter('memoryWindowOpens');
+    // Per-thread tally (#3) wired here too — opening the Memory tool
+    // is naturally scoped to whatever thread is currently active.
+    bumpCounter('memoryWindowOpens', 1, (typeof window !== 'undefined') ? window.activeThreadId : null);
     // Record today as an activity day for the streak system. Idempotent
     // within a day — multiple opens don't inflate the streak. If today
     // is consecutive with lastActiveDay, current streak advances; if
@@ -28556,7 +28685,7 @@ Use this template for your response:
           sourceLabel: label || '',
           entries,
           onCreated: ({ character, loreCount }) => {
-            bumpCounter('charactersSpawned');
+            bumpCounter('charactersSpawned', 1, activeThreadId);
             // Brief confirmation. We don't re-render the Memory window
             // since the spin-off doesn't mutate source state.
             const name = (character && character.name) || 'the character';
@@ -28606,7 +28735,7 @@ Use this template for your response:
         if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
         const currentOrder = s.getBubbles().map(b => b.id);
         moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
-        bumpCounter('bubblesReordered');
+        bumpCounter('bubblesReordered', 1, activeThreadId);
         refresh();
       },
 
@@ -28637,7 +28766,7 @@ Use this template for your response:
           if (!source) return;
           const currentCardOrder = source.entries.map(e => e.id);
           moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
-          bumpCounter('cardsReorderedInBubble');
+          bumpCounter('cardsReorderedInBubble', 1, activeThreadId);
         } else {
           // Cross-bubble: assert new membership, position within target,
           // then clean up source's card-order reference.
@@ -28655,7 +28784,7 @@ Use this template for your response:
             if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
             else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
           }
-          bumpCounter('cardsReorderedCrossBubble');
+          bumpCounter('cardsReorderedCrossBubble', 1, activeThreadId);
         }
 
         refresh();
@@ -28711,7 +28840,7 @@ Use this template for your response:
         const s = byScope(scope);
         if (!s) return;
         const nowLocked = toggleLock(s.overrides, bubbleId);
-        if (nowLocked) bumpCounter('bubblesLocked');
+        if (nowLocked) bumpCounter('bubblesLocked', 1, activeThreadId);
 
         if (s.locksPersist && activeThreadId != null) {
           if (nowLocked) {
@@ -28745,7 +28874,7 @@ Use this template for your response:
         if (!s) return;
         if (!Array.isArray(memberIds) || memberIds.length === 0) return;
         renameBubble(s.overrides, memberIds, newLabel);
-        bumpCounter('bubblesRenamed');
+        bumpCounter('bubblesRenamed', 1, activeThreadId);
         refresh();
       },
 
@@ -28850,7 +28979,7 @@ Use this template for your response:
           return;
         }
 
-        bumpCounter('memorySaves');
+        bumpCounter('memorySaves', 1, activeThreadId);
 
         // Show a brief confirmation of what landed on disk. For reorder-
         // only saves the stats object has reorderedMemory/reorderedLore
@@ -28993,7 +29122,7 @@ Use this template for your response:
             alert(`Restore failed: ${result.error}\n\nNo changes were applied.`);
             return;
           }
-          bumpCounter('snapshotsRestored');
+          bumpCounter('snapshotsRestored', 1, activeThreadId);
           alert('Restore complete. Re-open the Memory window to see the restored state.');
           overlay.hide();
         });
@@ -31220,11 +31349,40 @@ Use this template for your response:
   }
 
   /**
+   * Per-counter spec for the "Top threads" strip at the bottom of the
+   * Activity section. Each row shows the user's top N threads for one
+   * counter, sourced from settings.countersByThread (#3). Only counters
+   * that meaningfully vary by thread are listed here — backups (which
+   * are profile-level) and tool opens (which can spike from a single
+   * exploratory session) are deliberately omitted.
+   *
+   * label  user-facing row title
+   * key    matches the counter field name
+   * limit  how many top threads to surface for this row
+   */
+  const PER_THREAD_BREAKDOWNS = [
+    { key: 'memorySaves',                label: 'Most-saved threads',     limit: 3 },
+    { key: 'cardsReorderedInBubble',     label: 'Most-curated threads',   limit: 3 },
+    { key: 'cardsReorderedCrossBubble',  label: 'Most-shuffled threads',  limit: 3 },
+    { key: 'bubblesRenamed',             label: 'Most-named threads',     limit: 3 },
+    { key: 'charactersSpawned',          label: 'Most-spawned-from threads', limit: 3 },
+  ];
+
+  /**
    * Build the body of the Activity section.
    *
-   * @param {{ counters: object, streaks?: object, streakStatus?: string }} opts
+   * @param {{
+   *   counters: object,
+   *   streaks?: object,
+   *   streakStatus?: string,
+   *   threadNamesById?: Object<string, string>,
+   * }} opts
+   *   threadNamesById is consumed by the per-thread breakdown strip
+   *   (#3). Caller (profile/index.js) is responsible for resolving
+   *   names from upstream Dexie before render — keeps this builder
+   *   pure-sync.
    */
-  function createActivityBody({ counters, streaks, streakStatus: status } = {}) {
+  function createActivityBody({ counters, streaks, streakStatus: status, threadNamesById } = {}) {
     const c = counters || {};
     const s = streaks || { current: 0, longest: 0, lastActiveDay: null };
     const st = status || 'broken';
@@ -31318,6 +31476,49 @@ Use this template for your response:
 
     const grid = h('div', { class: 'pf-activity-grid' }, chipNodes);
 
+    // ---- Top Threads strip (#3) ----
+    // For each PER_THREAD_BREAKDOWNS spec, surface up to N top threads
+    // for that counter. Skipped silently if the user has zero per-thread
+    // data for the counter (common case: brand-new install, or counters
+    // that just haven't been thread-tagged yet).
+    //
+    // Thread NAMES are looked up from threadNamesById (caller-supplied).
+    // For ids not in the map (e.g. thread was deleted upstream since the
+    // counter was tagged), we fall back to the bare id as 'Thread #<id>'
+    // — the breakdown stays useful even when the source thread is gone.
+    const namesMap = (threadNamesById && typeof threadNamesById === 'object')
+      ? threadNamesById
+      : {};
+    const breakdownRows = [];
+    for (const spec of PER_THREAD_BREAKDOWNS) {
+      const top = getTopThreadsForCounter(spec.key, spec.limit);
+      if (top.length === 0) continue;
+      const cells = top.map((row, i) => {
+        const name = (typeof namesMap[row.threadId] === 'string' && namesMap[row.threadId])
+          ? namesMap[row.threadId]
+          : `Thread #${row.threadId}`;
+        // 'Davie (12)'  with a separator dot between cells.
+        const text = `${name} (${row.count})`;
+        const node = h('span', { class: 'pf-thread-breakdown-cell' }, [text]);
+        // Separator BEFORE every cell except the first.
+        if (i === 0) return node;
+        return h('span', { class: 'pf-thread-breakdown-row-inner' }, [
+          h('span', { class: 'pf-thread-breakdown-sep', 'aria-hidden': 'true' }, [' · ']),
+          node,
+        ]);
+      });
+      breakdownRows.push(h('div', { class: 'pf-thread-breakdown-row' }, [
+        h('span', { class: 'pf-thread-breakdown-label' }, [spec.label, ': ']),
+        h('span', { class: 'pf-thread-breakdown-cells' }, cells),
+      ]));
+    }
+    const breakdownStrip = breakdownRows.length > 0
+      ? h('div', { class: 'pf-thread-breakdown' }, [
+          h('div', { class: 'pf-thread-breakdown-heading' }, ['By thread']),
+          ...breakdownRows,
+        ])
+      : null;
+
     // Footer strip — first/last activity timestamps for context.
     const footer = h('div', { class: 'pf-activity-footer' }, [
       h('span', {}, [
@@ -31333,6 +31534,7 @@ Use this template for your response:
     const children = [];
     if (streakBanner) children.push(streakBanner);
     children.push(grid);
+    if (breakdownStrip) children.push(breakdownStrip);
     children.push(footer);
     return h('div', { class: 'pf-activity' }, children);
   }
@@ -32396,6 +32598,42 @@ Use this template for your response:
     // establishes visibility for the future tiered-achievement system
     // that will unlock based on these same counters.
     const counters = getCounters();
+
+    // Per-thread breakdown (#3) needs human-readable thread names. We
+    // resolve them here BEFORE handing off to createActivityBody so the
+    // builder stays pure-sync. Two layers of best-effort:
+    //   - if window.db / threads table missing → empty map (builder
+    //     falls back to 'Thread #<id>' for every entry)
+    //   - if a specific thread was deleted upstream since the counter
+    //     was tagged → that id stays unresolved (same fallback)
+    // We resolve the union of ids across ALL per-thread counters so
+    // every breakdown row in the strip can render names without
+    // additional fetches.
+    const threadNamesById = {};
+    try {
+      const byThread = getCountersByThread();
+      const ids = Object.keys(byThread)
+        .map(s => Number(s))
+        .filter(n => Number.isFinite(n));
+      if (ids.length > 0 && typeof window !== 'undefined' && window.db && window.db.threads) {
+        // Use bulkGet when available (Dexie supports it), fall back to
+        // serial gets if not. Either way we tolerate per-id failures.
+        let rows = [];
+        if (typeof window.db.threads.bulkGet === 'function') {
+          rows = await window.db.threads.bulkGet(ids).catch(() => []);
+        } else {
+          rows = await Promise.all(
+            ids.map(id => window.db.threads.get(id).catch(() => null))
+          );
+        }
+        for (const row of rows || []) {
+          if (row && row.id != null && typeof row.name === 'string' && row.name) {
+            threadNamesById[String(row.id)] = row.name;
+          }
+        }
+      }
+    } catch { /* best-effort; empty map → fallback labels in builder */ }
+
     const activitySection = createSection({
       id: 'activity',
       title: 'Activity',
@@ -32403,6 +32641,7 @@ Use this template for your response:
         counters,
         streaks: (() => { try { return getStreaks(); } catch { return null; } })(),
         streakStatus: (() => { try { return streakStatus(); } catch { return 'broken'; } })(),
+        threadNamesById,
       }),
       initialState: displayState.activity || { collapsed: false, blurred: false },
     });

@@ -15,7 +15,7 @@ import { createPromptsBody } from '../render/prompts_section.js';
 import { createPromptArchive } from '../render/prompt_archive.js';
 import { createWritingRadar } from '../render/writing_radar.js';
 import { createActivityBody } from '../render/activity_body.js';
-import { bumpCounter, getCounters } from '../stats/counters.js';
+import { bumpCounter, getCounters, getCountersByThread } from '../stats/counters.js';
 import { recordActivityForStreak, getStreaks, streakStatus } from '../stats/streaks.js';
 import { createBackupBody } from '../render/backup_section.js';
 import { createShareChips } from '../render/share_chips.js';
@@ -477,6 +477,42 @@ export async function openFullPage() {
   // establishes visibility for the future tiered-achievement system
   // that will unlock based on these same counters.
   const counters = getCounters();
+
+  // Per-thread breakdown (#3) needs human-readable thread names. We
+  // resolve them here BEFORE handing off to createActivityBody so the
+  // builder stays pure-sync. Two layers of best-effort:
+  //   - if window.db / threads table missing → empty map (builder
+  //     falls back to 'Thread #<id>' for every entry)
+  //   - if a specific thread was deleted upstream since the counter
+  //     was tagged → that id stays unresolved (same fallback)
+  // We resolve the union of ids across ALL per-thread counters so
+  // every breakdown row in the strip can render names without
+  // additional fetches.
+  const threadNamesById = {};
+  try {
+    const byThread = getCountersByThread();
+    const ids = Object.keys(byThread)
+      .map(s => Number(s))
+      .filter(n => Number.isFinite(n));
+    if (ids.length > 0 && typeof window !== 'undefined' && window.db && window.db.threads) {
+      // Use bulkGet when available (Dexie supports it), fall back to
+      // serial gets if not. Either way we tolerate per-id failures.
+      let rows = [];
+      if (typeof window.db.threads.bulkGet === 'function') {
+        rows = await window.db.threads.bulkGet(ids).catch(() => []);
+      } else {
+        rows = await Promise.all(
+          ids.map(id => window.db.threads.get(id).catch(() => null))
+        );
+      }
+      for (const row of rows || []) {
+        if (row && row.id != null && typeof row.name === 'string' && row.name) {
+          threadNamesById[String(row.id)] = row.name;
+        }
+      }
+    }
+  } catch { /* best-effort; empty map → fallback labels in builder */ }
+
   const activitySection = createSection({
     id: 'activity',
     title: 'Activity',
@@ -484,6 +520,7 @@ export async function openFullPage() {
       counters,
       streaks: (() => { try { return getStreaks(); } catch { return null; } })(),
       streakStatus: (() => { try { return streakStatus(); } catch { return 'broken'; } })(),
+      threadNamesById,
     }),
     initialState: displayState.activity || { collapsed: false, blurred: false },
   });

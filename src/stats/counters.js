@@ -65,6 +65,12 @@ function pruneByDay(byDay, now = new Date()) {
  * firstUsedAt (set-once) and lastUsedAt (always) timestamps, and
  * bumps today's per-day bucket in countersByDay.
  *
+ * If `threadId` is supplied (non-null), ALSO bumps the per-thread
+ * tally at settings.countersByThread[threadId][name]. This enables
+ * the "your most-edited thread is X" surface in the Profile Activity
+ * section. Pass null/undefined when the action isn't tied to a
+ * specific thread (e.g. backup export from the profile UI).
+ *
  * Missing counters are created at 0 before the bump, which means a
  * new counter name added in code lands smoothly on existing profiles
  * — the counter appears at `n` on first bump.
@@ -73,8 +79,10 @@ function pruneByDay(byDay, now = new Date()) {
  *
  * @param {string} name - The counter field name, e.g. 'memoryWindowOpens'
  * @param {number} [n=1] - Increment amount
+ * @param {number|string|null} [threadId=null] - Optional Dexie thread id
+ *   to also tally against. Coerced to string for storage-key safety.
  */
-export function bumpCounter(name, n = 1) {
+export function bumpCounter(name, n = 1, threadId = null) {
   if (typeof name !== 'string' || !name) return;
   const delta = Number(n) || 0;
   if (delta <= 0) return;
@@ -105,6 +113,25 @@ export function bumpCounter(name, n = 1) {
     const dayCurrent = Number(settings.countersByDay[key][name]) || 0;
     settings.countersByDay[key][name] = dayCurrent + delta;
     pruneByDay(settings.countersByDay, now);
+
+    // Per-thread tally (#3). Only when caller provided a threadId.
+    // Stored at settings.countersByThread[<idAsString>][name]. NOT
+    // pruned when the upstream thread is deleted — pruning would need
+    // a Dexie scan on every bump, and per-thread storage is small
+    // (~14 counters × ~10 bytes = 140 bytes per thread). For very
+    // long-lived profiles this could be revisited, but the bloat
+    // is bounded by the user's cumulative thread count.
+    if (threadId != null) {
+      const tid = String(threadId);
+      if (!settings.countersByThread || typeof settings.countersByThread !== 'object') {
+        settings.countersByThread = {};
+      }
+      if (!settings.countersByThread[tid] || typeof settings.countersByThread[tid] !== 'object') {
+        settings.countersByThread[tid] = {};
+      }
+      const tCurrent = Number(settings.countersByThread[tid][name]) || 0;
+      settings.countersByThread[tid][name] = tCurrent + delta;
+    }
 
     saveSettings(settings);
   } catch { /* best-effort */ }
@@ -170,6 +197,10 @@ export function resetCounters() {
       settings.counters.lastUsedAt = keep.lastUsedAt;
     }
     settings.countersByDay = {};
+    // Per-thread tally also cleared on reset (#3) — this is what the
+    // user expects from "reset all counters" rather than orphaned
+    // per-thread breakdowns surviving a global reset.
+    settings.countersByThread = {};
     saveSettings(settings);
   } catch { /* best-effort */ }
 }
@@ -220,6 +251,55 @@ export function getCounterSeriesByDay(name, days = 30, now = new Date()) {
     }
   }
   return out;
+}
+
+/**
+ * Return the full countersByThread object. Returns an empty object
+ * if storage is unavailable or the field is missing.
+ *
+ * Shape:
+ *   { '<threadId>': { memorySaves: 8, bubblesLocked: 2, ... }, ... }
+ *
+ * Note: keys are STRINGS (Dexie thread ids coerced for storage-key
+ * safety). Callers needing numeric ids should Number() them.
+ */
+export function getCountersByThread() {
+  try {
+    const settings = loadSettings();
+    const byThread = (settings && settings.countersByThread) || {};
+    return { ...byThread };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Return the top N threads ranked by their tally for `name`, descending.
+ * Threads with zero or missing tally for that counter are excluded.
+ *
+ * Shape:
+ *   [{ threadId: '12', count: 8 }, { threadId: '7', count: 5 }, ...]
+ *
+ * Used by the Profile Activity section to surface "your most-X thread
+ * is Y" insights. The threadId values here are storage keys (strings);
+ * the caller is expected to look up the human-readable thread name
+ * from upstream Dexie at render time.
+ *
+ * @param {string} name Counter key
+ * @param {number} [limit=3] Max rows to return
+ * @returns {Array<{ threadId: string, count: number }>}
+ */
+export function getTopThreadsForCounter(name, limit = 3) {
+  if (typeof name !== 'string' || !name) return [];
+  const byThread = getCountersByThread();
+  const rows = [];
+  for (const [tid, tally] of Object.entries(byThread)) {
+    if (!tally || typeof tally !== 'object') continue;
+    const count = Number(tally[name]) || 0;
+    if (count > 0) rows.push({ threadId: tid, count });
+  }
+  rows.sort((a, b) => b.count - a.count);
+  return rows.slice(0, Math.max(0, limit | 0));
 }
 
 /**

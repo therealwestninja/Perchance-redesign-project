@@ -60,7 +60,9 @@ export async function openMemoryWindow() {
   // Count this as a successful bubble-tool open for the profile's
   // activity counters. Done after schema probe so we don't count
   // failed-to-open-for-reasons-outside-the-user's-control as usage.
-  bumpCounter('memoryWindowOpens');
+  // Per-thread tally (#3) wired here too — opening the Memory tool
+  // is naturally scoped to whatever thread is currently active.
+  bumpCounter('memoryWindowOpens', 1, (typeof window !== 'undefined') ? window.activeThreadId : null);
   // Record today as an activity day for the streak system. Idempotent
   // within a day — multiple opens don't inflate the streak. If today
   // is consecutive with lastActiveDay, current streak advances; if
@@ -513,7 +515,7 @@ export async function openMemoryWindow() {
         sourceLabel: label || '',
         entries,
         onCreated: ({ character, loreCount }) => {
-          bumpCounter('charactersSpawned');
+          bumpCounter('charactersSpawned', 1, activeThreadId);
           // Brief confirmation. We don't re-render the Memory window
           // since the spin-off doesn't mutate source state.
           const name = (character && character.name) || 'the character';
@@ -563,7 +565,7 @@ export async function openMemoryWindow() {
       if (s.overrides.lockedBubbles.has(String(bubbleId))) return;
       const currentOrder = s.getBubbles().map(b => b.id);
       moveBubbleBefore(s.overrides, bubbleId, beforeBubbleId, currentOrder);
-      bumpCounter('bubblesReordered');
+      bumpCounter('bubblesReordered', 1, activeThreadId);
       refresh();
     },
 
@@ -594,7 +596,7 @@ export async function openMemoryWindow() {
         if (!source) return;
         const currentCardOrder = source.entries.map(e => e.id);
         moveCardBefore(s.overrides, sourceBubbleId, cardId, beforeCardId, currentCardOrder);
-        bumpCounter('cardsReorderedInBubble');
+        bumpCounter('cardsReorderedInBubble', 1, activeThreadId);
       } else {
         // Cross-bubble: assert new membership, position within target,
         // then clean up source's card-order reference.
@@ -612,7 +614,7 @@ export async function openMemoryWindow() {
           if (cleaned.length === 0) s.overrides.bubbleCardOrder.delete(String(sourceBubbleId));
           else s.overrides.bubbleCardOrder.set(String(sourceBubbleId), cleaned);
         }
-        bumpCounter('cardsReorderedCrossBubble');
+        bumpCounter('cardsReorderedCrossBubble', 1, activeThreadId);
       }
 
       refresh();
@@ -668,7 +670,7 @@ export async function openMemoryWindow() {
       const s = byScope(scope);
       if (!s) return;
       const nowLocked = toggleLock(s.overrides, bubbleId);
-      if (nowLocked) bumpCounter('bubblesLocked');
+      if (nowLocked) bumpCounter('bubblesLocked', 1, activeThreadId);
 
       if (s.locksPersist && activeThreadId != null) {
         if (nowLocked) {
@@ -702,7 +704,7 @@ export async function openMemoryWindow() {
       if (!s) return;
       if (!Array.isArray(memberIds) || memberIds.length === 0) return;
       renameBubble(s.overrides, memberIds, newLabel);
-      bumpCounter('bubblesRenamed');
+      bumpCounter('bubblesRenamed', 1, activeThreadId);
       refresh();
     },
 
@@ -807,7 +809,7 @@ export async function openMemoryWindow() {
         return;
       }
 
-      bumpCounter('memorySaves');
+      bumpCounter('memorySaves', 1, activeThreadId);
 
       // Show a brief confirmation of what landed on disk. For reorder-
       // only saves the stats object has reorderedMemory/reorderedLore
@@ -950,7 +952,7 @@ export async function openMemoryWindow() {
           alert(`Restore failed: ${result.error}\n\nNo changes were applied.`);
           return;
         }
-        bumpCounter('snapshotsRestored');
+        bumpCounter('snapshotsRestored', 1, activeThreadId);
         alert('Restore complete. Re-open the Memory window to see the restored state.');
         overlay.hide();
       });

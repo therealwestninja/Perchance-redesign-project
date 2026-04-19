@@ -2792,6 +2792,53 @@ export const CSS = `
   opacity: 1;
 }
 
+/* ---- Per-thread breakdown strip (#3) ----
+   Sits between the chip grid and the timestamp footer. Same muted
+   tone as the footer (12px, 0.7 opacity), with a small heading and
+   one row per breakdown counter. Each row reads like a sentence:
+   "Most-saved threads: Davie (12) · Eli (8) · Mira (3)". Renders
+   only when there is per-thread data; never adds an empty section. */
+.pf-thread-breakdown {
+  font-size: 12px;
+  opacity: 0.85;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+.pf-thread-breakdown-heading {
+  font-weight: 600;
+  opacity: 0.7;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.pf-thread-breakdown-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.pf-thread-breakdown-label {
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+.pf-thread-breakdown-cells {
+  display: inline;
+}
+.pf-thread-breakdown-row-inner {
+  display: inline;
+}
+.pf-thread-breakdown-cell {
+  white-space: nowrap;
+}
+.pf-thread-breakdown-sep {
+  opacity: 0.5;
+}
+
 /* ---- Memory tool settings drawer ----
    Gear icon in window header toggles a drawer between header and
    panels. Holds tunable knobs (currently: rename threshold). Drawer
