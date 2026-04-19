@@ -1,84 +1,160 @@
-# Perchance Redesign Project
+# Perchance AI Character Chat — Redesign Fork
 
-A fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat)
-that adds a personal profile system — mini-card in the sidebar, full-screen
-profile page, stats derived from your chat history, achievements, and
-gamification that rewards writing work rather than time spent.
+A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds **30+ chat tools**, a **gamified profile system**, a **memory manager**, and a **design-truth dark-parchment UI** — all running client-side in your browser with zero accounts or servers.
 
-Built for personal use, shared in case anyone else finds it useful.
+**112 modules · 943 tests · MIT license**
 
-## What's shipped
+---
 
-- **Sidebar mini-card** — always-visible identity strip with avatar,
-  display name, level, and XP bar. Clicks through to the full page.
-- **Full-screen profile page** — shareable splash (avatar, name, title,
-  XP, pinned badges), About bio, Details form (display name, username,
-  title, avatar upload, age range, 2D gender picker, free-text),
-  Chronicle stat grid, and Achievements grid.
-- **Per-section collapse + blur toggles**, persisted to localStorage —
-  Details is blurred by default for screenshot safety.
-- **Live auto-refresh** — avatar and title changes reflect instantly
-  in the splash and mini-card, no reload needed.
-- **Achievements** — 15 starter achievements across five rarity tiers,
-  computed live from your chat stats. Zero persistent unlock table,
-  so nothing can drift out of sync with your data.
+## What makes this different
 
-## Design principles
+| Vanilla Perchance | This fork |
+|---|---|
+| Basic chat interface | 30+ tools in a popup grid (anti-repetition, glossary, dice, voice, branching...) |
+| No memory management | Full memory manager with drag-and-drop columns, snapshots, lore ordering |
+| No profile/identity | Gamified profile: avatar, level, XP, 42 achievements, 24 accent colors |
+| No sharing | Shareable profile links with rich card viewer |
+| Generic styling | Dark-parchment RPG aesthetic with customizable theme colors |
 
-These are non-negotiable:
+---
 
-- **No premium currency**, no time-gated content, no ad-driven retention.
-- **No engagement-optimization metrics.** Stats measure your work, not your attendance.
-- **No behavioral conditioning patterns** — variable-ratio rewards, streak
-  guilt, loss aversion, artificial scarcity, and similar dark patterns
-  are explicitly excluded.
-- **No webcam, microphone, or biometric tracking** of any kind.
-- **No external network calls** beyond what upstream Perchance already
-  makes. All profile data stays in your browser.
-- **No telemetry.** The project ships no analytics, crash reporting, or
-  usage tracking.
+## Chat Tools (30 modules)
+
+Every tool lives behind a single **⚙ Tools** button that opens a popup grid — no UI clutter.
+
+### AI Intelligence
+- **Dynamic Glossary** 📖 — keyword-triggered lore injection with recursive scanning (2 levels deep)
+- **Auto-Lorebook** 🔮 — AI generates glossary entries from your conversation
+- **Auto-Summary** — compresses older messages into a paragraph injected into context
+- **Anti-Repetition** 🚫 — word/phrase banlist + auto-detection of repeated phrases
+- **User Persona** 👤 — define your character (name + description), injected into every AI prompt
+- **Quick Reminder** 📌 — persistent instruction injected before every AI reply
+- **Prompt Presets** 📋 — save and load prompt templates
+
+### Writing & Generation
+- **Writing Enhancer** ✨ — AI rewrites your message with more detail
+- **Impersonation** ✍ — AI writes as your character
+- **Narration** 🎬 — generate scene narration
+- **Image Generation** 🖼 — in-chat AI image generation
+- **Voice I/O** 🎤🔊 — speech-to-text input + text-to-speech output
+- **Reasoning Toggle** 🧠💭 — show/hide AI reasoning
+
+### Chat Management
+- **Message Controls** — per-message copy, edit, delete, regenerate
+- **Conversation Branching** ◀1/3▶ — navigate between regenerated alternatives
+- **Chat Search** — search through message history
+- **Stop Generating** ⬛ — interrupt AI generation mid-stream
+- **Chat Export** ⬇ — download chat as text/JSON
+- **Thread Archive** 📥 — archive and restore threads
+- **Bulk Threads** ☐ — multi-select thread operations
+- **Timestamps** — time stamps on new messages
+
+### Characters & World
+- **Character Browser** 👥 — searchable grid of all your characters
+- **Character Cards** 🃏 — import/export in SillyTavern-compatible JSON format
+- **Document Analysis** 📎 — upload a text file and chat about its contents
+- **Dice Roller** 🎲 — /roll XdY+Z command for TTRPG play
+
+### Customization
+- **Theme Toggle** ☀🌙 — dark/light mode
+- **Custom Backgrounds** 🏞 — per-chat background images
+- **Font Settings** Aa — font family + size controls
+- **Fullscreen** ⛶ — distraction-free mode
+- **Generation Settings** ⚙ — temperature + max tokens overrides
+- **Keyboard Shortcuts** ⌨ — configurable hotkeys
+- **Code Highlighting** — syntax highlighting in AI responses
+- **Token Display** — live token count in the header
+
+---
+
+## Profile System
+
+### Hero Card
+Avatar with ornate gold ring · display name · italic title · level chip with XP bar · hexagonal pinned badges · share button
+
+### Gamification
+- **42 achievements** across 5 rarity tiers (Common → Legendary)
+- **Leveling system** with XP derived from chat activity
+- **Archetype classification** based on play style
+- **24 accent colors** unlocked through achievements
+- **Theme color pickers** — customize background gradient (unlock at 15% and 25% achievements)
+
+### Shareable Profiles
+Generate a link that shows your profile card to anyone — level circle, stats, badges, XP bar, all themed to your accent color.
+
+---
+
+## Memory Manager
+
+Three-column drag-and-drop interface for managing AI memory:
+- **Active memories** — currently injected into AI context
+- **Stored memories** — saved but not active
+- **Delete zone** — drag to remove
+- **Snapshots** — save and restore memory states
+- **Lore ordering** — control injection priority
+
+---
+
+## Design
+
+The UI follows a design-truth document (`docs/design-truth/profile-card-v1.html`):
+
+- **Palette**: ink blacks, vellum text, gold accents, crimson, silver
+- **Typography**: Georgia serif headings, monospace data labels, system sans body
+- **Elements**: conic-gradient avatar ring, hexagonal badges, 3D gold buttons
+- **Customizable**: Primary + Secondary background colors via achievement-gated pickers
+
+---
 
 ## Architecture
 
-This is a fork of the Perchance generator itself (top DSL + HTML panel),
-not a userscript. Our code is appended to the bundled upstream and runs
-in the same sandbox.
-
-- `vendor/` — Untouched upstream source. Diff baseline for future pulls.
-- `src/` — Our ES modules, assembled by the build into a single IIFE.
-- `build/` — `perchance_1.txt` + `perchance_2.txt` ready to paste into
-  the Perchance editor.
-- `test/` — `node:test` specs that run the source modules directly.
-- `docs/` — Architecture notes and design references.
-- `.github/workflows/` — CI: tests + build check on every push/PR.
-
-All state lives in the browser's IndexedDB (shared with upstream) and
-`localStorage` (namespaced `pf:*`).
-
-See [`docs/architecture.md`](docs/architecture.md) for the full map,
-including the script-tag timing trap and other lessons learned.
-
-## Development
-
-No `npm install` required — build tooling uses Node stdlib only.
-You do need Node 20+ for `node:test`.
-
-```bash
-git clone https://github.com/therealwestninja/Perchance-redesign-project
-cd Perchance-redesign-project
-npm test              # run test suite (86+ tests)
-npm run build         # build build/perchance_*.txt
-npm run build:check   # verify build is up-to-date (used in CI)
+```
+vendor/                    ← Upstream Perchance (untouched)
+src/
+  chat/        (36 files)  ← Chat tool modules
+  render/      (20 files)  ← UI rendering
+  profile/     (12 files)  ← Profile logic
+  memory/      (10 files)  ← Memory manager
+  stats/        (5 files)  ← Chat statistics
+  achievements/ (4 files)  ← Achievement system
+  events/       (3 files)  ← Event participation
+  utils/        (5 files)  ← DOM helpers, formatting
+build/
+  build.mjs                ← Bundler (single IIFE)
+  perchance_2.txt          ← Final output
+test/           (48 files) ← 943 tests
+docs/
+  design-truth/            ← Visual mockups
+  architecture.md          ← Technical decisions
 ```
 
-To release: copy `build/perchance_1.txt` into the Perchance editor's top
-zone, `build/perchance_2.txt` into the HTML panel, save, test, publish.
+All modules share a flat IIFE scope. The bundler reads `src/manifest.json` and concatenates into a single `<script>` block appended to the upstream code.
+
+**AI injection**: All context modifications (glossary, summary, persona, anti-repetition, document, gen settings) flow through a single `aiTextPlugin` monkey-patch in `stop_generating.js`.
+
+---
+
+## Installation
+
+1. Fork [Perchance AI Character Chat](https://perchance.org/ai-character-chat)
+2. Replace `perchance_2.txt` with `build/perchance_2.txt` from this repo
+3. Save and reload
+
+Development:
+
+```bash
+git clone https://github.com/therealwestninja/Perchance-redesign-project.git
+cd Perchance-redesign-project
+npm install
+npm test        # 943 tests
+npm run build   # → build/perchance_2.txt
+```
+
+---
 
 ## Credits
 
-See [`CREDITS.md`](CREDITS.md) for attribution to upstream Perchance and
-the tools whose patterns inspired this project.
-
-## License
-
-MIT — see [`LICENSE`](LICENSE).
+- **Upstream**: [Perchance AI Character Chat](https://perchance.org/ai-character-chat)
+- **Research**: FurAI, Kustom-GPT, URV-AI (all MIT) — glossary algorithm, feature patterns
+- **Inspiration**: SillyTavern WorldInfo, NovelAI lorebooks
+- **License**: MIT

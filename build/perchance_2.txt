@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 112 };
+  NS.__meta = { modules: 116 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -24540,6 +24540,134 @@ Use this template for your response:
     left: auto;
   }
 
+  /* ---- Context dashboard ---- */
+  .pf-ctx-dashboard {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .pf-ctx-header {
+    margin-bottom: 6px;
+  }
+  .pf-ctx-title {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+  }
+  .pf-ctx-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .pf-ctx-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    opacity: 0.4;
+  }
+  .pf-ctx-row-active {
+    opacity: 1;
+    background: rgba(212,168,85,0.04);
+  }
+  .pf-ctx-icon { font-size: 12px; width: 18px; text-align: center; flex-shrink: 0; }
+  .pf-ctx-label {
+    font-weight: 500;
+    color: #e8dcc4;
+    min-width: 55px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10px;
+  }
+  .pf-ctx-detail {
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10px;
+  }
+  .pf-ctx-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+  }
+  .pf-ctx-toggle:hover { opacity: 1; }
+
+  /* ---- Recap message ---- */
+  .pf-recap-message {
+    position: relative;
+    padding: 14px 16px;
+    margin: 8px 0;
+    background: linear-gradient(180deg, rgba(212,168,85,0.06) 0%, rgba(212,168,85,0.02) 100%);
+    border: 1px solid rgba(212,168,85,0.2);
+    border-radius: 10px;
+    border-left: 3px solid var(--pf-accent, #d4a855);
+  }
+  .pf-recap-label {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .pf-recap-content {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e8dcc4;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .pf-recap-dismiss {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #8b95a3;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+  .pf-recap-dismiss:hover { opacity: 1; }
+
+  /* ---- Message bookmarks ---- */
+  .pf-bookmark-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: #8b95a3;
+    opacity: 0.3;
+    transition: opacity 0.15s, color 0.15s;
+    padding: 2px 4px;
+  }
+  .pf-bookmark-btn:hover { opacity: 0.8; }
+  .pf-bookmark-active {
+    color: var(--pf-accent, #d4a855);
+    opacity: 1;
+  }
+  .pf-bookmarked {
+    border-left: 2px solid var(--pf-accent, #d4a855);
+  }
+  .pf-bookmark-flash {
+    animation: pf-bookmark-pulse 0.6s ease-out 3;
+  }
+  @keyframes pf-bookmark-pulse {
+    0%, 100% { background: transparent; }
+    50% { background: rgba(212,168,85,0.08); }
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -30624,7 +30752,11 @@ Use this template for your response:
         : allChars;
 
       if (filtered.length === 0) {
-        grid.innerHTML = '<div style="opacity:0.5;text-align:center;padding:20px;">No characters found</div>';
+        const empty = document.createElement('div');
+        empty.style.cssText = 'opacity:0.5;text-align:center;padding:20px;';
+        empty.textContent = 'No characters found';
+        grid.innerHTML = '';
+        grid.appendChild(empty);
         return;
       }
 
@@ -31566,7 +31698,7 @@ Use this template for your response:
 
           // Notify
           const count = deduped.split('\n').filter(l => l.includes('=')).length;
-          alert(`Glossary updated: ${count} entries. Open 📖 to review.`);
+          showToast(`Glossary updated: ${count} entries. Open 📖 to review.`);
         }
       } catch (e) {
         console.warn('[pf] auto-lorebook failed:', e && e.message);
@@ -32036,7 +32168,14 @@ Use this template for your response:
     trigger.type = 'button';
     trigger.className = 'pf-tools-trigger';
     trigger.title = `Tools (${allItems.length})`;
-    trigger.innerHTML = '<span class="pf-tools-trigger-icon">⚙</span><span class="pf-tools-trigger-label">Tools</span>';
+    const triggerIcon = document.createElement('span');
+    triggerIcon.className = 'pf-tools-trigger-icon';
+    triggerIcon.textContent = '⚙';
+    const triggerLabel = document.createElement('span');
+    triggerLabel.className = 'pf-tools-trigger-label';
+    triggerLabel.textContent = 'Tools';
+    trigger.appendChild(triggerIcon);
+    trigger.appendChild(triggerLabel);
 
     trigger.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -32064,6 +32203,477 @@ Use this template for your response:
     } else if (header) {
       header.appendChild(container);
     }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/context_dashboard.js
+     ────────────────────────────────────────────────────────── */
+  // chat/context_dashboard.js
+  //
+  // Context dashboard: a small collapsible panel above the chat input
+  // that shows everything currently being injected into the AI prompt.
+  // Gives users visibility into the "invisible" work happening behind
+  // the scenes: glossary matches, summary, persona, anti-repetition,
+  // document, gen settings, and quick reminder.
+  //
+  // Updates live — each injection source reports its status, and the
+  // dashboard refreshes on a timer.
+  //
+  // Bootstrap: call initContextDashboard() from start(). Idempotent.
+
+  function initContextDashboard() {
+    if (initContextDashboard._done) return;
+    initContextDashboard._done = true;
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (!inputArea) return;
+    const parent = inputArea.parentElement || inputArea;
+
+    // ---- Dashboard container ----
+    const dashboard = document.createElement('div');
+    dashboard.className = 'pf-ctx-dashboard';
+    dashboard.hidden = true;
+
+    const header = document.createElement('div');
+    header.className = 'pf-ctx-header';
+    const headerLabel = document.createElement('span');
+    headerLabel.className = 'pf-ctx-title';
+    headerLabel.textContent = 'CONTEXT';
+    header.appendChild(headerLabel);
+
+    const body = document.createElement('div');
+    body.className = 'pf-ctx-body';
+
+    dashboard.appendChild(header);
+    dashboard.appendChild(body);
+
+    // ---- Toggle button ----
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'pf-ctx-toggle';
+    toggle.textContent = '📊';
+    toggle.title = 'Context dashboard — see what\'s injected into the AI prompt';
+    toggle.addEventListener('click', () => {
+      dashboard.hidden = !dashboard.hidden;
+      if (!dashboard.hidden) refresh();
+    });
+
+    parent.insertBefore(dashboard, inputArea);
+    parent.appendChild(toggle);
+
+    // ---- Refresh logic ----
+    function refresh() {
+      const items = [];
+
+      // Glossary
+      try {
+        const block = typeof buildGlossaryBlock === 'function' ? buildGlossaryBlock() : '';
+        if (block) {
+          const count = (block.match(/^- /gm) || []).length;
+          items.push({ icon: '📖', label: 'Glossary', detail: `${count} entries matched`, active: true });
+        } else {
+          items.push({ icon: '📖', label: 'Glossary', detail: 'no matches', active: false });
+        }
+      } catch { items.push({ icon: '📖', label: 'Glossary', detail: 'unavailable', active: false }); }
+
+      // Summary
+      try {
+        const block = typeof buildSummaryBlock === 'function' ? buildSummaryBlock() : '';
+        items.push({ icon: '📝', label: 'Summary', detail: block ? `${block.length} chars` : 'none', active: !!block });
+      } catch { items.push({ icon: '📝', label: 'Summary', detail: 'unavailable', active: false }); }
+
+      // Persona
+      try {
+        const block = typeof buildPersonaBlock === 'function' ? buildPersonaBlock() : '';
+        items.push({ icon: '👤', label: 'Persona', detail: block ? 'active' : 'not set', active: !!block });
+      } catch { items.push({ icon: '👤', label: 'Persona', detail: 'unavailable', active: false }); }
+
+      // Anti-repetition
+      try {
+        const block = typeof buildAntiRepetitionBlock === 'function' ? buildAntiRepetitionBlock() : '';
+        if (block) {
+          const banned = (block.match(/BANNED/i) ? 'banlist' : '') + (block.match(/OVERUSED/i) ? '+auto' : '');
+          items.push({ icon: '🚫', label: 'Anti-rep', detail: banned || 'active', active: true });
+        } else {
+          items.push({ icon: '🚫', label: 'Anti-rep', detail: 'clean', active: false });
+        }
+      } catch { items.push({ icon: '🚫', label: 'Anti-rep', detail: 'unavailable', active: false }); }
+
+      // Document
+      try {
+        const block = typeof buildDocumentBlock === 'function' ? buildDocumentBlock() : '';
+        items.push({ icon: '📎', label: 'Document', detail: block ? `loaded` : 'none', active: !!block });
+      } catch { items.push({ icon: '📎', label: 'Document', detail: 'unavailable', active: false }); }
+
+      // Gen settings
+      try {
+        const overrides = typeof getGenOverrides === 'function' ? getGenOverrides() : {};
+        const parts = [];
+        if (overrides.temperature != null) parts.push(`temp=${overrides.temperature}`);
+        if (overrides.maxTokens != null) parts.push(`max=${overrides.maxTokens}`);
+        items.push({ icon: '⚙', label: 'Gen', detail: parts.length ? parts.join(', ') : 'defaults', active: parts.length > 0 });
+      } catch { items.push({ icon: '⚙', label: 'Gen', detail: 'unavailable', active: false }); }
+
+      // Render
+      body.innerHTML = '';
+      for (const item of items) {
+        const row = document.createElement('div');
+        row.className = 'pf-ctx-row' + (item.active ? ' pf-ctx-row-active' : '');
+
+        const icon = document.createElement('span');
+        icon.className = 'pf-ctx-icon';
+        icon.textContent = item.icon;
+
+        const label = document.createElement('span');
+        label.className = 'pf-ctx-label';
+        label.textContent = item.label;
+
+        const detail = document.createElement('span');
+        detail.className = 'pf-ctx-detail';
+        detail.textContent = item.detail;
+
+        row.appendChild(icon);
+        row.appendChild(label);
+        row.appendChild(detail);
+        body.appendChild(row);
+      }
+    }
+
+    // Auto-refresh when visible — cleans up if dashboard is removed from DOM
+    const refreshInterval = setInterval(() => {
+      if (!dashboard.isConnected) {
+        clearInterval(refreshInterval);
+        return;
+      }
+      if (!dashboard.hidden) refresh();
+    }, 3000);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/recap.js
+     ────────────────────────────────────────────────────────── */
+  // chat/recap.js
+  //
+  // "Previously on..." — generates a narrative recap of the current
+  // conversation. Unlike auto-summary (which injects silently into
+  // AI context), this shows the recap to the USER as a visible
+  // message so they can re-orient after returning to a long chat.
+  //
+  // Uses the same aiTextPlugin to generate the recap, but displays
+  // it as a system message rather than injecting it.
+  //
+  // Adds a 📜 button to the tools area.
+  //
+  // Bootstrap: call initRecap() from start(). Idempotent.
+
+  function initRecap() {
+    if (initRecap._done) return;
+    initRecap._done = true;
+
+    let isGenerating = false;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '📜';
+    btn.title = '"Previously on..." — get a recap of this conversation';
+
+    btn.addEventListener('click', async () => {
+      if (isGenerating) return;
+      if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      const messages = Array.from(chatEl.querySelectorAll('.message'))
+        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message');
+
+      if (messages.length < 4) {
+        insertRecapMessage('Not enough conversation to recap yet. Keep chatting!');
+        return;
+      }
+
+      isGenerating = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        // Take up to 20 recent messages for context
+        const recent = messages.slice(-20);
+        const context = recent.map(m => {
+          const isUser = m.classList.contains('user');
+          const nameEl = m.querySelector('.chat-username');
+          const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+          const text = (m.querySelector('.content') || {}).innerText || '';
+          return `[${name}]: ${text}`;
+        }).join('\n\n');
+
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            'Write a brief "Previously on..." recap of this conversation.',
+            'Summarize the key events, character actions, emotional beats, and current situation.',
+            'Write in third person, present tense, like a TV show recap.',
+            'Keep it under 100 words. Start with "Previously on..."',
+            'Reply with ONLY the recap text.',
+            '',
+            'Conversation:',
+            context,
+          ].join('\n'),
+          stopSequences: ['\n\n\n'],
+        });
+
+        const recap = (result && result.text) ? result.text.trim() : '';
+        if (recap) {
+          insertRecapMessage(recap);
+        }
+      } catch (e) {
+        console.warn('[pf] recap failed:', e && e.message);
+      } finally {
+        isGenerating = false;
+        btn.textContent = '📜';
+        btn.disabled = false;
+      }
+    });
+
+    function insertRecapMessage(text) {
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      const msg = document.createElement('div');
+      msg.className = 'message pf-recap-message';
+
+      const label = document.createElement('div');
+      label.className = 'pf-recap-label';
+      label.textContent = '📜 PREVIOUSLY ON...';
+
+      const content = document.createElement('div');
+      content.className = 'pf-recap-content';
+      content.textContent = text;
+
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.className = 'pf-recap-dismiss';
+      dismiss.textContent = '✕';
+      dismiss.addEventListener('click', () => msg.remove());
+
+      msg.appendChild(dismiss);
+      msg.appendChild(label);
+      msg.appendChild(content);
+      chatEl.appendChild(msg);
+      msg.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/bookmarks.js
+     ────────────────────────────────────────────────────────── */
+  // chat/bookmarks.js
+  //
+  // Message bookmarking: star/flag important messages for later
+  // reference. Bookmarked messages get a visible star indicator
+  // and can be browsed via a bookmarks panel.
+  //
+  // Storage: settings.bookmarks[threadId] = [messageId1, messageId2, ...]
+  //
+  // Adds a ⭐ button to message controls (on hover) and a 🔖 button
+  // to view all bookmarks for the current thread.
+  //
+  // Bootstrap: call initBookmarks() from start(). Idempotent.
+
+
+
+  const BOOKMARKS_KEY = 'bookmarks';
+
+  function getBookmarks(threadId) {
+    try {
+      const s = loadSettings();
+      const map = (s && s[BOOKMARKS_KEY]) || {};
+      return Array.isArray(map[String(threadId)]) ? map[String(threadId)] : [];
+    } catch { return []; }
+  }
+
+  function toggleBookmark(threadId, messageId) {
+    try {
+      const s = loadSettings();
+      if (!s[BOOKMARKS_KEY]) s[BOOKMARKS_KEY] = {};
+      const key = String(threadId);
+      if (!Array.isArray(s[BOOKMARKS_KEY][key])) s[BOOKMARKS_KEY][key] = [];
+      const idx = s[BOOKMARKS_KEY][key].indexOf(messageId);
+      if (idx >= 0) {
+        s[BOOKMARKS_KEY][key].splice(idx, 1);
+      } else {
+        s[BOOKMARKS_KEY][key].push(messageId);
+      }
+      saveSettings(s);
+      return idx < 0; // true if added, false if removed
+    } catch { return false; }
+  }
+
+  function isBookmarked(threadId, messageId) {
+    return getBookmarks(threadId).includes(messageId);
+  }
+
+  function initBookmarks() {
+    if (initBookmarks._done) return;
+    initBookmarks._done = true;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    function addBookmarkButton(messageEl) {
+      if (!messageEl || messageEl.querySelector('.pf-bookmark-btn')) return;
+      if (messageEl.id.startsWith('typing-')) return;
+      if (messageEl.id === 'personality-selector-message') return;
+
+      const messageId = messageEl.id;
+      const threadId = window.currentChatId;
+      if (!messageId || !threadId) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-bookmark-btn';
+      btn.title = 'Bookmark this message';
+
+      function updateState() {
+        const bookmarked = isBookmarked(threadId, messageId);
+        btn.textContent = bookmarked ? '★' : '☆';
+        btn.classList.toggle('pf-bookmark-active', bookmarked);
+        messageEl.classList.toggle('pf-bookmarked', bookmarked);
+      }
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleBookmark(threadId, messageId);
+        updateState();
+      });
+
+      updateState();
+
+      // Insert into message controls area or at top-right of message
+      const controls = messageEl.querySelector('.pf-msg-ctrls');
+      if (controls) {
+        controls.insertBefore(btn, controls.firstChild);
+      } else {
+        btn.style.cssText = 'position:absolute;top:4px;right:4px;z-index:1;';
+        messageEl.style.position = 'relative';
+        messageEl.appendChild(btn);
+      }
+    }
+
+    // Process existing messages
+    chatEl.querySelectorAll('.message').forEach(addBookmarkButton);
+
+    // Watch for new messages
+    const observer = new MutationObserver(() => {
+      clearTimeout(addBookmarkButton._t);
+      addBookmarkButton._t = setTimeout(() => {
+        chatEl.querySelectorAll('.message').forEach(addBookmarkButton);
+      }, 300);
+    });
+    observer.observe(chatEl, { childList: true });
+
+    // ---- Bookmarks viewer (🔖 button) ----
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.className = 'pf-presets-btn';
+    viewBtn.textContent = '🔖';
+    viewBtn.title = 'View bookmarked messages';
+
+    viewBtn.addEventListener('click', () => {
+      const threadId = window.currentChatId;
+      if (!threadId) return;
+
+      const bookmarks = getBookmarks(threadId);
+      if (bookmarks.length === 0) {
+        if (typeof showToast === 'function') {
+          showToast('No bookmarks in this thread. Click ☆ on a message to bookmark it.');
+        }
+        return;
+      }
+
+      // Scroll to first bookmark and highlight all
+      for (const msgId of bookmarks) {
+        const el = document.getElementById(msgId);
+        if (el) {
+          el.classList.add('pf-bookmark-flash');
+          setTimeout(() => el.classList.remove('pf-bookmark-flash'), 2000);
+        }
+      }
+
+      // Scroll to the first bookmarked message
+      const first = document.getElementById(bookmarks[0]);
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(viewBtn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/dom_utils.js
+     ────────────────────────────────────────────────────────── */
+  // chat/dom_utils.js
+  //
+  // Common DOM lookup utilities for chat modules. Extracts the
+  // repeated querySelector patterns that appear 100+ times across
+  // the codebase into single-call helpers.
+  //
+  // These are lazy — they query the DOM each time, so they work
+  // even if the DOM isn't ready at module load time.
+
+  /**
+   * Find the chat input area's parent container.
+   * This is where tool buttons are typically appended.
+   */
+  function getChatInputParent() {
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    return inputArea ? (inputArea.parentElement || inputArea) : null;
+  }
+
+  /**
+   * Find the chat header (right side preferred).
+   * This is where header buttons are typically appended.
+   */
+  function getChatHeader() {
+    return document.querySelector('.chat-header-right') ||
+           document.querySelector('.chat-header') ||
+           null;
+  }
+
+  /**
+   * Find the chat messages container.
+   */
+  function getChatMessages() {
+    return document.getElementById('chatMessagesEl') || null;
+  }
+
+  /**
+   * Find the chat text input element.
+   */
+  function getChatInput() {
+    return document.querySelector('#messageInputEl') ||
+           document.querySelector('.chat-input textarea') ||
+           document.querySelector('textarea[placeholder]') ||
+           null;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -32565,97 +33175,32 @@ Use this template for your response:
         return original.apply(this, args);
       }
 
-      // ---- Dynamic glossary injection (Batch 2) ----
-      // If the call has a systemMessage (the main generation call),
-      // append the glossary block to it. buildGlossaryBlock() returns
-      // empty string if no glossary exists or no keywords match — so
-      // this is a no-op for users who haven't set up a glossary.
-      if (firstArg && typeof firstArg === 'object') {
-        try {
-          const glossaryBlock = buildGlossaryBlock();
-          if (glossaryBlock) {
-            // Clone the args to avoid mutating the caller's object
-            args[0] = { ...firstArg };
-            const existing = args[0].systemMessage || args[0].instruction || '';
-            if (args[0].systemMessage != null) {
-              args[0].systemMessage = existing + glossaryBlock;
-            } else if (args[0].instruction != null) {
-              args[0].instruction = existing + glossaryBlock;
-            }
-          }
-        } catch { /* non-fatal — generation proceeds without glossary */ }
-      }
+      // ---- Context injection (all sources) ----
+      // Each source returns a string block to append, or empty string.
+      // All use the same injection pattern: append to systemMessage or
+      // instruction. Refactored from 5 copy-pasted blocks into a loop.
+      const injectionSources = [
+        { name: 'glossary',       fn: typeof buildGlossaryBlock === 'function' ? buildGlossaryBlock : null },
+        { name: 'summary',        fn: typeof buildSummaryBlock === 'function' ? buildSummaryBlock : null },
+        { name: 'document',       fn: typeof buildDocumentBlock === 'function' ? buildDocumentBlock : null },
+        { name: 'anti-repetition',fn: typeof buildAntiRepetitionBlock === 'function' ? buildAntiRepetitionBlock : null },
+        { name: 'persona',        fn: typeof buildPersonaBlock === 'function' ? buildPersonaBlock : null },
+      ];
 
-      // ---- Auto-summary injection (Batch 2) ----
-      // Inject conversation summary for older messages if available.
-      // buildSummaryBlock() is in the same IIFE scope (auto_summary.js).
       if (firstArg && typeof firstArg === 'object') {
-        try {
-          const summaryBlock = buildSummaryBlock();
-          if (summaryBlock) {
+        for (const source of injectionSources) {
+          if (!source.fn) continue;
+          try {
+            const block = source.fn();
+            if (!block) continue;
+            // Clone args on first mutation to avoid mutating the caller's object
             if (args[0] === firstArg) args[0] = { ...firstArg };
-            const existing = args[0].systemMessage || args[0].instruction || '';
-            if (args[0].systemMessage != null) {
-              args[0].systemMessage = existing + summaryBlock;
-            } else if (args[0].instruction != null) {
-              args[0].instruction = existing + summaryBlock;
+            const target = args[0].systemMessage != null ? 'systemMessage' : 'instruction';
+            if (args[0][target] != null) {
+              args[0][target] = (args[0][target] || '') + block;
             }
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      // ---- Document context injection (Batch 6) ----
-      // Inject uploaded document content if present.
-      // buildDocumentBlock() is in the same IIFE scope (doc_analysis.js).
-      if (firstArg && typeof firstArg === 'object') {
-        try {
-          const docBlock = buildDocumentBlock();
-          if (docBlock) {
-            if (args[0] === firstArg) args[0] = { ...firstArg };
-            const existing = args[0].systemMessage || args[0].instruction || '';
-            if (args[0].systemMessage != null) {
-              args[0].systemMessage = existing + docBlock;
-            } else if (args[0].instruction != null) {
-              args[0].instruction = existing + docBlock;
-            }
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      // ---- Anti-repetition injection (Batch 8) ----
-      // Inject word banlists + auto-detected repetitions.
-      // buildAntiRepetitionBlock() is in the same IIFE scope.
-      if (firstArg && typeof firstArg === 'object') {
-        try {
-          const antiRepBlock = buildAntiRepetitionBlock();
-          if (antiRepBlock) {
-            if (args[0] === firstArg) args[0] = { ...firstArg };
-            const existing = args[0].systemMessage || args[0].instruction || '';
-            if (args[0].systemMessage != null) {
-              args[0].systemMessage = existing + antiRepBlock;
-            } else if (args[0].instruction != null) {
-              args[0].instruction = existing + antiRepBlock;
-            }
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      // ---- User persona injection (Batch 9) ----
-      // Inject the user's character info so the AI knows who it's talking to.
-      // buildPersonaBlock() is in the same IIFE scope (user_persona.js).
-      if (firstArg && typeof firstArg === 'object') {
-        try {
-          const personaBlock = buildPersonaBlock();
-          if (personaBlock) {
-            if (args[0] === firstArg) args[0] = { ...firstArg };
-            const existing = args[0].systemMessage || args[0].instruction || '';
-            if (args[0].systemMessage != null) {
-              args[0].systemMessage = existing + personaBlock;
-            } else if (args[0].instruction != null) {
-              args[0].instruction = existing + personaBlock;
-            }
-          }
-        } catch { /* non-fatal */ }
+          } catch { /* non-fatal — generation proceeds without this source */ }
+        }
       }
 
       // ---- Generation settings overrides (Batch 6) ----
@@ -36818,11 +37363,10 @@ Use this template for your response:
     return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
   }
 
-  // Export for use by profile/index.js at boot
-  if (typeof window !== 'undefined') {
-    window.__pf_applyThemeColors = applyThemeColorsLive;
-    window.__pf_themeDefaults = THEME_DEFAULTS;
-  }
+  // Expose for boot-time call from profile/index.js (same IIFE scope)
+  // No window global needed — direct function reference in shared scope.
+  // The function is exported so the bundler includes it; callers in
+  // the same IIFE can reference it directly by name.
 
   /* ──────────────────────────────────────────────────────────
      module: render/prompts_section.js
@@ -39720,6 +40264,21 @@ Use this template for your response:
     // Tools menu (MUST be last — collects all buttons injected above)
     try { initToolsMenu(); } catch { /* non-fatal */ }
 
+    // Context dashboard (shows what's injected into AI prompt)
+    try { initContextDashboard(); } catch { /* non-fatal */ }
+
+    // Recap — "Previously on..." narrative summary
+    try { initRecap(); } catch { /* non-fatal */ }
+
+    // Message bookmarks — star important messages
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initBookmarks();
+      } else {
+        setTimeout(() => { try { initBookmarks(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
     // Initial fetch
     await refresh(card);
 
@@ -39749,10 +40308,10 @@ Use this template for your response:
 
     // ---- Theme colors (custom background gradient) ----
     // Apply user's chosen primary/secondary background colors at boot.
-    // The pickers live in the Details form; this just applies persisted values.
+    // applyThemeColorsLive() is in the same IIFE scope (details_form.js).
     try {
-      if (typeof window.__pf_applyThemeColors === 'function') {
-        window.__pf_applyThemeColors();
+      if (typeof applyThemeColorsLive === 'function') {
+        applyThemeColorsLive();
       }
     } catch { /* non-fatal */ }
 

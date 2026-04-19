@@ -106,7 +106,7 @@ export function initAutoLorebook() {
 
         // Notify
         const count = deduped.split('\n').filter(l => l.includes('=')).length;
-        alert(`Glossary updated: ${count} entries. Open 📖 to review.`);
+        showToast(`Glossary updated: ${count} entries. Open 📖 to review.`);
       }
     } catch (e) {
       console.warn('[pf] auto-lorebook failed:', e && e.message);

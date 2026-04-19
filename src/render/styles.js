@@ -4399,6 +4399,134 @@ body.pf-light-theme .pf-glossary-textarea {
   left: auto;
 }
 
+/* ---- Context dashboard ---- */
+.pf-ctx-dashboard {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+  border: 1px solid rgba(212,168,85,0.15);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.pf-ctx-header {
+  margin-bottom: 6px;
+}
+.pf-ctx-title {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+}
+.pf-ctx-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pf-ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.4;
+}
+.pf-ctx-row-active {
+  opacity: 1;
+  background: rgba(212,168,85,0.04);
+}
+.pf-ctx-icon { font-size: 12px; width: 18px; text-align: center; flex-shrink: 0; }
+.pf-ctx-label {
+  font-weight: 500;
+  color: #e8dcc4;
+  min-width: 55px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+.pf-ctx-detail {
+  color: #8b95a3;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+.pf-ctx-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+}
+.pf-ctx-toggle:hover { opacity: 1; }
+
+/* ---- Recap message ---- */
+.pf-recap-message {
+  position: relative;
+  padding: 14px 16px;
+  margin: 8px 0;
+  background: linear-gradient(180deg, rgba(212,168,85,0.06) 0%, rgba(212,168,85,0.02) 100%);
+  border: 1px solid rgba(212,168,85,0.2);
+  border-radius: 10px;
+  border-left: 3px solid var(--pf-accent, #d4a855);
+}
+.pf-recap-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.pf-recap-content {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e8dcc4;
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.pf-recap-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #8b95a3;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.pf-recap-dismiss:hover { opacity: 1; }
+
+/* ---- Message bookmarks ---- */
+.pf-bookmark-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #8b95a3;
+  opacity: 0.3;
+  transition: opacity 0.15s, color 0.15s;
+  padding: 2px 4px;
+}
+.pf-bookmark-btn:hover { opacity: 0.8; }
+.pf-bookmark-active {
+  color: var(--pf-accent, #d4a855);
+  opacity: 1;
+}
+.pf-bookmarked {
+  border-left: 2px solid var(--pf-accent, #d4a855);
+}
+.pf-bookmark-flash {
+  animation: pf-bookmark-pulse 0.6s ease-out 3;
+}
+@keyframes pf-bookmark-pulse {
+  0%, 100% { background: transparent; }
+  50% { background: rgba(212,168,85,0.08); }
+}
+
 /* ---- Code syntax highlighting (Batch 3) ----
    Token colors for regex-based highlighting of code blocks.
    Designed for dark backgrounds matching upstream's code block style. */

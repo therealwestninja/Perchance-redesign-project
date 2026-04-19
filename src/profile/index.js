@@ -410,6 +410,21 @@ export async function start() {
   // Tools menu (MUST be last — collects all buttons injected above)
   try { initToolsMenu(); } catch { /* non-fatal */ }
 
+  // Context dashboard (shows what's injected into AI prompt)
+  try { initContextDashboard(); } catch { /* non-fatal */ }
+
+  // Recap — "Previously on..." narrative summary
+  try { initRecap(); } catch { /* non-fatal */ }
+
+  // Message bookmarks — star important messages
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initBookmarks();
+    } else {
+      setTimeout(() => { try { initBookmarks(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 
@@ -439,10 +454,10 @@ export async function start() {
 
   // ---- Theme colors (custom background gradient) ----
   // Apply user's chosen primary/secondary background colors at boot.
-  // The pickers live in the Details form; this just applies persisted values.
+  // applyThemeColorsLive() is in the same IIFE scope (details_form.js).
   try {
-    if (typeof window.__pf_applyThemeColors === 'function') {
-      window.__pf_applyThemeColors();
+    if (typeof applyThemeColorsLive === 'function') {
+      applyThemeColorsLive();
     }
   } catch { /* non-fatal */ }
 

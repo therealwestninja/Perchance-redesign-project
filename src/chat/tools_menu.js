@@ -113,7 +113,14 @@ function collectButtons() {
   trigger.type = 'button';
   trigger.className = 'pf-tools-trigger';
   trigger.title = `Tools (${allItems.length})`;
-  trigger.innerHTML = '<span class="pf-tools-trigger-icon">⚙</span><span class="pf-tools-trigger-label">Tools</span>';
+  const triggerIcon = document.createElement('span');
+  triggerIcon.className = 'pf-tools-trigger-icon';
+  triggerIcon.textContent = '⚙';
+  const triggerLabel = document.createElement('span');
+  triggerLabel.className = 'pf-tools-trigger-label';
+  triggerLabel.textContent = 'Tools';
+  trigger.appendChild(triggerIcon);
+  trigger.appendChild(triggerLabel);
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();

@@ -75,7 +75,11 @@ export function initCharBrowser() {
       : allChars;
 
     if (filtered.length === 0) {
-      grid.innerHTML = '<div style="opacity:0.5;text-align:center;padding:20px;">No characters found</div>';
+      const empty = document.createElement('div');
+      empty.style.cssText = 'opacity:0.5;text-align:center;padding:20px;';
+      empty.textContent = 'No characters found';
+      grid.innerHTML = '';
+      grid.appendChild(empty);
       return;
     }
 

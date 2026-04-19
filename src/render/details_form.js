@@ -484,8 +484,7 @@ function lightenHex(hex, amount) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
-// Export for use by profile/index.js at boot
-if (typeof window !== 'undefined') {
-  window.__pf_applyThemeColors = applyThemeColorsLive;
-  window.__pf_themeDefaults = THEME_DEFAULTS;
-}
+// Expose for boot-time call from profile/index.js (same IIFE scope)
+// No window global needed — direct function reference in shared scope.
+// The function is exported so the bundler includes it; callers in
+// the same IIFE can reference it directly by name.

@@ -66,7 +66,7 @@ export function initDiceRoller() {
   }
 }
 
-function parseAndRoll(command) {
+export function parseAndRoll(command) {
   // Parse: /roll 2d6+3, /roll d20, /roll 4d8-2
   const match = command.match(/\/roll\s+(\d*)d(\d+)([+-]\d+)?/i);
   if (!match) {

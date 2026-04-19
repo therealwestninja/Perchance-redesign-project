@@ -91,97 +91,32 @@ export function initStopGenerating() {
       return original.apply(this, args);
     }
 
-    // ---- Dynamic glossary injection (Batch 2) ----
-    // If the call has a systemMessage (the main generation call),
-    // append the glossary block to it. buildGlossaryBlock() returns
-    // empty string if no glossary exists or no keywords match — so
-    // this is a no-op for users who haven't set up a glossary.
-    if (firstArg && typeof firstArg === 'object') {
-      try {
-        const glossaryBlock = buildGlossaryBlock();
-        if (glossaryBlock) {
-          // Clone the args to avoid mutating the caller's object
-          args[0] = { ...firstArg };
-          const existing = args[0].systemMessage || args[0].instruction || '';
-          if (args[0].systemMessage != null) {
-            args[0].systemMessage = existing + glossaryBlock;
-          } else if (args[0].instruction != null) {
-            args[0].instruction = existing + glossaryBlock;
-          }
-        }
-      } catch { /* non-fatal — generation proceeds without glossary */ }
-    }
+    // ---- Context injection (all sources) ----
+    // Each source returns a string block to append, or empty string.
+    // All use the same injection pattern: append to systemMessage or
+    // instruction. Refactored from 5 copy-pasted blocks into a loop.
+    const injectionSources = [
+      { name: 'glossary',       fn: typeof buildGlossaryBlock === 'function' ? buildGlossaryBlock : null },
+      { name: 'summary',        fn: typeof buildSummaryBlock === 'function' ? buildSummaryBlock : null },
+      { name: 'document',       fn: typeof buildDocumentBlock === 'function' ? buildDocumentBlock : null },
+      { name: 'anti-repetition',fn: typeof buildAntiRepetitionBlock === 'function' ? buildAntiRepetitionBlock : null },
+      { name: 'persona',        fn: typeof buildPersonaBlock === 'function' ? buildPersonaBlock : null },
+    ];
 
-    // ---- Auto-summary injection (Batch 2) ----
-    // Inject conversation summary for older messages if available.
-    // buildSummaryBlock() is in the same IIFE scope (auto_summary.js).
     if (firstArg && typeof firstArg === 'object') {
-      try {
-        const summaryBlock = buildSummaryBlock();
-        if (summaryBlock) {
+      for (const source of injectionSources) {
+        if (!source.fn) continue;
+        try {
+          const block = source.fn();
+          if (!block) continue;
+          // Clone args on first mutation to avoid mutating the caller's object
           if (args[0] === firstArg) args[0] = { ...firstArg };
-          const existing = args[0].systemMessage || args[0].instruction || '';
-          if (args[0].systemMessage != null) {
-            args[0].systemMessage = existing + summaryBlock;
-          } else if (args[0].instruction != null) {
-            args[0].instruction = existing + summaryBlock;
+          const target = args[0].systemMessage != null ? 'systemMessage' : 'instruction';
+          if (args[0][target] != null) {
+            args[0][target] = (args[0][target] || '') + block;
           }
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    // ---- Document context injection (Batch 6) ----
-    // Inject uploaded document content if present.
-    // buildDocumentBlock() is in the same IIFE scope (doc_analysis.js).
-    if (firstArg && typeof firstArg === 'object') {
-      try {
-        const docBlock = buildDocumentBlock();
-        if (docBlock) {
-          if (args[0] === firstArg) args[0] = { ...firstArg };
-          const existing = args[0].systemMessage || args[0].instruction || '';
-          if (args[0].systemMessage != null) {
-            args[0].systemMessage = existing + docBlock;
-          } else if (args[0].instruction != null) {
-            args[0].instruction = existing + docBlock;
-          }
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    // ---- Anti-repetition injection (Batch 8) ----
-    // Inject word banlists + auto-detected repetitions.
-    // buildAntiRepetitionBlock() is in the same IIFE scope.
-    if (firstArg && typeof firstArg === 'object') {
-      try {
-        const antiRepBlock = buildAntiRepetitionBlock();
-        if (antiRepBlock) {
-          if (args[0] === firstArg) args[0] = { ...firstArg };
-          const existing = args[0].systemMessage || args[0].instruction || '';
-          if (args[0].systemMessage != null) {
-            args[0].systemMessage = existing + antiRepBlock;
-          } else if (args[0].instruction != null) {
-            args[0].instruction = existing + antiRepBlock;
-          }
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    // ---- User persona injection (Batch 9) ----
-    // Inject the user's character info so the AI knows who it's talking to.
-    // buildPersonaBlock() is in the same IIFE scope (user_persona.js).
-    if (firstArg && typeof firstArg === 'object') {
-      try {
-        const personaBlock = buildPersonaBlock();
-        if (personaBlock) {
-          if (args[0] === firstArg) args[0] = { ...firstArg };
-          const existing = args[0].systemMessage || args[0].instruction || '';
-          if (args[0].systemMessage != null) {
-            args[0].systemMessage = existing + personaBlock;
-          } else if (args[0].instruction != null) {
-            args[0].instruction = existing + personaBlock;
-          }
-        }
-      } catch { /* non-fatal */ }
+        } catch { /* non-fatal — generation proceeds without this source */ }
+      }
     }
 
     // ---- Generation settings overrides (Batch 6) ----
