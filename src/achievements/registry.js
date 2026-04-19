@@ -15,6 +15,9 @@
 //   - Removing an achievement is fine — users with it unlocked will just no longer see it.
 //   - Keep criteria pure and cheap. They run on every stats recompute.
 
+/** Read a counter value safely from the stats bundle. */
+function cnt(s, k) { return Number((s && s.counters && s.counters[k]) || 0); }
+
 export const ACHIEVEMENTS = Object.freeze([
   // --- First-time milestones ---
   {
@@ -470,6 +473,139 @@ export const ACHIEVEMENTS = Object.freeze([
     description: 'Complete 150 prompts in a single category.',
     tier: 'legendary',
     criteria: (s) => peakCategoryCount(s) >= 150,
+  },
+
+  // --- Tool usage (leveraging new chat modules) ---
+  {
+    id: 'identity_forged',
+    name: 'Identity Forged',
+    description: 'Set up your character persona.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'personaEdits') >= 1,
+  },
+  {
+    id: 'glossary_scholar',
+    name: 'Glossary Scholar',
+    description: 'Edit the dynamic glossary 5 times.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'glossaryEdits') >= 5,
+  },
+  {
+    id: 'lore_keeper',
+    name: 'Lore Keeper',
+    description: 'Use the auto-lorebook to generate world info.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'autoLorebookUses') >= 1,
+  },
+  {
+    id: 'dice_roller',
+    name: 'Dice Roller',
+    description: 'Roll dice 10 times. May the odds be in your favor.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'diceRolls') >= 10,
+  },
+  {
+    id: 'fate_weaver',
+    name: 'Fate Weaver',
+    description: 'Roll dice 100 times.',
+    tier: 'rare',
+    criteria: (s) => cnt(s, 'diceRolls') >= 100,
+  },
+  {
+    id: 'archivist',
+    name: 'Archivist',
+    description: 'Export a backup of your data.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'backupsExported') >= 1,
+  },
+  {
+    id: 'bookworm',
+    name: 'Bookworm',
+    description: 'Bookmark 5 messages.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'bookmarksSet') >= 5,
+  },
+  {
+    id: 'previously_on',
+    name: 'Previously On…',
+    description: 'Use the recap feature to catch up on a conversation.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'recapUses') >= 1,
+  },
+  {
+    id: 'word_guard',
+    name: 'Word Guard',
+    description: 'Set up an anti-repetition banlist.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'banlistEdits') >= 1,
+  },
+  {
+    id: 'voice_actor',
+    name: 'Voice Actor',
+    description: 'Use voice input to dictate a message.',
+    tier: 'uncommon',
+    criteria: (s) => cnt(s, 'voiceInputs') >= 1,
+  },
+  {
+    id: 'research_assistant',
+    name: 'Research Assistant',
+    description: 'Upload a document to chat about.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'documentUploads') >= 1,
+  },
+  {
+    id: 'memory_architect',
+    name: 'Memory Architect',
+    description: 'Save 5 memory snapshots.',
+    tier: 'rare',
+    criteria: (s) => cnt(s, 'snapshotsRestored') >= 5,
+  },
+  {
+    id: 'hundred_threads',
+    name: 'Thread Collector',
+    description: 'Create 100 chat threads.',
+    tier: 'rare',
+    criteria: (s) => (s.threadCount || 0) >= 100,
+  },
+  {
+    id: 'tool_explorer',
+    name: 'Tool Explorer',
+    description: 'Use 5 different tools (glossary, dice, recap, persona, voice...).',
+    tier: 'uncommon',
+    criteria: (s) => {
+      let count = 0;
+      if (cnt(s, 'glossaryEdits') > 0) count++;
+      if (cnt(s, 'diceRolls') > 0) count++;
+      if (cnt(s, 'recapUses') > 0) count++;
+      if (cnt(s, 'personaEdits') > 0) count++;
+      if (cnt(s, 'voiceInputs') > 0) count++;
+      if (cnt(s, 'autoLorebookUses') > 0) count++;
+      if (cnt(s, 'banlistEdits') > 0) count++;
+      if (cnt(s, 'documentUploads') > 0) count++;
+      if (cnt(s, 'bookmarksSet') > 0) count++;
+      if (cnt(s, 'memorySaves') > 0) count++;
+      return count >= 5;
+    },
+  },
+  {
+    id: 'tool_master',
+    name: 'Tool Master',
+    description: 'Use 8 different tools.',
+    tier: 'epic',
+    criteria: (s) => {
+      let count = 0;
+      if (cnt(s, 'glossaryEdits') > 0) count++;
+      if (cnt(s, 'diceRolls') > 0) count++;
+      if (cnt(s, 'recapUses') > 0) count++;
+      if (cnt(s, 'personaEdits') > 0) count++;
+      if (cnt(s, 'voiceInputs') > 0) count++;
+      if (cnt(s, 'autoLorebookUses') > 0) count++;
+      if (cnt(s, 'banlistEdits') > 0) count++;
+      if (cnt(s, 'documentUploads') > 0) count++;
+      if (cnt(s, 'bookmarksSet') > 0) count++;
+      if (cnt(s, 'memorySaves') > 0) count++;
+      return count >= 8;
+    },
   },
 ]);
 

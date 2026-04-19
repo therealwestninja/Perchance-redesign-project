@@ -22,90 +22,106 @@ export function initToolsMenu() {
 }
 
 function collectButtons() {
-  // ---- Gather input-area tool buttons ----
   const inputArea = document.getElementById('chatInputEl') ||
                     document.getElementById('inputBarEl') ||
                     document.querySelector('.chat-input-container') ||
                     document.querySelector('.input-bar');
   const inputParent = inputArea ? (inputArea.parentElement || inputArea) : null;
 
-  // ---- Gather header tool buttons ----
   const header = document.querySelector('.chat-header-right') ||
                  document.querySelector('.chat-header');
 
   if (!inputParent && !header) return;
 
-  // Collect buttons from both areas
-  const inputBtns = inputParent
-    ? Array.from(inputParent.querySelectorAll('.pf-presets-btn, .pf-export-btn'))
-        .filter(b => !b.classList.contains('pf-stop-gen-btn') &&
-                     !b.classList.contains('pf-tools-trigger'))
-    : [];
+  // Collect all tool buttons from both areas
+  const allItems = [];
+  const seen = new Set();
 
-  const headerBtns = header
-    ? Array.from(header.querySelectorAll('.pf-export-btn, .pf-presets-btn'))
-        .filter(b => !b.classList.contains('pf-tools-trigger'))
-    : [];
+  function gather(parent) {
+    if (!parent) return;
+    const btns = parent.querySelectorAll('.pf-presets-btn, .pf-export-btn, .pf-presets-container');
+    for (const b of btns) {
+      if (b.classList.contains('pf-stop-gen-btn') || b.classList.contains('pf-tools-trigger')) continue;
+      if (seen.has(b)) continue;
+      seen.add(b);
+      allItems.push(b);
+    }
+  }
+  gather(inputParent);
+  gather(header);
 
-  // Also collect any presets containers (dropdown wrappers)
-  const inputContainers = inputParent
-    ? Array.from(inputParent.querySelectorAll('.pf-presets-container'))
-    : [];
-  const headerContainers = header
-    ? Array.from(header.querySelectorAll('.pf-presets-container'))
-    : [];
-
-  const allItems = [
-    ...inputBtns,
-    ...inputContainers,
-    ...headerBtns,
-    ...headerContainers,
-  ];
-
-  // If fewer than 4 buttons, not worth consolidating
   if (allItems.length < 4) return;
 
-  // ---- Build the popup grid ----
-  const grid = document.createElement('div');
-  grid.className = 'pf-tools-grid';
+  // Categorize by title/content
+  const CATEGORIES = [
+    { label: 'AI', match: t => /writer|impersonate|narrate|enhance|recap|✍|🎬|✨|📜/i.test(t) },
+    { label: 'Context', match: t => /glossary|banlist|reminder|persona|context.*editor|📖|🚫|📌|👤|📝/i.test(t) },
+    { label: 'World', match: t => /dice|document|lorebook|🎲|📎|🔮/i.test(t) },
+    { label: 'Chat', match: t => /export|archive|bookmark|search|⬇|📥|🔖|☐/i.test(t) },
+    { label: 'View', match: t => /theme|font|fullscreen|background|reasoning|token|☀|🌙|Aa|⛶|🏞|🧠|💭/i.test(t) },
+    { label: 'Characters', match: t => /character|browse|card|import|👥|🃏/i.test(t) },
+  ];
 
-  // ---- Build the popup ----
+  function categorize(item) {
+    const text = (item.title || '') + ' ' + (item.textContent || '');
+    for (const cat of CATEGORIES) {
+      if (cat.match(text)) return cat.label;
+    }
+    return 'Other';
+  }
+
+  // Group items
+  const groups = {};
+  for (const item of allItems) {
+    const cat = categorize(item);
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  }
+
+  // ---- Build popup ----
   const popup = document.createElement('div');
   popup.className = 'pf-tools-popup';
   popup.hidden = true;
 
-  // Header label
   const popupLabel = document.createElement('div');
   popupLabel.className = 'pf-tools-popup-label';
   popupLabel.textContent = 'TOOLS';
   popup.appendChild(popupLabel);
-  popup.appendChild(grid);
 
-  // Move buttons into the grid
-  for (const item of allItems) {
-    // Create a grid cell wrapper
-    const cell = document.createElement('div');
-    cell.className = 'pf-tools-cell';
-    cell.title = item.title || '';
+  // Render each category
+  const categoryOrder = ['AI', 'Context', 'World', 'Chat', 'Characters', 'View', 'Other'];
+  for (const catName of categoryOrder) {
+    const items = groups[catName];
+    if (!items || items.length === 0) continue;
 
-    // Move the element into the cell
-    item.parentElement.removeChild(item);
+    const section = document.createElement('div');
+    section.className = 'pf-tools-section';
 
-    // For container wrappers (like presets dropdown), extract just the trigger button
-    if (item.classList.contains('pf-presets-container')) {
-      const innerBtn = item.querySelector('.pf-presets-btn, .pf-export-btn');
-      if (innerBtn) {
-        cell.appendChild(item); // keep the whole container for dropdown behavior
+    const sectionLabel = document.createElement('div');
+    sectionLabel.className = 'pf-tools-section-label';
+    sectionLabel.textContent = catName;
+    section.appendChild(sectionLabel);
+
+    const grid = document.createElement('div');
+    grid.className = 'pf-tools-grid';
+
+    for (const item of items) {
+      const cell = document.createElement('div');
+      cell.className = 'pf-tools-cell';
+      cell.title = item.title || '';
+      item.parentElement.removeChild(item);
+
+      if (item.classList.contains('pf-presets-container')) {
+        cell.appendChild(item);
       } else {
+        item.classList.add('pf-tools-item');
         cell.appendChild(item);
       }
-    } else {
-      // Strip existing classes and re-style for grid
-      item.classList.add('pf-tools-item');
-      cell.appendChild(item);
+      grid.appendChild(cell);
     }
 
-    grid.appendChild(cell);
+    section.appendChild(grid);
+    popup.appendChild(section);
   }
 
   // ---- Trigger button ----

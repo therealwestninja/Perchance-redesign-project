@@ -4355,6 +4355,18 @@ body.pf-light-theme .pf-glossary-textarea {
   margin-bottom: 8px;
   padding: 0 2px;
 }
+.pf-tools-section {
+  margin-bottom: 6px;
+}
+.pf-tools-section-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8b95a3;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
 .pf-tools-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
@@ -4525,6 +4537,78 @@ body.pf-light-theme .pf-glossary-textarea {
 @keyframes pf-bookmark-pulse {
   0%, 100% { background: transparent; }
   50% { background: rgba(212,168,85,0.08); }
+}
+
+/* ---- AI Writer dropdown ---- */
+.pf-aiw-dropdown {
+  min-width: 200px;
+}
+.pf-aiw-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+}
+.pf-aiw-mode-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+.pf-aiw-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pf-aiw-mode-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e8dcc4;
+}
+.pf-aiw-mode-desc {
+  font-size: 10px;
+  color: #8b95a3;
+}
+
+/* ---- Context Editor tabs ---- */
+.pf-cxe-tabbar {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(212,168,85,0.15);
+  padding-bottom: 8px;
+}
+.pf-cxe-tab {
+  flex: 1;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid rgba(212,168,85,0.12);
+  border-radius: 6px;
+  color: #8b95a3;
+  cursor: pointer;
+  font-size: 16px;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.pf-cxe-tab:hover {
+  background: rgba(212,168,85,0.06);
+  color: #e8dcc4;
+}
+.pf-cxe-tab-active {
+  background: rgba(212,168,85,0.1);
+  border-color: rgba(212,168,85,0.4);
+  color: var(--pf-accent, #d4a855);
+}
+.pf-cxe-content {
+  flex: 1;
+  min-height: 0;
+}
+.pf-cxe-persona-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 /* ---- Code syntax highlighting (Batch 3) ----

@@ -66,6 +66,12 @@ export const CATEGORIES = Object.freeze([
     icon: '🎉',
     description: 'Holiday and event participation.',
   },
+  {
+    id: 'tools',
+    label: 'Tools',
+    icon: '🔧',
+    description: 'Chat tool usage: glossary, dice, voice, bookmarks, and more.',
+  },
 ]);
 
 // Rules for sorting each achievement into exactly one category. Order
@@ -104,6 +110,12 @@ const RULES = [
   { cat: 'creation',     match: id => id.startsWith('demiurge_') },
   { cat: 'events',       match: id => (
     id.startsWith('celebrant_') || id === 'year_round_reveler'
+  )},
+  { cat: 'tools',        match: id => (
+    ['identity_forged', 'glossary_scholar', 'lore_keeper', 'dice_roller',
+     'fate_weaver', 'archivist', 'bookworm', 'previously_on', 'word_guard',
+     'voice_actor', 'research_assistant', 'memory_architect',
+     'hundred_threads', 'tool_explorer', 'tool_master'].includes(id)
   )},
 ];
 

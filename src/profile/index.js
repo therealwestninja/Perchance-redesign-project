@@ -407,6 +407,19 @@ export async function start() {
   // Voice I/O (Batch 3) — mic + speaker buttons
   try { initVoice(); } catch { /* non-fatal */ }
 
+  // Combined tools — unified entry points for grouped features
+  // AI Writer: impersonate + narrate + enhance + recap in one dropdown
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initAiWriter();
+    } else {
+      setTimeout(() => { try { initAiWriter(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Context Editor: glossary + banlist + reminder + persona in tabbed modal
+  try { initContextEditor(); } catch { /* non-fatal */ }
+
   // Tools menu (MUST be last — collects all buttons injected above)
   try { initToolsMenu(); } catch { /* non-fatal */ }
 

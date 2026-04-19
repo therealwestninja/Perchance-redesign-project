@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 116 };
+  NS.__meta = { modules: 118 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -14479,6 +14479,9 @@ Use this template for your response:
   //   - Removing an achievement is fine — users with it unlocked will just no longer see it.
   //   - Keep criteria pure and cheap. They run on every stats recompute.
 
+  /** Read a counter value safely from the stats bundle. */
+  function cnt(s, k) { return Number((s && s.counters && s.counters[k]) || 0); }
+
   const ACHIEVEMENTS = Object.freeze([
     // --- First-time milestones ---
     {
@@ -14935,6 +14938,139 @@ Use this template for your response:
       tier: 'legendary',
       criteria: (s) => peakCategoryCount(s) >= 150,
     },
+
+    // --- Tool usage (leveraging new chat modules) ---
+    {
+      id: 'identity_forged',
+      name: 'Identity Forged',
+      description: 'Set up your character persona.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'personaEdits') >= 1,
+    },
+    {
+      id: 'glossary_scholar',
+      name: 'Glossary Scholar',
+      description: 'Edit the dynamic glossary 5 times.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'glossaryEdits') >= 5,
+    },
+    {
+      id: 'lore_keeper',
+      name: 'Lore Keeper',
+      description: 'Use the auto-lorebook to generate world info.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'autoLorebookUses') >= 1,
+    },
+    {
+      id: 'dice_roller',
+      name: 'Dice Roller',
+      description: 'Roll dice 10 times. May the odds be in your favor.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'diceRolls') >= 10,
+    },
+    {
+      id: 'fate_weaver',
+      name: 'Fate Weaver',
+      description: 'Roll dice 100 times.',
+      tier: 'rare',
+      criteria: (s) => cnt(s, 'diceRolls') >= 100,
+    },
+    {
+      id: 'archivist',
+      name: 'Archivist',
+      description: 'Export a backup of your data.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'backupsExported') >= 1,
+    },
+    {
+      id: 'bookworm',
+      name: 'Bookworm',
+      description: 'Bookmark 5 messages.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'bookmarksSet') >= 5,
+    },
+    {
+      id: 'previously_on',
+      name: 'Previously On…',
+      description: 'Use the recap feature to catch up on a conversation.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'recapUses') >= 1,
+    },
+    {
+      id: 'word_guard',
+      name: 'Word Guard',
+      description: 'Set up an anti-repetition banlist.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'banlistEdits') >= 1,
+    },
+    {
+      id: 'voice_actor',
+      name: 'Voice Actor',
+      description: 'Use voice input to dictate a message.',
+      tier: 'uncommon',
+      criteria: (s) => cnt(s, 'voiceInputs') >= 1,
+    },
+    {
+      id: 'research_assistant',
+      name: 'Research Assistant',
+      description: 'Upload a document to chat about.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'documentUploads') >= 1,
+    },
+    {
+      id: 'memory_architect',
+      name: 'Memory Architect',
+      description: 'Save 5 memory snapshots.',
+      tier: 'rare',
+      criteria: (s) => cnt(s, 'snapshotsRestored') >= 5,
+    },
+    {
+      id: 'hundred_threads',
+      name: 'Thread Collector',
+      description: 'Create 100 chat threads.',
+      tier: 'rare',
+      criteria: (s) => (s.threadCount || 0) >= 100,
+    },
+    {
+      id: 'tool_explorer',
+      name: 'Tool Explorer',
+      description: 'Use 5 different tools (glossary, dice, recap, persona, voice...).',
+      tier: 'uncommon',
+      criteria: (s) => {
+        let count = 0;
+        if (cnt(s, 'glossaryEdits') > 0) count++;
+        if (cnt(s, 'diceRolls') > 0) count++;
+        if (cnt(s, 'recapUses') > 0) count++;
+        if (cnt(s, 'personaEdits') > 0) count++;
+        if (cnt(s, 'voiceInputs') > 0) count++;
+        if (cnt(s, 'autoLorebookUses') > 0) count++;
+        if (cnt(s, 'banlistEdits') > 0) count++;
+        if (cnt(s, 'documentUploads') > 0) count++;
+        if (cnt(s, 'bookmarksSet') > 0) count++;
+        if (cnt(s, 'memorySaves') > 0) count++;
+        return count >= 5;
+      },
+    },
+    {
+      id: 'tool_master',
+      name: 'Tool Master',
+      description: 'Use 8 different tools.',
+      tier: 'epic',
+      criteria: (s) => {
+        let count = 0;
+        if (cnt(s, 'glossaryEdits') > 0) count++;
+        if (cnt(s, 'diceRolls') > 0) count++;
+        if (cnt(s, 'recapUses') > 0) count++;
+        if (cnt(s, 'personaEdits') > 0) count++;
+        if (cnt(s, 'voiceInputs') > 0) count++;
+        if (cnt(s, 'autoLorebookUses') > 0) count++;
+        if (cnt(s, 'banlistEdits') > 0) count++;
+        if (cnt(s, 'documentUploads') > 0) count++;
+        if (cnt(s, 'bookmarksSet') > 0) count++;
+        if (cnt(s, 'memorySaves') > 0) count++;
+        return count >= 8;
+      },
+    },
   ]);
 
   /**
@@ -15092,6 +15228,12 @@ Use this template for your response:
       icon: '🎉',
       description: 'Holiday and event participation.',
     },
+    {
+      id: 'tools',
+      label: 'Tools',
+      icon: '🔧',
+      description: 'Chat tool usage: glossary, dice, voice, bookmarks, and more.',
+    },
   ]);
 
   // Rules for sorting each achievement into exactly one category. Order
@@ -15130,6 +15272,12 @@ Use this template for your response:
     { cat: 'creation',     match: id => id.startsWith('demiurge_') },
     { cat: 'events',       match: id => (
       id.startsWith('celebrant_') || id === 'year_round_reveler'
+    )},
+    { cat: 'tools',        match: id => (
+      ['identity_forged', 'glossary_scholar', 'lore_keeper', 'dice_roller',
+       'fate_weaver', 'archivist', 'bookworm', 'previously_on', 'word_guard',
+       'voice_actor', 'research_assistant', 'memory_architect',
+       'hundred_threads', 'tool_explorer', 'tool_master'].includes(id)
     )},
   ];
 
@@ -24496,6 +24644,18 @@ Use this template for your response:
     margin-bottom: 8px;
     padding: 0 2px;
   }
+  .pf-tools-section {
+    margin-bottom: 6px;
+  }
+  .pf-tools-section-label {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    margin-bottom: 4px;
+    padding: 0 2px;
+  }
   .pf-tools-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
@@ -24666,6 +24826,78 @@ Use this template for your response:
   @keyframes pf-bookmark-pulse {
     0%, 100% { background: transparent; }
     50% { background: rgba(212,168,85,0.08); }
+  }
+
+  /* ---- AI Writer dropdown ---- */
+  .pf-aiw-dropdown {
+    min-width: 200px;
+  }
+  .pf-aiw-mode {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+  }
+  .pf-aiw-mode-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+  }
+  .pf-aiw-mode-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .pf-aiw-mode-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #e8dcc4;
+  }
+  .pf-aiw-mode-desc {
+    font-size: 10px;
+    color: #8b95a3;
+  }
+
+  /* ---- Context Editor tabs ---- */
+  .pf-cxe-tabbar {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(212,168,85,0.15);
+    padding-bottom: 8px;
+  }
+  .pf-cxe-tab {
+    flex: 1;
+    padding: 6px 8px;
+    background: transparent;
+    border: 1px solid rgba(212,168,85,0.12);
+    border-radius: 6px;
+    color: #8b95a3;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .pf-cxe-tab:hover {
+    background: rgba(212,168,85,0.06);
+    color: #e8dcc4;
+  }
+  .pf-cxe-tab-active {
+    background: rgba(212,168,85,0.1);
+    border-color: rgba(212,168,85,0.4);
+    color: var(--pf-accent, #d4a855);
+  }
+  .pf-cxe-content {
+    flex: 1;
+    min-height: 0;
+  }
+  .pf-cxe-persona-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   /* ---- Code syntax highlighting (Batch 3) ----
@@ -28684,6 +28916,7 @@ Use this template for your response:
       const threadId = window.currentChatId;
       if (threadId != null) {
         saveGlossary(threadId, textarea.value);
+        try { bumpCounter("glossaryEdits"); } catch {}
       }
       close();
     });
@@ -31190,6 +31423,7 @@ Use this template for your response:
         const text = await file.text();
         activeDocContent = text;
         activeDocName = file.name;
+        try { bumpCounter("documentUploads"); } catch {}
         status.textContent = `📄 ${file.name} (${Math.round(text.length / 1000)}k chars)`;
         status.hidden = false;
         btn.textContent = '📄';
@@ -31376,6 +31610,7 @@ Use this template for your response:
     saveBtn.addEventListener('click', () => {
       const threadId = window.currentChatId;
       if (threadId != null) saveBanlist(threadId, textarea.value);
+      try { bumpCounter("banlistEdits"); } catch {}
       close();
     });
 
@@ -31453,6 +31688,7 @@ Use this template for your response:
         e.stopPropagation();
 
         const result = parseAndRoll(val);
+        try { bumpCounter("diceRolls"); } catch {}
         inputEl.value = result;
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -31492,6 +31728,7 @@ Use this template for your response:
   }
 
   function parseAndRoll(command) {
+        try { bumpCounter("diceRolls"); } catch {}
     // Parse: /roll 2d6+3, /roll d20, /roll 4d8-2
     const match = command.match(/\/roll\s+(\d*)d(\d+)([+-]\d+)?/i);
     if (!match) {
@@ -31698,6 +31935,7 @@ Use this template for your response:
 
           // Notify
           const count = deduped.split('\n').filter(l => l.includes('=')).length;
+          try { bumpCounter("autoLorebookUses"); } catch {}
           showToast(`Glossary updated: ${count} entries. Open 📖 to review.`);
         }
       } catch (e) {
@@ -31817,6 +32055,7 @@ Use this template for your response:
     saveBtn.textContent = 'Save';
     saveBtn.className = 'pf-glossary-save';
     saveBtn.addEventListener('click', () => {
+      try { bumpCounter("personaEdits"); } catch {}
       setPersona({
         name: nameInput.value.trim(),
         description: descInput.value.trim(),
@@ -32077,90 +32316,106 @@ Use this template for your response:
   }
 
   function collectButtons() {
-    // ---- Gather input-area tool buttons ----
     const inputArea = document.getElementById('chatInputEl') ||
                       document.getElementById('inputBarEl') ||
                       document.querySelector('.chat-input-container') ||
                       document.querySelector('.input-bar');
     const inputParent = inputArea ? (inputArea.parentElement || inputArea) : null;
 
-    // ---- Gather header tool buttons ----
     const header = document.querySelector('.chat-header-right') ||
                    document.querySelector('.chat-header');
 
     if (!inputParent && !header) return;
 
-    // Collect buttons from both areas
-    const inputBtns = inputParent
-      ? Array.from(inputParent.querySelectorAll('.pf-presets-btn, .pf-export-btn'))
-          .filter(b => !b.classList.contains('pf-stop-gen-btn') &&
-                       !b.classList.contains('pf-tools-trigger'))
-      : [];
+    // Collect all tool buttons from both areas
+    const allItems = [];
+    const seen = new Set();
 
-    const headerBtns = header
-      ? Array.from(header.querySelectorAll('.pf-export-btn, .pf-presets-btn'))
-          .filter(b => !b.classList.contains('pf-tools-trigger'))
-      : [];
+    function gather(parent) {
+      if (!parent) return;
+      const btns = parent.querySelectorAll('.pf-presets-btn, .pf-export-btn, .pf-presets-container');
+      for (const b of btns) {
+        if (b.classList.contains('pf-stop-gen-btn') || b.classList.contains('pf-tools-trigger')) continue;
+        if (seen.has(b)) continue;
+        seen.add(b);
+        allItems.push(b);
+      }
+    }
+    gather(inputParent);
+    gather(header);
 
-    // Also collect any presets containers (dropdown wrappers)
-    const inputContainers = inputParent
-      ? Array.from(inputParent.querySelectorAll('.pf-presets-container'))
-      : [];
-    const headerContainers = header
-      ? Array.from(header.querySelectorAll('.pf-presets-container'))
-      : [];
-
-    const allItems = [
-      ...inputBtns,
-      ...inputContainers,
-      ...headerBtns,
-      ...headerContainers,
-    ];
-
-    // If fewer than 4 buttons, not worth consolidating
     if (allItems.length < 4) return;
 
-    // ---- Build the popup grid ----
-    const grid = document.createElement('div');
-    grid.className = 'pf-tools-grid';
+    // Categorize by title/content
+    const CATEGORIES = [
+      { label: 'AI', match: t => /writer|impersonate|narrate|enhance|recap|✍|🎬|✨|📜/i.test(t) },
+      { label: 'Context', match: t => /glossary|banlist|reminder|persona|context.*editor|📖|🚫|📌|👤|📝/i.test(t) },
+      { label: 'World', match: t => /dice|document|lorebook|🎲|📎|🔮/i.test(t) },
+      { label: 'Chat', match: t => /export|archive|bookmark|search|⬇|📥|🔖|☐/i.test(t) },
+      { label: 'View', match: t => /theme|font|fullscreen|background|reasoning|token|☀|🌙|Aa|⛶|🏞|🧠|💭/i.test(t) },
+      { label: 'Characters', match: t => /character|browse|card|import|👥|🃏/i.test(t) },
+    ];
 
-    // ---- Build the popup ----
+    function categorize(item) {
+      const text = (item.title || '') + ' ' + (item.textContent || '');
+      for (const cat of CATEGORIES) {
+        if (cat.match(text)) return cat.label;
+      }
+      return 'Other';
+    }
+
+    // Group items
+    const groups = {};
+    for (const item of allItems) {
+      const cat = categorize(item);
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    }
+
+    // ---- Build popup ----
     const popup = document.createElement('div');
     popup.className = 'pf-tools-popup';
     popup.hidden = true;
 
-    // Header label
     const popupLabel = document.createElement('div');
     popupLabel.className = 'pf-tools-popup-label';
     popupLabel.textContent = 'TOOLS';
     popup.appendChild(popupLabel);
-    popup.appendChild(grid);
 
-    // Move buttons into the grid
-    for (const item of allItems) {
-      // Create a grid cell wrapper
-      const cell = document.createElement('div');
-      cell.className = 'pf-tools-cell';
-      cell.title = item.title || '';
+    // Render each category
+    const categoryOrder = ['AI', 'Context', 'World', 'Chat', 'Characters', 'View', 'Other'];
+    for (const catName of categoryOrder) {
+      const items = groups[catName];
+      if (!items || items.length === 0) continue;
 
-      // Move the element into the cell
-      item.parentElement.removeChild(item);
+      const section = document.createElement('div');
+      section.className = 'pf-tools-section';
 
-      // For container wrappers (like presets dropdown), extract just the trigger button
-      if (item.classList.contains('pf-presets-container')) {
-        const innerBtn = item.querySelector('.pf-presets-btn, .pf-export-btn');
-        if (innerBtn) {
-          cell.appendChild(item); // keep the whole container for dropdown behavior
+      const sectionLabel = document.createElement('div');
+      sectionLabel.className = 'pf-tools-section-label';
+      sectionLabel.textContent = catName;
+      section.appendChild(sectionLabel);
+
+      const grid = document.createElement('div');
+      grid.className = 'pf-tools-grid';
+
+      for (const item of items) {
+        const cell = document.createElement('div');
+        cell.className = 'pf-tools-cell';
+        cell.title = item.title || '';
+        item.parentElement.removeChild(item);
+
+        if (item.classList.contains('pf-presets-container')) {
+          cell.appendChild(item);
         } else {
+          item.classList.add('pf-tools-item');
           cell.appendChild(item);
         }
-      } else {
-        // Strip existing classes and re-style for grid
-        item.classList.add('pf-tools-item');
-        cell.appendChild(item);
+        grid.appendChild(cell);
       }
 
-      grid.appendChild(cell);
+      section.appendChild(grid);
+      popup.appendChild(section);
     }
 
     // ---- Trigger button ----
@@ -32427,6 +32682,7 @@ Use this template for your response:
 
         const recap = (result && result.text) ? result.text.trim() : '';
         if (recap) {
+          try { bumpCounter("recapUses"); } catch {}
           insertRecapMessage(recap);
         }
       } catch (e) {
@@ -32504,6 +32760,7 @@ Use this template for your response:
   }
 
   function toggleBookmark(threadId, messageId) {
+        try { bumpCounter("bookmarksSet"); } catch {}
     try {
       const s = loadSettings();
       if (!s[BOOKMARKS_KEY]) s[BOOKMARKS_KEY] = {};
@@ -32555,6 +32812,7 @@ Use this template for your response:
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleBookmark(threadId, messageId);
+        try { bumpCounter("bookmarksSet"); } catch {}
         updateState();
       });
 
@@ -32674,6 +32932,487 @@ Use this template for your response:
            document.querySelector('.chat-input textarea') ||
            document.querySelector('textarea[placeholder]') ||
            null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/ai_writer.js
+     ────────────────────────────────────────────────────────── */
+  // chat/ai_writer.js
+  //
+  // Unified AI Writer tool — combines four "click → AI generates text"
+  // tools into a single button with a mode picker:
+  //
+  //   ✍  Impersonate — AI writes as your character
+  //   🎬 Narrate     — AI generates scene narration
+  //   ✨ Enhance     — AI rewrites your message with more detail
+  //   📜 Recap       — "Previously on..." conversation summary
+  //
+  // Each mode shares the same UX: click → loading → result inserted.
+  // The old standalone modules still exist and can init independently,
+  // but this provides a cleaner single-entry-point for the tools menu.
+  //
+  // Bootstrap: call initAiWriter() from start(). Idempotent.
+
+  function initAiWriter() {
+    if (initAiWriter._done) return;
+    initAiWriter._done = true;
+
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    const inputEl = document.querySelector('#messageInputEl') ||
+                    document.querySelector('.chat-input textarea') ||
+                    document.querySelector('textarea[placeholder]');
+    if (!chatEl) return;
+
+    const MODES = [
+      { id: 'impersonate', icon: '✍', label: 'Impersonate', desc: 'AI writes as you' },
+      { id: 'narrate',     icon: '🎬', label: 'Narrate',     desc: 'Scene narration' },
+      { id: 'enhance',     icon: '✨', label: 'Enhance',     desc: 'Rewrite with detail' },
+      { id: 'recap',       icon: '📜', label: 'Recap',       desc: '"Previously on..."' },
+    ];
+
+    let currentMode = 'impersonate';
+    let isGenerating = false;
+
+    // ---- Dropdown ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container';
+    container.style.position = 'relative';
+    container.style.display = 'inline-block';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '✍';
+    btn.title = 'AI Writer';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'pf-presets-dropdown pf-aiw-dropdown';
+    dropdown.hidden = true;
+
+    // Mode buttons
+    for (const mode of MODES) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pf-preset-item pf-aiw-mode';
+      item.dataset.mode = mode.id;
+
+      const icon = document.createElement('span');
+      icon.className = 'pf-aiw-mode-icon';
+      icon.textContent = mode.icon;
+
+      const text = document.createElement('span');
+      text.className = 'pf-aiw-mode-text';
+
+      const label = document.createElement('span');
+      label.className = 'pf-aiw-mode-label';
+      label.textContent = mode.label;
+
+      const desc = document.createElement('span');
+      desc.className = 'pf-aiw-mode-desc';
+      desc.textContent = mode.desc;
+
+      text.appendChild(label);
+      text.appendChild(desc);
+      item.appendChild(icon);
+      item.appendChild(text);
+
+      item.addEventListener('click', () => {
+        currentMode = mode.id;
+        btn.textContent = mode.icon;
+        btn.title = `AI Writer: ${mode.label}`;
+        dropdown.hidden = true;
+        runMode(mode.id);
+      });
+      dropdown.appendChild(item);
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.hidden = !dropdown.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.hidden = true;
+    });
+
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(container);
+    }
+
+    // ---- Mode execution ----
+    async function runMode(mode) {
+      if (isGenerating) return;
+      isGenerating = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        const messages = Array.from(chatEl.querySelectorAll('.message'))
+          .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message');
+
+        const recent = messages.slice(-8);
+        const context = recent.map(m => {
+          const isUser = m.classList.contains('user');
+          const nameEl = m.querySelector('.chat-username');
+          const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+          const text = (m.querySelector('.content') || {}).innerText || '';
+          return `[${name}]: ${text}`;
+        }).join('\n\n');
+
+        let instruction = '';
+        switch (mode) {
+          case 'impersonate':
+            instruction = [
+              'Write the next message as the USER character, continuing the conversation naturally.',
+              'Match the user\'s established voice, style, and personality.',
+              'Write in first person. Reply with ONLY the message text.',
+              '\nConversation:\n' + context,
+            ].join('\n');
+            break;
+          case 'narrate':
+            instruction = [
+              'Write a brief third-person narration describing the current scene.',
+              'Focus on atmosphere, body language, and environment.',
+              'Keep it under 80 words. Reply with ONLY the narration.',
+              '\nConversation:\n' + context,
+            ].join('\n');
+            break;
+          case 'enhance':
+            const draft = inputEl ? inputEl.value.trim() : '';
+            if (!draft) { showToast('Type a message first, then click Enhance.'); return; }
+            instruction = [
+              'Rewrite this message with more vivid detail, better word choice, and stronger voice.',
+              'Keep the same meaning and character. Reply with ONLY the rewritten text.',
+              '\nOriginal:\n' + draft,
+            ].join('\n');
+            break;
+          case 'recap':
+            if (messages.length < 4) { showToast('Not enough conversation to recap yet.'); return; }
+            instruction = [
+              'Write a brief "Previously on..." recap of this conversation.',
+              'Summarize key events, actions, emotional beats, current situation.',
+              'Third person, present tense, under 100 words. Start with "Previously on..."',
+              '\nConversation:\n' + context,
+            ].join('\n');
+            break;
+        }
+
+        const result = await window.root.aiTextPlugin({
+          instruction,
+          stopSequences: ['\n\n\n'],
+        });
+
+        const text = (result && result.text) ? result.text.trim() : '';
+        if (!text) return;
+
+        if (mode === 'enhance' && inputEl) {
+          inputEl.value = text;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.focus();
+        } else if (mode === 'recap') {
+          insertSystemMessage('📜 PREVIOUSLY ON...', text);
+        } else if (mode === 'narrate') {
+          insertSystemMessage('🎬 NARRATION', text);
+        } else if (mode === 'impersonate' && inputEl) {
+          inputEl.value = text;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.focus();
+        }
+
+        try { bumpCounter(mode + 'Uses'); } catch {}
+      } catch (e) {
+        console.warn('[pf] ai-writer failed:', e && e.message);
+      } finally {
+        isGenerating = false;
+        const m = MODES.find(m => m.id === currentMode);
+        btn.textContent = m ? m.icon : '✍';
+        btn.disabled = false;
+      }
+    }
+
+    function insertSystemMessage(label, text) {
+      const msg = document.createElement('div');
+      msg.className = 'message pf-recap-message';
+
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.className = 'pf-recap-dismiss';
+      dismiss.textContent = '✕';
+      dismiss.addEventListener('click', () => msg.remove());
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'pf-recap-label';
+      labelEl.textContent = label;
+
+      const content = document.createElement('div');
+      content.className = 'pf-recap-content';
+      content.textContent = text;
+
+      msg.appendChild(dismiss);
+      msg.appendChild(labelEl);
+      msg.appendChild(content);
+      chatEl.appendChild(msg);
+      msg.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/context_editor.js
+     ────────────────────────────────────────────────────────── */
+  // chat/context_editor.js
+  //
+  // Context Editor — a single tabbed modal that combines four
+  // "edit text → inject into AI context" tools:
+  //
+  //   📖 Glossary  — keyword→definition pairs
+  //   🚫 Banlist   — anti-repetition word/phrase list
+  //   📌 Reminder  — persistent instruction before every AI reply
+  //   👤 Persona   — user character name + description
+  //
+  // Each tab has a textarea (or form fields) and a Save button.
+  // All four share the same modal shell, same visual design.
+  // The old standalone modules still exist; this provides a
+  // unified entry point.
+  //
+  // Bootstrap: call initContextEditor() from start(). Idempotent.
+
+
+
+
+  const TABS = [
+    { id: 'glossary', icon: '📖', label: 'Glossary',
+      hint: 'One entry per line: keyword, alias = definition. Keywords are auto-injected when they appear in chat.',
+      placeholder: 'dragon = a fire-breathing reptile\nElara, the healer = A wandering healer with silver hair' },
+    { id: 'banlist', icon: '🚫', label: 'Banlist',
+      hint: 'One word or phrase per line. The AI will be told never to use these.',
+      placeholder: 'delicate\nshiver ran down\na mix of\nwithout missing a beat' },
+    { id: 'reminder', icon: '📌', label: 'Reminder',
+      hint: 'This text is injected before every AI reply. Use it to reinforce character behavior.',
+      placeholder: 'Stay in character. Never break the fourth wall. Keep responses under 300 words.' },
+    { id: 'persona', icon: '👤', label: 'Persona',
+      hint: 'Define who YOU are in the RP. This info is sent to the AI with every message.',
+      placeholder: '' },
+  ];
+
+  function initContextEditor() {
+    if (initContextEditor._done) return;
+    initContextEditor._done = true;
+
+    let activeTab = 'glossary';
+
+    // ---- Overlay ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay';
+    overlay.hidden = true;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal';
+    modal.style.maxWidth = '520px';
+
+    // ---- Tab bar ----
+    const tabBar = document.createElement('div');
+    tabBar.className = 'pf-cxe-tabbar';
+
+    const tabBtns = {};
+    for (const tab of TABS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-cxe-tab';
+      btn.dataset.tab = tab.id;
+      btn.title = tab.label;
+      btn.textContent = tab.icon;
+      btn.addEventListener('click', () => switchTab(tab.id));
+      tabBar.appendChild(btn);
+      tabBtns[tab.id] = btn;
+    }
+
+    // ---- Content area ----
+    const hintEl = document.createElement('p');
+    hintEl.className = 'pf-glossary-hint';
+
+    const textareaWrap = document.createElement('div');
+    textareaWrap.className = 'pf-cxe-content';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'pf-glossary-textarea';
+    textarea.rows = 8;
+    textarea.spellcheck = false;
+
+    // Persona has name + description fields instead of textarea
+    const personaFields = document.createElement('div');
+    personaFields.className = 'pf-cxe-persona-fields';
+    personaFields.hidden = true;
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'pf-field-input';
+    nameInput.placeholder = 'Your character name';
+    nameInput.style.marginBottom = '8px';
+
+    const descInput = document.createElement('textarea');
+    descInput.className = 'pf-glossary-textarea';
+    descInput.rows = 4;
+    descInput.placeholder = 'A tall half-elf ranger with a scar across their left cheek...';
+
+    const nameLabel = document.createElement('label');
+    nameLabel.className = 'pf-field-label';
+    nameLabel.textContent = 'Name';
+    nameLabel.style.display = 'block';
+    nameLabel.style.marginBottom = '4px';
+
+    const descLabel = document.createElement('label');
+    descLabel.className = 'pf-field-label';
+    descLabel.textContent = 'Description';
+    descLabel.style.display = 'block';
+    descLabel.style.marginBottom = '4px';
+
+    personaFields.appendChild(nameLabel);
+    personaFields.appendChild(nameInput);
+    personaFields.appendChild(descLabel);
+    personaFields.appendChild(descInput);
+
+    textareaWrap.appendChild(textarea);
+    textareaWrap.appendChild(personaFields);
+
+    // ---- Actions ----
+    const actions = document.createElement('div');
+    actions.className = 'pf-glossary-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'pf-glossary-cancel';
+    cancelBtn.addEventListener('click', close);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'pf-glossary-save';
+    saveBtn.addEventListener('click', save);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+
+    modal.appendChild(tabBar);
+    modal.appendChild(hintEl);
+    modal.appendChild(textareaWrap);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      for (const t of TABS) {
+        tabBtns[t.id].classList.toggle('pf-cxe-tab-active', t.id === tabId);
+      }
+      const tab = TABS.find(t => t.id === tabId);
+      hintEl.textContent = tab ? tab.hint : '';
+
+      // Show/hide persona fields vs textarea
+      if (tabId === 'persona') {
+        textarea.hidden = true;
+        personaFields.hidden = false;
+        loadPersona();
+      } else {
+        textarea.hidden = false;
+        personaFields.hidden = true;
+        textarea.placeholder = tab ? tab.placeholder : '';
+        loadTabData(tabId);
+      }
+    }
+
+    function loadTabData(tabId) {
+      const threadId = window.currentChatId;
+      if (tabId === 'glossary') {
+        textarea.value = threadId != null ? loadGlossary(threadId) : '';
+      } else if (tabId === 'banlist') {
+        try {
+          const s = loadSettings();
+          const map = (s && s.banlistByThread) || {};
+          textarea.value = String(map[String(threadId)] || '');
+        } catch { textarea.value = ''; }
+      } else if (tabId === 'reminder') {
+        try {
+          const s = loadSettings();
+          const map = (s && s.quickReminders) || {};
+          textarea.value = String(map[String(threadId)] || '');
+        } catch { textarea.value = ''; }
+      }
+    }
+
+    function loadPersona() {
+      try {
+        const s = loadSettings();
+        const p = (s && s.profile && s.profile.userPersona) || {};
+        nameInput.value = p.name || '';
+        descInput.value = p.description || '';
+      } catch {}
+    }
+
+    function save() {
+      const threadId = window.currentChatId;
+      try {
+        const s = loadSettings();
+        if (activeTab === 'glossary' && threadId != null) {
+          saveGlossary(threadId, textarea.value);
+          try { bumpCounter('glossaryEdits'); } catch {}
+        } else if (activeTab === 'banlist' && threadId != null) {
+          if (!s.banlistByThread) s.banlistByThread = {};
+          const text = textarea.value.trim();
+          if (text) s.banlistByThread[String(threadId)] = text;
+          else delete s.banlistByThread[String(threadId)];
+          saveSettings(s);
+          try { bumpCounter('banlistEdits'); } catch {}
+        } else if (activeTab === 'reminder' && threadId != null) {
+          if (!s.quickReminders) s.quickReminders = {};
+          const text = textarea.value.trim();
+          if (text) s.quickReminders[String(threadId)] = text;
+          else delete s.quickReminders[String(threadId)];
+          saveSettings(s);
+        } else if (activeTab === 'persona') {
+          if (!s.profile) s.profile = {};
+          s.profile.userPersona = {
+            name: nameInput.value.trim(),
+            description: descInput.value.trim(),
+          };
+          saveSettings(s);
+          try { bumpCounter('personaEdits'); } catch {}
+        }
+      } catch {}
+      close();
+    }
+
+    function open() {
+      switchTab(activeTab);
+      overlay.hidden = false;
+    }
+
+    function close() { overlay.hidden = true; }
+
+    // ---- Trigger button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '📝';
+    btn.title = 'Context Editor (glossary, banlist, reminder, persona)';
+    btn.addEventListener('click', open);
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -32971,6 +33710,7 @@ Use this template for your response:
               textarea.dispatchEvent(new Event('input', { bubbles: true }));
             } else {
               textarea.textContent += transcript;
+              try { bumpCounter("voiceInputs"); } catch {}
             }
           }
         };
@@ -40260,6 +41000,19 @@ Use this template for your response:
 
     // Voice I/O (Batch 3) — mic + speaker buttons
     try { initVoice(); } catch { /* non-fatal */ }
+
+    // Combined tools — unified entry points for grouped features
+    // AI Writer: impersonate + narrate + enhance + recap in one dropdown
+    try {
+      if (window.root && window.root.aiTextPlugin) {
+        initAiWriter();
+      } else {
+        setTimeout(() => { try { initAiWriter(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // Context Editor: glossary + banlist + reminder + persona in tabbed modal
+    try { initContextEditor(); } catch { /* non-fatal */ }
 
     // Tools menu (MUST be last — collects all buttons injected above)
     try { initToolsMenu(); } catch { /* non-fatal */ }
