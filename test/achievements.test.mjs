@@ -293,3 +293,72 @@ test('achievements: no celebrant without any event responses', () => {
   const unlocked = computeUnlockedIds({ counters: { memorySaves: 100 } });
   assert.ok(!unlocked.some(id => id.startsWith('celebrant_')));
 });
+
+// ---- Legendary capstones (added with the accent-palette endgame) ----
+
+test('achievements: novelist at 250k words written', () => {
+  assert.ok(!computeUnlockedIds({ wordsWritten: 249_999 }).includes('novelist'));
+  const u = computeUnlockedIds({ wordsWritten: 250_000 });
+  assert.ok(u.includes('novelist'));
+  assert.ok(u.includes('fifty_thousand_words')); // includes its prerequisites
+});
+
+test('achievements: saga at 1000-message single thread', () => {
+  assert.ok(!computeUnlockedIds({ longestThread: 999  }).includes('saga'));
+  assert.ok( computeUnlockedIds({ longestThread: 1000 }).includes('saga'));
+});
+
+test('achievements: director at 50 characters', () => {
+  assert.ok(!computeUnlockedIds({ characterCount: 49 }).includes('director'));
+  assert.ok( computeUnlockedIds({ characterCount: 50 }).includes('director'));
+});
+
+test('achievements: cosmologist at 200 lore entries', () => {
+  assert.ok(!computeUnlockedIds({ loreCount: 199 }).includes('cosmologist'));
+  assert.ok( computeUnlockedIds({ loreCount: 200 }).includes('cosmologist'));
+});
+
+test('achievements: annual_voyager at 365 days active', () => {
+  assert.ok(!computeUnlockedIds({ daysActive: 364 }).includes('annual_voyager'));
+  assert.ok( computeUnlockedIds({ daysActive: 365 }).includes('annual_voyager'));
+});
+
+test('achievements: prompt_maven at 200 prompts completed', () => {
+  assert.ok(!computeUnlockedIds({ promptsCompletedTotal: 199 }).includes('prompt_maven'));
+  assert.ok( computeUnlockedIds({ promptsCompletedTotal: 200 }).includes('prompt_maven'));
+});
+
+test('achievements: year_round_reveler at 30 distinct events', () => {
+  assert.ok(!computeUnlockedIds({ eventsResponded: 29 }).includes('year_round_reveler'));
+  assert.ok( computeUnlockedIds({ eventsResponded: 30 }).includes('year_round_reveler'));
+});
+
+test('achievements: master at 150 prompts in a single category', () => {
+  // peakCategoryCount reads stats.promptsByCategory; supply directly.
+  assert.ok(!computeUnlockedIds({
+    promptsByCategory: { character: 149, dialogue: 30 },
+  }).includes('master'));
+  assert.ok( computeUnlockedIds({
+    promptsByCategory: { character: 150, dialogue: 30 },
+  }).includes('master'));
+});
+
+test('achievements: registry now has 9 legendaries (centurion + 8 capstones)', async () => {
+  // Sanity gate: if a future change drops one inadvertently, this
+  // surfaces it.
+  const { ACHIEVEMENTS } = await import('../src/achievements/registry.js');
+  const legendaries = ACHIEVEMENTS.filter(a => a.tier === 'legendary');
+  assert.equal(legendaries.length, 9);
+  const ids = legendaries.map(a => a.id).sort();
+  assert.deepEqual(ids, [
+    'annual_voyager',
+    'cosmologist',
+    'director',
+    'master',
+    'novelist',
+    'prompt_maven',
+    'saga',
+    'streak_100day',
+    'year_round_reveler',
+  ]);
+});

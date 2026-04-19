@@ -381,6 +381,96 @@ export const ACHIEVEMENTS = Object.freeze([
     tier: 'legendary',
     criteria: (s) => maxStreak(s) >= 100,
   },
+
+  // ============================================================
+  // --- LEGENDARY CAPSTONES ---
+  //
+  // Each new legendary sits ABOVE an existing epic-tier arc so
+  // the gamification ladder reads cleanly: common → uncommon →
+  // rare → epic → legendary. Thresholds chosen to feel like
+  // genuine endgame goals — usually 3-5x the epic threshold,
+  // never just "the next round number." A user reaching one of
+  // these has demonstrably committed to the platform.
+  //
+  // The legendary tier was previously a single entry (Centurion,
+  // 100-day streak), which left the new accent palette's Gold /
+  // Ruby / Teal / Obsidian swatches structurally unreachable.
+  // These 8 capstones make that endgame attainable while staying
+  // honest about the work involved.
+  // ============================================================
+
+  {
+    // Above fifty_thousand_words (epic). 250k = ~3 short novels.
+    id: 'novelist',
+    name: 'Novelist',
+    description: 'Write 250,000 words — the length of a full novel.',
+    tier: 'legendary',
+    criteria: (s) => (s.wordsWritten || 0) >= 250_000,
+  },
+  {
+    // Above epic_arc (rare, 500 messages). One thread, four-digit
+    // depth — a true saga.
+    id: 'saga',
+    name: 'Saga',
+    description: 'Carry a single thread past 1,000 messages.',
+    tier: 'legendary',
+    criteria: (s) => (s.longestThread || 0) >= 1000,
+  },
+  {
+    // Above cast_of_twenty (rare, 20 chars). 50 distinct characters
+    // is a director's cast.
+    id: 'director',
+    name: 'Director',
+    description: 'Create 50 characters.',
+    tier: 'legendary',
+    criteria: (s) => (s.characterCount || 0) >= 50,
+  },
+  {
+    // Above worldbuilder (rare, 50 lore). 200+ lore entries is a
+    // real codex.
+    id: 'cosmologist',
+    name: 'Cosmologist',
+    description: 'Build a world with 200 or more lore entries.',
+    tier: 'legendary',
+    criteria: (s) => (s.loreCount || 0) >= 200,
+  },
+  {
+    // Above dedicated (rare, 100 days). A full year of activity —
+    // not consecutive (that's streak_100day's job), but cumulative.
+    id: 'annual_voyager',
+    name: 'Annual Voyager',
+    description: 'Write in your chats on 365 different days.',
+    tier: 'legendary',
+    criteria: (s) => (s.daysActive || 0) >= 365,
+  },
+  {
+    // Above prompt_explorer (rare, 50 prompts). 200 = sustained
+    // engagement with the prompt system across many weeks.
+    id: 'prompt_maven',
+    name: 'Prompt Maven',
+    description: 'Complete 200 writing prompts.',
+    tier: 'legendary',
+    criteria: (s) => (s.promptsCompletedTotal || 0) >= 200,
+  },
+  {
+    // Above celebrant_gold (epic, 15 events). 30+ distinct events
+    // means showing up across multiple holiday cycles.
+    id: 'year_round_reveler',
+    name: 'Year-Round Reveler',
+    description: 'Respond to 30 different events.',
+    tier: 'legendary',
+    criteria: (s) => Number((s && s.eventsResponded) || 0) >= 30,
+  },
+  {
+    // Above specialist_gold (epic, 60 in one category). 150 in a
+    // single category is real mastery — not just "I tried lots,"
+    // but "I went deep on what I love."
+    id: 'master',
+    name: 'Master',
+    description: 'Complete 150 prompts in a single category.',
+    tier: 'legendary',
+    criteria: (s) => peakCategoryCount(s) >= 150,
+  },
 ]);
 
 /**

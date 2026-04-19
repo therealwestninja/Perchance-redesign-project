@@ -105,9 +105,14 @@ test('computeCategoryProgress: counts unlocked correctly', () => {
   const writing = rows.find(r => r.category.id === 'writing');
   const stories = rows.find(r => r.category.id === 'stories');
   assert.equal(writing.unlocked, 2);
-  assert.equal(writing.total, 5);
+  // writing: first_word, hundred_words, thousand_words, ten_thousand_words,
+  //          fifty_thousand_words, novelist (legendary capstone)
+  assert.equal(writing.total, 6);
   assert.equal(stories.unlocked, 1);
-  assert.equal(stories.total, 7);
+  // stories: first_character, long_conversation, epic_arc, saga (capstone),
+  //          cast_of_five, cast_of_twenty, director (capstone),
+  //          cartographer, worldbuilder, cosmologist (capstone)
+  assert.equal(stories.total, 10);
 });
 
 test('computeCategoryProgress: returns row for every category even with 0 progress', () => {

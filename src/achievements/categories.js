@@ -76,19 +76,22 @@ export const CATEGORIES = Object.freeze([
 // Evaluated in order; first match wins.
 const RULES = [
   { cat: 'writing',      match: id => (
-    ['first_word', 'hundred_words', 'thousand_words', 'ten_thousand_words', 'fifty_thousand_words'].includes(id)
+    ['first_word', 'hundred_words', 'thousand_words', 'ten_thousand_words',
+     'fifty_thousand_words', 'novelist'].includes(id)
   )},
   { cat: 'stories',      match: id => (
-    ['first_character', 'long_conversation', 'epic_arc',
-     'cast_of_five', 'cast_of_twenty', 'cartographer', 'worldbuilder'].includes(id)
+    ['first_character', 'long_conversation', 'epic_arc', 'saga',
+     'cast_of_five', 'cast_of_twenty', 'director',
+     'cartographer', 'worldbuilder', 'cosmologist'].includes(id)
   )},
   { cat: 'prompts',      match: id => (
     id.startsWith('first_prompt') || id.startsWith('prompt_') ||
-    id === 'weekly_regular' ||
+    id === 'weekly_regular' || id === 'prompt_maven' || id === 'master' ||
     id.startsWith('well_rounded_') || id.startsWith('specialist_')
   )},
   { cat: 'consistency',  match: id => (
-    id.startsWith('active_') || id === 'dedicated' || id.startsWith('streak_')
+    id.startsWith('active_') || id === 'dedicated' || id === 'annual_voyager' ||
+    id.startsWith('streak_')
   )},
   { cat: 'preservation', match: id => (
     id.startsWith('preservationist_') || id.startsWith('restorer_') || id.startsWith('archivist_')
@@ -99,7 +102,9 @@ const RULES = [
     id.startsWith('sorter_') || id.startsWith('regular_')
   )},
   { cat: 'creation',     match: id => id.startsWith('demiurge_') },
-  { cat: 'events',       match: id => id.startsWith('celebrant_') },
+  { cat: 'events',       match: id => (
+    id.startsWith('celebrant_') || id === 'year_round_reveler'
+  )},
 ];
 
 /**

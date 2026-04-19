@@ -110,24 +110,55 @@ test('getAccents: sky requires 1 legendary AND 5 events responded', () => {
   assert.equal(ready.find(a => a.id === 'sky').isUnlocked, true);
 });
 
-test('getAccents: obsidian is the hardest — currently unreachable until more legendaries ship', () => {
-  // Only 1 achievement with tier='legendary' exists today (streak_100day).
-  // Obsidian requires ≥5 legendaries + max breadth + 30-day streak +
-  // 15 events — it's an aspirational slot reserved for later when the
-  // registry grows. This test verifies it's correctly LOCKED with the
-  // best reachable state today, so it stays locked until more legendaries
-  // exist.
-  const best = getAccents(
-    { promptCategoriesTouched: 5, streaks: { longest: 100 }, eventsResponded: 20 },
-    ['streak_100day'], // only legendary currently available
-  );
-  assert.equal(best.find(a => a.id === 'obsidian').isUnlocked, false);
-  // Missing breadth → stays locked regardless of other conditions
+test('getAccents: obsidian unlocks when all four endgame conditions met', () => {
+  // After the legendary expansion (novelist, saga, director, cosmologist,
+  // annual_voyager, prompt_maven, year_round_reveler, master, plus the
+  // pre-existing streak_100day = 9 legendaries available), obsidian is
+  // reachable by:
+  //   * 5 legendary achievements
+  //   * all 5 prompt categories touched
+  //   * 30-day longest streak
+  //   * 15 distinct events responded
+  const all5Legendaries = ['streak_100day', 'novelist', 'saga', 'director', 'cosmologist'];
+
+  // Missing breadth → locked
   const missingBreadth = getAccents(
     { promptCategoriesTouched: 4, streaks: { longest: 30 }, eventsResponded: 15 },
-    ['streak_100day'],
+    all5Legendaries,
   );
   assert.equal(missingBreadth.find(a => a.id === 'obsidian').isUnlocked, false);
+
+  // Missing legendaries → locked
+  const onlyOneLegend = getAccents(
+    { promptCategoriesTouched: 5, streaks: { longest: 30 }, eventsResponded: 15 },
+    ['streak_100day'],
+  );
+  assert.equal(onlyOneLegend.find(a => a.id === 'obsidian').isUnlocked, false);
+
+  // All conditions met → unlocked
+  const grandmaster = getAccents(
+    { promptCategoriesTouched: 5, streaks: { longest: 30 }, eventsResponded: 15 },
+    all5Legendaries,
+  );
+  assert.equal(grandmaster.find(a => a.id === 'obsidian').isUnlocked, true);
+});
+
+test('getAccents: gold unlocks at 2 legendaries; ruby at 3; teal at 5', () => {
+  // The mid-row endgame swatches are now reachable via the new
+  // legendary capstones. Verify each threshold.
+  const oneLegend = ['streak_100day'];
+  const twoLegends = ['streak_100day', 'novelist'];
+  const threeLegends = ['streak_100day', 'novelist', 'saga'];
+  const fiveLegends = ['streak_100day', 'novelist', 'saga', 'director', 'cosmologist'];
+
+  assert.equal(getAccents({}, oneLegend).find(a => a.id === 'gold').isUnlocked, false);
+  assert.equal(getAccents({}, twoLegends).find(a => a.id === 'gold').isUnlocked, true);
+
+  assert.equal(getAccents({}, twoLegends).find(a => a.id === 'ruby').isUnlocked, false);
+  assert.equal(getAccents({}, threeLegends).find(a => a.id === 'ruby').isUnlocked, true);
+
+  assert.equal(getAccents({}, threeLegends).find(a => a.id === 'teal').isUnlocked, false);
+  assert.equal(getAccents({}, fiveLegends).find(a => a.id === 'teal').isUnlocked, true);
 });
 
 test('getAccents: total accent count is 24 (full 3-row palette)', () => {
