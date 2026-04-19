@@ -24,8 +24,43 @@
 
 import { loadSettings, updateField } from '../profile/settings_store.js';
 
-const MAX_SNAPSHOTS = 10;
+const DEFAULT_MAX_SNAPSHOTS = 10;
+const MIN_MAX_SNAPSHOTS = 5;
+const MAX_MAX_SNAPSHOTS = 25;
 const SETTINGS_PATH = 'memory.snapshotsByThread';
+
+/**
+ * Resolve the user's preferred snapshot ring-buffer size from
+ * settings.memory.tool.maxSnapshots, clamped to [MIN, MAX]. Defaults
+ * to DEFAULT_MAX_SNAPSHOTS when unset or invalid.
+ *
+ * Read on every captureSnapshot rather than cached at module load,
+ * so changes from the settings drawer take effect immediately for
+ * the next save without needing to reload Perchance.
+ */
+function getMaxSnapshots() {
+  try {
+    const s = loadSettings();
+    const raw =
+      (s && s.memory && s.memory.tool &&
+        s.memory.tool.maxSnapshots);
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) return DEFAULT_MAX_SNAPSHOTS;
+    const clamped = Math.max(MIN_MAX_SNAPSHOTS, Math.min(MAX_MAX_SNAPSHOTS, Math.round(raw)));
+    return clamped;
+  } catch {
+    return DEFAULT_MAX_SNAPSHOTS;
+  }
+}
+
+/**
+ * Exported so the drawer UI can read the same min/max/default
+ * constraints used by getMaxSnapshots(). Single source of truth.
+ */
+export const SNAPSHOT_CAP_BOUNDS = Object.freeze({
+  min: MIN_MAX_SNAPSHOTS,
+  max: MAX_MAX_SNAPSHOTS,
+  default: DEFAULT_MAX_SNAPSHOTS,
+});
 
 /**
  * Load the snapshot list for a thread, newest first.
@@ -83,8 +118,13 @@ export function captureSnapshot(threadId, items, { label = null } = {}) {
 
   const list = loadSnapshots(threadId);
   list.unshift(record);
-  // Trim to cap; drop oldest (highest index).
-  while (list.length > MAX_SNAPSHOTS) list.pop();
+  // Trim to cap; drop oldest (highest index). Cap is read live from
+  // settings via getMaxSnapshots, so a user who drops the setting
+  // from 10 to 5 sees their oldest entries fall off on the NEXT
+  // capture (the one they're about to take). Lazy retrim — we
+  // don't proactively shrink older threads' lists on setting change.
+  const cap = getMaxSnapshots();
+  while (list.length > cap) list.pop();
   saveSnapshots(threadId, list);
   return record.id;
 }

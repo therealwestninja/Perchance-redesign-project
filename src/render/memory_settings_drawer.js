@@ -19,6 +19,7 @@
 
 import { h } from '../utils/dom.js';
 import { loadSettings, updateField } from '../profile/settings_store.js';
+import { SNAPSHOT_CAP_BOUNDS } from '../memory/snapshots.js';
 
 /**
  * Build the gear toggle button + the drawer that it controls.
@@ -87,6 +88,49 @@ export function createMemorySettingsDrawer({ onChange } = {}) {
     ]),
   ]);
 
+  // ---- Snapshot ring buffer size (#5) ----
+  // Default 10 snapshots per thread. User-tunable in 5..25 range, step 5.
+  // Read live from settings on every capture, so changes here take
+  // effect on the very next save without needing to reload Perchance.
+  const initialMaxSnapshots = readMaxSnapshots(settings);
+  const maxSnapsValue = h('span', { class: 'pf-mem-set-val' }, [
+    String(initialMaxSnapshots),
+  ]);
+  const maxSnapsInput = h('input', {
+    type: 'range',
+    min: String(SNAPSHOT_CAP_BOUNDS.min),
+    max: String(SNAPSHOT_CAP_BOUNDS.max),
+    step: '5',
+    value: String(initialMaxSnapshots),
+    class: 'pf-mem-set-slider',
+    'aria-label': 'Maximum snapshots kept per thread',
+  });
+  maxSnapsInput.addEventListener('input', () => {
+    const v = clampMaxSnapshots(parseInt(maxSnapsInput.value, 10));
+    maxSnapsValue.textContent = String(v);
+  });
+  maxSnapsInput.addEventListener('change', () => {
+    const v = clampMaxSnapshots(parseInt(maxSnapsInput.value, 10));
+    updateField('memory.tool.maxSnapshots', v);
+    if (typeof onChange === 'function') {
+      try { onChange('maxSnapshots', v); } catch { /* best-effort */ }
+    }
+  });
+
+  const maxSnapsRow = h('div', { class: 'pf-mem-set-row' }, [
+    h('div', { class: 'pf-mem-set-row-header' }, [
+      h('label', { class: 'pf-mem-set-label' }, ['Snapshots kept per thread']),
+      maxSnapsValue,
+    ]),
+    maxSnapsInput,
+    h('div', { class: 'pf-mem-set-hint' }, [
+      'How many auto-snapshots to keep before the oldest gets pushed ' +
+      'out. More snapshots = more "Restore" history at the cost of a ' +
+      'bit more storage. Existing snapshots beyond your new cap fall ' +
+      'off on the next save, not retroactively.',
+    ]),
+  ]);
+
   // ---- drawer root ----
 
   const drawer = h('div', {
@@ -95,7 +139,7 @@ export function createMemorySettingsDrawer({ onChange } = {}) {
     role: 'region',
     'aria-label': 'Memory tool settings',
   }, [
-    h('div', { class: 'pf-mem-set-inner' }, [thresholdRow]),
+    h('div', { class: 'pf-mem-set-inner' }, [thresholdRow, maxSnapsRow]),
   ]);
 
   // ---- gear button ----
@@ -148,4 +192,20 @@ function describeThreshold(v) {
   if (v <= 0.60) return 'Balanced — renames stick when membership is largely the same.';
   if (v <= 0.80) return 'Strict — renames only stick to closely-matching bubbles.';
   return 'Very strict — renames require near-identical membership to survive.';
+}
+
+function readMaxSnapshots(settings) {
+  const raw =
+    (settings && settings.memory && settings.memory.tool &&
+      settings.memory.tool.maxSnapshots);
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return SNAPSHOT_CAP_BOUNDS.default;
+  return clampMaxSnapshots(raw);
+}
+
+function clampMaxSnapshots(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return SNAPSHOT_CAP_BOUNDS.default;
+  // Round to step (5) for tidy storage values
+  const stepped = Math.round(n / 5) * 5;
+  return Math.max(SNAPSHOT_CAP_BOUNDS.min, Math.min(SNAPSHOT_CAP_BOUNDS.max, stepped));
 }

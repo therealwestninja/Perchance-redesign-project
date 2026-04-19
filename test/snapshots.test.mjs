@@ -275,3 +275,79 @@ test('formatSnapshotSummary: handles missing/invalid snapshot', async () => {
   assert.equal(formatSnapshotSummary(null), 'Invalid snapshot');
   assert.equal(formatSnapshotSummary({}), 'Invalid snapshot');
 });
+
+// ---------------------------------------------------------------
+// User-tunable snapshot cap (#5)
+// ---------------------------------------------------------------
+
+test('captureSnapshot: respects user-set memory.tool.maxSnapshots (lower than default)', async () => {
+  const { captureSnapshot, loadSnapshots } = await loadSnapshotsModule();
+  // Set the cap to 5
+  localStorage.setItem('pf:settings', JSON.stringify({
+    memory: { tool: { maxSnapshots: 5 } },
+  }));
+  for (let i = 0; i < 12; i++) {
+    captureSnapshot('thread-cap-test', [{ id: `${i}`, scope: 'memory', text: `n-${i}` }]);
+  }
+  const list = loadSnapshots('thread-cap-test');
+  assert.equal(list.length, 5);
+  assert.equal(list[0].items[0].text, 'n-11', 'newest at index 0');
+  assert.equal(list[4].items[0].text, 'n-7',  'oldest surviving at index 4');
+});
+
+test('captureSnapshot: respects user-set memory.tool.maxSnapshots (higher than default)', async () => {
+  const { captureSnapshot, loadSnapshots } = await loadSnapshotsModule();
+  localStorage.setItem('pf:settings', JSON.stringify({
+    memory: { tool: { maxSnapshots: 25 } },
+  }));
+  for (let i = 0; i < 30; i++) {
+    captureSnapshot('thread-big-cap', [{ id: `${i}`, scope: 'memory', text: `n-${i}` }]);
+  }
+  const list = loadSnapshots('thread-big-cap');
+  assert.equal(list.length, 25);
+});
+
+test('captureSnapshot: clamps invalid maxSnapshots to default', async () => {
+  const { captureSnapshot, loadSnapshots } = await loadSnapshotsModule();
+  // Garbage value → default (10)
+  localStorage.setItem('pf:settings', JSON.stringify({
+    memory: { tool: { maxSnapshots: 'banana' } },
+  }));
+  for (let i = 0; i < 15; i++) {
+    captureSnapshot('thread-garbage', [{ id: `${i}`, scope: 'memory', text: `n-${i}` }]);
+  }
+  assert.equal(loadSnapshots('thread-garbage').length, 10);
+});
+
+test('captureSnapshot: clamps below-min maxSnapshots up to MIN', async () => {
+  const { captureSnapshot, loadSnapshots, SNAPSHOT_CAP_BOUNDS } = await loadSnapshotsModule();
+  // Asking for 1 → clamped to 5 (MIN)
+  localStorage.setItem('pf:settings', JSON.stringify({
+    memory: { tool: { maxSnapshots: 1 } },
+  }));
+  for (let i = 0; i < 12; i++) {
+    captureSnapshot('thread-tiny', [{ id: `${i}`, scope: 'memory', text: `n-${i}` }]);
+  }
+  assert.equal(loadSnapshots('thread-tiny').length, SNAPSHOT_CAP_BOUNDS.min);
+});
+
+test('captureSnapshot: clamps above-max maxSnapshots down to MAX', async () => {
+  const { captureSnapshot, loadSnapshots, SNAPSHOT_CAP_BOUNDS } = await loadSnapshotsModule();
+  // Asking for 1000 → clamped to 25 (MAX)
+  localStorage.setItem('pf:settings', JSON.stringify({
+    memory: { tool: { maxSnapshots: 1000 } },
+  }));
+  for (let i = 0; i < 50; i++) {
+    captureSnapshot('thread-huge', [{ id: `${i}`, scope: 'memory', text: `n-${i}` }]);
+  }
+  assert.equal(loadSnapshots('thread-huge').length, SNAPSHOT_CAP_BOUNDS.max);
+});
+
+test('SNAPSHOT_CAP_BOUNDS: exposes min/max/default', async () => {
+  const { SNAPSHOT_CAP_BOUNDS } = await loadSnapshotsModule();
+  assert.equal(typeof SNAPSHOT_CAP_BOUNDS.min, 'number');
+  assert.equal(typeof SNAPSHOT_CAP_BOUNDS.max, 'number');
+  assert.equal(typeof SNAPSHOT_CAP_BOUNDS.default, 'number');
+  assert.ok(SNAPSHOT_CAP_BOUNDS.min < SNAPSHOT_CAP_BOUNDS.default);
+  assert.ok(SNAPSHOT_CAP_BOUNDS.default < SNAPSHOT_CAP_BOUNDS.max);
+});
