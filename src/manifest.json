@@ -60,6 +60,7 @@
     "chat/impersonation.js",
     "chat/writing_enhancer.js",
     "chat/narration.js",
+    "chat/keyboard_shortcuts.js",
     "chat/token_display.js",
     "chat/code_highlight.js",
     "chat/voice.js",

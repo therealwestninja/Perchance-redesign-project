@@ -69,7 +69,7 @@ modal, folder system, import/export.
 - [ ] Vision / image understanding (describe uploaded images)
 - [ ] Multiple API providers
 - [ ] Visual Novel mode (sprite layer, backgrounds)
-- [ ] Keyboard shortcuts
+- [x] Keyboard shortcuts
 
 Source: URV-AI branching (createNode, handleGraftNode, openTreeMap),
 presets (applyPreset), reminder (openReminderModal), reasoning

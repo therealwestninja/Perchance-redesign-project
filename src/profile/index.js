@@ -281,6 +281,9 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
+  // Keyboard shortcuts (Batch 6)
+  try { initKeyboardShortcuts(); } catch { /* non-fatal */ }
+
   // Code syntax highlighting (Batch 3)
   try {
     if (document.getElementById('chatMessagesEl')) {
