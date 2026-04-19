@@ -3566,4 +3566,14 @@ export const CSS = `
 .pf-stop-gen-btn:hover {
   background: rgba(220, 60, 60, 0.3);
 }
+
+/* ---- Token count display (Batch 2) ---- */
+.pf-token-display {
+  font-size: 11px;
+  opacity: 0.55;
+  padding: 2px 8px;
+  white-space: nowrap;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
 `.trim();

@@ -91,6 +91,27 @@ export function initStopGenerating() {
       return original.apply(this, args);
     }
 
+    // ---- Dynamic glossary injection (Batch 2) ----
+    // If the call has a systemMessage (the main generation call),
+    // append the glossary block to it. buildGlossaryBlock() returns
+    // empty string if no glossary exists or no keywords match — so
+    // this is a no-op for users who haven't set up a glossary.
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const glossaryBlock = buildGlossaryBlock();
+        if (glossaryBlock) {
+          // Clone the args to avoid mutating the caller's object
+          args[0] = { ...firstArg };
+          const existing = args[0].systemMessage || args[0].instruction || '';
+          if (args[0].systemMessage != null) {
+            args[0].systemMessage = existing + glossaryBlock;
+          } else if (args[0].instruction != null) {
+            args[0].instruction = existing + glossaryBlock;
+          }
+        }
+      } catch { /* non-fatal — generation proceeds without glossary */ }
+    }
+
     const result = original.apply(this, args);
 
     // result is a promise-like with a .stop() method (streamObj)

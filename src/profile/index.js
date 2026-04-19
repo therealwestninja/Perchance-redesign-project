@@ -220,12 +220,22 @@ export async function start() {
   } catch { /* non-fatal */ }
 
   // Stop generating: button + aiTextPlugin monkey-patch
+  // (also handles dynamic glossary injection via the same patch)
   try {
     if (window.root && window.root.aiTextPlugin) {
       initStopGenerating();
     } else {
       // root.aiTextPlugin might load async — retry
       setTimeout(() => { try { initStopGenerating(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Token count display (Batch 2)
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initTokenDisplay();
+    } else {
+      setTimeout(() => { try { initTokenDisplay(); } catch { /* non-fatal */ } }, 1500);
     }
   } catch { /* non-fatal */ }
 
