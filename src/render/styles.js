@@ -3851,6 +3851,45 @@ export const CSS = `
 .pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
 .pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
 
+/* ---- Image gen container ---- */
+.pf-gen-img-container {
+  margin-top: 8px;
+  display: inline-block;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pf-gen-img-container iframe {
+  max-width: 300px;
+  max-height: 300px;
+  border: none;
+}
+
+/* ---- Light theme overrides ---- */
+body.pf-light-theme .pf-msg-ctrl-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #333;
+}
+body.pf-light-theme .pf-msg-ctrl-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+body.pf-light-theme .pf-chat-search-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1a1a1a;
+}
+body.pf-light-theme .pf-presets-dropdown,
+body.pf-light-theme .pf-glossary-modal {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1a1a1a;
+}
+body.pf-light-theme .pf-glossary-textarea {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.12);
+  color: #1a1a1a;
+}
+
 /* ---- Code syntax highlighting (Batch 3) ----
    Token colors for regex-based highlighting of code blocks.
    Designed for dark backgrounds matching upstream's code block style. */

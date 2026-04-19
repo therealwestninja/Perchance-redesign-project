@@ -311,6 +311,21 @@ export async function start() {
   // Generation settings (Batch 6) — ⚙ temp/tokens near input
   try { initGenSettings(); } catch { /* non-fatal */ }
 
+  // Image generation (Batch 4) — 🖼 button on AI messages
+  try {
+    if (document.getElementById('chatMessagesEl') && window.root && window.root.textToImagePlugin) {
+      initImageGen();
+    } else {
+      setTimeout(() => { try { initImageGen(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Theme toggle (Batch 7) — ☀/🌙 in header
+  try { initThemeToggle(); } catch { /* non-fatal */ }
+
+  // Custom background (Batch 7) — 🏞 in header
+  try { initCustomBg(); } catch { /* non-fatal */ }
+
   // Code syntax highlighting (Batch 3)
   try {
     if (document.getElementById('chatMessagesEl')) {

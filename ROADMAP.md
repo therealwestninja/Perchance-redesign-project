@@ -36,7 +36,7 @@ Source: Kustom-GPT voice I/O. URV-AI code blocks (setupCodeBlockListeners,
 hljs theme integration).
 
 ### Batch 4 — Image generation + AI tools (3/4) (MEDIUM impact, higher scope)
-- [ ] Image generation per message (via Perchance text-to-image plugin)
+- [x] Image generation per message (via Perchance text-to-image plugin)
 - [x] Writing enhancer (e153a16) / "Magic Wand" (rewrite user text before sending)
 - [x] User impersonation (8f88cd2) (AI writes as user — for RP continuity)
 - [x] Narration generation (e153a16) (generate scene narration on demand)
@@ -79,8 +79,8 @@ APIs (generateExternalModelResponse). Kustom-GPT local LLM. FurAI
 VN mode.
 
 ### Batch 7 — Design polish (LAST)
-- [ ] Dark/light theme toggle (full reskin)
-- [ ] Custom backgrounds per chat
+- [x] Dark/light theme toggle (full reskin)
+- [x] Custom backgrounds per chat
 - [x] Font customization (family + size)
 - [x] Fullscreen mode
 - [ ] UI animation polish

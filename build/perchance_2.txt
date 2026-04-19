@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 97 };
+  NS.__meta = { modules: 100 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -23992,6 +23992,45 @@ Use this template for your response:
   .pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
   .pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
 
+  /* ---- Image gen container ---- */
+  .pf-gen-img-container {
+    margin-top: 8px;
+    display: inline-block;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .pf-gen-img-container iframe {
+    max-width: 300px;
+    max-height: 300px;
+    border: none;
+  }
+
+  /* ---- Light theme overrides ---- */
+  body.pf-light-theme .pf-msg-ctrl-btn {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #333;
+  }
+  body.pf-light-theme .pf-msg-ctrl-btn:hover {
+    background: rgba(0, 0, 0, 0.12);
+  }
+  body.pf-light-theme .pf-chat-search-input {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #1a1a1a;
+  }
+  body.pf-light-theme .pf-presets-dropdown,
+  body.pf-light-theme .pf-glossary-modal {
+    background: #fff;
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #1a1a1a;
+  }
+  body.pf-light-theme .pf-glossary-textarea {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #1a1a1a;
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -29461,6 +29500,327 @@ Use this template for your response:
       };
     } catch {
       return { temperature: null, maxTokens: null };
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/image_gen.js
+     ────────────────────────────────────────────────────────── */
+  // chat/image_gen.js
+  //
+  // Per-message image generation. Adds a 🖼 button to AI messages
+  // (via the existing message_controls pattern). When clicked, uses
+  // aiTextPlugin to extract a visual prompt from the message text,
+  // then calls root.textToImagePlugin to generate an image.
+  //
+  // The generated image is appended after the message as a
+  // clickable thumbnail.
+  //
+  // Bootstrap: call initImageGen() from start(). Idempotent.
+
+  function initImageGen() {
+    if (initImageGen._done) return;
+
+    if (!window.root || typeof window.root.textToImagePlugin !== 'function') return;
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    initImageGen._done = true;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    // ---- Delegated click handler for image gen buttons ----
+    chatEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.pf-gen-img-btn');
+      if (!btn || btn.disabled) return;
+
+      const message = btn.closest('.message');
+      if (!message) return;
+
+      const text = (message.querySelector('.content') || {}).innerText || '';
+      if (!text) return;
+
+      btn.disabled = true;
+      btn.textContent = '⏳';
+
+      try {
+        // Step 1: Extract a visual prompt from the message
+        const promptResult = await window.root.aiTextPlugin({
+          instruction: [
+            'Extract a concise visual image prompt from this text.',
+            'Describe what should be depicted: characters, scene, mood, lighting.',
+            'Reply with ONLY the image prompt, nothing else. Keep it under 100 words.',
+            '',
+            'Text:',
+            text.substring(0, 500),
+          ].join('\n'),
+          stopSequences: ['\n\n'],
+        });
+
+        const prompt = (promptResult && promptResult.text) ? promptResult.text.trim() : text.substring(0, 200);
+
+        // Step 2: Generate the image
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'pf-gen-img-container';
+        imgContainer.innerHTML = window.root.textToImagePlugin({
+          prompt,
+          negativePrompt: 'low quality, worst quality, blurry',
+          resolution: '512x512',
+          onFinish: function(result) {
+            try {
+              const dataUrl = result.canvas.toDataURL('image/jpeg');
+              const iframe = imgContainer.querySelector('iframe');
+              if (iframe) {
+                iframe.outerHTML = `<img src="${dataUrl}" style="max-width:300px; max-height:300px; border-radius:8px; cursor:pointer;" onclick="window.open(this.src)">`;
+              }
+            } catch {}
+          },
+        });
+
+        message.appendChild(imgContainer);
+      } catch (err) {
+        console.warn('[pf] image gen failed:', err && err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🖼';
+      }
+    });
+
+    // ---- Inject image gen buttons via MutationObserver ----
+    function addImgBtn(messageEl) {
+      if (!messageEl || !messageEl.classList.contains('ai')) return;
+      if (messageEl.querySelector('.pf-gen-img-btn')) return;
+      if (messageEl.id.startsWith('typing-')) return;
+
+      const controls = messageEl.querySelector('.pf-msg-ctrls');
+      if (!controls) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'pf-msg-ctrl-btn pf-gen-img-btn';
+      btn.title = 'Generate image from this message';
+      btn.textContent = '🖼';
+      btn.type = 'button';
+      controls.insertBefore(btn, controls.firstChild);
+    }
+
+    // Process existing + observe new
+    chatEl.querySelectorAll('.message.ai').forEach(addImgBtn);
+
+    const observer = new MutationObserver(() => {
+      clearTimeout(addImgBtn._t);
+      addImgBtn._t = setTimeout(() => {
+        chatEl.querySelectorAll('.message.ai').forEach(addImgBtn);
+      }, 200);
+    });
+    observer.observe(chatEl, { childList: true, subtree: false });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/theme_toggle.js
+     ────────────────────────────────────────────────────────── */
+  // chat/theme_toggle.js
+  //
+  // Dark/light theme toggle. Adds a button in the chat header that
+  // switches between dark and light modes by toggling CSS variables
+  // on the document root.
+  //
+  // The default Perchance chat is dark-themed. This module adds a
+  // light theme option by overriding key CSS variables.
+  //
+  // Persists via settings.themeMode ('dark' or 'light').
+  //
+  // Bootstrap: call initThemeToggle() from start(). Idempotent.
+
+
+
+  const LIGHT_OVERRIDES = {
+    '--bg-color': '#f5f5f5',
+    '--box-color': '#ffffff',
+    '--text-color': '#1a1a1a',
+    '--border-color': 'rgba(0, 0, 0, 0.1)',
+    '--sidebar-hover': 'rgba(0, 0, 0, 0.04)',
+  };
+
+  function initThemeToggle() {
+    if (initThemeToggle._done) return;
+    initThemeToggle._done = true;
+
+    let mode = 'dark';
+    try {
+      const s = loadSettings();
+      if (s.themeMode === 'light') mode = 'light';
+    } catch {}
+
+    applyTheme(mode);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.title = 'Toggle light/dark theme';
+    updateBtn();
+
+    btn.addEventListener('click', () => {
+      mode = mode === 'dark' ? 'light' : 'dark';
+      applyTheme(mode);
+      updateBtn();
+      try {
+        const s = loadSettings();
+        s.themeMode = mode;
+        saveSettings(s);
+      } catch {}
+    });
+
+    function updateBtn() {
+      btn.textContent = mode === 'dark' ? '☀' : '🌙';
+    }
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(btn);
+  }
+
+  function applyTheme(mode) {
+    const root = document.documentElement;
+    if (mode === 'light') {
+      for (const [prop, val] of Object.entries(LIGHT_OVERRIDES)) {
+        root.style.setProperty(prop, val);
+      }
+      document.body.classList.add('pf-light-theme');
+    } else {
+      for (const prop of Object.keys(LIGHT_OVERRIDES)) {
+        root.style.removeProperty(prop);
+      }
+      document.body.classList.remove('pf-light-theme');
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/custom_bg.js
+     ────────────────────────────────────────────────────────── */
+  // chat/custom_bg.js
+  //
+  // Custom chat background. Adds a small 🏞 button that opens a
+  // popover where the user can enter an image URL or pick a preset
+  // background. Applied as a CSS background-image on the chat
+  // messages area.
+  //
+  // Storage: settings.chatBackground (URL string or preset name)
+  //
+  // Bootstrap: call initCustomBg() from start(). Idempotent.
+
+
+
+  const PRESET_BGS = [
+    { name: 'None', value: '' },
+    { name: 'Stars', value: 'linear-gradient(to bottom, #0a0a2e 0%, #1a1a3e 50%, #0a0a2e 100%)' },
+    { name: 'Forest', value: 'linear-gradient(to bottom, #0d1f0d 0%, #1a3a1a 50%, #0d1f0d 100%)' },
+    { name: 'Ocean', value: 'linear-gradient(to bottom, #0a1a2e 0%, #1a3a5e 50%, #0a1a2e 100%)' },
+    { name: 'Sunset', value: 'linear-gradient(to bottom, #2e1a0a 0%, #5e3a1a 30%, #3e1a2a 70%, #1a0a2e 100%)' },
+    { name: 'Cozy', value: 'linear-gradient(to bottom, #1a1510 0%, #2e2518 50%, #1a1510 100%)' },
+  ];
+
+  function initCustomBg() {
+    if (initCustomBg._done) return;
+    initCustomBg._done = true;
+
+    let bgValue = '';
+    try {
+      const s = loadSettings();
+      bgValue = s.chatBackground || '';
+    } catch {}
+    applyBg(bgValue);
+
+    // ---- Popover ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container';
+    container.style.position = 'relative';
+    container.style.display = 'inline-block';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = '🏞';
+    btn.title = 'Chat background';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'pf-presets-dropdown';
+    dropdown.hidden = true;
+    dropdown.style.minWidth = '180px';
+
+    // Presets
+    for (const p of PRESET_BGS) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pf-preset-item';
+      item.textContent = p.name;
+      item.addEventListener('click', () => {
+        bgValue = p.value;
+        save();
+        applyBg(bgValue);
+        dropdown.hidden = true;
+      });
+      dropdown.appendChild(item);
+    }
+
+    // Custom URL input
+    const sep = document.createElement('div');
+    sep.style.cssText = 'border-top:1px solid rgba(255,255,255,0.06); margin:4px 0; padding:4px 8px 2px; font-size:11px; opacity:0.5;';
+    sep.textContent = 'Custom image URL';
+    dropdown.appendChild(sep);
+
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.placeholder = 'https://example.com/bg.jpg';
+    urlInput.className = 'pf-chat-search-input';
+    urlInput.style.margin = '4px';
+    urlInput.style.width = 'calc(100% - 8px)';
+    urlInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        bgValue = `url(${urlInput.value.trim()})`;
+        save();
+        applyBg(bgValue);
+        dropdown.hidden = true;
+      }
+    });
+    dropdown.appendChild(urlInput);
+
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(container);
+
+    btn.addEventListener('click', () => { dropdown.hidden = !dropdown.hidden; });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.hidden = true;
+    });
+
+    function save() {
+      try {
+        const s = loadSettings();
+        s.chatBackground = bgValue;
+        saveSettings(s);
+      } catch {}
+    }
+  }
+
+  function applyBg(value) {
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+    if (!value) {
+      chatEl.style.backgroundImage = '';
+      chatEl.style.backgroundColor = '';
+      return;
+    }
+    if (value.startsWith('url(') || value.startsWith('http')) {
+      chatEl.style.backgroundImage = value.startsWith('url(') ? value : `url(${value})`;
+      chatEl.style.backgroundSize = 'cover';
+      chatEl.style.backgroundPosition = 'center';
+      chatEl.style.backgroundAttachment = 'fixed';
+    } else {
+      // gradient
+      chatEl.style.backgroundImage = value;
     }
   }
 
@@ -36824,6 +37184,21 @@ Use this template for your response:
 
     // Generation settings (Batch 6) — ⚙ temp/tokens near input
     try { initGenSettings(); } catch { /* non-fatal */ }
+
+    // Image generation (Batch 4) — 🖼 button on AI messages
+    try {
+      if (document.getElementById('chatMessagesEl') && window.root && window.root.textToImagePlugin) {
+        initImageGen();
+      } else {
+        setTimeout(() => { try { initImageGen(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // Theme toggle (Batch 7) — ☀/🌙 in header
+    try { initThemeToggle(); } catch { /* non-fatal */ }
+
+    // Custom background (Batch 7) — 🏞 in header
+    try { initCustomBg(); } catch { /* non-fatal */ }
 
     // Code syntax highlighting (Batch 3)
     try {
