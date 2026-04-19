@@ -45,7 +45,7 @@ Source: FurAI image gen. FurAI enhancer. URV-AI impersonation
 (generateUserImpersonation) and narration (generateNarration).
 
 ### Batch 5 — Thread + character management (MEDIUM impact, medium scope)
-- [ ] Thread pinning (pin threads to top of sidebar)
+- [x] Thread pinning — ALREADY IN UPSTREAM (isFav + .favStar)
 - [ ] Thread archiving (hide old threads without deleting)
 - [ ] Bulk thread operations (multi-select + delete/archive)
 - [ ] Character browser/grid with search
