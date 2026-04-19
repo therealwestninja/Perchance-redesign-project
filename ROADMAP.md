@@ -21,7 +21,7 @@ Source: FurAI message controls, Kustom-GPT stop-generating.
 
 ### Batch 2 — AI intelligence (HIGH impact, medium scope)
 - [x] Dynamic glossary / context-aware lore injection (d33e20a)
-- [ ] Auto-summary compression for older messages
+- [x] Auto-summary compression for older messages
 - [x] Token count awareness / display (d33e20a)
 
 Source: FurAI dynamic glossary. FurAI auto-summary. URV-AI summaries
@@ -48,8 +48,8 @@ Source: FurAI image gen. FurAI enhancer. URV-AI impersonation
 - [x] Thread pinning — ALREADY IN UPSTREAM (isFav + .favStar)
 - [x] Thread archiving (f19cd6c) (hide old threads without deleting)
 - [x] Bulk thread operations (multi-select + delete/archive)
-- [ ] Character browser/grid with search
-- [ ] Chat folders
+- [x] Character browser/grid with search
+- [x] Chat folders — ALREADY IN UPSTREAM (folderPath + changeFolderPath)
 - [x] Chat export (f19cd6c) (import TBD) (full thread data)
 
 Source: URV-AI thread pinning (togglePinThread), archiving
@@ -58,13 +58,13 @@ Source: URV-AI thread pinning (togglePinThread), archiving
 modal, folder system, import/export.
 
 ### Batch 6 — Advanced (LOWER priority, higher scope)
-- [ ] Conversation branching / tree navigation
+- [x] Conversation branching / tree navigation
 - [x] Prompt presets (save/load prompt templates)
 - [x] Quick reminder editor (edit reminder message inline)
 - [x] Show AI reasoning / thinking toggle
 - [ ] Local LLM connection support (Ollama, KoboldCPP, etc.)
 - [x] Advanced generation settings (temperature, max tokens)
-- [ ] Document / file analysis (upload + chat about docs)
+- [x] Document / file analysis (upload + chat about docs)
 - [ ] Web search integration (search web from chat)
 - [ ] Vision / image understanding (describe uploaded images)
 - [ ] Multiple API providers
@@ -83,8 +83,8 @@ VN mode.
 - [x] Custom backgrounds per chat
 - [x] Font customization (family + size)
 - [x] Fullscreen mode
-- [ ] UI animation polish
-- [ ] Mobile-responsive refinements
+- [x] UI animation polish
+- [x] Mobile-responsive refinements
 
 Source: all three forks have theme toggles. FurAI backgrounds.
 URV-AI font controls (updateAppFontFamily, updateAppFontSize),

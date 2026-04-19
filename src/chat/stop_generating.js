@@ -112,6 +112,42 @@ export function initStopGenerating() {
       } catch { /* non-fatal — generation proceeds without glossary */ }
     }
 
+    // ---- Auto-summary injection (Batch 2) ----
+    // Inject conversation summary for older messages if available.
+    // buildSummaryBlock() is in the same IIFE scope (auto_summary.js).
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const summaryBlock = buildSummaryBlock();
+        if (summaryBlock) {
+          if (args[0] === firstArg) args[0] = { ...firstArg };
+          const existing = args[0].systemMessage || args[0].instruction || '';
+          if (args[0].systemMessage != null) {
+            args[0].systemMessage = existing + summaryBlock;
+          } else if (args[0].instruction != null) {
+            args[0].instruction = existing + summaryBlock;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // ---- Document context injection (Batch 6) ----
+    // Inject uploaded document content if present.
+    // buildDocumentBlock() is in the same IIFE scope (doc_analysis.js).
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const docBlock = buildDocumentBlock();
+        if (docBlock) {
+          if (args[0] === firstArg) args[0] = { ...firstArg };
+          const existing = args[0].systemMessage || args[0].instruction || '';
+          if (args[0].systemMessage != null) {
+            args[0].systemMessage = existing + docBlock;
+          } else if (args[0].instruction != null) {
+            args[0].instruction = existing + docBlock;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
     // ---- Generation settings overrides (Batch 6) ----
     // Apply user's temperature / maxTokens preferences if set.
     // getGenOverrides() is in the same IIFE scope (gen_settings.js).

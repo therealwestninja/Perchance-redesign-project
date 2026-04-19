@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 100 };
+  NS.__meta = { modules: 105 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -24031,6 +24031,67 @@ Use this template for your response:
     color: #1a1a1a;
   }
 
+  /* ---- Character browser cards ---- */
+  .pf-char-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-char-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--pf-accent, var(--pf-palette-amber));
+  }
+  .pf-char-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  .pf-char-name {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---- Branch navigation ---- */
+  .pf-branch-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: 0.6;
+  }
+  .pf-branch-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    line-height: 1;
+  }
+  .pf-branch-btn:hover { background: rgba(255, 255, 255, 0.08); }
+  .pf-branch-btn:disabled { opacity: 0.3; cursor: default; }
+  .pf-branch-label { font-family: ui-monospace, monospace; }
+
+  /* ---- Document analysis status ---- */
+  .pf-doc-status {
+    font-size: 11px;
+    opacity: 0.6;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -29825,6 +29886,672 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/auto_summary.js
+     ────────────────────────────────────────────────────────── */
+  // chat/auto_summary.js
+  //
+  // Auto-summary: when the conversation exceeds a threshold, older
+  // messages are compressed into a summary that's injected into the
+  // AI's context. This extends effective memory without eating raw
+  // tokens for old messages.
+  //
+  // The summary is stored per-thread in settings and injected via
+  // the existing aiTextPlugin monkey-patch (same hook as glossary).
+  //
+  // Trigger: after each AI response, if the thread has more than
+  // SUMMARY_THRESHOLD messages, summarize the oldest batch.
+  //
+  // Bootstrap: call initAutoSummary() from start(). Idempotent.
+
+
+
+  const SUMMARY_KEY = 'threadSummaries';
+  const SUMMARY_THRESHOLD = 20; // start summarizing after 20 messages
+  const BATCH_SIZE = 10; // summarize 10 oldest messages at a time
+
+  function getSummary(threadId) {
+    try {
+      const s = loadSettings();
+      const map = (s && s[SUMMARY_KEY]) || {};
+      return String(map[String(threadId)] || '');
+    } catch { return ''; }
+  }
+
+  function setSummary(threadId, text) {
+    try {
+      const s = loadSettings();
+      if (!s[SUMMARY_KEY] || typeof s[SUMMARY_KEY] !== 'object') s[SUMMARY_KEY] = {};
+      if (text) s[SUMMARY_KEY][String(threadId)] = text;
+      else delete s[SUMMARY_KEY][String(threadId)];
+      saveSettings(s);
+    } catch {}
+  }
+
+  /**
+   * Build the summary block to inject into the AI prompt.
+   * Returns empty string if no summary exists for the current thread.
+   * Called from the aiTextPlugin monkey-patch.
+   */
+  function buildSummaryBlock() {
+    try {
+      const threadId = window.currentChatId;
+      if (threadId == null) return '';
+      const summary = getSummary(threadId);
+      if (!summary) return '';
+      return `\n[CONVERSATION SUMMARY (older messages)]\n${summary}\n`;
+    } catch { return ''; }
+  }
+
+  /**
+   * Check if the current thread needs summarization and trigger it
+   * if so. Called after each message via MutationObserver.
+   */
+  async function maybeSummarize() {
+    try {
+      const threadId = window.currentChatId;
+      if (threadId == null) return;
+      if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      const messages = Array.from(chatEl.querySelectorAll('.message'))
+        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message');
+
+      if (messages.length < SUMMARY_THRESHOLD) return;
+
+      // Check if we already summarized recently (cooldown via flag)
+      const existing = getSummary(threadId);
+      const lastCount = parseInt(localStorage.getItem(`pf:sum-count:${threadId}`) || '0', 10);
+      if (messages.length - lastCount < BATCH_SIZE) return; // not enough new messages
+
+      // Take the oldest BATCH_SIZE messages to summarize
+      const oldest = messages.slice(0, BATCH_SIZE);
+      const context = oldest.map(m => {
+        const isUser = m.classList.contains('user');
+        const nameEl = m.querySelector('.chat-username');
+        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+        const text = (m.querySelector('.content') || {}).innerText || '';
+        return `[${name}]: ${text}`;
+      }).join('\n\n');
+
+      // Generate summary
+      const result = await window.root.aiTextPlugin({
+        instruction: [
+          'Summarize the following conversation excerpt into a concise paragraph.',
+          'Preserve key facts, character actions, plot points, and emotional beats.',
+          'Write in third person, past tense. Keep it under 150 words.',
+          'Reply with ONLY the summary, nothing else.',
+          existing ? `\nPrevious summary to build upon:\n${existing}` : '',
+          '\nMessages to summarize:',
+          context,
+        ].join('\n'),
+        stopSequences: ['\n\n\n'],
+      });
+
+      const summary = (result && result.text) ? result.text.trim() : '';
+      if (summary) {
+        setSummary(threadId, summary);
+        localStorage.setItem(`pf:sum-count:${threadId}`, String(messages.length));
+      }
+    } catch (e) {
+      console.warn('[pf] auto-summary failed:', e && e.message);
+    }
+  }
+
+  function initAutoSummary() {
+    if (initAutoSummary._done) return;
+    initAutoSummary._done = true;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    // Watch for new messages, debounce summary check
+    const observer = new MutationObserver(() => {
+      clearTimeout(maybeSummarize._t);
+      maybeSummarize._t = setTimeout(maybeSummarize, 5000); // 5s delay after last mutation
+    });
+    observer.observe(chatEl, { childList: true, subtree: false });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/char_browser.js
+     ────────────────────────────────────────────────────────── */
+  // chat/char_browser.js
+  //
+  // Character browser: a searchable grid of all characters in the
+  // user's collection. Opens as an overlay when the user clicks the
+  // 👥 button. Clicking a character starts a new chat with them.
+  //
+  // Reads from window.db.characters (upstream Dexie table).
+  //
+  // Bootstrap: call initCharBrowser() from start(). Idempotent.
+
+  function initCharBrowser() {
+    if (initCharBrowser._done) return;
+    if (!window.db || !window.db.characters) return;
+    initCharBrowser._done = true;
+
+    // ---- Overlay ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay';
+    overlay.hidden = true;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal';
+    modal.style.maxWidth = '600px';
+    modal.style.maxHeight = '85vh';
+
+    const title = document.createElement('h3');
+    title.className = 'pf-glossary-title';
+    title.textContent = 'Characters';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Search characters…';
+    searchInput.className = 'pf-chat-search-input';
+    searchInput.style.margin = '8px 0';
+
+    const grid = document.createElement('div');
+    grid.className = 'pf-char-grid';
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;overflow-y:auto;flex:1;padding:4px;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = 'Close';
+    closeBtn.className = 'pf-glossary-cancel';
+    closeBtn.style.alignSelf = 'flex-end';
+    closeBtn.addEventListener('click', close);
+
+    modal.appendChild(title);
+    modal.appendChild(searchInput);
+    modal.appendChild(grid);
+    modal.appendChild(closeBtn);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    let allChars = [];
+
+    async function open() {
+      try {
+        allChars = await window.db.characters.toArray();
+      } catch { allChars = []; }
+      renderGrid('');
+      overlay.hidden = false;
+      searchInput.value = '';
+      searchInput.focus();
+    }
+
+    function close() { overlay.hidden = true; }
+
+    function renderGrid(query) {
+      const q = (query || '').toLowerCase();
+      grid.innerHTML = '';
+      const filtered = q
+        ? allChars.filter(c => (c.name || '').toLowerCase().includes(q) ||
+                               (c.tagline || '').toLowerCase().includes(q))
+        : allChars;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div style="opacity:0.5;text-align:center;padding:20px;">No characters found</div>';
+        return;
+      }
+
+      for (const char of filtered) {
+        const card = document.createElement('div');
+        card.className = 'pf-char-card';
+        card.title = char.tagline || char.name || '';
+
+        const avatar = document.createElement('div');
+        avatar.className = 'pf-char-avatar';
+        if (char.avatar && char.avatar.url) {
+          avatar.style.backgroundImage = `url(${char.avatar.url})`;
+          avatar.style.backgroundSize = 'cover';
+          avatar.style.backgroundPosition = 'center';
+        } else {
+          avatar.textContent = (char.name || '?')[0].toUpperCase();
+          avatar.style.display = 'flex';
+          avatar.style.alignItems = 'center';
+          avatar.style.justifyContent = 'center';
+          avatar.style.fontSize = '24px';
+          avatar.style.opacity = '0.5';
+        }
+
+        const name = document.createElement('div');
+        name.className = 'pf-char-name';
+        name.textContent = char.name || 'Unnamed';
+
+        card.appendChild(avatar);
+        card.appendChild(name);
+
+        card.addEventListener('click', () => {
+          close();
+          // Start a new chat with this character
+          try {
+            if (typeof window.startChatWithCharacter === 'function') {
+              window.startChatWithCharacter(char.id);
+            } else if (typeof window.addThread === 'function') {
+              window.addThread({ characterId: char.id });
+            } else {
+              // Fallback: navigate via URL hash
+              window.location.hash = JSON.stringify({ addThread: { characterId: char.id } });
+            }
+          } catch (e) { console.warn('[pf] start chat failed:', e && e.message); }
+        });
+
+        grid.appendChild(card);
+      }
+    }
+
+    searchInput.addEventListener('input', () => renderGrid(searchInput.value));
+
+    // ---- Trigger button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = '👥';
+    btn.title = 'Browse characters';
+    btn.addEventListener('click', open);
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(btn);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/ui_polish.js
+     ────────────────────────────────────────────────────────── */
+  // chat/ui_polish.js
+  //
+  // UI animation polish and mobile-responsive refinements.
+  // Injects a stylesheet with smooth transitions, subtle animations,
+  // and responsive breakpoints for mobile.
+  //
+  // This is a CSS-only module — no JavaScript behavior, just style
+  // injection at init time.
+  //
+  // Bootstrap: call initUiPolish() from start(). Idempotent.
+
+  function initUiPolish() {
+    if (initUiPolish._done) return;
+    initUiPolish._done = true;
+
+    const style = document.createElement('style');
+    style.id = 'pf-ui-polish';
+    style.textContent = `
+      /* ---- Smooth transitions ---- */
+      .message {
+        animation: pf-fade-in 0.2s ease-out;
+      }
+      @keyframes pf-fade-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Sidebar thread hover */
+      #chatThreads .thread {
+        transition: background-color 0.15s, opacity 0.15s;
+      }
+
+      /* Smooth scroll for chat messages */
+      #chatMessagesEl {
+        scroll-behavior: smooth;
+      }
+
+      /* Input focus glow */
+      #messageInputEl:focus,
+      .chat-input textarea:focus {
+        box-shadow: 0 0 0 2px rgba(var(--pf-accent-rgb, 245, 166, 35), 0.2);
+        transition: box-shadow 0.2s;
+      }
+
+      /* Button press feedback */
+      .pf-msg-ctrl-btn:active,
+      .pf-presets-btn:active,
+      .pf-export-btn:active {
+        transform: scale(0.92);
+      }
+
+      /* ---- Mobile refinements ---- */
+      @media (max-width: 768px) {
+        /* Larger touch targets */
+        .pf-msg-ctrl-btn {
+          padding: 6px 10px;
+          font-size: 16px;
+        }
+
+        /* Stack header buttons */
+        .chat-header-right {
+          flex-wrap: wrap;
+          gap: 2px;
+        }
+
+        /* Full-width search */
+        .pf-chat-search-input {
+          font-size: 16px; /* prevents iOS zoom */
+        }
+
+        /* Glossary modal full-width on mobile */
+        .pf-glossary-modal {
+          width: 95%;
+          max-height: 90vh;
+        }
+
+        /* Presets dropdown wider */
+        .pf-presets-dropdown {
+          min-width: 250px;
+          right: auto;
+          left: 0;
+        }
+
+        /* Character grid 2 columns on mobile */
+        .pf-char-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+
+        /* Token display smaller */
+        .pf-token-display {
+          font-size: 10px;
+          padding: 1px 4px;
+        }
+
+        /* Stop button full width */
+        .pf-stop-gen-btn {
+          width: 100%;
+          margin: 4px 0;
+        }
+
+        /* Input area buttons wrap */
+        .pf-impersonate-btn,
+        .pf-enhance-btn,
+        .pf-narrate-btn {
+          font-size: 16px;
+          padding: 6px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        /* Even smaller screens */
+        .pf-char-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 6px !important;
+        }
+        .pf-char-avatar {
+          width: 48px !important;
+          height: 48px !important;
+        }
+        .pf-char-name {
+          font-size: 11px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/branching.js
+     ────────────────────────────────────────────────────────── */
+  // chat/branching.js
+  //
+  // Conversation branching: when a message is regenerated, the old
+  // version is preserved. Users can navigate between alternative
+  // versions of a message via ◀ 1/3 ▶ buttons.
+  //
+  // Storage: settings.branches[threadId][messageId] = [text1, text2, ...]
+  // The current displayed text is always the last in the array.
+  // Navigating cycles through alternatives.
+  //
+  // Integration: hooks into the existing message_controls.js regen
+  // flow by monkey-patching window.deleteMessage to capture the
+  // content before deletion.
+  //
+  // Bootstrap: call initBranching() from start(). Idempotent.
+
+
+
+  const BRANCH_KEY = 'branches';
+
+  function getBranches(threadId, messageId) {
+    try {
+      const s = loadSettings();
+      const map = (s && s[BRANCH_KEY]) || {};
+      const threadMap = map[String(threadId)] || {};
+      return Array.isArray(threadMap[String(messageId)]) ? threadMap[String(messageId)] : [];
+    } catch { return []; }
+  }
+
+  function saveBranch(threadId, messageId, text) {
+    try {
+      const s = loadSettings();
+      if (!s[BRANCH_KEY]) s[BRANCH_KEY] = {};
+      if (!s[BRANCH_KEY][String(threadId)]) s[BRANCH_KEY][String(threadId)] = {};
+      const key = String(messageId);
+      if (!Array.isArray(s[BRANCH_KEY][String(threadId)][key])) {
+        s[BRANCH_KEY][String(threadId)][key] = [];
+      }
+      s[BRANCH_KEY][String(threadId)][key].push(text);
+      // Cap at 10 alternatives per message
+      if (s[BRANCH_KEY][String(threadId)][key].length > 10) {
+        s[BRANCH_KEY][String(threadId)][key].shift();
+      }
+      saveSettings(s);
+    } catch {}
+  }
+
+  function initBranching() {
+    if (initBranching._done) return;
+    initBranching._done = true;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    // ---- Monkey-patch deleteMessage to capture content before deletion ----
+    const originalDelete = window.deleteMessage;
+    if (typeof originalDelete === 'function') {
+      window.deleteMessage = function patchedDeleteMessage(messageEl) {
+        // Capture content before the upstream deletes it
+        try {
+          const threadId = window.currentChatId;
+          const messageId = messageEl && messageEl.id;
+          const content = messageEl && messageEl.querySelector('.content');
+          const text = content ? content.innerText.trim() : '';
+          if (threadId && messageId && text) {
+            saveBranch(threadId, messageId, text);
+          }
+        } catch {}
+        return originalDelete.apply(this, arguments);
+      };
+    }
+
+    // ---- Branch navigation UI ----
+    // For messages that have stored alternatives, show a small nav bar
+    function addBranchNav(messageEl) {
+      if (!messageEl || messageEl.querySelector('.pf-branch-nav')) return;
+      const messageId = messageEl.id;
+      const threadId = window.currentChatId;
+      if (!messageId || !threadId) return;
+
+      const branches = getBranches(threadId, messageId);
+      if (branches.length === 0) return;
+
+      // Current content is the "live" version (not stored in branches)
+      const content = messageEl.querySelector('.content');
+      const currentText = content ? content.innerText.trim() : '';
+      const allVersions = [...branches];
+      if (currentText && !allVersions.includes(currentText)) {
+        allVersions.push(currentText);
+      }
+      if (allVersions.length < 2) return;
+
+      let currentIndex = allVersions.length - 1; // show current (last)
+
+      const nav = document.createElement('div');
+      nav.className = 'pf-branch-nav';
+
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.textContent = '◀';
+      prevBtn.className = 'pf-branch-btn';
+
+      const label = document.createElement('span');
+      label.className = 'pf-branch-label';
+
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.textContent = '▶';
+      nextBtn.className = 'pf-branch-btn';
+
+      function updateNav() {
+        label.textContent = `${currentIndex + 1}/${allVersions.length}`;
+        prevBtn.disabled = currentIndex === 0;
+        nextBtn.disabled = currentIndex === allVersions.length - 1;
+      }
+
+      prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentIndex > 0) {
+          currentIndex--;
+          if (content) content.innerText = allVersions[currentIndex];
+          updateNav();
+        }
+      });
+
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentIndex < allVersions.length - 1) {
+          currentIndex++;
+          if (content) content.innerText = allVersions[currentIndex];
+          updateNav();
+        }
+      });
+
+      nav.appendChild(prevBtn);
+      nav.appendChild(label);
+      nav.appendChild(nextBtn);
+      updateNav();
+
+      // Insert after the message content
+      const wrapper = messageEl.querySelector('.message-content-wrapper') || messageEl;
+      wrapper.appendChild(nav);
+    }
+
+    // Process existing messages
+    chatEl.querySelectorAll('.message').forEach(addBranchNav);
+
+    // Watch for new messages
+    const observer = new MutationObserver(() => {
+      clearTimeout(addBranchNav._t);
+      addBranchNav._t = setTimeout(() => {
+        chatEl.querySelectorAll('.message').forEach(addBranchNav);
+      }, 300);
+    });
+    observer.observe(chatEl, { childList: true, subtree: false });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/doc_analysis.js
+     ────────────────────────────────────────────────────────── */
+  // chat/doc_analysis.js
+  //
+  // Document analysis: upload a text file and chat about its
+  // contents. The file's text is injected into the AI context
+  // so the AI can answer questions about it.
+  //
+  // Supports: .txt, .md, .json, .csv, .html (text-based files).
+  // For other formats, shows a "not supported" message.
+  //
+  // Adds a 📎 button near the chat input. Clicking it opens a
+  // file picker. The file content is stored in memory (per-session)
+  // and injected via the aiTextPlugin monkey-patch.
+  //
+  // Bootstrap: call initDocAnalysis() from start(). Idempotent.
+
+  let activeDocContent = '';
+  let activeDocName = '';
+
+  /**
+   * Get the active document context block for injection.
+   * Called from the aiTextPlugin monkey-patch.
+   */
+  function buildDocumentBlock() {
+    if (!activeDocContent) return '';
+    // Truncate to ~6000 chars to leave room for chat context
+    const truncated = activeDocContent.length > 6000
+      ? activeDocContent.substring(0, 6000) + '\n[...truncated]'
+      : activeDocContent;
+    return `\n[UPLOADED DOCUMENT: ${activeDocName}]\n${truncated}\n`;
+  }
+
+  function initDocAnalysis() {
+    if (initDocAnalysis._done) return;
+    initDocAnalysis._done = true;
+
+    // ---- File input (hidden) ----
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt,.md,.json,.csv,.html,.xml,.log,.js,.py,.ts,.css';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    // ---- Status indicator ----
+    const status = document.createElement('div');
+    status.className = 'pf-doc-status';
+    status.hidden = true;
+
+    // ---- Button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '📎';
+    btn.title = 'Upload a document to chat about';
+
+    btn.addEventListener('click', () => {
+      if (activeDocContent) {
+        // Already have a doc — offer to clear
+        if (confirm(`Document "${activeDocName}" is loaded. Clear it?`)) {
+          activeDocContent = '';
+          activeDocName = '';
+          status.hidden = true;
+          btn.textContent = '📎';
+        }
+      } else {
+        fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        activeDocContent = text;
+        activeDocName = file.name;
+        status.textContent = `📄 ${file.name} (${Math.round(text.length / 1000)}k chars)`;
+        status.hidden = false;
+        btn.textContent = '📄';
+        btn.title = `Document loaded: ${file.name}. Click to clear.`;
+      } catch (e) {
+        console.warn('[pf] doc read failed:', e && e.message);
+      }
+
+      fileInput.value = ''; // reset for re-upload
+    });
+
+    // Inject
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      const parent = inputArea.parentElement || inputArea;
+      parent.appendChild(btn);
+      parent.appendChild(status);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/token_display.js
      ────────────────────────────────────────────────────────── */
   // chat/token_display.js
@@ -30342,6 +31069,42 @@ Use this template for your response:
             }
           }
         } catch { /* non-fatal — generation proceeds without glossary */ }
+      }
+
+      // ---- Auto-summary injection (Batch 2) ----
+      // Inject conversation summary for older messages if available.
+      // buildSummaryBlock() is in the same IIFE scope (auto_summary.js).
+      if (firstArg && typeof firstArg === 'object') {
+        try {
+          const summaryBlock = buildSummaryBlock();
+          if (summaryBlock) {
+            if (args[0] === firstArg) args[0] = { ...firstArg };
+            const existing = args[0].systemMessage || args[0].instruction || '';
+            if (args[0].systemMessage != null) {
+              args[0].systemMessage = existing + summaryBlock;
+            } else if (args[0].instruction != null) {
+              args[0].instruction = existing + summaryBlock;
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // ---- Document context injection (Batch 6) ----
+      // Inject uploaded document content if present.
+      // buildDocumentBlock() is in the same IIFE scope (doc_analysis.js).
+      if (firstArg && typeof firstArg === 'object') {
+        try {
+          const docBlock = buildDocumentBlock();
+          if (docBlock) {
+            if (args[0] === firstArg) args[0] = { ...firstArg };
+            const existing = args[0].systemMessage || args[0].instruction || '';
+            if (args[0].systemMessage != null) {
+              args[0].systemMessage = existing + docBlock;
+            } else if (args[0].instruction != null) {
+              args[0].instruction = existing + docBlock;
+            }
+          }
+        } catch { /* non-fatal */ }
       }
 
       // ---- Generation settings overrides (Batch 6) ----
@@ -37199,6 +37962,39 @@ Use this template for your response:
 
     // Custom background (Batch 7) — 🏞 in header
     try { initCustomBg(); } catch { /* non-fatal */ }
+
+    // Auto-summary (Batch 2) — compress older messages
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initAutoSummary();
+      } else {
+        setTimeout(() => { try { initAutoSummary(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // Character browser (Batch 5) — 👥 in header
+    try {
+      if (window.db && window.db.characters) {
+        initCharBrowser();
+      } else {
+        setTimeout(() => { try { initCharBrowser(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // UI animation polish + mobile refinements (Batch 7)
+    try { initUiPolish(); } catch { /* non-fatal */ }
+
+    // Conversation branching (Batch 6)
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initBranching();
+      } else {
+        setTimeout(() => { try { initBranching(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // Document analysis (Batch 6) — 📎 upload text files
+    try { initDocAnalysis(); } catch { /* non-fatal */ }
 
     // Code syntax highlighting (Batch 3)
     try {

@@ -3890,6 +3890,67 @@ body.pf-light-theme .pf-glossary-textarea {
   color: #1a1a1a;
 }
 
+/* ---- Character browser cards ---- */
+.pf-char-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-char-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--pf-accent, var(--pf-palette-amber));
+}
+.pf-char-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 8px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.pf-char-name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Branch navigation ---- */
+.pf-branch-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+.pf-branch-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.pf-branch-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.pf-branch-btn:disabled { opacity: 0.3; cursor: default; }
+.pf-branch-label { font-family: ui-monospace, monospace; }
+
+/* ---- Document analysis status ---- */
+.pf-doc-status {
+  font-size: 11px;
+  opacity: 0.6;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
 /* ---- Code syntax highlighting (Batch 3) ----
    Token colors for regex-based highlighting of code blocks.
    Designed for dark backgrounds matching upstream's code block style. */

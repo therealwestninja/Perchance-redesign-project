@@ -326,6 +326,39 @@ export async function start() {
   // Custom background (Batch 7) — 🏞 in header
   try { initCustomBg(); } catch { /* non-fatal */ }
 
+  // Auto-summary (Batch 2) — compress older messages
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initAutoSummary();
+    } else {
+      setTimeout(() => { try { initAutoSummary(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // Character browser (Batch 5) — 👥 in header
+  try {
+    if (window.db && window.db.characters) {
+      initCharBrowser();
+    } else {
+      setTimeout(() => { try { initCharBrowser(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // UI animation polish + mobile refinements (Batch 7)
+  try { initUiPolish(); } catch { /* non-fatal */ }
+
+  // Conversation branching (Batch 6)
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initBranching();
+    } else {
+      setTimeout(() => { try { initBranching(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // Document analysis (Batch 6) — 📎 upload text files
+  try { initDocAnalysis(); } catch { /* non-fatal */ }
+
   // Code syntax highlighting (Batch 3)
   try {
     if (document.getElementById('chatMessagesEl')) {
