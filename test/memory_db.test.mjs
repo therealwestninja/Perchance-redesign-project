@@ -740,7 +740,7 @@ test('commitDiff reorder: external edit is preserved through reorder', async () 
     added: [], deleted: [], edited: [], reordered: [],
     totalChanges: 0,
   };
-  const memoryOrder = [{ id: memId, locked: false }];
+  const memoryOrder = [{ id: memId, locked: false, userMoved: true }];
 
   await commitDiff({
     baselineItems: baseline,
@@ -812,7 +812,7 @@ test('commitDiff reorder: internal edit + reorder on same memory preserves edit'
     reordered: [{ id: memId, scope: 'memory' }],
     totalChanges: 2,
   };
-  const memoryOrder = [{ id: memId, locked: false }];
+  const memoryOrder = [{ id: memId, locked: false, userMoved: true }];
 
   await commitDiff({
     baselineItems: baseline,
@@ -895,4 +895,221 @@ test('formatSaveStatsSummary: promotes and demotes', async () => {
     formatSaveStatsSummary({ promoted: 2, demoted: 1 }),
     'Saved: 2 promotes and 1 demote.'
   );
+});
+
+// ============================================================
+// Targeted persistence tests (#2)
+// ============================================================
+//
+// Verifies the three-bucket partition that commitDiff now applies
+// to memoryOrder entries:
+//   locked    → keep in place
+//   userMoved → proportional remap by FULL-ORDER rank
+//   untouched → keep in place (NEW: no longer rewritten)
+
+test('targeted reorder: untouched cards keep their (messageId, level, indexInLevel)', async () => {
+  // Three memories spread across three messages. User reorders nothing,
+  // calls Save with a memoryOrder that lists all three but flags none
+  // as userMoved. Expected: each entry stays in its original message
+  // slot; nothing rewrites.
+
+  const origMessages = [
+    { id: 1, threadId: 100, memoriesEndingHere: { '1': [{ text: 'A', embedding: [0.1] }] } },
+    { id: 2, threadId: 100, memoriesEndingHere: { '1': [{ text: 'B', embedding: [0.2] }] } },
+    { id: 3, threadId: 100, memoriesEndingHere: { '1': [{ text: 'C', embedding: [0.3] }] } },
+  ];
+  const db = createMockDb({ messages: origMessages });
+  // Shim sortBy on the messages mock — same trick as the stale-baseline tests.
+  db.messages.where = (idx) => ({
+    equals: (val) => ({
+      sortBy: async () => origMessages.filter(m => m[idx] === val).sort((a, b) => a.id - b.id),
+      toArray: async () => origMessages.filter(m => m[idx] === val),
+    }),
+  });
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  const baseline = await loadBaseline({ threadId: 100 });
+  assert.equal(baseline.length, 3);
+
+  const result = await commitDiff({
+    baselineItems: baseline,
+    diff: { added: [], deleted: [], edited: [], reordered: [], totalChanges: 0 },
+    threadId: 100,
+    memoryOrder: baseline.map(b => ({ id: b.id, locked: false /* userMoved omitted = untouched */ })),
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.stats.reorderedMemory, 0, 'untouched entries should not count as reordered');
+  assert.equal(result.stats.preservedMemory, 3, 'all three should be preserved');
+  // On-disk state: each message still has its original entry.
+  assert.equal(origMessages[0].memoriesEndingHere['1'][0].text, 'A');
+  assert.equal(origMessages[1].memoriesEndingHere['1'][0].text, 'B');
+  assert.equal(origMessages[2].memoriesEndingHere['1'][0].text, 'C');
+});
+
+test('targeted reorder: a single userMoved card lands at full-order proportional position', async () => {
+  // Three memories spread across three messages. User drags A from
+  // position 0 to position 2 (last). Save with memoryOrder reflecting
+  // [B, C, A] and userMoved=true on A only.
+  // Expected:
+  //   - B stays at message 1, C stays at message 2 (untouched)
+  //   - A's old slot at message 1 gets tombstoned (null)
+  //   - A re-lands at floor(rank * M / N) where rank=2, M=3, N=3
+  //     → targetMsgIdx = floor(6/3) = 2 → message 3
+
+  const origMessages = [
+    { id: 1, threadId: 100, memoriesEndingHere: { '1': [{ text: 'A', embedding: [0.1] }] } },
+    { id: 2, threadId: 100, memoriesEndingHere: { '1': [{ text: 'B', embedding: [0.2] }] } },
+    { id: 3, threadId: 100, memoriesEndingHere: { '1': [{ text: 'C', embedding: [0.3] }] } },
+  ];
+  const db = createMockDb({ messages: origMessages });
+  db.messages.where = (idx) => ({
+    equals: (val) => ({
+      sortBy: async () => origMessages.filter(m => m[idx] === val).sort((a, b) => a.id - b.id),
+      toArray: async () => origMessages.filter(m => m[idx] === val),
+    }),
+  });
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  const baseline = await loadBaseline({ threadId: 100 });
+  const aId = baseline.find(b => b.text === 'A').id;
+  const bId = baseline.find(b => b.text === 'B').id;
+  const cId = baseline.find(b => b.text === 'C').id;
+
+  const result = await commitDiff({
+    baselineItems: baseline,
+    diff: { added: [], deleted: [], edited: [], reordered: [], totalChanges: 0 },
+    threadId: 100,
+    memoryOrder: [
+      { id: bId, locked: false }, // rank 0, untouched
+      { id: cId, locked: false }, // rank 1, untouched
+      { id: aId, locked: false, userMoved: true }, // rank 2, moved → message floor(6/3) = 2 (i.e. message id 3)
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.stats.reorderedMemory, 1, 'only A counts as reordered');
+  assert.equal(result.stats.preservedMemory, 2, 'B and C preserved');
+
+  // Message 1 (where A was): tombstoned slot
+  const msg1Texts = (origMessages[0].memoriesEndingHere['1'] || [])
+    .filter(e => e && e.text).map(e => e.text);
+  assert.ok(!msg1Texts.includes('A'), `A should not still be at message 1 — got ${JSON.stringify(msg1Texts)}`);
+
+  // Message 2: B untouched
+  const msg2Texts = (origMessages[1].memoriesEndingHere['1'] || [])
+    .filter(e => e && e.text).map(e => e.text);
+  assert.deepEqual(msg2Texts, ['B'], 'B should be alone at message 2');
+
+  // Message 3: C untouched + A re-added
+  const msg3Texts = (origMessages[2].memoriesEndingHere['1'] || [])
+    .filter(e => e && e.text).map(e => e.text);
+  assert.ok(msg3Texts.includes('A'), `A should land at message 3 — got ${JSON.stringify(msg3Texts)}`);
+  assert.ok(msg3Texts.includes('C'), `C should still be at message 3 — got ${JSON.stringify(msg3Texts)}`);
+});
+
+test('targeted reorder: locked + userMoved + untouched mix behaves correctly', async () => {
+  // Five memories. Memory L is locked. Memory M is userMoved. Three
+  // others (X, Y, Z) are untouched. Save the mix.
+  // Expected:
+  //   - L stays at its original message slot (locked)
+  //   - X, Y, Z stay at their slots (untouched)
+  //   - M's old slot tombstoned, M lands at proportional rank position
+
+  const origMessages = [
+    { id: 1, threadId: 100, memoriesEndingHere: { '1': [{ text: 'L', embedding: [0.0] }] } },
+    { id: 2, threadId: 100, memoriesEndingHere: { '1': [{ text: 'M', embedding: [0.1] }] } },
+    { id: 3, threadId: 100, memoriesEndingHere: { '1': [{ text: 'X', embedding: [0.2] }] } },
+    { id: 4, threadId: 100, memoriesEndingHere: { '1': [{ text: 'Y', embedding: [0.3] }] } },
+    { id: 5, threadId: 100, memoriesEndingHere: { '1': [{ text: 'Z', embedding: [0.4] }] } },
+  ];
+  const db = createMockDb({ messages: origMessages });
+  db.messages.where = (idx) => ({
+    equals: (val) => ({
+      sortBy: async () => origMessages.filter(m => m[idx] === val).sort((a, b) => a.id - b.id),
+      toArray: async () => origMessages.filter(m => m[idx] === val),
+    }),
+  });
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  const baseline = await loadBaseline({ threadId: 100 });
+  const byText = (t) => baseline.find(b => b.text === t).id;
+
+  const result = await commitDiff({
+    baselineItems: baseline,
+    diff: { added: [], deleted: [], edited: [], reordered: [], totalChanges: 0 },
+    threadId: 100,
+    memoryOrder: [
+      { id: byText('L'), locked: true },                       // rank 0, locked
+      { id: byText('X'), locked: false },                      // rank 1, untouched
+      { id: byText('Y'), locked: false },                      // rank 2, untouched
+      { id: byText('M'), locked: false, userMoved: true },     // rank 3, moved
+      { id: byText('Z'), locked: false },                      // rank 4, untouched
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.stats.reorderedMemory, 1, 'only M reorders');
+  assert.equal(result.stats.preservedMemory, 3, 'X/Y/Z preserved (locked L not in this tally)');
+
+  // L still at message 1 (locked-stays-put)
+  const msg1Texts = origMessages[0].memoriesEndingHere['1'].filter(e => e && e.text).map(e => e.text);
+  assert.deepEqual(msg1Texts, ['L']);
+  // X still at message 3 (untouched)
+  const msg3Texts = origMessages[2].memoriesEndingHere['1'].filter(e => e && e.text).map(e => e.text);
+  assert.deepEqual(msg3Texts, ['X']);
+  // Y still at message 4 (untouched) — M ALSO lands here per algorithm
+  // (rank 3 of 5, M=5 messages → floor(15/5) = 3 → message idx 3 = id 4),
+  // so the slot ends up holding both. That's correct: targeted persistence
+  // doesn't disturb untouched cards, and the moved card joins them.
+  const msg4Texts = origMessages[3].memoriesEndingHere['1'].filter(e => e && e.text).map(e => e.text);
+  assert.deepEqual(msg4Texts.sort(), ['M', 'Y']);
+  // Z still at message 5 (untouched)
+  const msg5Texts = origMessages[4].memoriesEndingHere['1'].filter(e => e && e.text).map(e => e.text);
+  assert.deepEqual(msg5Texts, ['Z']);
+  // M's original message 2 is now tombstoned (no live entries)
+  const msg2Texts = (origMessages[1].memoriesEndingHere['1'] || []).filter(e => e && e.text).map(e => e.text);
+  assert.ok(!msg2Texts.includes('M'), `M should not still be at message 2 — got ${JSON.stringify(msg2Texts)}`);
+});
+
+test('targeted reorder: zero userMoved entries means zero on-disk writes for memories', async () => {
+  // Edge case: caller passes a full memoryOrder but no entries are
+  // userMoved. commitDiff should be a memory-reorder no-op. The diff
+  // itself has no edits/adds/deletes either, so this is essentially
+  // "user clicked Save without doing anything" — which the UI guards
+  // anyway, but commitDiff should also handle it cleanly.
+
+  const origMessages = [
+    { id: 1, threadId: 100, memoriesEndingHere: { '1': [{ text: 'A', embedding: [0.1] }] } },
+    { id: 2, threadId: 100, memoriesEndingHere: { '1': [{ text: 'B', embedding: [0.2] }] } },
+  ];
+  const beforeSnapshot = JSON.stringify(origMessages);
+
+  const db = createMockDb({ messages: origMessages });
+  db.messages.where = (idx) => ({
+    equals: (val) => ({
+      sortBy: async () => origMessages.filter(m => m[idx] === val).sort((a, b) => a.id - b.id),
+      toArray: async () => origMessages.filter(m => m[idx] === val),
+    }),
+  });
+
+  installMockWindow({ db, activeThreadId: 100 });
+  const { loadBaseline, commitDiff } = await loadDbModule();
+
+  const baseline = await loadBaseline({ threadId: 100 });
+  const result = await commitDiff({
+    baselineItems: baseline,
+    diff: { added: [], deleted: [], edited: [], reordered: [], totalChanges: 0 },
+    threadId: 100,
+    memoryOrder: baseline.map(b => ({ id: b.id, locked: false })), // none userMoved
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(JSON.stringify(origMessages), beforeSnapshot, 'on-disk state should be byte-identical');
 });

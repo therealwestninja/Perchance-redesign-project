@@ -713,14 +713,27 @@ export async function openMemoryWindow() {
 
       // Build the user's desired final order of Memory entries: walk the
       // rendered bubbles top-to-bottom, collect entries with their lock
-      // status. Locked-bubble entries keep their original messages on save
-      // (the "locked-stays-put" carve-out). Only unlocked entries get
-      // proportionally remapped across messages.
+      // status AND a 'userMoved' flag derived from memoryOverrides.
+      // Locked-bubble entries keep their original messages on save
+      // (the "locked-stays-put" carve-out). Among unlocked entries:
+      //   userMoved=true  → user explicitly dragged this card; commitDiff
+      //                     re-assigns it to its new proportional message
+      //   userMoved=false → user never touched this card; commitDiff
+      //                     preserves its original (messageId, level,
+      //                     indexInLevel) tuple
+      // The set of userMovedCardIds is populated by assignCardToBubble
+      // (cross-bubble drop) and moveCardBefore (within-bubble drag) in
+      // bubble_overrides.js. Cards re-clustered by k-means alone are
+      // NOT in the set — they keep their on-disk position untouched.
       const memoryOrder = [];
       for (const bubble of memoryBubbles) {
         const isBubbleLocked = memoryOverrides.lockedBubbles.has(String(bubble.id));
         for (const entry of bubble.entries) {
-          memoryOrder.push({ id: entry.id, locked: isBubbleLocked });
+          memoryOrder.push({
+            id: entry.id,
+            locked: isBubbleLocked,
+            userMoved: memoryOverrides.userMovedCardIds.has(String(entry.id)),
+          });
         }
       }
 

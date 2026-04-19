@@ -50,6 +50,20 @@
  *   current clustering has that stable-id, so the rename survives
  *   re-clusterings. Pruning happens lazily — entries that no longer
  *   match any current bubble are kept in case membership shifts back.
+ *
+ * @property {Set<string>} userMovedCardIds
+ *   Set of card ids the user has EXPLICITLY moved this session
+ *   (via cross-bubble drop OR within-bubble reorder). Used at save
+ *   time to do TARGETED persistence — only re-assign message slots
+ *   for cards the user actually touched. Untouched cards keep
+ *   their original (messageId, level, indexInLevel) tuple, which
+ *   avoids the "I moved one card and every memory's position
+ *   silently shifted" problem under the previous proportional-
+ *   remap-everything algorithm.
+ *
+ *   Cleared with the rest of state when the Memory window closes
+ *   (overrides are session-scoped). Pruned by forgetCard() when
+ *   a card is deleted.
  */
 
 /**
@@ -64,6 +78,7 @@ export function createOverrides() {
     lockedBubbles: new Set(),
     userCreatedBubbles: new Map(),
     bubbleLabelsByStableId: new Map(),
+    userMovedCardIds: new Set(),
   };
 }
 
@@ -79,6 +94,10 @@ export function createOverrides() {
  */
 export function assignCardToBubble(state, cardId, bubbleId) {
   state.cardToBubbleId.set(String(cardId), String(bubbleId));
+  // Cross-bubble drop is the unambiguous "user moved this" signal —
+  // record it so commitDiff can give targeted (not nuke-and-pave)
+  // persistence at save time.
+  state.userMovedCardIds.add(String(cardId));
 }
 
 /**
@@ -103,6 +122,7 @@ export function unassignCard(state, cardId) {
 export function forgetCard(state, cardId) {
   const id = String(cardId);
   state.cardToBubbleId.delete(id);
+  state.userMovedCardIds.delete(id);
   for (const [bId, order] of state.bubbleCardOrder) {
     const idx = order.indexOf(id);
     if (idx >= 0) {
@@ -195,6 +215,11 @@ export function moveCardBefore(state, bubbleId, cardId, beforeCardId, currentCar
     else order.splice(targetIdx, 0, cId);
   }
   state.bubbleCardOrder.set(bId, order);
+  // Within-bubble reorder is also an unambiguous "user moved this"
+  // signal — only the dragged card gets tagged, the others in the
+  // bubble that just shifted to accommodate stay UNTOUCHED for the
+  // purpose of targeted persistence at save time.
+  state.userMovedCardIds.add(cId);
 }
 
 // ---- lock state ----

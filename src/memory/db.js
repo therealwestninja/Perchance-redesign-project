@@ -305,7 +305,11 @@ export async function loadBaseline({ threadId = activeThreadId() } = {}) {
  *   baselineItems: StageItem[],
  *   diff: import('./stage.js').StageDiff,
  *   threadId?: number,
- *   memoryOrder?: Array<{id: string|number, locked: boolean}>,
+ *   memoryOrder?: Array<{
+ *     id: string|number,
+ *     locked: boolean,
+ *     userMoved?: boolean,
+ *   }>,
  * }} params
  * @returns {Promise<{ ok: true, stats: object } | { ok: false, error: string }>}
  */
@@ -514,25 +518,42 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
       }
 
       // ---- reorders ----
-      // Memory: proportional message-id remap (7e).
-      //   See ROADMAP.md "Memory reorder: targeted persistence" for the
-      //   follow-up that does this surgically rather than nuke-and-pave.
+      // Memory: TARGETED message-id remap (#2).
+      //   Previous behavior (7e): proportional remap of EVERY unlocked
+      //   entry whenever the user reordered anything. That meant moving
+      //   one card silently shifted every other unlocked memory's
+      //   message assignment, even cards the user never touched.
       //
-      // Algorithm:
-      //   1. Walk `memoryOrder` (user's final rendered sequence) and
-      //      partition: locked entries keep their current messageId;
-      //      unlocked entries get remapped.
-      //   2. Clear unlocked entries from ALL messages' memoriesEndingHere
-      //      (so we don't duplicate). Locked entries stay put.
-      //   3. Re-assign each unlocked entry to message at position
-      //      floor(i * M / N) where i is its rank among unlocked, N is
-      //      count of unlocked, M is message count.
-      //   4. Append re-assigned entries to their target message's
-      //      memoriesEndingHere[1].
+      //   Current behavior (#2): three buckets, distinguished by per-
+      //   entry flags supplied in memoryOrder:
+      //     locked     → keep current (messageId, level, indexInLevel) tuple
+      //     userMoved  → proportional remap to floor(rank * M / N)
+      //                  where rank is the entry's index in the FULL
+      //                  user-rendered sequence (NOT among only the moved
+      //                  ones — preserves the user's expectation of "where
+      //                  I dropped it lands at THAT position in the thread")
+      //     untouched  → keep current tuple, same as locked. The user
+      //                  didn't move this card; commitDiff doesn't
+      //                  silently rewrite its position
+      //
+      // memoryOrder entries default userMoved=false if not specified
+      // (legacy callers, defensive). That means a memoryOrder without
+      // any userMoved flags now yields a no-op for unlocked entries —
+      // significantly safer than the old "rewrite everything" default.
+      // Window UI sites that call commitDiff already supply userMoved
+      // via memoryOverrides.userMovedCardIds.has(...).
       //
       // If memoryOrder is not provided (legacy callers) OR there's nothing
-      // to remap, skip this block.
+      // to remap, skip this block entirely.
       if (Array.isArray(memoryOrder) && memoryOrder.length > 0) {
+        // Compute preservedMemory once, regardless of whether anything
+        // userMoved exists. This visibility tally fires even on a
+        // pure no-op save (memoryOrder full but no userMoved entries),
+        // so the formatSaveStatsSummary surface can describe what
+        // commitDiff DECIDED not to do as well as what it did.
+        stats.preservedMemory = memoryOrder.filter(e =>
+          !e.locked && e.userMoved !== true).length;
+
         // Gather baseline memory items keyed by id, only those that
         // still exist (weren't deleted in this diff).
         const deletedIds = new Set((diff.deleted || []).map(d => String(d.id)));
@@ -543,17 +564,28 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
           }
         }
 
-        // Partition: unlocked (to remap) vs locked (keep in place)
-        const toRemap = [];
-        const frozen = new Set();
+        // Partition: userMoved (to remap) vs locked/untouched (keep in place).
+        // We still walk the full memoryOrder so 'rank' for userMoved entries
+        // reflects their position in the full user-rendered sequence — that's
+        // what makes the remap target match the user's drag intent.
+        const toRemap = [];      // entries the user explicitly dragged
+        const fullOrderRank = new Map();  // baseMemId → rank in user's full sequence
+        let rank = 0;
         for (const entry of memoryOrder) {
           const base = baseMemById.get(String(entry.id));
           if (!base) continue; // edited-to-different-id or newly-added; skip
+          fullOrderRank.set(String(entry.id), rank);
+          rank++;
           if (entry.locked) {
-            frozen.add(String(entry.id));
-          } else {
+            // Locked-stays-put: no work needed for remap (its message
+            // tuple is already correct on disk).
+            continue;
+          }
+          if (entry.userMoved === true) {
             toRemap.push(base);
           }
+          // else: untouched — leave its (messageId, level, indexInLevel)
+          // tuple alone. commitDiff does NOT touch this entry's slot.
         }
 
         if (toRemap.length > 0) {
@@ -564,35 +596,38 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
             .catch(() => []);
 
           if (messages.length > 0) {
-            // Prefetch any messages that toRemap items CURRENTLY live in,
-            // plus all messages in the thread (since we'll write to
-            // potentially any of them).
-            for (const m of messages) {
-              if (!touchedMessages.has(m.id)) touchedMessages.set(m.id, m);
+            // Prefetch the messages we'll touch — only those (a) holding
+            // a userMoved entry's current slot (we're emptying it) and
+            // (b) destined to receive a userMoved entry (we're writing
+            // to memoriesEndingHere[1]). This is a STRICT SUBSET of the
+            // previous "every message in the thread" prefetch, which
+            // means TARGETED save touches far less of the disk than
+            // the old algorithm did.
+            const touchedMsgIds = new Set();
+            for (const item of toRemap) {
+              const coord = parseMemId(item.id);
+              if (coord) touchedMsgIds.add(coord.messageId);
             }
 
-            // Remove every toRemap entry from its current home.
-            // Preserve frozen entries in place.
-            //
-            // CRUCIAL: while we have the current slot in hand, capture
-            // its text and embedding onto the item. This is the current
-            // on-disk state — reflecting (a) any edits applied earlier
-            // in this same commitDiff (diff.edited was applied above),
-            // and (b) any edits that happened EXTERNALLY since we
-            // loaded baseline (e.g. user used Perchance's /mem slash
-            // command in another window). If we don't capture here,
-            // the write loop below uses baseline text and silently
-            // overwrites both kinds of edits. (Pre-fix: stale-baseline
-            // bug — see test/memory_db.test.mjs reproducer.)
+            // Capture each userMoved entry's current text + embedding
+            // BEFORE tombstoning its slot. Same stale-baseline guard as
+            // the previous algorithm — see the long comment in the
+            // pre-#2 code below for the why.
             for (const item of toRemap) {
               const coord = parseMemId(item.id);
               if (!coord) continue;
-              const m = touchedMessages.get(coord.messageId);
-              if (!m || !m.memoriesEndingHere) continue;
+              let m = touchedMessages.get(coord.messageId);
+              if (!m) {
+                // Lazy-load: targeted save means we may not have prefetched
+                // every message. Pull it now.
+                m = messages.find(mm => mm.id === coord.messageId);
+                if (!m) continue;
+                touchedMessages.set(m.id, m);
+              }
+              if (!m.memoriesEndingHere) continue;
               const lvlArr = m.memoriesEndingHere[coord.level];
               if (!Array.isArray(lvlArr)) continue;
 
-              // Capture current on-disk state before tombstoning.
               const currentEntry = lvlArr[coord.indexInLevel];
               if (currentEntry && typeof currentEntry === 'object') {
                 if (typeof currentEntry.text === 'string') {
@@ -602,26 +637,35 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
                   item.__currentEmbedding = currentEntry.embedding;
                 }
               }
-
-              // Tombstone the slot; we rebuild messages below so indices
-              // don't actually matter, but this keeps the semantics clean.
+              // Tombstone the slot — we'll re-add the entry to its
+              // target message below.
               lvlArr[coord.indexInLevel] = null;
             }
 
-            // Assign each toRemap entry to a target message by proportional rank.
-            // Use the CAPTURED current text/embedding (set above) in preference
-            // to the baseline's stale text. Baseline text remains the fallback
-            // for items whose current slot was somehow unreadable.
-            const N = toRemap.length;
+            // Assign each userMoved entry to a target message by its
+            // FULL-ORDER rank (not its rank-among-moved). This is what
+            // makes "I dragged this to the middle of my list" land in
+            // the middle of the thread, not at position 0 just because
+            // it happened to be the only thing the user moved.
+            //
+            // Edge case: rank could be 0 → targetMsgIdx = 0 → first
+            // message receives the entry. That's correct — the user
+            // moved it to the top of their list.
             const M = messages.length;
-            for (let i = 0; i < N; i++) {
-              const targetMsgIdx = Math.min(M - 1, Math.floor(i * M / N));
-              const targetMsg = touchedMessages.get(messages[targetMsgIdx].id);
+            const N = memoryOrder.length;
+            for (const item of toRemap) {
+              const itemRank = fullOrderRank.get(String(item.id)) ?? 0;
+              const targetMsgIdx = Math.min(M - 1, Math.floor(itemRank * M / N));
+              let targetMsg = touchedMessages.get(messages[targetMsgIdx].id);
+              if (!targetMsg) {
+                // Lazy-load destination too (targeted save).
+                targetMsg = messages[targetMsgIdx];
+                touchedMessages.set(targetMsg.id, targetMsg);
+              }
               if (!targetMsg.memoriesEndingHere) targetMsg.memoriesEndingHere = {};
               if (!Array.isArray(targetMsg.memoriesEndingHere['1'])) {
                 targetMsg.memoriesEndingHere['1'] = [];
               }
-              const item = toRemap[i];
               const freshText = item.__currentText != null
                 ? item.__currentText
                 : item.text;
@@ -632,10 +676,11 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
                 text: freshText,
                 embedding: freshEmbedding,
               });
-              stats.skippedMemoryReorder = 0; // replaces the old "skipped" tally
+              stats.skippedMemoryReorder = 0;
             }
 
-            stats.reorderedMemory = N;
+            stats.reorderedMemory = toRemap.length;
+            // preservedMemory already set above (hoisted); no-op here.
           }
         }
       } else {
