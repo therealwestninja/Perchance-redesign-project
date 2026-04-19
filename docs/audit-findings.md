@@ -157,17 +157,20 @@ was exactly this.)
   and reorders are in a different layer). Intentional.
 
 ### NP-4 · `resetMemoryK` / `resetLoreK` parameters
-- **Status:** ⚠️ DEAD PARAMETERS.
+- **Status:** RESOLVED — `beb136c`.
 - **Finding:** `recomputeBubbles({ resetMemoryK, resetLoreK })` and
-  `refresh({ resetMemoryK, resetLoreK })` have the parameters, but
-  NO call site ever passes `true`. K only initializes from
-  `recommendK(baselineCount)` and otherwise tracks user's slider
-  position sticky.
-- **Classification:** not a predicate bug. Either dead defensive
-  code (delete for clarity) or planned behavior never shipped
-  ("auto-reset K when entry count changes dramatically"). Product
-  decision needed.
-- **Action:** noted; no change in this audit pass.
+  `refresh({ resetMemoryK, resetLoreK })` had the parameters
+  defined but no call site ever passed `true`. The reset-k
+  branches (`if (resetMemoryK) memoryK = recommendK(memFreeCount);`)
+  were dead code.
+- **Fix:** parameters deleted. k-initialization at open time
+  (lines 111-112 via `let memoryK = recommendK(initialMemoryEntries.length)`)
+  and the user's ± slider remain the only k mutation paths.
+  `recommendK` import retained for the init-time call.
+- **Future note:** if product work later wants "auto-reset k
+  when entry count drops significantly after a batch op", that's
+  a new design with an explicit trigger heuristic, not a matter
+  of re-enabling dead parameters.
 
 ### NP-5 · `panelsState()` builder
 - **Status:** ✅ Clean (verified).
@@ -255,8 +258,20 @@ was exactly this.)
 <a id="code-duplication-audit"></a>
 ## Code duplication audit
 
-**Status:** IN PROGRESS. First hotspot closed (CD-1); remaining
-areas listed in ROADMAP still open.
+**Status:** CLOSED. Three duplication passes shipped (CD-1, CD-2,
+CD-3) plus one latent bug surfaced during CD-2 and fixed (CD-2a).
+
+### Remaining hotspots (open — low priority)
+- `window_open.js` `onSave`: ~15 lines of structurally-similar
+  "build headline / build snapshot label" branching. Marginal
+  extraction win, deferred.
+- Achievement predicates: each walks stats independently. Not
+  really duplication — each criterion reads specific fields.
+  The drift-guard test from NP-6 covers the risk that matters.
+- `styles.js` CSS: hover/focus/disabled state blocks repeat
+  across sibling components. Deferred to the theme-overhaul
+  sprint — coupling style-cleanup to the visual redesign is
+  more efficient than two passes.
 
 ### CD-1 · Drop-target wiring in render/memory_panels.js
 - **Status:** RESOLVED — `c64a531`.
@@ -364,12 +379,6 @@ areas listed in ROADMAP still open.
 - **Size delta:** 1106 → 1052 lines (−54 net; helper is ~55
   lines, inline code deleted totals ~110 lines).
 - **Tests: 832 passing, 0 regression.**
-
-### Remaining hotspots (open)
-- `window_open.js`: save-pipeline helpers + byScope handlers.
-- `profile/*`: stat-chip DOM duplication across sections.
-- `styles.js`: repeated hover/focus/disabled CSS blocks.
-- Achievement predicates: each walks stats independently.
 
 ---
 

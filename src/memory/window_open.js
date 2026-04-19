@@ -192,7 +192,7 @@ export async function openMemoryWindow() {
     };
   }
 
-  function recomputeBubbles({ resetMemoryK = false, resetLoreK = false } = {}) {
+  function recomputeBubbles() {
     const { memory: memE, lore: lorE } = currentEntriesPerScope();
 
     // Count entries that are NOT in locked bubbles — these are the only
@@ -201,11 +201,10 @@ export async function openMemoryWindow() {
     const memFreeCount = countFreeEntries(memE, memoryBubbles, memoryOverrides.lockedBubbles);
     const lorFreeCount = countFreeEntries(lorE, loreBubbles,   loreOverrides.lockedBubbles);
 
-    if (resetMemoryK) memoryK = recommendK(memFreeCount);
-    if (resetLoreK)   loreK   = recommendK(lorFreeCount);
-
     // k is the count of FREE bubbles (locked bubbles don't count). Clamp
     // against the number of free entries available, not the total.
+    // k is otherwise sticky — initialized from recommendK at open time
+    // (see below) and nudged only by the user's slider.
     memoryK = Math.max(1, Math.min(memoryK, Math.max(1, memFreeCount)));
     loreK   = Math.max(1, Math.min(loreK,   Math.max(1, lorFreeCount)));
 
@@ -278,8 +277,8 @@ export async function openMemoryWindow() {
     };
   }
 
-  function refresh({ resetMemoryK = false, resetLoreK = false } = {}) {
-    recomputeBubbles({ resetMemoryK, resetLoreK });
+  function refresh() {
+    recomputeBubbles();
     overlay.updatePanels(panelsState());
     overlay.setSaveEnabled(hasPersistentChanges());
   }
