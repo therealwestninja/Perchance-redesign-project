@@ -359,6 +359,42 @@ export async function start() {
   // Document analysis (Batch 6) — 📎 upload text files
   try { initDocAnalysis(); } catch { /* non-fatal */ }
 
+  // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
+  try { initAntiRepetition(); } catch { /* non-fatal */ }
+
+  // Dice roller (Batch 8) — 🎲 button + /roll command
+  try { initDiceRoller(); } catch { /* non-fatal */ }
+
+  // Message timestamps (Batch 8)
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initTimestamps();
+    } else {
+      setTimeout(() => { try { initTimestamps(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // Auto-lorebook (Batch 8) — 🔮 AI generates glossary entries
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initAutoLorebook();
+    } else {
+      setTimeout(() => { try { initAutoLorebook(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // User persona editor (Batch 9) — 👤 in header
+  try { initUserPersona(); } catch { /* non-fatal */ }
+
+  // Character card import/export (Batch 9) — 🃏 in header
+  try {
+    if (window.db && window.db.characters) {
+      initCharCards();
+    } else {
+      setTimeout(() => { try { initCharCards(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
   // Code syntax highlighting (Batch 3)
   try {
     if (document.getElementById('chatMessagesEl')) {
@@ -370,6 +406,9 @@ export async function start() {
 
   // Voice I/O (Batch 3) — mic + speaker buttons
   try { initVoice(); } catch { /* non-fatal */ }
+
+  // Tools menu (MUST be last — collects all buttons injected above)
+  try { initToolsMenu(); } catch { /* non-fatal */ }
 
   // Initial fetch
   await refresh(card);
@@ -397,6 +436,15 @@ export async function start() {
     const bootUnlocked = computeUnlockedIds(bootStats);
     paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
   } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+
+  // ---- Theme colors (custom background gradient) ----
+  // Apply user's chosen primary/secondary background colors at boot.
+  // The pickers live in the Details form; this just applies persisted values.
+  try {
+    if (typeof window.__pf_applyThemeColors === 'function') {
+      window.__pf_applyThemeColors();
+    }
+  } catch { /* non-fatal */ }
 
   // ---- Share-link detection ----
   // If the URL contains ?h=<shareCode>, auto-open the card viewer

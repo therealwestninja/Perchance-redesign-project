@@ -10,6 +10,22 @@ import { updateField, loadSettings, AGE_RANGE_OPTIONS } from '../profile/setting
 import { createGenderSquare } from './gender_square.js';
 import { checkImageFile, resizeImageToDataURL } from '../utils/image.js';
 import { getAvailableTitles, getAccents } from '../profile/flair.js';
+import { ACHIEVEMENTS } from '../achievements/registry.js';
+
+/**
+ * Compute unlock thresholds for theme color pickers.
+ * Returns { accent, secondary, primary } booleans.
+ */
+function getThemeUnlocks(unlockedIds) {
+  const total = ACHIEVEMENTS.length;
+  const count = (unlockedIds || []).length;
+  const pct = total > 0 ? count / total : 0;
+  return {
+    accent:    pct >= 0.10,  // 10% — ~4 achievements
+    secondary: pct >= 0.15,  // 15% — ~5 achievements
+    primary:   pct >= 0.25,  // 25% — ~9 achievements
+  };
+}
 
 export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} } = {}) {
   // ---- avatar upload ----
@@ -191,6 +207,7 @@ export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} }
     // child control — which would propagate :hover to it from anywhere
     // in the row.
     groupRow('Accent',  accentSwatches),
+    createThemeColorRow(profile, unlockedIds),
     row('Age range',    ageSelect),
     groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
       genderSquare,
@@ -366,4 +383,109 @@ function loadNameForMonogram() {
   } catch {
     return '';
   }
+}
+
+// ---------------------------------------------------------------------
+// Theme color pickers — primary + secondary background gradient stops
+// ---------------------------------------------------------------------
+
+const THEME_DEFAULTS = {
+  primary:   '#0d1117',
+  secondary: '#161b22',
+};
+
+/**
+ * Create the theme color picker row.
+ * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
+ * Each unlocks at a different achievement threshold.
+ * An Accent picker is already handled by the swatches above, so the
+ * accent threshold from getThemeUnlocks() gates the swatches, not these.
+ */
+function createThemeColorRow(profile, unlockedIds) {
+  const unlocks = getThemeUnlocks(unlockedIds);
+  const tc = (profile && profile.themeColors) || {};
+
+  function makeColorPicker(label, field, defaultColor, isUnlocked, unlockPct) {
+    const wrapper = h('div', { class: 'pf-theme-picker' }, []);
+
+    const colorInput = h('input', {
+      type: 'color',
+      class: 'pf-theme-color-input',
+      value: tc[field] || defaultColor,
+      disabled: !isUnlocked,
+      title: isUnlocked
+        ? `${label} — click to change`
+        : `🔒 Unlock at ${unlockPct}% achievements`,
+      onInput: (ev) => {
+        updateField(`profile.themeColors.${field}`, ev.target.value);
+        applyThemeColorsLive();
+      },
+    });
+
+    const labelEl = h('span', {
+      class: 'pf-theme-picker-label' + (isUnlocked ? '' : ' pf-theme-picker-locked'),
+    }, [label]);
+
+    const lockIcon = !isUnlocked
+      ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
+      : null;
+
+    const resetBtn = isUnlocked
+      ? h('button', {
+          type: 'button',
+          class: 'pf-theme-picker-reset',
+          title: 'Reset to default',
+          onClick: () => {
+            colorInput.value = defaultColor;
+            updateField(`profile.themeColors.${field}`, null);
+            applyThemeColorsLive();
+          },
+        }, ['↺'])
+      : null;
+
+    wrapper.appendChild(colorInput);
+    wrapper.appendChild(labelEl);
+    if (lockIcon) wrapper.appendChild(lockIcon);
+    if (resetBtn) wrapper.appendChild(resetBtn);
+    return wrapper;
+  }
+
+  const container = h('div', { class: 'pf-theme-pickers' }, [
+    makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.secondary, 15),
+    makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.primary,   25),
+  ]);
+
+  return groupRow('Theme', container);
+}
+
+/**
+ * Apply theme colors to the page by setting CSS custom properties.
+ * Called on change + at boot time from profile/index.js.
+ */
+function applyThemeColorsLive() {
+  try {
+    const settings = loadSettings();
+    const tc = (settings && settings.profile && settings.profile.themeColors) || {};
+    const primary   = tc.primary   || THEME_DEFAULTS.primary;
+    const secondary = tc.secondary || THEME_DEFAULTS.secondary;
+    // Derive a lighter shade for button gradients
+    const secLight = lightenHex(secondary, 12);
+    document.documentElement.style.setProperty('--pf-theme-primary', primary);
+    document.documentElement.style.setProperty('--pf-theme-secondary', secondary);
+    document.documentElement.style.setProperty('--pf-theme-secondary-light', secLight);
+  } catch { /* non-fatal */ }
+}
+
+function lightenHex(hex, amount) {
+  const h = (hex || '').replace('#', '');
+  const r = Math.min(255, (parseInt(h.substring(0,2),16)||0) + amount);
+  const g = Math.min(255, (parseInt(h.substring(2,4),16)||0) + amount);
+  const b = Math.min(255, (parseInt(h.substring(4,6),16)||0) + amount);
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
+
+// Export for use by profile/index.js at boot
+if (typeof window !== 'undefined') {
+  window.__pf_applyThemeColors = applyThemeColorsLive;
+  window.__pf_themeDefaults = THEME_DEFAULTS;
 }

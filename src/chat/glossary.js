@@ -76,13 +76,33 @@ export function getGlossaryContext(textToScan, glossaryText) {
   );
 
   const foundEntries = new Set();
+  const foundKeys = new Set();
   let match;
   while ((match = giantRegex.exec(textToScan)) !== null) {
     const matchedWord = match[1].toLowerCase();
     const data = dictionary[matchedWord];
     if (data) {
       foundEntries.add(`- ${data.primary}: ${data.val}`);
+      foundKeys.add(matchedWord);
     }
+  }
+
+  // 4. Recursive scan: check if matched definitions contain keywords
+  //    that trigger OTHER entries (max 2 recursion levels to avoid loops)
+  for (let depth = 0; depth < 2; depth++) {
+    const prevSize = foundEntries.size;
+    const defsText = Array.from(foundEntries).join(' ').toLowerCase();
+    giantRegex.lastIndex = 0; // reset regex state
+    while ((match = giantRegex.exec(defsText)) !== null) {
+      const matchedWord = match[1].toLowerCase();
+      if (foundKeys.has(matchedWord)) continue; // already found
+      const data = dictionary[matchedWord];
+      if (data) {
+        foundEntries.add(`- ${data.primary}: ${data.val}`);
+        foundKeys.add(matchedWord);
+      }
+    }
+    if (foundEntries.size === prevSize) break; // no new entries found
   }
 
   if (foundEntries.size === 0) return '';

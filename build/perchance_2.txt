@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 105 };
+  NS.__meta = { modules: 112 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -20191,31 +20191,30 @@ Use this template for your response:
     gap: 10px;
     padding: 8px 10px;
     margin-bottom: 0.5rem;
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-color);
+    background:
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.2);
+    border-radius: 10px;
+    color: #e8dcc4;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     font-family: inherit;
+    box-shadow: 0 4px 12px -4px rgba(0,0,0,0.5);
   }
   .pf-mini-card:hover {
-    background: var(--box-color-hover, var(--box-color));
-    border-color: var(--button-border-color, var(--border-color));
+    border-color: rgba(212,168,85,0.4);
+    background: linear-gradient(180deg, #1a2028 0%, #10151c 100%);
   }
   .pf-mini-card:active {
     transform: translateY(1px);
   }
   .pf-mini-card:focus-visible {
-    outline: 2px solid var(--link-color, var(--pf-palette-blue));
+    outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 1px;
   }
 
-  /* Memory & Lore open-button sitting below the mini-card. Sized to match
-     the mini-card's padding/border so the two read as a single sidebar
-     group. Gold-accented to match the Bubble tool's visual language. */
   .pf-memory-button {
     display: flex;
     align-items: center;
@@ -20223,26 +20222,26 @@ Use this template for your response:
     width: 100%;
     padding: 6px 10px;
     margin-bottom: 0.5rem;
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-color);
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 10px;
+    color: #e8dcc4;
     cursor: pointer;
     user-select: none;
     font-family: inherit;
     font-size: 13px;
     text-align: left;
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    box-shadow: 0 2px 8px -2px rgba(0,0,0,0.4);
   }
   .pf-memory-button:hover {
-    background: var(--box-color-hover, var(--box-color));
-    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    border-color: rgba(212,168,85,0.35);
   }
   .pf-memory-button:active {
     transform: translateY(1px);
   }
   .pf-memory-button:focus-visible {
-    outline: 2px solid var(--link-color, var(--pf-palette-blue));
+    outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 1px;
   }
   .pf-memory-button-icon {
@@ -20260,8 +20259,8 @@ Use this template for your response:
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: var(--button-bg);
-    border: 1px solid var(--border-color);
+    background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+    border: 2px solid var(--pf-theme-primary, #0d1117);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20271,11 +20270,28 @@ Use this template for your response:
     overflow: hidden;
     background-size: cover;
     background-position: center;
+    position: relative;
+  }
+  /* Small ornate ring on mini avatar */
+  .pf-mini-avatar::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: conic-gradient(from 140deg,
+      var(--pf-accent, #d4a855) 0deg,
+      #e8c97a 90deg,
+      var(--pf-accent, #d4a855) 180deg,
+      #8a6a2c 260deg,
+      var(--pf-accent, #d4a855) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    z-index: -1;
   }
   .pf-mini-avatar-text {
-    /* letter-only monogram when no avatar image is set */
-    color: var(--text-color);
-    opacity: 0.85;
+    color: var(--pf-accent-hi, #e8c97a);
+    text-shadow: 0 1px 4px rgba(212,168,85,0.3);
+    font-family: Georgia, 'Times New Roman', serif;
   }
 
   .pf-mini-info {
@@ -20301,6 +20317,8 @@ Use this template for your response:
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e8dcc4;
   }
 
   .pf-mini-level {
@@ -20308,29 +20326,27 @@ Use this template for your response:
     font-size: 10px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    opacity: 0.65;
-    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    color: var(--pf-accent, #d4a855);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
   .pf-mini-meta {
     font-size: 10px;
-    opacity: 0.55;
-    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
   .pf-mini-bar {
     height: 3px;
-    background: rgba(127, 127, 127, 0.18);
+    background: rgba(212,168,85,0.1);
     border-radius: 2px;
     overflow: hidden;
     margin-top: 2px;
   }
   .pf-mini-bar-fill {
     height: 100%;
-    /* Warm gold accent — chosen to read well on both dark and light themes.
-       Not theme-var-driven on purpose: this is the single "game accent" the
-       project adds, and keeping it constant makes the UI recognizably ours. */
-    background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-accent, var(--pf-palette-amber)) 100%);
+    background: linear-gradient(90deg, var(--pf-accent, #d4a855) 0%, #e8c97a 100%);
+    box-shadow: 0 0 4px rgba(212,168,85,0.4);
     border-radius: 2px;
     transition: width 0.35s ease;
   }
@@ -20444,11 +20460,11 @@ Use this template for your response:
     position: fixed;
     inset: 0;
     z-index: 10000;
-    background: rgba(0, 0, 0, 0.75);
-    color: var(--text-color);
-    /* Backdrop blur when supported — subtle, doesn't scream */
-    -webkit-backdrop-filter: blur(2px);
-            backdrop-filter: blur(2px);
+    background: rgba(5, 8, 12, 0.85);
+    background-image: radial-gradient(ellipse at top, rgba(26,20,16,0.5) 0%, transparent 55%);
+    color: #e8dcc4;
+    -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
   }
   .pf-overlay[hidden] { display: none; }
 
@@ -20458,7 +20474,6 @@ Use this template for your response:
     overflow-y: auto;
     overflow-x: hidden;
     padding: 24px 16px 80px;
-    /* Let scroll-container click dismiss only when clicking the BG, not content */
   }
 
   .pf-overlay-content {
@@ -20473,16 +20488,13 @@ Use this template for your response:
   .pf-overlay-close {
     position: fixed;
     top: 12px;
-    /* Align to the right edge of the 800px-max content column on wide viewports.
-       Falls back to the viewport edge (+12px gutter) on screens narrow enough
-       that the content column is already flush against the sides. */
     right: max(12px, calc(50% - 400px - 44px));
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: var(--box-color);
-    color: var(--text-color);
+    border: 1px solid rgba(212,168,85,0.2);
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    color: #e8dcc4;
     font-size: 28px;
     line-height: 1;
     cursor: pointer;
@@ -20503,157 +20515,197 @@ Use this template for your response:
      ============================================================ */
 
   .pf-splash {
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: 28px 24px 20px;
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.25);
+    border-radius: 14px;
+    padding: 22px 22px 20px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 16px;
+    overflow: hidden;
+    box-shadow:
+      0 24px 50px -20px rgba(0,0,0,0.8),
+      0 0 0 1px rgba(232,220,196,0.03) inset,
+      0 1px 0 rgba(232,220,196,0.05) inset;
+  }
+  /* subtle radial glow at top */
+  .pf-splash::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 120px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(212,168,85,0.10) 0%, transparent 60%);
+    pointer-events: none;
   }
 
   .pf-splash-top {
     display: flex;
-    align-items: center;
-    gap: 18px;
+    align-items: flex-start;
+    gap: 16px;
     min-width: 0;
+    position: relative;
+    z-index: 1;
   }
 
+  /* Avatar with ornate conic-gradient ring (from design-truth) */
   .pf-splash-avatar {
     flex-shrink: 0;
-    width: 88px;
-    height: 88px;
+    width: 92px;
+    height: 92px;
     border-radius: 50%;
-    background: var(--button-bg);
-    border: 2px solid var(--pf-accent, var(--pf-palette-amber));
-    box-shadow: 0 0 0 1px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25), 0 4px 14px rgba(0, 0, 0, 0.35);
+    background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     background-size: cover;
     background-position: center;
+    position: relative;
+    z-index: 1;
+    border: 2px solid var(--pf-theme-primary, #0d1117);
+    box-shadow: 0 0 0 3px transparent;
+  }
+  /* Ornate ring — conic gradient around the avatar */
+  .pf-splash-avatar::before {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    background: conic-gradient(from 140deg,
+      var(--pf-accent, #d4a855) 0deg,
+      var(--pf-accent-hi, #e8c97a) 90deg,
+      var(--pf-accent, #d4a855) 180deg,
+      #8a6a2c 260deg,
+      var(--pf-accent, #d4a855) 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    z-index: -1;
   }
   .pf-splash-avatar-text {
-    font-size: 44px;
+    font-size: 38px;
     font-weight: 600;
     line-height: 1;
-    color: var(--pf-accent, var(--pf-palette-amber));
+    color: var(--pf-accent-hi, #e8c97a);
+    text-shadow: 0 2px 8px rgba(212,168,85,0.4);
+    font-family: Georgia, 'Times New Roman', serif;
   }
 
   .pf-splash-ident {
     flex: 1;
     min-width: 0;
+    padding-top: 2px;
   }
   .pf-splash-name {
-    font-size: 26px;
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 600;
     line-height: 1.1;
     margin: 0 0 4px;
-    color: var(--text-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    color: #e8dcc4;
+    letter-spacing: 0.02em;
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-splash-title {
     font-style: italic;
-    font-size: 14px;
-    opacity: 0.75;
-    color: var(--pf-accent, var(--pf-palette-amber));
+    font-size: 15px;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
   }
 
-  /* Archetype tag — small pill under the title. Only present when the
-     user's play-style has been classified; empty element otherwise so
-     it doesn't reserve space. */
   .pf-splash-archetype {
     margin-top: 6px;
     min-height: 0;
   }
   .pf-splash-archetype-tag {
     display: inline-block;
-    font-size: 11px;
-    letter-spacing: 0.08em;
+    font-size: 9px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     font-weight: 600;
     padding: 2px 9px;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.22);
-    color: var(--pf-accent, var(--pf-palette-amber));
-    border: 1px solid var(--pf-accent, var(--pf-palette-amber));
-    opacity: 0.85;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--pf-accent, #d4a855);
+    border: 1px solid rgba(212,168,85,0.35);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
   .pf-splash-levelrow {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    margin-top: 6px;
   }
   .pf-splash-level {
     flex-shrink: 0;
     padding: 4px 10px;
-    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+    background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
+    border: 1px solid rgba(212,168,85,0.55);
     border-radius: 999px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--pf-accent, var(--pf-palette-amber));
-    background: rgba(185, 137, 74, 0.08);
+    color: var(--pf-accent-hi, #e8c97a);
   }
   .pf-splash-level-word { opacity: 0.7; }
-  .pf-splash-level strong { color: var(--text-color); font-weight: 600; }
+  .pf-splash-level strong { color: #e8dcc4; font-weight: 500; }
 
   .pf-splash-xpbar {
     flex: 1;
-    height: 8px;
-    background: rgba(127, 127, 127, 0.18);
-    border-radius: 4px;
+    height: 6px;
+    background: rgba(212,168,85,0.1);
+    border-radius: 3px;
     overflow: hidden;
-    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    border: 1px solid rgba(212,168,85,0.15);
   }
   .pf-splash-xpbar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--pf-palette-amber-deep) 0%, var(--pf-accent, var(--pf-palette-amber)) 100%);
+    background: linear-gradient(90deg, var(--pf-accent, #d4a855) 0%, var(--pf-accent-hi, #e8c97a) 100%);
+    box-shadow: 0 0 8px rgba(212,168,85,0.5);
     transition: width 0.4s ease;
   }
   .pf-splash-xp-label {
     flex-shrink: 0;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 10px;
-    opacity: 0.65;
+    color: #8b95a3;
     letter-spacing: 0.02em;
   }
 
+  /* Hexagonal badge shapes (from design-truth mockup) */
   .pf-splash-badges {
     display: flex;
     gap: 8px;
     margin-top: 4px;
+    position: relative;
+    z-index: 1;
   }
   .pf-splash-badge {
     flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: rgba(185, 137, 74, 0.12);
-    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
+    width: 38px;
+    height: 42px;
+    background: linear-gradient(180deg, #2a1f0e 0%, #0f0a04 100%);
+    border: 1px solid rgba(212,168,85,0.55);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    color: var(--pf-accent, var(--pf-palette-amber));
+    font-size: 18px;
+    color: var(--pf-accent-hi, #e8c97a);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    transition: transform 0.2s;
   }
+  .pf-splash-badge:hover { transform: translateY(-2px); }
   .pf-splash-badge-locked {
+    opacity: 0.25;
+    color: #8b95a3;
     background: transparent;
-    border-style: dashed;
-    border-color: var(--border-color);
-    color: var(--text-color);
-    opacity: 0.22;
+    border-color: rgba(139,149,163,0.3);
   }
 
-  /* Share/screenshot button — small, top-right corner of the splash */
-  .pf-splash {
-    position: relative; /* anchor for the share button's absolute positioning */
-  }
+  /* Share button — top-right corner */
   .pf-splash-share {
     position: absolute;
     top: 10px;
@@ -20663,8 +20715,8 @@ Use this template for your response:
     padding: 0;
     border-radius: 50%;
     background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-color);
+    border: 1px solid rgba(212,168,85,0.25);
+    color: #e8dcc4;
     cursor: pointer;
     font-family: inherit;
     font-size: 14px;
@@ -20673,19 +20725,18 @@ Use this template for your response:
     justify-content: center;
     opacity: 0.5;
     transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+    z-index: 2;
   }
   .pf-splash-share:hover {
     opacity: 1;
-    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+    border-color: rgba(212,168,85,0.55);
     transform: scale(1.05);
   }
   .pf-splash-share:focus-visible {
-    outline: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+    outline: 2px solid rgba(212,168,85,0.55);
     outline-offset: 1px;
     opacity: 1;
   }
-  /* Second share button (card PNG) — positioned to the LEFT of the
-     focus-mode button, which stays in its top-right slot. */
   .pf-splash-card-btn {
     right: auto;
     left: auto;
@@ -20895,26 +20946,31 @@ Use this template for your response:
      ============================================================ */
 
   .pf-section {
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: 16px 20px;
+    background:
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: 0 4px 12px -4px rgba(0,0,0,0.4);
   }
 
   .pf-section-header {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid rgba(212,168,85,0.1);
+    padding-bottom: 10px;
   }
   .pf-section-title {
     flex: 1;
     margin: 0;
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    opacity: 0.75;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
   }
 
   .pf-section-ctrls {
@@ -20926,9 +20982,9 @@ Use this template for your response:
     height: 28px;
     padding: 0;
     background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: var(--text-color);
+    border: 1px solid rgba(212,168,85,0.2);
+    border-radius: 6px;
+    color: #e8dcc4;
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
@@ -20936,15 +20992,15 @@ Use this template for your response:
     transition: opacity 0.15s, background 0.15s;
     font-family: inherit;
   }
-  .pf-section-ctrl:hover { opacity: 1; background: var(--box-color-hover, var(--button-bg)); }
+  .pf-section-ctrl:hover { opacity: 1; background: rgba(212,168,85,0.08); }
   .pf-section-ctrl:focus-visible {
-    outline: 2px solid var(--link-color, var(--pf-palette-blue));
+    outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 1px;
   }
   .pf-section-eye[aria-pressed="true"] {
     opacity: 1;
-    background: rgba(185, 137, 74, 0.12);
-    border-color: rgba(var(--pf-palette-amber-rgb), 0.45);
+    background: rgba(212,168,85,0.12);
+    border-color: rgba(212,168,85,0.45);
   }
 
   .pf-section-body-wrap {
@@ -21034,25 +21090,27 @@ Use this template for your response:
     }
   }
   .pf-field-label {
-    font-size: 12px;
-    letter-spacing: 0.06em;
-    opacity: 0.7;
-    padding-top: 8px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8b95a3;
+    padding-top: 10px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
   .pf-field-input {
     width: 100%;
     padding: 8px 10px;
-    background: var(--textarea-bg, var(--background));
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    background: rgba(232,220,196,0.03);
+    color: #e8dcc4;
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 6px;
     font-family: inherit;
     font-size: 13px;
-    font-family: inherit;
   }
   .pf-field-input:focus {
     outline: none;
-    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+    border-color: rgba(212,168,85,0.55);
+    background: rgba(232,220,196,0.05);
   }
   .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
 
@@ -21812,24 +21870,32 @@ Use this template for your response:
     align-items: center;
     gap: 4px;
     padding: 10px 6px;
-    background: rgba(127, 127, 127, 0.04);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    background: rgba(232,220,196,0.02);
+    border: 1px solid rgba(212,168,85,0.12);
+    border-radius: 8px;
     text-align: center;
     cursor: default;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .pf-ach-card:hover {
+    border-color: rgba(212,168,85,0.3);
+    background: rgba(232,220,196,0.04);
   }
   .pf-ach-card:focus-visible {
-    outline: 2px solid var(--link-color, var(--pf-palette-blue));
+    outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 1px;
   }
   .pf-ach-icon { font-size: 22px; line-height: 1; }
-  .pf-ach-name { font-size: 11px; font-weight: 600; }
+  .pf-ach-name { font-size: 11px; font-weight: 600; font-family: Georgia, 'Times New Roman', serif; color: #e8dcc4; }
   .pf-ach-tier {
     font-size: 9px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    opacity: 0.55;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(212,168,85,0.25);
+    color: var(--pf-accent, #d4a855);
   }
   /* Unlock-date line — small, low-emphasis timestamp showing when
      the achievement was first earned. Only rendered on unlocked cards
@@ -21847,15 +21913,20 @@ Use this template for your response:
   }
   .pf-ach-locked .pf-ach-icon { filter: grayscale(1); }
 
-  .pf-ach-tier-common    .pf-ach-icon { color: #a8a8a8; }
+  .pf-ach-tier-common    .pf-ach-icon { color: #8b95a3; }
+  .pf-ach-tier-common    .pf-ach-tier { color: #8b95a3; border-color: rgba(139,149,163,0.3); }
   .pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
+  .pf-ach-tier-uncommon  .pf-ach-tier { color: #6aa36a; border-color: rgba(106,163,106,0.3); }
   .pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
+  .pf-ach-tier-rare      .pf-ach-tier { color: #c94545; border-color: rgba(201,69,69,0.4); }
   .pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
-  .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-palette-amber); }
+  .pf-ach-tier-epic      .pf-ach-tier { color: #b47ad8; border-color: rgba(180,122,216,0.3); }
+  .pf-ach-tier-legendary .pf-ach-icon { color: #e8c97a; text-shadow: 0 0 8px rgba(212,168,85,0.4); }
+  .pf-ach-tier-legendary .pf-ach-tier { color: #e8c97a; border-color: rgba(212,168,85,0.5); }
 
   .pf-ach-unlocked {
-    background: rgba(185, 137, 74, 0.04);
-    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.20);
+    background: rgba(212,168,85,0.04);
+    border-color: rgba(212,168,85,0.2);
   }
 
   /* ---- Description line on cards (new in categorized view) ---- */
@@ -22076,7 +22147,7 @@ Use this template for your response:
     flex-direction: column;
     gap: 16px;
     min-height: 60vh;
-    position: relative;  /* anchors the floating save-banner (absolute) */
+    position: relative;
   }
 
   .pf-mem-header {
@@ -22084,21 +22155,29 @@ Use this template for your response:
     align-items: baseline;
     gap: 12px;
     flex-wrap: wrap;
+    border-bottom: 1px solid rgba(212,168,85,0.15);
+    padding-bottom: 12px;
   }
 
   .pf-mem-title {
     margin: 0;
     font-size: 22px;
     font-weight: 600;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e8dcc4;
+    letter-spacing: 0.02em;
   }
 
   .pf-mem-context-chip {
-    font-size: 12px;
+    font-size: 10px;
     padding: 3px 10px;
-    border-radius: 12px;
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    opacity: 0.85;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
+    border: 1px solid rgba(212,168,85,0.35);
+    color: var(--pf-accent, #d4a855);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   /* ---- panels grid ---- */
@@ -22123,10 +22202,12 @@ Use this template for your response:
     display: flex;
     flex-direction: column;
     min-height: 280px;
-    background: var(--box-color);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    background:
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 10px;
     overflow: hidden;
+    box-shadow: 0 8px 24px -8px rgba(0,0,0,0.5);
   }
 
   .pf-mem-col-header {
@@ -22134,14 +22215,18 @@ Use this template for your response:
     align-items: baseline;
     gap: 8px;
     padding: 10px 14px;
-    border-bottom: 1px solid var(--border-color);
-    background: rgba(0, 0, 0, 0.12);
+    border-bottom: 1px solid rgba(212,168,85,0.15);
+    background: rgba(212,168,85,0.04);
   }
 
   .pf-mem-col-title {
     margin: 0;
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 600;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #e8dcc4;
   }
 
   .pf-mem-col-title-danger { color: var(--pf-palette-red); }
@@ -22162,14 +22247,14 @@ Use this template for your response:
   }
 
   .pf-mem-col-drop-over {
-    outline: 2px dashed var(--link-color, var(--pf-palette-blue));
+    outline: 2px dashed var(--pf-accent, #d4a855);
     outline-offset: -6px;
-    background: rgba(74, 144, 226, 0.06);
+    background: rgba(212,168,85,0.04);
   }
 
   .pf-mem-col-delete.pf-mem-col-drop-over {
-    outline-color: var(--pf-palette-red);
-    background: rgba(var(--pf-palette-red-rgb), 0.08);
+    outline-color: #a83232;
+    background: rgba(168,50,50,0.06);
   }
 
   /* ---- list + cards ---- */
@@ -22188,12 +22273,16 @@ Use this template for your response:
     align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: calc(var(--border-radius) - 2px);
-    background: rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(212,168,85,0.12);
+    border-radius: 8px;
+    background: rgba(232,220,196,0.02);
     cursor: grab;
     user-select: none;
     transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .pf-mem-card:hover {
+    border-color: rgba(212,168,85,0.3);
+    background: rgba(232,220,196,0.04);
   }
 
   .pf-mem-card:active { cursor: grabbing; }
@@ -22713,28 +22802,43 @@ Use this template for your response:
 
   .pf-mem-btn {
     font-family: inherit;
-    font-size: 13px;
+    font-size: 12px;
     padding: 8px 16px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border: 1px solid rgba(212,168,85,0.25);
+    border-radius: 6px;
     cursor: pointer;
-    background: var(--box-color);
-    color: var(--text-color);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    color: #e8dcc4;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
-  .pf-mem-btn:hover:not(:disabled) { background: var(--box-color-hover, var(--box-color)); }
+  .pf-mem-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
+    border-color: rgba(212,168,85,0.4);
+  }
+  .pf-mem-btn:active:not(:disabled) { transform: translateY(1px); }
   .pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .pf-mem-btn:focus-visible {
-    outline: 2px solid var(--link-color, var(--pf-palette-blue));
+    outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 2px;
   }
 
   .pf-mem-btn-primary {
-    background: var(--pf-palette-amber-deep);
-    border-color: var(--pf-palette-amber);
-    color: #1a1410;
+    background: linear-gradient(180deg, #e8c97a 0%, #d4a855 100%);
+    border-color: #8a6a2c;
+    color: #0d1117;
     font-weight: 600;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.08em;
+    box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
   }
-  .pf-mem-btn-primary:hover:not(:disabled) { background: var(--pf-palette-amber); }
+  .pf-mem-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #f0d590 0%, #d4a855 100%);
+  }
+  .pf-mem-btn-primary:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
+  }
 
   /* ---- export dialog ---- */
 
@@ -23371,6 +23475,58 @@ Use this template for your response:
   }
   .pf-accent-swatch-locked:hover { transform: none; }
 
+  /* ---- Theme color pickers ---- */
+  .pf-theme-pickers {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .pf-theme-picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pf-theme-color-input {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 2px solid rgba(212,168,85,0.3);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .pf-theme-color-input:hover:not(:disabled) {
+    border-color: rgba(212,168,85,0.6);
+  }
+  .pf-theme-color-input:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .pf-theme-color-input::-webkit-color-swatch-wrapper { padding: 2px; }
+  .pf-theme-color-input::-webkit-color-swatch { border: none; border-radius: 3px; }
+  .pf-theme-color-input::-moz-color-swatch { border: none; border-radius: 3px; }
+  .pf-theme-picker-label {
+    font-size: 11px;
+    color: #e8dcc4;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.04em;
+  }
+  .pf-theme-picker-locked { color: #8b95a3; opacity: 0.5; }
+  .pf-theme-picker-lock { font-size: 11px; }
+  .pf-theme-picker-reset {
+    background: none;
+    border: 1px solid rgba(212,168,85,0.2);
+    border-radius: 4px;
+    color: #8b95a3;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 5px;
+    line-height: 1;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .pf-theme-picker-reset:hover { color: #e8dcc4; border-color: rgba(212,168,85,0.4); }
+
   /* --- accent color consumers --- */
   /* The overlay gets --pf-accent set via inline style by full_page.js.
      Chrome that previously used the hardcoded gold (var(--pf-palette-amber)) now reads
@@ -23460,75 +23616,81 @@ Use this template for your response:
     max-width: 520px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
   }
-  /* Compact preview card — shows what's packed into the code in a
-     human-readable form. Replaces the old 1080^2 PNG preview. */
+  /* Compact preview card — shows what's packed into the code */
   .pf-share-preview {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
     padding: 18px 16px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: var(--pf-overlay-dark-18);
+    border-radius: 10px;
+    border: 1px solid rgba(212,168,85,0.2);
+    background:
+      linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 40%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
   }
   .pf-share-preview-name {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
-    color: var(--pf-accent, var(--pf-palette-amber));
-    letter-spacing: 0.01em;
+    color: var(--pf-accent, #d4a855);
+    letter-spacing: 0.02em;
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-share-preview-sub {
     font-size: 12px;
-    opacity: 0.75;
+    color: #8b95a3;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-share-preview-badges {
     font-size: 16px;
     letter-spacing: 6px;
-    opacity: 0.9;
     margin-top: 2px;
   }
   .pf-share-code-label {
-    font-size: 11px;
+    font-size: 9px;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    opacity: 0.6;
+    letter-spacing: 0.15em;
+    color: #8b95a3;
     margin-top: 4px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
-  /* The code textarea. Monospace + small so the string fits on one
-     or two lines without horizontal scroll. Read-only. */
+  /* The code textarea — monospace, read-only */
   .pf-share-code {
     width: 100%;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 12px;
     line-height: 1.4;
     padding: 10px 12px;
-    background: var(--pf-overlay-dark-25);
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
+    background: rgba(232,220,196,0.03);
+    color: #e8dcc4;
+    border: 1px solid rgba(212,168,85,0.15);
     border-radius: 6px;
     resize: vertical;
     word-break: break-all;
     box-sizing: border-box;
   }
   .pf-share-code:focus {
-    outline: 1px solid var(--pf-accent, var(--pf-palette-amber));
-    outline-offset: -1px;
+    outline: none;
+    border-color: rgba(212,168,85,0.55);
+    background: rgba(232,220,196,0.05);
   }
   .pf-share-privacy {
     font-size: 11px;
     line-height: 1.5;
-    opacity: 0.6;
+    color: #8b95a3;
     margin: 0;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-share-status {
     font-size: 12px;
     min-height: 16px;
   }
-  .pf-share-status-ok  { color: var(--pf-palette-green); }
-  .pf-share-status-err { color: var(--pf-palette-red); }
+  .pf-share-status-ok  { color: #6aa36a; }
+  .pf-share-status-err { color: #c94545; }
   .pf-share-actions {
     display: flex;
     gap: 10px;
@@ -23536,77 +23698,219 @@ Use this template for your response:
     justify-content: flex-end;
   }
 
-  /* ---- Share-link card viewer (#share-viewer) ----
-     Read-only overlay shown when someone opens a ?h= share link.
-     Styled as a centered card with the shared profile's accent color. */
-  .pf-sv-body {
+  /* ---- Share-link card viewer v2 (#share-viewer) ----
+     Rich profile card display for shared profile links. */
+  .pf-sv2-body {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    padding: 24px 20px;
-    max-width: 360px;
+    padding: 24px 16px;
+    max-width: 400px;
     margin: 0 auto;
+    animation: pf-sv2-appear 0.4s ease-out;
   }
-  .pf-sv-heading {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.55;
+  @keyframes pf-sv2-appear {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pf-sv2-heading {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: #8b95a3;
     font-weight: 600;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    text-transform: uppercase;
   }
-  .pf-sv-card {
+  .pf-sv2-card {
     width: 100%;
-    padding: 20px;
-    border-radius: 12px;
-    border: 2px solid var(--pf-palette-amber);
-    background: rgba(255, 255, 255, 0.04);
+    padding: 28px 24px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(212,168,85,0.2);
+    background:
+      linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    backdrop-filter: blur(12px);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 24px 50px -20px rgba(0,0,0,0.8);
+    color: #e8dcc4;
   }
-  .pf-sv-name {
-    font-size: 20px;
-    font-weight: 700;
-    text-align: center;
+  .pf-sv2-stripe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
   }
-  .pf-sv-sub {
-    font-size: 13px;
-    opacity: 0.75;
-    text-align: center;
-  }
-  .pf-sv-badges {
+  .pf-sv2-level {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
     display: flex;
-    gap: 6px;
-    font-size: 16px;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    margin-top: 8px;
+  }
+  .pf-sv2-level-num {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  .pf-sv2-level-label {
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    opacity: 0.8;
+    color: #fff;
+    margin-top: 2px;
+  }
+  .pf-sv2-name {
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.02em;
+  }
+  .pf-sv2-tags {
+    display: flex;
+    gap: 8px;
     flex-wrap: wrap;
+    justify-content: center;
   }
-  .pf-sv-badge {
-    cursor: default;
+  .pf-sv2-tag {
+    font-size: 12px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(212,168,85,0.25);
+    font-weight: 500;
   }
-  .pf-sv-xp-bar {
+  .pf-sv2-tag-arch {
+    opacity: 0.6;
+    font-style: italic;
+    color: #8b95a3;
+    border-color: rgba(139,149,163,0.3);
+  }
+  .pf-sv2-stats {
+    display: flex;
+    gap: 24px;
+    padding: 12px 0;
+    border-top: 1px solid rgba(212,168,85,0.1);
+    border-bottom: 1px solid rgba(212,168,85,0.1);
     width: 100%;
+    justify-content: center;
+  }
+  .pf-sv2-stat {
+    text-align: center;
+  }
+  .pf-sv2-stat-val {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .pf-sv2-stat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #8b95a3;
+    margin-top: 2px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-sv2-section {
+    width: 100%;
+  }
+  .pf-sv2-sec-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--pf-accent, #d4a855);
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .pf-sv2-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pf-sv2-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(232,220,196,0.02);
+    border: 1px solid rgba(212,168,85,0.12);
+  }
+  .pf-sv2-badge-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+  }
+  .pf-sv2-badge-name {
+    font-size: 13px;
+    font-weight: 500;
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e8dcc4;
+  }
+  .pf-sv2-xp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pf-sv2-xp-bar {
+    flex: 1;
     height: 6px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(212,168,85,0.1);
+    border: 1px solid rgba(212,168,85,0.15);
     overflow: hidden;
-    margin-top: 4px;
   }
-  .pf-sv-xp-fill {
+  .pf-sv2-xp-fill {
     height: 100%;
     border-radius: 3px;
-    transition: width 0.3s;
+    transition: width 0.6s ease-out;
   }
-  .pf-sv-xp-label {
-    font-size: 11px;
-    opacity: 0.55;
-    text-align: center;
+  .pf-sv2-xp-pct {
+    font-size: 12px;
+    font-weight: 500;
+    min-width: 36px;
+    text-align: right;
+    color: #8b95a3;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
-  .pf-sv-actions {
-    display: flex;
-    gap: 10px;
+  .pf-sv2-xp-detail {
+    font-size: 10px;
+    color: #8b95a3;
+    margin-top: 4px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-sv2-close {
+    margin-top: 4px;
+    padding: 8px 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(212,168,85,0.25);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    color: #e8dcc4;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-sv2-close:hover {
+    border-color: rgba(212,168,85,0.4);
+    background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
   }
 
   /* ---- Message controls (Batch 1) ----
@@ -23722,42 +24026,54 @@ Use this template for your response:
   .pf-glossary-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(5, 8, 12, 0.8);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .pf-glossary-modal {
-    background: var(--box-color, #1e1e1e);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    padding: 20px;
+    background:
+      linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.25);
+    border-radius: 14px;
+    padding: 22px;
     width: 90%;
     max-width: 480px;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    box-shadow: 0 24px 50px -20px rgba(0,0,0,0.8);
+    color: #e8dcc4;
   }
   .pf-glossary-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-glossary-hint {
     margin: 0;
     font-size: 12px;
-    opacity: 0.6;
+    color: #8b95a3;
     line-height: 1.4;
+    font-style: italic;
+    font-family: Georgia, 'Times New Roman', serif;
   }
   .pf-glossary-textarea {
     flex: 1;
     min-height: 160px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: var(--text-color, #ccc);
+    background: rgba(232,220,196,0.03);
+    border: 1px solid rgba(212,168,85,0.15);
+    border-radius: 6px;
+    color: #e8dcc4;
     padding: 10px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 13px;
@@ -23766,7 +24082,8 @@ Use this template for your response:
   }
   .pf-glossary-textarea:focus {
     outline: none;
-    border-color: var(--pf-accent, var(--pf-palette-amber));
+    border-color: rgba(212,168,85,0.55);
+    background: rgba(232,220,196,0.05);
   }
   .pf-glossary-actions {
     display: flex;
@@ -23774,22 +24091,37 @@ Use this template for your response:
     justify-content: flex-end;
   }
   .pf-glossary-save, .pf-glossary-cancel {
-    padding: 6px 16px;
+    padding: 8px 18px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(212,168,85,0.25);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     font-family: inherit;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
   .pf-glossary-cancel {
-    background: transparent;
-    color: var(--text-color, #ccc);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    color: #e8dcc4;
+  }
+  .pf-glossary-cancel:hover {
+    border-color: rgba(212,168,85,0.4);
   }
   .pf-glossary-save {
-    background: var(--pf-accent, var(--pf-palette-amber));
-    color: #000;
-    border-color: transparent;
+    background: linear-gradient(180deg, #e8c97a 0%, #d4a855 100%);
+    color: #0d1117;
+    border-color: #8a6a2c;
     font-weight: 600;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.08em;
+    box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
+  }
+  .pf-glossary-save:hover {
+    background: linear-gradient(180deg, #f0d590 0%, #d4a855 100%);
+  }
+  .pf-glossary-save:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
   }
   .pf-glossary-trigger {
     background: none;
@@ -24092,6 +24424,122 @@ Use this template for your response:
     white-space: nowrap;
   }
 
+  /* ---- Message timestamps ---- */
+  .pf-timestamp {
+    font-size: 10px;
+    opacity: 0.4;
+    margin-left: 8px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* ---- Tools menu ---- */
+  .pf-tools-container {
+    position: relative;
+    display: inline-block;
+  }
+  .pf-tools-trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    border: 1px solid rgba(212,168,85,0.3);
+    border-radius: 8px;
+    color: #e8dcc4;
+    cursor: pointer;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .pf-tools-trigger:hover {
+    border-color: rgba(212,168,85,0.55);
+  }
+  .pf-tools-trigger-open {
+    border-color: rgba(212,168,85,0.55);
+    background: linear-gradient(180deg, rgba(212,168,85,0.12) 0%, var(--pf-theme-secondary, #161b22) 100%);
+  }
+  .pf-tools-trigger-icon {
+    font-size: 14px;
+    line-height: 1;
+  }
+  .pf-tools-trigger-label {
+    font-weight: 500;
+  }
+  .pf-tools-popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    max-width: 280px;
+    background:
+      linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
+      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    border: 1px solid rgba(212,168,85,0.25);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px -8px rgba(0,0,0,0.7);
+    padding: 10px;
+    z-index: 9999;
+    animation: pf-tools-in 0.15s ease-out;
+  }
+  @keyframes pf-tools-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .pf-tools-popup-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding: 0 2px;
+  }
+  .pf-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 4px;
+  }
+  .pf-tools-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pf-tools-cell .pf-presets-btn,
+  .pf-tools-cell .pf-export-btn,
+  .pf-tools-cell .pf-tools-item {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: rgba(232,220,196,0.03);
+    border: 1px solid rgba(212,168,85,0.12);
+    border-radius: 8px;
+    color: #e8dcc4;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  .pf-tools-cell .pf-presets-btn:hover,
+  .pf-tools-cell .pf-export-btn:hover,
+  .pf-tools-cell .pf-tools-item:hover {
+    background: rgba(212,168,85,0.08);
+    border-color: rgba(212,168,85,0.35);
+    transform: scale(1.08);
+  }
+  /* Presets containers inside the grid need special sizing */
+  .pf-tools-cell .pf-presets-container {
+    position: relative;
+  }
+  .pf-tools-cell .pf-presets-dropdown {
+    bottom: calc(100% + 4px);
+    right: 0;
+    left: auto;
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -24162,6 +24610,12 @@ Use this template for your response:
         flair: {
           title: null,   // null = auto pick rarest unlocked; else an achievement id
           accent: null,  // null = default amber; else an accent id from ACCENTS list
+        },
+        // Theme colors — custom background gradient stops.
+        // Null = use defaults (#0d1117 / #161b22). Unlock via achievement %.
+        themeColors: {
+          primary:   null,  // darker gradient stop (default #0d1117), unlocks at 25%
+          secondary: null,  // lighter gradient stop (default #161b22), unlocks at 15%
         },
       },
       display: {
@@ -27404,95 +27858,144 @@ Use this template for your response:
   // render/share_viewer.js
   //
   // Read-only card viewer that renders a profile from decoded share-link
-  // data. Triggered on boot when the page URL contains a `?h=` parameter
-  // carrying a valid share code.
+  // data. Triggered on boot when the page URL contains a `?h=` parameter.
   //
-  // The viewer is an overlay that sits on top of everything, showing the
-  // shared profile as a styled card: name, title, archetype, level, XP
-  // bar, accent color, and badges. The card is NOT editable — it's what
-  // the link recipient sees.
-  //
-  // Dismissable via a Close button. After dismissal, the URL's `?h=`
-  // parameter is cleaned so a page refresh doesn't re-show the viewer.
+  // Displays all shared profile data in a visually rich card:
+  //   - Accent-colored stripe and glow
+  //   - Circular level badge
+  //   - Large display name
+  //   - Title + archetype tags
+  //   - Full badge gallery with names and icons
+  //   - Animated XP progress bar
+  //   - Stats summary row
 
 
 
 
-  /**
-   * Render the share-link card viewer.
-   *
-   * @param {object} vm  decoded view-model from decodeShareCode, with
-   *   fields: displayName, title, archetype, level, accent, pinnedBadges,
-   *   xpIntoLevel, xpForNextLevel, progress01
-   * @returns {{ overlay: object }}  the overlay instance for lifecycle
-   */
   function openShareViewer(vm) {
     if (!vm) return { overlay: null };
 
-    const accentHex = vm.accent ? `#${vm.accent}` : '#d8b36a';
-
-    // XP bar
+    const accent = vm.accent ? `#${vm.accent}` : '#d8b36a';
     const progress = Math.max(0, Math.min(1, vm.progress01 || 0));
-    const xpBarFill = h('div', {
-      class: 'pf-sv-xp-fill',
-      style: `width:${Math.round(progress * 100)}%;background:${accentHex};`,
-    });
-    const xpBar = h('div', { class: 'pf-sv-xp-bar' }, [xpBarFill]);
-    const xpLabel = h('div', { class: 'pf-sv-xp-label' }, [
-      `${vm.xpIntoLevel || 0} / ${vm.xpForNextLevel || 1} XP`,
+    const progressPct = Math.round(progress * 100);
+    const displayName = vm.displayName || 'Chronicler';
+    const level = vm.level || 1;
+    const title = vm.title || 'Newcomer';
+    const archetype = vm.archetype || null;
+    const xpInto = vm.xpIntoLevel || 0;
+    const xpFor = vm.xpForNextLevel || 1;
+    const badges = vm.pinnedBadges || [];
+
+    function adj(hex, amt) {
+      const h2 = (hex || '').replace('#', '');
+      const r = Math.max(0, Math.min(255, (parseInt(h2.substring(0,2),16)||0) + amt));
+      const g = Math.max(0, Math.min(255, (parseInt(h2.substring(2,4),16)||0) + amt));
+      const b = Math.max(0, Math.min(255, (parseInt(h2.substring(4,6),16)||0) + amt));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // Level circle
+    const levelCircle = h('div', {
+      class: 'pf-sv2-level',
+      style: `background:linear-gradient(135deg,${accent},${adj(accent,-30)});`
+           + `box-shadow:0 0 20px ${accent}44,0 4px 12px rgba(0,0,0,0.4);`,
+    }, [
+      h('span', { class: 'pf-sv2-level-num' }, [String(level)]),
+      h('span', { class: 'pf-sv2-level-label' }, ['LEVEL']),
     ]);
 
-    // Badges row
-    const badgeNodes = (vm.pinnedBadges || []).map(b =>
+    // Name
+    const nameEl = h('div', {
+      class: 'pf-sv2-name',
+      style: `color:${accent};text-shadow:0 0 24px ${accent}66;`,
+    }, [displayName]);
+
+    // Tags (title + archetype)
+    const tagsRow = h('div', { class: 'pf-sv2-tags' }, [
       h('span', {
-        class: 'pf-sv-badge',
-        title: b.name || '',
-      }, [b.icon || '◆'])
-    );
-
-    // Subtitle line: "Lv 5 · Earned Title · Archetype"
-    const subParts = [`Lv ${vm.level || 1}`, vm.title || 'Newcomer'];
-    if (vm.archetype) subParts.push(vm.archetype);
-    const subtitle = subParts.join(' · ');
-
-    // Card body
-    const card = h('div', {
-      class: 'pf-sv-card',
-      style: `border-color:${accentHex};`,
-    }, [
-      h('div', { class: 'pf-sv-name', style: `color:${accentHex};` }, [
-        vm.displayName || 'Chronicler',
-      ]),
-      h('div', { class: 'pf-sv-sub' }, [subtitle]),
-      badgeNodes.length > 0
-        ? h('div', { class: 'pf-sv-badges' }, badgeNodes)
-        : null,
-      xpBar,
-      xpLabel,
+        class: 'pf-sv2-tag',
+        style: `border-color:${accent}66;color:${accent};`,
+      }, [title]),
+      archetype ? h('span', { class: 'pf-sv2-tag pf-sv2-tag-arch' }, [archetype]) : null,
     ].filter(Boolean));
 
-    // Close button
+    // Stats row
+    const statsRow = h('div', { class: 'pf-sv2-stats' }, [
+      mkStat('Level', String(level), accent),
+      mkStat('Badges', String(badges.length), accent),
+      mkStat('Progress', `${progressPct}%`, accent),
+    ]);
+
+    // Badges
+    const badgeSection = badges.length > 0
+      ? h('div', { class: 'pf-sv2-section' }, [
+          h('div', { class: 'pf-sv2-sec-label' }, ['ACHIEVEMENTS']),
+          h('div', { class: 'pf-sv2-badges' }, badges.map(b =>
+            h('div', { class: 'pf-sv2-badge' }, [
+              h('span', { class: 'pf-sv2-badge-icon' }, [b.icon || '◆']),
+              h('span', { class: 'pf-sv2-badge-name' }, [b.name || '']),
+            ])
+          )),
+        ])
+      : null;
+
+    // XP
+    const xpSection = h('div', { class: 'pf-sv2-section' }, [
+      h('div', { class: 'pf-sv2-sec-label' }, ['EXPERIENCE']),
+      h('div', { class: 'pf-sv2-xp-row' }, [
+        h('div', { class: 'pf-sv2-xp-bar' }, [
+          h('div', {
+            class: 'pf-sv2-xp-fill',
+            style: `width:${progressPct}%;`
+                 + `background:linear-gradient(90deg,${accent},${adj(accent,30)});`
+                 + `box-shadow:0 0 8px ${accent}88;`,
+          }),
+        ]),
+        h('span', { class: 'pf-sv2-xp-pct' }, [`${progressPct}%`]),
+      ]),
+      h('div', { class: 'pf-sv2-xp-detail' }, [
+        `${xpInto} / ${xpFor} XP to next level`,
+      ]),
+    ]);
+
+    // Close
     const closeBtn = h('button', {
       type: 'button',
-      class: 'pf-mem-btn pf-mem-btn-neutral',
+      class: 'pf-sv2-close',
+      style: `border-color:${accent}44;`,
       onClick: () => {
         overlay.hide();
-        // Clean the URL so a page refresh doesn't re-show the viewer.
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('h');
-          const cleanUrl = url.toString();
-          if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
-            window.history.replaceState(null, '', cleanUrl);
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', url.toString());
           }
-        } catch { /* non-fatal — URL stays but viewer is closed */ }
+        } catch {}
       },
     }, ['Close']);
 
-    const body = h('div', { class: 'pf-sv-body' }, [
-      h('div', { class: 'pf-sv-heading' }, ['Shared profile']),
+    // Card
+    const card = h('div', {
+      class: 'pf-sv2-card',
+      style: `border-color:${accent}33;`,
+    }, [
+      h('div', {
+        class: 'pf-sv2-stripe',
+        style: `background:linear-gradient(90deg,${accent}00,${accent},${accent}00);`,
+      }),
+      levelCircle,
+      nameEl,
+      tagsRow,
+      statsRow,
+      badgeSection,
+      xpSection,
+      closeBtn,
+    ].filter(Boolean));
+
+    const body = h('div', { class: 'pf-sv2-body' }, [
+      h('div', { class: 'pf-sv2-heading' }, ['✦ SHARED PROFILE ✦']),
       card,
-      h('div', { class: 'pf-sv-actions' }, [closeBtn]),
     ]);
 
     const overlay = createOverlay({
@@ -27501,6 +28004,13 @@ Use this template for your response:
     });
     overlay.show();
     return { overlay };
+  }
+
+  function mkStat(label, value, accent) {
+    return h('div', { class: 'pf-sv2-stat' }, [
+      h('div', { class: 'pf-sv2-stat-val', style: `color:${accent};` }, [value]),
+      h('div', { class: 'pf-sv2-stat-label' }, [label]),
+    ]);
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -27881,13 +28391,33 @@ Use this template for your response:
     );
 
     const foundEntries = new Set();
+    const foundKeys = new Set();
     let match;
     while ((match = giantRegex.exec(textToScan)) !== null) {
       const matchedWord = match[1].toLowerCase();
       const data = dictionary[matchedWord];
       if (data) {
         foundEntries.add(`- ${data.primary}: ${data.val}`);
+        foundKeys.add(matchedWord);
       }
+    }
+
+    // 4. Recursive scan: check if matched definitions contain keywords
+    //    that trigger OTHER entries (max 2 recursion levels to avoid loops)
+    for (let depth = 0; depth < 2; depth++) {
+      const prevSize = foundEntries.size;
+      const defsText = Array.from(foundEntries).join(' ').toLowerCase();
+      giantRegex.lastIndex = 0; // reset regex state
+      while ((match = giantRegex.exec(defsText)) !== null) {
+        const matchedWord = match[1].toLowerCase();
+        if (foundKeys.has(matchedWord)) continue; // already found
+        const data = dictionary[matchedWord];
+        if (data) {
+          foundEntries.add(`- ${data.primary}: ${data.val}`);
+          foundKeys.add(matchedWord);
+        }
+      }
+      if (foundEntries.size === prevSize) break; // no new entries found
     }
 
     if (foundEntries.size === 0) return '';
@@ -30552,6 +31082,991 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/anti_repetition.js
+     ────────────────────────────────────────────────────────── */
+  // chat/anti_repetition.js
+  //
+  // Anti-repetition system: per-thread word/phrase banlists that are
+  // injected into the AI prompt to prevent repetitive phrasing.
+  //
+  // This directly addresses the #1 user complaint on Lemmy/Reddit:
+  // AI "tunnel vision" where it latches onto specific words, phrases,
+  // or themes and repeats them endlessly in long conversations.
+  //
+  // Two layers of protection:
+  // 1. BANLIST: User-defined words/phrases to never use. Injected
+  //    as "Do NOT use these words/phrases: ..." in the system message.
+  // 2. AUTO-DETECT: Scans the last N messages for repeated phrases
+  //    and automatically adds them to a temporary anti-repetition
+  //    instruction. No user action needed.
+  //
+  // Storage: settings.banlistByThread[threadId] = "word1\nword2\n..."
+  //
+  // Injection: via the aiTextPlugin monkey-patch (same hook as
+  // glossary and summary).
+  //
+  // Bootstrap: call initAntiRepetition() from start(). Idempotent.
+
+
+
+  const BANLIST_KEY = 'banlistByThread';
+  const AUTO_DETECT_LAST_N = 6; // scan last 6 messages
+  const REPEAT_THRESHOLD = 3;   // phrase appears 3+ times = flagged
+
+  function getBanlist(threadId) {
+    try {
+      const s = loadSettings();
+      const map = (s && s[BANLIST_KEY]) || {};
+      return String(map[String(threadId)] || '');
+    } catch { return ''; }
+  }
+
+  function saveBanlist(threadId, text) {
+    try {
+      const s = loadSettings();
+      if (!s[BANLIST_KEY]) s[BANLIST_KEY] = {};
+      const trimmed = (text || '').trim();
+      if (trimmed) s[BANLIST_KEY][String(threadId)] = trimmed;
+      else delete s[BANLIST_KEY][String(threadId)];
+      saveSettings(s);
+    } catch {}
+  }
+
+  /**
+   * Auto-detect repeated phrases in recent messages.
+   * Returns a list of phrases that appear >= REPEAT_THRESHOLD times.
+   */
+  function detectRepeatedPhrases() {
+    try {
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return [];
+
+      const messages = Array.from(chatEl.querySelectorAll('.message.ai'))
+        .filter(m => !m.id.startsWith('typing-'))
+        .slice(-AUTO_DETECT_LAST_N);
+
+      const allText = messages
+        .map(m => (m.querySelector('.content') || {}).innerText || '')
+        .join(' ')
+        .toLowerCase();
+
+      // Extract 2-4 word phrases and count occurrences
+      const words = allText.split(/\s+/).filter(w => w.length > 2);
+      const phraseCounts = {};
+
+      for (let len = 2; len <= 4; len++) {
+        for (let i = 0; i <= words.length - len; i++) {
+          const phrase = words.slice(i, i + len).join(' ');
+          // Skip very short or common phrases
+          if (phrase.length < 8) continue;
+          phraseCounts[phrase] = (phraseCounts[phrase] || 0) + 1;
+        }
+      }
+
+      return Object.entries(phraseCounts)
+        .filter(([, count]) => count >= REPEAT_THRESHOLD)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([phrase]) => phrase);
+    } catch { return []; }
+  }
+
+  /**
+   * Build the anti-repetition block for injection into the prompt.
+   * Called from the aiTextPlugin monkey-patch.
+   */
+  function buildAntiRepetitionBlock() {
+    try {
+      const threadId = window.currentChatId;
+      if (threadId == null) return '';
+
+      const parts = [];
+
+      // User-defined banlist
+      const banlist = getBanlist(threadId);
+      if (banlist) {
+        const words = banlist.split('\n').map(w => w.trim()).filter(Boolean);
+        if (words.length > 0) {
+          parts.push(`BANNED WORDS/PHRASES (never use these): ${words.join(', ')}`);
+        }
+      }
+
+      // Auto-detected repetitions
+      const repeated = detectRepeatedPhrases();
+      if (repeated.length > 0) {
+        parts.push(`OVERUSED PHRASES (avoid repeating): ${repeated.join(', ')}`);
+      }
+
+      if (parts.length === 0) return '';
+      return `\n[ANTI-REPETITION]\n${parts.join('\n')}\nVary your word choice and sentence structure. Avoid repeating phrases from recent messages.\n`;
+    } catch { return ''; }
+  }
+
+  /**
+   * Initialize the anti-repetition system. Adds a 🚫 button for
+   * editing the banlist. Idempotent.
+   */
+  function initAntiRepetition() {
+    if (initAntiRepetition._done) return;
+    initAntiRepetition._done = true;
+
+    // ---- Modal (reuse glossary modal styles) ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay';
+    overlay.hidden = true;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal';
+
+    const title = document.createElement('h3');
+    title.className = 'pf-glossary-title';
+    title.textContent = 'Anti-Repetition Banlist';
+
+    const hint = document.createElement('p');
+    hint.className = 'pf-glossary-hint';
+    hint.textContent = 'One word or phrase per line. The AI will be instructed to never use these. '
+      + 'Repeated phrases are also auto-detected from recent messages.';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'pf-glossary-textarea';
+    textarea.rows = 8;
+    textarea.placeholder = 'delicate\nshiver ran down\na mix of\nwithout missing a beat';
+    textarea.spellcheck = false;
+
+    const actions = document.createElement('div');
+    actions.className = 'pf-glossary-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'pf-glossary-save';
+    saveBtn.addEventListener('click', () => {
+      const threadId = window.currentChatId;
+      if (threadId != null) saveBanlist(threadId, textarea.value);
+      close();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'pf-glossary-cancel';
+    cancelBtn.addEventListener('click', close);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+    modal.appendChild(title);
+    modal.appendChild(hint);
+    modal.appendChild(textarea);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function open() {
+      const threadId = window.currentChatId;
+      textarea.value = threadId != null ? getBanlist(threadId) : '';
+      overlay.hidden = false;
+      textarea.focus();
+    }
+
+    function close() { overlay.hidden = true; }
+
+    // ---- Button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '🚫';
+    btn.title = 'Anti-repetition banlist';
+    btn.addEventListener('click', open);
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/dice_roller.js
+     ────────────────────────────────────────────────────────── */
+  // chat/dice_roller.js
+  //
+  // Dice roller for TTRPG-style play. Intercepts /roll commands in
+  // the chat input and replaces them with dice results. Also adds
+  // a 🎲 button that rolls a d20 and inserts the result.
+  //
+  // Syntax: /roll XdY (e.g. /roll 2d6, /roll 1d20+5)
+  //
+  // Bootstrap: call initDiceRoller() from start(). Idempotent.
+
+  function initDiceRoller() {
+    if (initDiceRoller._done) return;
+    initDiceRoller._done = true;
+
+    const inputEl = document.querySelector('#messageInputEl') ||
+                    document.querySelector('.chat-input textarea') ||
+                    document.querySelector('textarea[placeholder]');
+
+    // ---- /roll command interception ----
+    // Watch for Enter key on the input and intercept /roll commands
+    if (inputEl) {
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        const val = (inputEl.value || '').trim();
+        if (!val.startsWith('/roll')) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const result = parseAndRoll(val);
+        inputEl.value = result;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // Auto-send after a tick
+        setTimeout(() => {
+          const sendBtn = document.querySelector('.send-button') ||
+                          document.querySelector('[onclick*="sendMessage"]') ||
+                          document.querySelector('button[title*="Send"]');
+          if (sendBtn) sendBtn.click();
+        }, 50);
+      });
+    }
+
+    // ---- 🎲 button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '🎲';
+    btn.title = 'Roll dice (d20)';
+    btn.addEventListener('click', () => {
+      const roll = Math.floor(Math.random() * 20) + 1;
+      const crit = roll === 20 ? ' ⭐ CRITICAL!' : roll === 1 ? ' 💀 FUMBLE!' : '';
+      if (inputEl) {
+        inputEl.value = `🎲 *rolls a d20* → **${roll}**${crit}`;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.focus();
+      }
+    });
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
+  }
+
+  function parseAndRoll(command) {
+    // Parse: /roll 2d6+3, /roll d20, /roll 4d8-2
+    const match = command.match(/\/roll\s+(\d*)d(\d+)([+-]\d+)?/i);
+    if (!match) {
+      // Simple random number
+      const n = Math.floor(Math.random() * 20) + 1;
+      return `🎲 *rolls* → **${n}**`;
+    }
+
+    const count = parseInt(match[1] || '1', 10);
+    const sides = parseInt(match[2], 10);
+    const modifier = parseInt(match[3] || '0', 10);
+
+    if (count < 1 || count > 20 || sides < 2 || sides > 100) {
+      return `🎲 Invalid dice: ${count}d${sides}`;
+    }
+
+    const rolls = [];
+    for (let i = 0; i < count; i++) {
+      rolls.push(Math.floor(Math.random() * sides) + 1);
+    }
+
+    const sum = rolls.reduce((a, b) => a + b, 0) + modifier;
+    const modStr = modifier > 0 ? `+${modifier}` : modifier < 0 ? `${modifier}` : '';
+    const rollsStr = count > 1 ? ` (${rolls.join(', ')})` : '';
+
+    return `🎲 *rolls ${count}d${sides}${modStr}*${rollsStr} → **${sum}**`;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/timestamps.js
+     ────────────────────────────────────────────────────────── */
+  // chat/timestamps.js
+  //
+  // Message timestamps: show when each message was sent. Adds a
+  // small timestamp to each message element via MutationObserver.
+  //
+  // For existing messages, uses the message's position as a rough
+  // estimate. For new messages, stamps the current time.
+  //
+  // Bootstrap: call initTimestamps() from start(). Idempotent.
+
+  function initTimestamps() {
+    if (initTimestamps._done) return;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    initTimestamps._done = true;
+
+    function addTimestamp(messageEl, isNew) {
+      if (!messageEl) return;
+      if (messageEl.querySelector('.pf-timestamp')) return;
+      if (messageEl.id.startsWith('typing-')) return;
+      if (messageEl.id === 'personality-selector-message') return;
+
+      const ts = document.createElement('span');
+      ts.className = 'pf-timestamp';
+
+      if (isNew) {
+        ts.textContent = formatTime(new Date());
+      } else {
+        // For pre-existing messages, don't show a time (we don't know when they were sent)
+        ts.textContent = '';
+        ts.style.display = 'none';
+      }
+
+      // Insert into the message
+      const nameEl = messageEl.querySelector('.chat-username');
+      if (nameEl) {
+        nameEl.parentElement.appendChild(ts);
+      } else {
+        messageEl.appendChild(ts);
+      }
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Stamp existing messages (hidden — no timestamp data)
+    chatEl.querySelectorAll('.message').forEach(m => addTimestamp(m, false));
+
+    // Watch for new messages
+    const observer = new MutationObserver(mutations => {
+      for (const mut of mutations) {
+        for (const node of mut.addedNodes) {
+          if (node.nodeType === 1 && node.classList.contains('message')) {
+            addTimestamp(node, true);
+          }
+        }
+      }
+    });
+    observer.observe(chatEl, { childList: true, subtree: false });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/auto_lorebook.js
+     ────────────────────────────────────────────────────────── */
+  // chat/auto_lorebook.js
+  //
+  // Auto-lorebook: AI automatically generates glossary entries from
+  // the conversation context. Inspired by SillyTavern's WorldInfo
+  // Recommender extension.
+  //
+  // Adds a 🔮 button that, when clicked, scans recent messages and
+  // asks the AI to extract key characters, locations, items, and
+  // concepts that should be tracked. The results are merged into
+  // the thread's glossary (same storage as glossary.js).
+  //
+  // This is a one-shot action (not automatic) — the user clicks
+  // the button when they want to update their world info.
+  //
+  // Bootstrap: call initAutoLorebook() from start(). Idempotent.
+
+
+
+  function initAutoLorebook() {
+    if (initAutoLorebook._done) return;
+
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    initAutoLorebook._done = true;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '🔮';
+    btn.title = 'Auto-generate glossary from conversation';
+    let isGenerating = false;
+
+    btn.addEventListener('click', async () => {
+      if (isGenerating) return;
+
+      const threadId = window.currentChatId;
+      if (threadId == null) return;
+
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      // Gather recent messages
+      const messages = Array.from(chatEl.querySelectorAll('.message'))
+        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message')
+        .slice(-12);
+
+      const context = messages.map(m => {
+        const isUser = m.classList.contains('user');
+        const nameEl = m.querySelector('.chat-username');
+        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+        const text = (m.querySelector('.content') || {}).innerText || '';
+        return `[${name}]: ${text}`;
+      }).join('\n\n');
+
+      if (!context.trim()) return;
+
+      isGenerating = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        const existing = loadGlossary(threadId);
+
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            'Analyze this conversation and extract key world-building details.',
+            'For each important character, location, item, faction, or concept,',
+            'create a glossary entry in this exact format (one per line):',
+            '',
+            'keyword, alias = short definition (under 30 words)',
+            '',
+            'Examples:',
+            'Elara, the healer = A wandering healer with silver hair who carries a staff of oak',
+            'Mossford, the town = A small river town known for its moss-covered bridges',
+            'Moonstone = A glowing gem that grants limited night-vision to its holder',
+            '',
+            'Only include entries for things actually mentioned in the conversation.',
+            'Skip generic things. Focus on names, places, and unique concepts.',
+            'Reply with ONLY the glossary entries, nothing else.',
+            existing ? `\nExisting entries (update or add to these, don't duplicate):\n${existing}` : '',
+            '\nConversation to analyze:',
+            context,
+          ].join('\n'),
+          stopSequences: ['\n\n\n'],
+        });
+
+        const generated = (result && result.text) ? result.text.trim() : '';
+        if (generated) {
+          // Merge with existing glossary
+          const merged = existing
+            ? existing + '\n' + generated
+            : generated;
+
+          // Deduplicate by primary keyword
+          const seen = new Set();
+          const deduped = merged.split('\n').filter(line => {
+            const eqIdx = line.indexOf('=');
+            if (eqIdx === -1) return false;
+            const key = line.substring(0, eqIdx).split(',')[0].trim().toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).join('\n');
+
+          saveGlossary(threadId, deduped);
+
+          // Notify
+          const count = deduped.split('\n').filter(l => l.includes('=')).length;
+          alert(`Glossary updated: ${count} entries. Open 📖 to review.`);
+        }
+      } catch (e) {
+        console.warn('[pf] auto-lorebook failed:', e && e.message);
+      } finally {
+        isGenerating = false;
+        btn.textContent = '🔮';
+        btn.disabled = false;
+      }
+    });
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/user_persona.js
+     ────────────────────────────────────────────────────────── */
+  // chat/user_persona.js
+  //
+  // User persona editor: define YOUR character (name, description,
+  // avatar URL) in a dedicated modal. The persona data is injected
+  // into the AI context so the AI knows who it's talking to.
+  //
+  // Upstream has basic userCharacter support but no standalone
+  // editor. This module provides one and injects the persona
+  // into every generation via the monkey-patch.
+  //
+  // Storage: settings.userPersona = {name, description, avatarUrl}
+  //
+  // Bootstrap: call initUserPersona() from start(). Idempotent.
+
+
+
+  const PERSONA_KEY = 'userPersona';
+
+  function getPersona() {
+    try {
+      const s = loadSettings();
+      return (s && s[PERSONA_KEY]) || {};
+    } catch { return {}; }
+  }
+
+  function setPersona(persona) {
+    try {
+      const s = loadSettings();
+      s[PERSONA_KEY] = persona;
+      saveSettings(s);
+    } catch {}
+  }
+
+  /**
+   * Build the persona block for AI context injection.
+   * Called from the aiTextPlugin monkey-patch.
+   */
+  function buildPersonaBlock() {
+    try {
+      const p = getPersona();
+      if (!p.name && !p.description) return '';
+      const parts = [];
+      if (p.name) parts.push(`Name: ${p.name}`);
+      if (p.description) parts.push(`Description: ${p.description}`);
+      return `\n[USER CHARACTER]\n${parts.join('\n')}\n`;
+    } catch { return ''; }
+  }
+
+  function initUserPersona() {
+    if (initUserPersona._done) return;
+    initUserPersona._done = true;
+
+    // ---- Modal (reuse glossary modal styles) ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay';
+    overlay.hidden = true;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal';
+
+    const title = document.createElement('h3');
+    title.className = 'pf-glossary-title';
+    title.textContent = 'Your Character';
+
+    const hint = document.createElement('p');
+    hint.className = 'pf-glossary-hint';
+    hint.textContent = 'Define who you are in the RP. This info is sent to the AI with every message.';
+
+    // Name field
+    const nameLabel = document.createElement('label');
+    nameLabel.style.cssText = 'font-size:12px;opacity:0.7;display:block;margin-top:8px;';
+    nameLabel.textContent = 'Name';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'pf-chat-search-input';
+    nameInput.placeholder = 'Your character name';
+    nameInput.style.marginBottom = '8px';
+
+    // Description
+    const descLabel = document.createElement('label');
+    descLabel.style.cssText = 'font-size:12px;opacity:0.7;display:block;';
+    descLabel.textContent = 'Description';
+    const descInput = document.createElement('textarea');
+    descInput.className = 'pf-glossary-textarea';
+    descInput.rows = 5;
+    descInput.placeholder = 'A tall half-elf ranger with a scar across their left cheek...';
+
+    const actions = document.createElement('div');
+    actions.className = 'pf-glossary-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'pf-glossary-save';
+    saveBtn.addEventListener('click', () => {
+      setPersona({
+        name: nameInput.value.trim(),
+        description: descInput.value.trim(),
+      });
+      close();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'pf-glossary-cancel';
+    cancelBtn.addEventListener('click', close);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+    modal.appendChild(title);
+    modal.appendChild(hint);
+    modal.appendChild(nameLabel);
+    modal.appendChild(nameInput);
+    modal.appendChild(descLabel);
+    modal.appendChild(descInput);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function open() {
+      const p = getPersona();
+      nameInput.value = p.name || '';
+      descInput.value = p.description || '';
+      overlay.hidden = false;
+      nameInput.focus();
+    }
+
+    function close() { overlay.hidden = true; }
+
+    // ---- Button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = '👤';
+    btn.title = 'Edit your character persona';
+    btn.addEventListener('click', open);
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(btn);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/char_cards.js
+     ────────────────────────────────────────────────────────── */
+  // chat/char_cards.js
+  //
+  // Character card import/export. Export characters as JSON files
+  // compatible with SillyTavern's character card format. Import
+  // character cards from JSON files.
+  //
+  // SillyTavern uses PNG files with embedded JSON, but for simplicity
+  // we start with plain JSON export/import. The JSON schema matches
+  // SillyTavern's spec so cards can be round-tripped.
+  //
+  // Adds import/export buttons to the character browser modal.
+  // Also adds a standalone 📥📤 button in the header.
+  //
+  // Bootstrap: call initCharCards() from start(). Idempotent.
+
+  function initCharCards() {
+    if (initCharCards._done) return;
+    if (!window.db || !window.db.characters) return;
+    initCharCards._done = true;
+
+    // ---- Export current character ----
+    async function exportChar() {
+      try {
+        const charId = window.currentCharacterId;
+        if (!charId) { alert('No active character to export.'); return; }
+
+        const char = await window.db.characters.get(charId);
+        if (!char) { alert('Character not found.'); return; }
+
+        // Map to SillyTavern-compatible format
+        const card = {
+          spec: 'chara_card_v2',
+          spec_version: '2.0',
+          data: {
+            name: char.name || 'Unknown',
+            description: char.roleInstruction || '',
+            personality: '',
+            scenario: char.scene ? JSON.stringify(char.scene) : '',
+            first_mes: Array.isArray(char.initialMessages) && char.initialMessages[0]
+              ? char.initialMessages[0].content || '' : '',
+            mes_example: '',
+            system_prompt: char.systemMessage || '',
+            post_history_instructions: char.reminderMessage || '',
+            tags: [],
+            creator: 'Perchance Fork Export',
+            creator_notes: char.tagline || '',
+            character_version: '1.0',
+            extensions: {
+              perchance: {
+                modelName: char.modelName,
+                temperature: char.temperature,
+                maxTokensPerMessage: char.maxTokensPerMessage,
+                imagePromptPrefix: char.imagePromptPrefix,
+                imagePromptSuffix: char.imagePromptSuffix,
+                customCode: char.customCode,
+              }
+            }
+          }
+        };
+
+        if (char.avatar && char.avatar.url) {
+          card.data.avatar = char.avatar.url;
+        }
+
+        const blob = new Blob([JSON.stringify(card, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(char.name || 'character').replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.warn('[pf] export failed:', e && e.message);
+      }
+    }
+
+    // ---- Import character card ----
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.json';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const card = JSON.parse(text);
+        const data = card.data || card;
+
+        // Map from SillyTavern format to Perchance character
+        const newChar = {
+          name: data.name || 'Imported Character',
+          roleInstruction: data.description || data.personality || '',
+          systemMessage: data.system_prompt || '',
+          reminderMessage: data.post_history_instructions || '',
+          tagline: data.creator_notes || '',
+          initialMessages: [],
+          modelName: 'perchance-ai',
+          temperature: 0.8,
+          streamingResponse: true,
+          avatar: {},
+        };
+
+        if (data.first_mes) {
+          newChar.initialMessages.push({
+            author: 'ai',
+            content: data.first_mes,
+          });
+        }
+
+        if (data.avatar) {
+          newChar.avatar = { url: data.avatar, size: 1, shape: 'square' };
+        }
+
+        // Import Perchance-specific extensions if present
+        if (data.extensions && data.extensions.perchance) {
+          const ext = data.extensions.perchance;
+          if (ext.modelName) newChar.modelName = ext.modelName;
+          if (ext.temperature) newChar.temperature = ext.temperature;
+          if (ext.customCode) newChar.customCode = ext.customCode;
+        }
+
+        const id = await window.db.characters.add(newChar);
+        alert(`Imported "${newChar.name}" (ID: ${id}). Start a new chat to use them.`);
+      } catch (e) {
+        alert('Failed to import: ' + (e && e.message));
+      }
+
+      fileInput.value = '';
+    });
+
+    function importChar() {
+      fileInput.click();
+    }
+
+    // ---- Buttons ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container';
+    container.style.cssText = 'position:relative;display:inline-block;';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = '🃏';
+    btn.title = 'Character cards (import/export)';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'pf-presets-dropdown';
+    dropdown.hidden = true;
+
+    const expBtn = document.createElement('button');
+    expBtn.type = 'button';
+    expBtn.className = 'pf-preset-item';
+    expBtn.textContent = '📤 Export current character';
+    expBtn.addEventListener('click', () => { dropdown.hidden = true; exportChar(); });
+
+    const impBtn = document.createElement('button');
+    impBtn.type = 'button';
+    impBtn.className = 'pf-preset-item';
+    impBtn.textContent = '📥 Import character card (.json)';
+    impBtn.addEventListener('click', () => { dropdown.hidden = true; importChar(); });
+
+    dropdown.appendChild(expBtn);
+    dropdown.appendChild(impBtn);
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+
+    btn.addEventListener('click', () => { dropdown.hidden = !dropdown.hidden; });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.hidden = true;
+    });
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(container);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/tools_menu.js
+     ────────────────────────────────────────────────────────── */
+  // chat/tools_menu.js
+  //
+  // Consolidates all the scattered chat tool buttons into a single
+  // "Tools" popup menu. Runs AFTER all other modules have initialized
+  // and injected their buttons.
+  //
+  // Approach: find all .pf-presets-btn and .pf-export-btn elements
+  // in the input area and header, move them into a grid popup, and
+  // replace them with a single trigger button.
+  //
+  // Buttons that should stay outside the menu (stop-generating, send)
+  // are excluded by checking for specific classes/ids.
+  //
+  // Bootstrap: call initToolsMenu() from start() — MUST be last.
+
+  function initToolsMenu() {
+    if (initToolsMenu._done) return;
+    initToolsMenu._done = true;
+
+    // Delay slightly to ensure all other modules have injected their buttons
+    setTimeout(collectButtons, 500);
+  }
+
+  function collectButtons() {
+    // ---- Gather input-area tool buttons ----
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    const inputParent = inputArea ? (inputArea.parentElement || inputArea) : null;
+
+    // ---- Gather header tool buttons ----
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+
+    if (!inputParent && !header) return;
+
+    // Collect buttons from both areas
+    const inputBtns = inputParent
+      ? Array.from(inputParent.querySelectorAll('.pf-presets-btn, .pf-export-btn'))
+          .filter(b => !b.classList.contains('pf-stop-gen-btn') &&
+                       !b.classList.contains('pf-tools-trigger'))
+      : [];
+
+    const headerBtns = header
+      ? Array.from(header.querySelectorAll('.pf-export-btn, .pf-presets-btn'))
+          .filter(b => !b.classList.contains('pf-tools-trigger'))
+      : [];
+
+    // Also collect any presets containers (dropdown wrappers)
+    const inputContainers = inputParent
+      ? Array.from(inputParent.querySelectorAll('.pf-presets-container'))
+      : [];
+    const headerContainers = header
+      ? Array.from(header.querySelectorAll('.pf-presets-container'))
+      : [];
+
+    const allItems = [
+      ...inputBtns,
+      ...inputContainers,
+      ...headerBtns,
+      ...headerContainers,
+    ];
+
+    // If fewer than 4 buttons, not worth consolidating
+    if (allItems.length < 4) return;
+
+    // ---- Build the popup grid ----
+    const grid = document.createElement('div');
+    grid.className = 'pf-tools-grid';
+
+    // ---- Build the popup ----
+    const popup = document.createElement('div');
+    popup.className = 'pf-tools-popup';
+    popup.hidden = true;
+
+    // Header label
+    const popupLabel = document.createElement('div');
+    popupLabel.className = 'pf-tools-popup-label';
+    popupLabel.textContent = 'TOOLS';
+    popup.appendChild(popupLabel);
+    popup.appendChild(grid);
+
+    // Move buttons into the grid
+    for (const item of allItems) {
+      // Create a grid cell wrapper
+      const cell = document.createElement('div');
+      cell.className = 'pf-tools-cell';
+      cell.title = item.title || '';
+
+      // Move the element into the cell
+      item.parentElement.removeChild(item);
+
+      // For container wrappers (like presets dropdown), extract just the trigger button
+      if (item.classList.contains('pf-presets-container')) {
+        const innerBtn = item.querySelector('.pf-presets-btn, .pf-export-btn');
+        if (innerBtn) {
+          cell.appendChild(item); // keep the whole container for dropdown behavior
+        } else {
+          cell.appendChild(item);
+        }
+      } else {
+        // Strip existing classes and re-style for grid
+        item.classList.add('pf-tools-item');
+        cell.appendChild(item);
+      }
+
+      grid.appendChild(cell);
+    }
+
+    // ---- Trigger button ----
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'pf-tools-trigger';
+    trigger.title = `Tools (${allItems.length})`;
+    trigger.innerHTML = '<span class="pf-tools-trigger-icon">⚙</span><span class="pf-tools-trigger-label">Tools</span>';
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      popup.hidden = !popup.hidden;
+      trigger.classList.toggle('pf-tools-trigger-open', !popup.hidden);
+    });
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (!popup.contains(e.target) && e.target !== trigger && !trigger.contains(e.target)) {
+        popup.hidden = true;
+        trigger.classList.remove('pf-tools-trigger-open');
+      }
+    });
+
+    // ---- Container ----
+    const container = document.createElement('div');
+    container.className = 'pf-tools-container';
+    container.appendChild(trigger);
+    container.appendChild(popup);
+
+    // Insert into the input area (preferred) or header
+    if (inputParent) {
+      inputParent.appendChild(container);
+    } else if (header) {
+      header.appendChild(container);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/token_display.js
      ────────────────────────────────────────────────────────── */
   // chat/token_display.js
@@ -31102,6 +32617,42 @@ Use this template for your response:
               args[0].systemMessage = existing + docBlock;
             } else if (args[0].instruction != null) {
               args[0].instruction = existing + docBlock;
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // ---- Anti-repetition injection (Batch 8) ----
+      // Inject word banlists + auto-detected repetitions.
+      // buildAntiRepetitionBlock() is in the same IIFE scope.
+      if (firstArg && typeof firstArg === 'object') {
+        try {
+          const antiRepBlock = buildAntiRepetitionBlock();
+          if (antiRepBlock) {
+            if (args[0] === firstArg) args[0] = { ...firstArg };
+            const existing = args[0].systemMessage || args[0].instruction || '';
+            if (args[0].systemMessage != null) {
+              args[0].systemMessage = existing + antiRepBlock;
+            } else if (args[0].instruction != null) {
+              args[0].instruction = existing + antiRepBlock;
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      // ---- User persona injection (Batch 9) ----
+      // Inject the user's character info so the AI knows who it's talking to.
+      // buildPersonaBlock() is in the same IIFE scope (user_persona.js).
+      if (firstArg && typeof firstArg === 'object') {
+        try {
+          const personaBlock = buildPersonaBlock();
+          if (personaBlock) {
+            if (args[0] === firstArg) args[0] = { ...firstArg };
+            const existing = args[0].systemMessage || args[0].instruction || '';
+            if (args[0].systemMessage != null) {
+              args[0].systemMessage = existing + personaBlock;
+            } else if (args[0].instruction != null) {
+              args[0].instruction = existing + personaBlock;
             }
           }
         } catch { /* non-fatal */ }
@@ -34794,6 +36345,22 @@ Use this template for your response:
 
 
 
+
+  /**
+   * Compute unlock thresholds for theme color pickers.
+   * Returns { accent, secondary, primary } booleans.
+   */
+  function getThemeUnlocks(unlockedIds) {
+    const total = ACHIEVEMENTS.length;
+    const count = (unlockedIds || []).length;
+    const pct = total > 0 ? count / total : 0;
+    return {
+      accent:    pct >= 0.10,  // 10% — ~4 achievements
+      secondary: pct >= 0.15,  // 15% — ~5 achievements
+      primary:   pct >= 0.25,  // 25% — ~9 achievements
+    };
+  }
+
   function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} } = {}) {
     // ---- avatar upload ----
     const avatarControl = createAvatarControl({ initialUrl: profile.avatarUrl });
@@ -34974,6 +36541,7 @@ Use this template for your response:
       // child control — which would propagate :hover to it from anywhere
       // in the row.
       groupRow('Accent',  accentSwatches),
+      createThemeColorRow(profile, unlockedIds),
       row('Age range',    ageSelect),
       groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
         genderSquare,
@@ -35149,6 +36717,111 @@ Use this template for your response:
     } catch {
       return '';
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Theme color pickers — primary + secondary background gradient stops
+  // ---------------------------------------------------------------------
+
+  const THEME_DEFAULTS = {
+    primary:   '#0d1117',
+    secondary: '#161b22',
+  };
+
+  /**
+   * Create the theme color picker row.
+   * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
+   * Each unlocks at a different achievement threshold.
+   * An Accent picker is already handled by the swatches above, so the
+   * accent threshold from getThemeUnlocks() gates the swatches, not these.
+   */
+  function createThemeColorRow(profile, unlockedIds) {
+    const unlocks = getThemeUnlocks(unlockedIds);
+    const tc = (profile && profile.themeColors) || {};
+
+    function makeColorPicker(label, field, defaultColor, isUnlocked, unlockPct) {
+      const wrapper = h('div', { class: 'pf-theme-picker' }, []);
+
+      const colorInput = h('input', {
+        type: 'color',
+        class: 'pf-theme-color-input',
+        value: tc[field] || defaultColor,
+        disabled: !isUnlocked,
+        title: isUnlocked
+          ? `${label} — click to change`
+          : `🔒 Unlock at ${unlockPct}% achievements`,
+        onInput: (ev) => {
+          updateField(`profile.themeColors.${field}`, ev.target.value);
+          applyThemeColorsLive();
+        },
+      });
+
+      const labelEl = h('span', {
+        class: 'pf-theme-picker-label' + (isUnlocked ? '' : ' pf-theme-picker-locked'),
+      }, [label]);
+
+      const lockIcon = !isUnlocked
+        ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
+        : null;
+
+      const resetBtn = isUnlocked
+        ? h('button', {
+            type: 'button',
+            class: 'pf-theme-picker-reset',
+            title: 'Reset to default',
+            onClick: () => {
+              colorInput.value = defaultColor;
+              updateField(`profile.themeColors.${field}`, null);
+              applyThemeColorsLive();
+            },
+          }, ['↺'])
+        : null;
+
+      wrapper.appendChild(colorInput);
+      wrapper.appendChild(labelEl);
+      if (lockIcon) wrapper.appendChild(lockIcon);
+      if (resetBtn) wrapper.appendChild(resetBtn);
+      return wrapper;
+    }
+
+    const container = h('div', { class: 'pf-theme-pickers' }, [
+      makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.secondary, 15),
+      makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.primary,   25),
+    ]);
+
+    return groupRow('Theme', container);
+  }
+
+  /**
+   * Apply theme colors to the page by setting CSS custom properties.
+   * Called on change + at boot time from profile/index.js.
+   */
+  function applyThemeColorsLive() {
+    try {
+      const settings = loadSettings();
+      const tc = (settings && settings.profile && settings.profile.themeColors) || {};
+      const primary   = tc.primary   || THEME_DEFAULTS.primary;
+      const secondary = tc.secondary || THEME_DEFAULTS.secondary;
+      // Derive a lighter shade for button gradients
+      const secLight = lightenHex(secondary, 12);
+      document.documentElement.style.setProperty('--pf-theme-primary', primary);
+      document.documentElement.style.setProperty('--pf-theme-secondary', secondary);
+      document.documentElement.style.setProperty('--pf-theme-secondary-light', secLight);
+    } catch { /* non-fatal */ }
+  }
+
+  function lightenHex(hex, amount) {
+    const h = (hex || '').replace('#', '');
+    const r = Math.min(255, (parseInt(h.substring(0,2),16)||0) + amount);
+    const g = Math.min(255, (parseInt(h.substring(2,4),16)||0) + amount);
+    const b = Math.min(255, (parseInt(h.substring(4,6),16)||0) + amount);
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  }
+
+  // Export for use by profile/index.js at boot
+  if (typeof window !== 'undefined') {
+    window.__pf_applyThemeColors = applyThemeColorsLive;
+    window.__pf_themeDefaults = THEME_DEFAULTS;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -37996,6 +39669,42 @@ Use this template for your response:
     // Document analysis (Batch 6) — 📎 upload text files
     try { initDocAnalysis(); } catch { /* non-fatal */ }
 
+    // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
+    try { initAntiRepetition(); } catch { /* non-fatal */ }
+
+    // Dice roller (Batch 8) — 🎲 button + /roll command
+    try { initDiceRoller(); } catch { /* non-fatal */ }
+
+    // Message timestamps (Batch 8)
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initTimestamps();
+      } else {
+        setTimeout(() => { try { initTimestamps(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // Auto-lorebook (Batch 8) — 🔮 AI generates glossary entries
+    try {
+      if (window.root && window.root.aiTextPlugin) {
+        initAutoLorebook();
+      } else {
+        setTimeout(() => { try { initAutoLorebook(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // User persona editor (Batch 9) — 👤 in header
+    try { initUserPersona(); } catch { /* non-fatal */ }
+
+    // Character card import/export (Batch 9) — 🃏 in header
+    try {
+      if (window.db && window.db.characters) {
+        initCharCards();
+      } else {
+        setTimeout(() => { try { initCharCards(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
     // Code syntax highlighting (Batch 3)
     try {
       if (document.getElementById('chatMessagesEl')) {
@@ -38007,6 +39716,9 @@ Use this template for your response:
 
     // Voice I/O (Batch 3) — mic + speaker buttons
     try { initVoice(); } catch { /* non-fatal */ }
+
+    // Tools menu (MUST be last — collects all buttons injected above)
+    try { initToolsMenu(); } catch { /* non-fatal */ }
 
     // Initial fetch
     await refresh(card);
@@ -38034,6 +39746,15 @@ Use this template for your response:
       const bootUnlocked = computeUnlockedIds(bootStats);
       paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
     } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+
+    // ---- Theme colors (custom background gradient) ----
+    // Apply user's chosen primary/secondary background colors at boot.
+    // The pickers live in the Details form; this just applies persisted values.
+    try {
+      if (typeof window.__pf_applyThemeColors === 'function') {
+        window.__pf_applyThemeColors();
+      }
+    } catch { /* non-fatal */ }
 
     // ---- Share-link detection ----
     // If the URL contains ?h=<shareCode>, auto-open the card viewer

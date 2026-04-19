@@ -90,6 +90,42 @@ Source: all three forks have theme toggles. FurAI backgrounds.
 URV-AI font controls (updateAppFontFamily, updateAppFontSize),
 fullscreen (toggleAppFullscreen).
 
+### Batch 8 — User pain points (Apr 2026 research)
+
+Community research (Lemmy, Reddit, SillyTavern docs) revealed these
+as the top user pain points and competitive gaps. Prioritized by
+demand and feasibility within Perchance's browser sandbox.
+
+- [x] Anti-repetition system (word/phrase banlist per thread — #1
+      user complaint on Lemmy: AI "tunnel vision" and repetitive
+      phrasing in long conversations)
+- [x] Auto-lorebook from conversation (AI automatically generates
+      glossary entries from chat context — inspired by SillyTavern's
+      WorldInfo Recommender extension)
+- [x] Message timestamps (show when each message was sent)
+- [x] Dice roller / RPG mechanics (/roll command or 🎲 button —
+      popular for TTRPG-style play, mentioned frequently in
+      SillyTavern and NovelAI communities)
+
+Source: Lemmy post "How do I deal with Repetitive AI Responses"
+(users manually editing banlists into character instructions).
+SillyTavern WorldInfo Recommender (bmen25124, auto-generates
+lorebook entries). SillyTavern lorebook-as-dice-roller pattern
+(HuggingFace sphiratrioth666).
+
+### Batch 9 — SillyTavern ecosystem parity
+
+- [x] Character card import/export (SillyTavern PNG card format
+      with embedded JSON metadata — enables cross-platform sharing)
+- [x] User persona editor (rich editor for the user's own character
+      name, description, avatar — separate from per-thread settings)
+- [x] Recursive glossary scanning (entry A triggers entry B — matches
+      SillyTavern's recursive World Info feature)
+
+Source: SillyTavern character card spec (PNG metadata architecture),
+World Info Encyclopedia (rentry.co/world-info-encyclopedia), user
+persona system.
+
 ---
 
 ## ✓ ROADMAP DIRECTIVE — CLEARED (Apr 2026 session)

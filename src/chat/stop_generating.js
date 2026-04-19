@@ -148,6 +148,42 @@ export function initStopGenerating() {
       } catch { /* non-fatal */ }
     }
 
+    // ---- Anti-repetition injection (Batch 8) ----
+    // Inject word banlists + auto-detected repetitions.
+    // buildAntiRepetitionBlock() is in the same IIFE scope.
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const antiRepBlock = buildAntiRepetitionBlock();
+        if (antiRepBlock) {
+          if (args[0] === firstArg) args[0] = { ...firstArg };
+          const existing = args[0].systemMessage || args[0].instruction || '';
+          if (args[0].systemMessage != null) {
+            args[0].systemMessage = existing + antiRepBlock;
+          } else if (args[0].instruction != null) {
+            args[0].instruction = existing + antiRepBlock;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // ---- User persona injection (Batch 9) ----
+    // Inject the user's character info so the AI knows who it's talking to.
+    // buildPersonaBlock() is in the same IIFE scope (user_persona.js).
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const personaBlock = buildPersonaBlock();
+        if (personaBlock) {
+          if (args[0] === firstArg) args[0] = { ...firstArg };
+          const existing = args[0].systemMessage || args[0].instruction || '';
+          if (args[0].systemMessage != null) {
+            args[0].systemMessage = existing + personaBlock;
+          } else if (args[0].instruction != null) {
+            args[0].instruction = existing + personaBlock;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
     // ---- Generation settings overrides (Batch 6) ----
     // Apply user's temperature / maxTokens preferences if set.
     // getGenOverrides() is in the same IIFE scope (gen_settings.js).

@@ -34,6 +34,12 @@ export function defaultSettings() {
         title: null,   // null = auto pick rarest unlocked; else an achievement id
         accent: null,  // null = default amber; else an accent id from ACCENTS list
       },
+      // Theme colors — custom background gradient stops.
+      // Null = use defaults (#0d1117 / #161b22). Unlock via achievement %.
+      themeColors: {
+        primary:   null,  // darker gradient stop (default #0d1117), unlocks at 25%
+        secondary: null,  // lighter gradient stop (default #161b22), unlocks at 15%
+      },
     },
     display: {
       sections: {

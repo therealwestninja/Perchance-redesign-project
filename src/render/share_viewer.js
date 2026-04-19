@@ -1,95 +1,144 @@
 // render/share_viewer.js
 //
 // Read-only card viewer that renders a profile from decoded share-link
-// data. Triggered on boot when the page URL contains a `?h=` parameter
-// carrying a valid share code.
+// data. Triggered on boot when the page URL contains a `?h=` parameter.
 //
-// The viewer is an overlay that sits on top of everything, showing the
-// shared profile as a styled card: name, title, archetype, level, XP
-// bar, accent color, and badges. The card is NOT editable — it's what
-// the link recipient sees.
-//
-// Dismissable via a Close button. After dismissal, the URL's `?h=`
-// parameter is cleaned so a page refresh doesn't re-show the viewer.
+// Displays all shared profile data in a visually rich card:
+//   - Accent-colored stripe and glow
+//   - Circular level badge
+//   - Large display name
+//   - Title + archetype tags
+//   - Full badge gallery with names and icons
+//   - Animated XP progress bar
+//   - Stats summary row
 
 import { h } from '../utils/dom.js';
 import { createOverlay } from './overlay.js';
 
-/**
- * Render the share-link card viewer.
- *
- * @param {object} vm  decoded view-model from decodeShareCode, with
- *   fields: displayName, title, archetype, level, accent, pinnedBadges,
- *   xpIntoLevel, xpForNextLevel, progress01
- * @returns {{ overlay: object }}  the overlay instance for lifecycle
- */
 export function openShareViewer(vm) {
   if (!vm) return { overlay: null };
 
-  const accentHex = vm.accent ? `#${vm.accent}` : '#d8b36a';
-
-  // XP bar
+  const accent = vm.accent ? `#${vm.accent}` : '#d8b36a';
   const progress = Math.max(0, Math.min(1, vm.progress01 || 0));
-  const xpBarFill = h('div', {
-    class: 'pf-sv-xp-fill',
-    style: `width:${Math.round(progress * 100)}%;background:${accentHex};`,
-  });
-  const xpBar = h('div', { class: 'pf-sv-xp-bar' }, [xpBarFill]);
-  const xpLabel = h('div', { class: 'pf-sv-xp-label' }, [
-    `${vm.xpIntoLevel || 0} / ${vm.xpForNextLevel || 1} XP`,
+  const progressPct = Math.round(progress * 100);
+  const displayName = vm.displayName || 'Chronicler';
+  const level = vm.level || 1;
+  const title = vm.title || 'Newcomer';
+  const archetype = vm.archetype || null;
+  const xpInto = vm.xpIntoLevel || 0;
+  const xpFor = vm.xpForNextLevel || 1;
+  const badges = vm.pinnedBadges || [];
+
+  function adj(hex, amt) {
+    const h2 = (hex || '').replace('#', '');
+    const r = Math.max(0, Math.min(255, (parseInt(h2.substring(0,2),16)||0) + amt));
+    const g = Math.max(0, Math.min(255, (parseInt(h2.substring(2,4),16)||0) + amt));
+    const b = Math.max(0, Math.min(255, (parseInt(h2.substring(4,6),16)||0) + amt));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // Level circle
+  const levelCircle = h('div', {
+    class: 'pf-sv2-level',
+    style: `background:linear-gradient(135deg,${accent},${adj(accent,-30)});`
+         + `box-shadow:0 0 20px ${accent}44,0 4px 12px rgba(0,0,0,0.4);`,
+  }, [
+    h('span', { class: 'pf-sv2-level-num' }, [String(level)]),
+    h('span', { class: 'pf-sv2-level-label' }, ['LEVEL']),
   ]);
 
-  // Badges row
-  const badgeNodes = (vm.pinnedBadges || []).map(b =>
+  // Name
+  const nameEl = h('div', {
+    class: 'pf-sv2-name',
+    style: `color:${accent};text-shadow:0 0 24px ${accent}66;`,
+  }, [displayName]);
+
+  // Tags (title + archetype)
+  const tagsRow = h('div', { class: 'pf-sv2-tags' }, [
     h('span', {
-      class: 'pf-sv-badge',
-      title: b.name || '',
-    }, [b.icon || '◆'])
-  );
-
-  // Subtitle line: "Lv 5 · Earned Title · Archetype"
-  const subParts = [`Lv ${vm.level || 1}`, vm.title || 'Newcomer'];
-  if (vm.archetype) subParts.push(vm.archetype);
-  const subtitle = subParts.join(' · ');
-
-  // Card body
-  const card = h('div', {
-    class: 'pf-sv-card',
-    style: `border-color:${accentHex};`,
-  }, [
-    h('div', { class: 'pf-sv-name', style: `color:${accentHex};` }, [
-      vm.displayName || 'Chronicler',
-    ]),
-    h('div', { class: 'pf-sv-sub' }, [subtitle]),
-    badgeNodes.length > 0
-      ? h('div', { class: 'pf-sv-badges' }, badgeNodes)
-      : null,
-    xpBar,
-    xpLabel,
+      class: 'pf-sv2-tag',
+      style: `border-color:${accent}66;color:${accent};`,
+    }, [title]),
+    archetype ? h('span', { class: 'pf-sv2-tag pf-sv2-tag-arch' }, [archetype]) : null,
   ].filter(Boolean));
 
-  // Close button
+  // Stats row
+  const statsRow = h('div', { class: 'pf-sv2-stats' }, [
+    mkStat('Level', String(level), accent),
+    mkStat('Badges', String(badges.length), accent),
+    mkStat('Progress', `${progressPct}%`, accent),
+  ]);
+
+  // Badges
+  const badgeSection = badges.length > 0
+    ? h('div', { class: 'pf-sv2-section' }, [
+        h('div', { class: 'pf-sv2-sec-label' }, ['ACHIEVEMENTS']),
+        h('div', { class: 'pf-sv2-badges' }, badges.map(b =>
+          h('div', { class: 'pf-sv2-badge' }, [
+            h('span', { class: 'pf-sv2-badge-icon' }, [b.icon || '◆']),
+            h('span', { class: 'pf-sv2-badge-name' }, [b.name || '']),
+          ])
+        )),
+      ])
+    : null;
+
+  // XP
+  const xpSection = h('div', { class: 'pf-sv2-section' }, [
+    h('div', { class: 'pf-sv2-sec-label' }, ['EXPERIENCE']),
+    h('div', { class: 'pf-sv2-xp-row' }, [
+      h('div', { class: 'pf-sv2-xp-bar' }, [
+        h('div', {
+          class: 'pf-sv2-xp-fill',
+          style: `width:${progressPct}%;`
+               + `background:linear-gradient(90deg,${accent},${adj(accent,30)});`
+               + `box-shadow:0 0 8px ${accent}88;`,
+        }),
+      ]),
+      h('span', { class: 'pf-sv2-xp-pct' }, [`${progressPct}%`]),
+    ]),
+    h('div', { class: 'pf-sv2-xp-detail' }, [
+      `${xpInto} / ${xpFor} XP to next level`,
+    ]),
+  ]);
+
+  // Close
   const closeBtn = h('button', {
     type: 'button',
-    class: 'pf-mem-btn pf-mem-btn-neutral',
+    class: 'pf-sv2-close',
+    style: `border-color:${accent}44;`,
     onClick: () => {
       overlay.hide();
-      // Clean the URL so a page refresh doesn't re-show the viewer.
       try {
         const url = new URL(window.location.href);
         url.searchParams.delete('h');
-        const cleanUrl = url.toString();
-        if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
-          window.history.replaceState(null, '', cleanUrl);
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', url.toString());
         }
-      } catch { /* non-fatal — URL stays but viewer is closed */ }
+      } catch {}
     },
   }, ['Close']);
 
-  const body = h('div', { class: 'pf-sv-body' }, [
-    h('div', { class: 'pf-sv-heading' }, ['Shared profile']),
+  // Card
+  const card = h('div', {
+    class: 'pf-sv2-card',
+    style: `border-color:${accent}33;`,
+  }, [
+    h('div', {
+      class: 'pf-sv2-stripe',
+      style: `background:linear-gradient(90deg,${accent}00,${accent},${accent}00);`,
+    }),
+    levelCircle,
+    nameEl,
+    tagsRow,
+    statsRow,
+    badgeSection,
+    xpSection,
+    closeBtn,
+  ].filter(Boolean));
+
+  const body = h('div', { class: 'pf-sv2-body' }, [
+    h('div', { class: 'pf-sv2-heading' }, ['✦ SHARED PROFILE ✦']),
     card,
-    h('div', { class: 'pf-sv-actions' }, [closeBtn]),
   ]);
 
   const overlay = createOverlay({
@@ -98,4 +147,11 @@ export function openShareViewer(vm) {
   });
   overlay.show();
   return { overlay };
+}
+
+function mkStat(label, value, accent) {
+  return h('div', { class: 'pf-sv2-stat' }, [
+    h('div', { class: 'pf-sv2-stat-val', style: `color:${accent};` }, [value]),
+    h('div', { class: 'pf-sv2-stat-label' }, [label]),
+  ]);
 }
