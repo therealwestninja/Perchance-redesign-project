@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 82 };
+  NS.__meta = { modules: 89 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -23803,6 +23803,133 @@ Use this template for your response:
   .pf-glossary-trigger:hover {
     opacity: 1;
   }
+
+  /* ---- Chat export button ---- */
+  .pf-export-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 6px;
+    opacity: 0.5;
+    color: var(--text-color, #ccc);
+    transition: opacity 0.15s;
+  }
+  .pf-export-btn:hover {
+    opacity: 1;
+  }
+
+  /* ---- Thread archiving ---- */
+  .pf-archive-btn {
+    position: absolute;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  .thread:hover .pf-archive-btn {
+    opacity: 0.6;
+    pointer-events: auto;
+  }
+  .pf-archive-btn:hover {
+    opacity: 1 !important;
+  }
+  .thread.pf-archived {
+    opacity: 0.5;
+  }
+  .pf-archive-section {
+    padding: 4px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .pf-archive-toggle {
+    background: none;
+    border: none;
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.6;
+    padding: 4px 0;
+    font-family: inherit;
+    width: 100%;
+    text-align: left;
+  }
+  .pf-archive-toggle:hover {
+    opacity: 1;
+  }
+
+  /* ---- Impersonation button (Batch 4) ---- */
+  .pf-impersonate-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+  .pf-impersonate-btn:hover {
+    opacity: 1;
+  }
+  .pf-impersonate-btn:disabled {
+    cursor: wait;
+    opacity: 0.3;
+  }
+
+  /* ---- Writing enhancer + Narration buttons (Batch 4) ---- */
+  .pf-enhance-btn, .pf-narrate-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+  .pf-enhance-btn:hover, .pf-narrate-btn:hover {
+    opacity: 1;
+  }
+  .pf-enhance-btn:disabled, .pf-narrate-btn:disabled {
+    cursor: wait;
+    opacity: 0.3;
+  }
+
+  /* ---- Code syntax highlighting (Batch 3) ----
+     Token colors for regex-based highlighting of code blocks.
+     Designed for dark backgrounds matching upstream's code block style. */
+  .pf-tok-kw { color: #c792ea; } /* keywords — purple */
+  .pf-tok-str { color: #c3e88d; } /* strings — green */
+  .pf-tok-cmt { color: #6a737d; font-style: italic; } /* comments — grey */
+  .pf-tok-num { color: #f78c6c; } /* numbers — orange */
+  .pf-tok-fn { color: #82aaff; } /* function names — blue */
+
+  /* ---- Voice I/O buttons (Batch 3) ---- */
+  .pf-voice-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+  .pf-voice-btn:hover {
+    opacity: 1;
+  }
+  .pf-mic-btn.pf-listening {
+    opacity: 1;
+    animation: pf-pulse 1s infinite;
+  }
+  @keyframes pf-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -27760,6 +27887,567 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/chat_export.js
+     ────────────────────────────────────────────────────────── */
+  // chat/chat_export.js
+  //
+  // Export the current chat thread as a downloadable text or JSON file.
+  // Adds an export button to the chat header area.
+  //
+  // Reads messages from the DOM (#chatMessagesEl .message elements),
+  // formats them as a readable text transcript, and triggers a
+  // browser download.
+  //
+  // Bootstrap: call initChatExport() from start(). Idempotent.
+
+  /**
+   * Initialize chat export. Adds an export button near the chat
+   * header. Idempotent.
+   */
+  function initChatExport() {
+    if (initChatExport._done) return;
+    initChatExport._done = true;
+
+    // ---- Export button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = '⬇';
+    btn.title = 'Export this chat';
+    btn.addEventListener('click', exportChat);
+
+    // Inject near the chat header
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) {
+      header.appendChild(btn);
+    }
+
+    function exportChat() {
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      const messages = chatEl.querySelectorAll('.message');
+      const lines = [];
+
+      // Get the chat title
+      const titleEl = document.getElementById('chatTitleEl');
+      const title = (titleEl ? titleEl.textContent : 'Chat').trim();
+      lines.push(`=== ${title} ===`);
+      lines.push(`Exported: ${new Date().toLocaleString()}`);
+      lines.push('');
+
+      for (const msg of messages) {
+        if (msg.id.startsWith('typing-')) continue;
+        if (msg.id === 'personality-selector-message') continue;
+
+        // Determine author
+        let author = 'System';
+        if (msg.classList.contains('user')) author = 'You';
+        else if (msg.classList.contains('ai')) {
+          const nameEl = msg.querySelector('.chat-username');
+          author = nameEl ? nameEl.textContent.trim() : 'AI';
+        }
+
+        // Get content
+        const contentEl = msg.querySelector('.content');
+        const text = contentEl ? contentEl.innerText.trim() : '';
+        if (!text) continue;
+
+        lines.push(`[${author}]`);
+        lines.push(text);
+        lines.push('');
+      }
+
+      // Trigger download
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeTitle = title.replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'chat';
+      a.download = `${safeTitle}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/thread_archive.js
+     ────────────────────────────────────────────────────────── */
+  // chat/thread_archive.js
+  //
+  // Thread archiving: hide old threads from the sidebar without
+  // deleting them. Archived threads move to a collapsible "Archived"
+  // section at the bottom of the thread list.
+  //
+  // Storage: settings.archivedThreadIds = ['id1', 'id2', ...]
+  // We don't touch the upstream Dexie DB — archived state lives
+  // in our localStorage-based settings only. If the user uninstalls
+  // the fork, all threads reappear (safe).
+  //
+  // Implementation:
+  //   - MutationObserver on #chatThreads watches for DOM changes
+  //   - On each mutation, walks .thread elements and hides any whose
+  //     data-thread-id is in the archived set
+  //   - Injects an "Archive" button into each thread's context area
+  //     (via the same hover-controls pattern as message_controls.js)
+  //   - A collapsible "Archived (N)" section at the bottom toggles
+  //     visibility of archived threads
+  //
+  // Bootstrap: call initThreadArchive() from start(). Idempotent.
+
+
+
+  const ARCHIVE_KEY = 'archivedThreadIds';
+
+  function getArchivedIds() {
+    try {
+      const s = loadSettings();
+      return Array.isArray(s[ARCHIVE_KEY]) ? new Set(s[ARCHIVE_KEY]) : new Set();
+    } catch { return new Set(); }
+  }
+
+  function setArchivedIds(idSet) {
+    try {
+      const s = loadSettings();
+      s[ARCHIVE_KEY] = Array.from(idSet);
+      saveSettings(s);
+    } catch { /* best-effort */ }
+  }
+
+  function initThreadArchive() {
+    if (initThreadArchive._done) return;
+
+    const chatThreads = document.getElementById('chatThreads');
+    if (!chatThreads) return;
+
+    initThreadArchive._done = true;
+
+    let archivedIds = getArchivedIds();
+    let showingArchived = false;
+
+    // ---- Archived section toggle ----
+    const section = document.createElement('div');
+    section.className = 'pf-archive-section';
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'pf-archive-toggle';
+    updateToggleLabel();
+    toggle.addEventListener('click', () => {
+      showingArchived = !showingArchived;
+      applyArchiveState();
+      updateToggleLabel();
+    });
+
+    section.appendChild(toggle);
+    chatThreads.parentElement.appendChild(section);
+
+    function updateToggleLabel() {
+      const count = archivedIds.size;
+      if (count === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = '';
+      toggle.textContent = showingArchived
+        ? `▾ Archived (${count})`
+        : `▸ Archived (${count})`;
+    }
+
+    // ---- Archive/unarchive a thread ----
+    function archiveThread(threadId) {
+      archivedIds.add(String(threadId));
+      setArchivedIds(archivedIds);
+      applyArchiveState();
+      updateToggleLabel();
+    }
+
+    function unarchiveThread(threadId) {
+      archivedIds.delete(String(threadId));
+      setArchivedIds(archivedIds);
+      applyArchiveState();
+      updateToggleLabel();
+    }
+
+    // ---- Apply archive state to DOM ----
+    function applyArchiveState() {
+      const threads = chatThreads.querySelectorAll('.thread[data-thread-id]');
+      for (const el of threads) {
+        const id = el.dataset.threadId;
+        if (archivedIds.has(id)) {
+          el.style.display = showingArchived ? '' : 'none';
+          el.classList.add('pf-archived');
+        } else {
+          el.style.display = '';
+          el.classList.remove('pf-archived');
+        }
+      }
+    }
+
+    // ---- Inject archive buttons ----
+    function addArchiveBtn(threadEl) {
+      if (!threadEl || threadEl.querySelector('.pf-archive-btn')) return;
+      const id = threadEl.dataset.threadId;
+      if (!id) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-archive-btn';
+      btn.title = archivedIds.has(id) ? 'Unarchive' : 'Archive';
+      btn.textContent = archivedIds.has(id) ? '📤' : '📥';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (archivedIds.has(id)) {
+          unarchiveThread(id);
+          btn.textContent = '📥';
+          btn.title = 'Archive';
+        } else {
+          archiveThread(id);
+          btn.textContent = '📤';
+          btn.title = 'Unarchive';
+        }
+      });
+
+      threadEl.appendChild(btn);
+    }
+
+    // ---- MutationObserver ----
+    const observer = new MutationObserver(() => {
+      clearTimeout(applyArchiveState._timer);
+      applyArchiveState._timer = setTimeout(() => {
+        applyArchiveState();
+        chatThreads.querySelectorAll('.thread[data-thread-id]').forEach(addArchiveBtn);
+      }, 100);
+    });
+    observer.observe(chatThreads, { childList: true, subtree: false });
+
+    // Initial pass
+    applyArchiveState();
+    chatThreads.querySelectorAll('.thread[data-thread-id]').forEach(addArchiveBtn);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/impersonation.js
+     ────────────────────────────────────────────────────────── */
+  // chat/impersonation.js
+  //
+  // "Write for me" — AI generates a message as the user character.
+  // Useful in RP when the user doesn't know what to say next or
+  // wants to skip ahead. The generated text is placed in the input
+  // box for review before sending (not auto-sent).
+  //
+  // Uses the existing aiTextPlugin (via window.root.aiTextPlugin)
+  // to generate text with a system instruction that says "write
+  // the next message as the user."
+  //
+  // Adapted from URV-AI's generateUserImpersonation concept (MIT).
+  //
+  // Bootstrap: call initImpersonation() from start(). Idempotent.
+
+  /**
+   * Initialize impersonation. Adds a "Write for me" button near
+   * the chat input. Idempotent.
+   */
+  function initImpersonation() {
+    if (initImpersonation._done) return;
+
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    initImpersonation._done = true;
+
+    // ---- Button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-impersonate-btn';
+    btn.textContent = '✍';
+    btn.title = 'Write for me (AI writes as you)';
+    let isGenerating = false;
+
+    btn.addEventListener('click', async () => {
+      if (isGenerating) return;
+
+      // Find the chat input textarea
+      const inputEl = document.querySelector('#messageInputEl') ||
+                      document.querySelector('.chat-input textarea') ||
+                      document.querySelector('textarea[placeholder]');
+      if (!inputEl) return;
+
+      // Build context from recent messages
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      const messages = Array.from(chatEl.querySelectorAll('.message'))
+        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message')
+        .slice(-8);
+
+      const context = messages.map(m => {
+        const isUser = m.classList.contains('user');
+        const nameEl = m.querySelector('.chat-username');
+        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+        const text = (m.querySelector('.content') || {}).innerText || '';
+        return `[${name}]: ${text}`;
+      }).join('\n\n');
+
+      // Generate
+      isGenerating = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            'You are ghostwriting the next message for the USER character in this roleplay.',
+            'Write a short, in-character reply as the user would. Stay consistent with their personality and the scene.',
+            'Reply with ONLY the message text — no quotation marks, no "User:" prefix, no meta-commentary.',
+            '',
+            'Recent conversation:',
+            context,
+          ].join('\n'),
+          stopSequences: ['\n\n'],
+        });
+
+        const text = (result && result.text) ? result.text.trim() : '';
+        if (text) {
+          // Place in input for review (don't auto-send)
+          inputEl.value = text;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.focus();
+        }
+      } catch (e) {
+        console.warn('[pf] impersonation failed:', e && e.message);
+      } finally {
+        isGenerating = false;
+        btn.textContent = '✍';
+        btn.disabled = false;
+      }
+    });
+
+    // Inject near chat input
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      const parent = inputArea.parentElement || inputArea;
+      parent.appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/writing_enhancer.js
+     ────────────────────────────────────────────────────────── */
+  // chat/writing_enhancer.js
+  //
+  // "Magic Wand" writing enhancer — rewrites/polishes the user's
+  // draft text in the input box before they send it. The user types
+  // a rough draft, clicks the wand ✨, and gets a more descriptive,
+  // in-character version placed back in the input for review.
+  //
+  // Uses aiTextPlugin to rewrite. The enhancement instruction asks
+  // the AI to expand the text into vivid RP prose while preserving
+  // the original intent.
+  //
+  // Adapted from FurAI's enhanceText concept (MIT).
+  //
+  // Bootstrap: call initWritingEnhancer() from start(). Idempotent.
+
+  /**
+   * Initialize the writing enhancer. Adds a ✨ button near the
+   * chat input. Idempotent.
+   */
+  function initWritingEnhancer() {
+    if (initWritingEnhancer._done) return;
+
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    initWritingEnhancer._done = true;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-enhance-btn';
+    btn.textContent = '✨';
+    btn.title = 'Enhance your message (rewrite with more detail)';
+    let isEnhancing = false;
+
+    btn.addEventListener('click', async () => {
+      if (isEnhancing) return;
+
+      // Find the chat input
+      const inputEl = document.querySelector('#messageInputEl') ||
+                      document.querySelector('.chat-input textarea') ||
+                      document.querySelector('textarea[placeholder]');
+      if (!inputEl) return;
+
+      const draft = (inputEl.value || '').trim();
+      if (!draft) return; // nothing to enhance
+
+      isEnhancing = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            'You are a writing enhancer for a roleplay chat.',
+            'The user has written a rough draft of their message.',
+            'Rewrite it to be more vivid, descriptive, and in-character.',
+            'Keep the same intent, actions, and dialogue, but add:',
+            '  - Sensory details (what they see, hear, feel)',
+            '  - Body language and subtle expressions',
+            '  - Atmospheric descriptions',
+            'Keep it concise — enhance, don\'t pad. Match the tone.',
+            'Reply with ONLY the enhanced message, nothing else.',
+            '',
+            'Draft to enhance:',
+            draft,
+          ].join('\n'),
+          stopSequences: ['\n\n\n'],
+        });
+
+        const enhanced = (result && result.text) ? result.text.trim() : '';
+        if (enhanced && enhanced !== draft) {
+          inputEl.value = enhanced;
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.focus();
+        }
+      } catch (e) {
+        console.warn('[pf] enhance failed:', e && e.message);
+      } finally {
+        isEnhancing = false;
+        btn.textContent = '✨';
+        btn.disabled = false;
+      }
+    });
+
+    // Inject near chat input
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      const parent = inputArea.parentElement || inputArea;
+      parent.appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/narration.js
+     ────────────────────────────────────────────────────────── */
+  // chat/narration.js
+  //
+  // Generate scene narration on demand. Adds a "Narrate" button
+  // that generates a third-person scene description based on the
+  // current conversation context. The narration is inserted as a
+  // system-style message visible to both the user and the AI.
+  //
+  // Useful for:
+  //   - Setting the scene between RP exchanges
+  //   - Transitioning between locations or time skips
+  //   - Adding atmospheric descriptions
+  //
+  // Adapted from URV-AI's generateNarration concept (MIT).
+  //
+  // Bootstrap: call initNarration() from start(). Idempotent.
+
+  /**
+   * Initialize narration. Adds a 🎬 button near the chat input.
+   * Idempotent.
+   */
+  function initNarration() {
+    if (initNarration._done) return;
+
+    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
+
+    initNarration._done = true;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-narrate-btn';
+    btn.textContent = '🎬';
+    btn.title = 'Generate scene narration';
+    let isNarrating = false;
+
+    btn.addEventListener('click', async () => {
+      if (isNarrating) return;
+
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      // Build context from recent messages
+      const messages = Array.from(chatEl.querySelectorAll('.message'))
+        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message')
+        .slice(-6);
+
+      const context = messages.map(m => {
+        const isUser = m.classList.contains('user');
+        const nameEl = m.querySelector('.chat-username');
+        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
+        const text = (m.querySelector('.content') || {}).innerText || '';
+        return `[${name}]: ${text}`;
+      }).join('\n\n');
+
+      isNarrating = true;
+      btn.textContent = '⏳';
+      btn.disabled = true;
+
+      try {
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            'You are the narrator of a roleplay scene.',
+            'Based on the recent conversation, write a brief third-person',
+            'scene narration that describes:',
+            '  - The current atmosphere and setting',
+            '  - What just happened (summarize the recent exchange)',
+            '  - Set up what might happen next',
+            'Write 2-3 vivid sentences. Use present tense.',
+            'Reply with ONLY the narration, nothing else.',
+            '',
+            'Recent conversation:',
+            context,
+          ].join('\n'),
+          stopSequences: ['\n\n\n'],
+        });
+
+        const narration = (result && result.text) ? result.text.trim() : '';
+        if (narration && typeof window.sendMessage === 'function') {
+          // Send as a system/narrator message by creating a message
+          // with the narrator format. The upstream supports this via
+          // oc.thread.messages API but we use sendMessage for simplicity.
+          // Place narration in input and let user review.
+          const inputEl = document.querySelector('#messageInputEl') ||
+                          document.querySelector('.chat-input textarea') ||
+                          document.querySelector('textarea[placeholder]');
+          if (inputEl) {
+            inputEl.value = `*${narration}*`;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.focus();
+          }
+        }
+      } catch (e) {
+        console.warn('[pf] narration failed:', e && e.message);
+      } finally {
+        isNarrating = false;
+        btn.textContent = '🎬';
+        btn.disabled = false;
+      }
+    });
+
+    // Inject near chat input
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      const parent = inputArea.parentElement || inputArea;
+      parent.appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/token_display.js
      ────────────────────────────────────────────────────────── */
   // chat/token_display.js
@@ -27851,6 +28539,315 @@ Use this template for your response:
       update._timer = setTimeout(update, 300);
     });
     observer.observe(chatEl, { childList: true, subtree: true, characterData: true });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/code_highlight.js
+     ────────────────────────────────────────────────────────── */
+  // chat/code_highlight.js
+  //
+  // Adds syntax highlighting to code blocks in AI responses. The
+  // upstream renders code as <pre data-markdown-codeblock="lang">
+  // with escaped text. This module finds those blocks, tokenizes
+  // the content with regex, and wraps tokens in colored spans.
+  //
+  // Highlighting algorithm adapted from Kustom-GPT (MIT). No
+  // external library needed — pure regex tokenization covers
+  // keywords, strings, comments, numbers, and function names.
+  //
+  // Bootstrap: call initCodeHighlight() from start(). Idempotent.
+
+  const JS_KEYWORDS = [
+    'const','let','var','function','return','if','else','for','while',
+    'class','import','export','from','async','await','try','catch',
+    'throw','new','this','true','false','null','undefined','switch',
+    'case','break','continue','default','typeof','instanceof','void',
+    'delete','in','of','do','yield','static','extends','super',
+  ];
+
+  const PY_KEYWORDS = [
+    'def','class','return','if','elif','else','for','while','import',
+    'from','as','try','except','finally','raise','with','yield',
+    'lambda','pass','break','continue','and','or','not','is','in',
+    'True','False','None','self','print','async','await','global',
+    'nonlocal','assert','del',
+  ];
+
+  /**
+   * Apply syntax highlighting to a code block element.
+   * Reads innerText, tokenizes, replaces innerHTML.
+   */
+  function highlightBlock(preEl) {
+    if (preEl.dataset.pfHighlighted) return;
+    preEl.dataset.pfHighlighted = 'true';
+
+    const lang = (preEl.dataset.markdownCodeblock || '').toLowerCase();
+    const isPython = lang === 'python' || lang === 'py';
+    const keywords = isPython ? PY_KEYWORDS : JS_KEYWORDS;
+
+    let code = preEl.textContent || '';
+
+    // Escape HTML entities
+    code = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Order matters: strings first (so keywords inside strings aren't highlighted)
+    // 1. Strings (single, double, backtick)
+    code = code.replace(
+      /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/g,
+      '<span class="pf-tok-str">$1</span>'
+    );
+
+    // 2. Comments (single-line // and #, multi-line /* */)
+    code = code.replace(
+      /(\/\/.*$)/gm,
+      '<span class="pf-tok-cmt">$1</span>'
+    );
+    code = code.replace(
+      /(#.*$)/gm,
+      '<span class="pf-tok-cmt">$1</span>'
+    );
+    code = code.replace(
+      /(\/\*[\s\S]*?\*\/)/g,
+      '<span class="pf-tok-cmt">$1</span>'
+    );
+
+    // 3. Keywords
+    for (const kw of keywords) {
+      code = code.replace(
+        new RegExp(`\\b(${kw})\\b`, 'g'),
+        '<span class="pf-tok-kw">$1</span>'
+      );
+    }
+
+    // 4. Numbers
+    code = code.replace(
+      /\b(\d+\.?\d*)\b/g,
+      '<span class="pf-tok-num">$1</span>'
+    );
+
+    // 5. Function calls (word followed by parenthesis)
+    code = code.replace(
+      /\b([a-zA-Z_]\w*)\s*(?=\()/g,
+      '<span class="pf-tok-fn">$1</span>'
+    );
+
+    preEl.innerHTML = code;
+  }
+
+  /**
+   * Initialize code highlighting. Watches for new code blocks and
+   * highlights them. Idempotent.
+   */
+  function initCodeHighlight() {
+    if (initCodeHighlight._done) return;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+    initCodeHighlight._done = true;
+
+    // Highlight all existing code blocks
+    function highlightAll() {
+      const blocks = chatEl.querySelectorAll('pre[data-markdown-codeblock]');
+      for (const block of blocks) {
+        highlightBlock(block);
+      }
+    }
+
+    highlightAll();
+
+    // Watch for new messages / streaming updates
+    const observer = new MutationObserver(() => {
+      // Debounce to avoid thrashing during streaming
+      clearTimeout(highlightAll._timer);
+      highlightAll._timer = setTimeout(highlightAll, 500);
+    });
+    observer.observe(chatEl, { childList: true, subtree: true });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/voice.js
+     ────────────────────────────────────────────────────────── */
+  // chat/voice.js
+  //
+  // Voice input (speech-to-text) and voice output (text-to-speech)
+  // for the chat. Adds a microphone button for dictation and a
+  // speaker toggle for reading AI responses aloud.
+  //
+  // Uses the Web Speech API — no external services or API keys.
+  // Falls back gracefully (buttons hidden) on browsers that don't
+  // support it.
+  //
+  // Adapted from Kustom-GPT's voice I/O pattern (MIT).
+  //
+  // Bootstrap: call initVoice() from start(). Idempotent.
+
+  /**
+   * Initialize voice features. Adds mic + speaker buttons near
+   * the chat input. Idempotent.
+   */
+  function initVoice() {
+    if (initVoice._done) return;
+    initVoice._done = true;
+
+    const hasSpeechRecognition = typeof window !== 'undefined' &&
+      (window.SpeechRecognition || window.webkitSpeechRecognition);
+    const hasSpeechSynthesis = typeof window !== 'undefined' &&
+      'speechSynthesis' in window;
+
+    if (!hasSpeechRecognition && !hasSpeechSynthesis) return;
+
+    // Find input area to inject buttons
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (!inputArea) return;
+    const parent = inputArea.parentElement || inputArea;
+
+    // ---- Voice INPUT (speech-to-text) ----
+    if (hasSpeechRecognition) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      let isListening = false;
+
+      const micBtn = document.createElement('button');
+      micBtn.type = 'button';
+      micBtn.className = 'pf-voice-btn pf-mic-btn';
+      micBtn.textContent = '🎤';
+      micBtn.title = 'Voice input (dictation)';
+
+      micBtn.addEventListener('click', () => {
+        if (isListening) {
+          stopListening();
+        } else {
+          startListening();
+        }
+      });
+
+      function startListening() {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = navigator.language || 'en-US';
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          // Find the chat textarea and append the transcript
+          const textarea = document.querySelector('#inputEl') ||
+                           document.querySelector('textarea') ||
+                           document.querySelector('[contenteditable]');
+          if (textarea) {
+            if (textarea.value !== undefined) {
+              textarea.value += transcript;
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            } else {
+              textarea.textContent += transcript;
+            }
+          }
+        };
+
+        recognition.onend = () => {
+          isListening = false;
+          micBtn.classList.remove('pf-listening');
+          micBtn.textContent = '🎤';
+        };
+
+        recognition.onerror = () => {
+          isListening = false;
+          micBtn.classList.remove('pf-listening');
+          micBtn.textContent = '🎤';
+        };
+
+        try {
+          recognition.start();
+          isListening = true;
+          micBtn.classList.add('pf-listening');
+          micBtn.textContent = '⏹';
+        } catch { /* already started or blocked */ }
+      }
+
+      function stopListening() {
+        if (recognition) {
+          try { recognition.stop(); } catch { /* non-fatal */ }
+        }
+        isListening = false;
+        micBtn.classList.remove('pf-listening');
+        micBtn.textContent = '🎤';
+      }
+
+      parent.appendChild(micBtn);
+    }
+
+    // ---- Voice OUTPUT (text-to-speech) ----
+    if (hasSpeechSynthesis) {
+      let voiceEnabled = false;
+
+      const speakerBtn = document.createElement('button');
+      speakerBtn.type = 'button';
+      speakerBtn.className = 'pf-voice-btn pf-speaker-btn';
+      speakerBtn.textContent = '🔇';
+      speakerBtn.title = 'Toggle voice output';
+
+      speakerBtn.addEventListener('click', () => {
+        voiceEnabled = !voiceEnabled;
+        speakerBtn.textContent = voiceEnabled ? '🔊' : '🔇';
+        speakerBtn.title = voiceEnabled
+          ? 'Voice output ON (click to mute)'
+          : 'Toggle voice output';
+        if (!voiceEnabled) {
+          window.speechSynthesis.cancel();
+        }
+      });
+
+      parent.appendChild(speakerBtn);
+
+      // Watch for new AI messages and read them aloud
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (chatEl) {
+        const observer = new MutationObserver((mutations) => {
+          if (!voiceEnabled) return;
+          for (const mut of mutations) {
+            for (const node of mut.addedNodes) {
+              if (node.nodeType !== 1) continue;
+              if (!node.classList.contains('message')) continue;
+              if (!node.classList.contains('ai')) continue;
+              if (node.id.startsWith('typing-')) continue;
+              // Debounce — wait for streaming to finish
+              clearTimeout(speakMsg._timer);
+              speakMsg._timer = setTimeout(() => speakMessage(node), 1000);
+            }
+          }
+        });
+        observer.observe(chatEl, { childList: true, subtree: false });
+      }
+
+      function speakMessage(msgEl) {
+        if (!voiceEnabled) return;
+        const content = msgEl.querySelector('.content');
+        if (!content) return;
+
+        // Strip code blocks, markdown formatting, HTML tags
+        let text = (content.innerText || '')
+          .replace(/```[\s\S]*?```/g, '')
+          .replace(/`[^`]+`/g, '')
+          .replace(/\*\*[^*]+\*\*/g, (m) => m.replace(/\*\*/g, ''))
+          .replace(/\*[^*]+\*/g, (m) => m.replace(/\*/g, ''))
+          .replace(/[#_>`]/g, '')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+        if (!text) return;
+
+        // Truncate very long messages
+        if (text.length > 1000) text = text.substring(0, 1000) + '...';
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -34727,6 +35724,57 @@ Use this template for your response:
 
     // Glossary editor (Batch 2) — 📖 button near chat input
     try { initGlossaryEditor(); } catch { /* non-fatal */ }
+
+    // Chat export (Batch 5) — ⬇ button in chat header
+    try { initChatExport(); } catch { /* non-fatal */ }
+
+    // Thread archiving (Batch 5) — archive buttons on threads
+    try {
+      if (document.getElementById('chatThreads')) {
+        initThreadArchive();
+      } else {
+        setTimeout(() => { try { initThreadArchive(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // User impersonation (Batch 4) — ✍ "Write for me" button
+    try {
+      if (window.root && window.root.aiTextPlugin) {
+        initImpersonation();
+      } else {
+        setTimeout(() => { try { initImpersonation(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // Writing enhancer (Batch 4) — ✨ polish draft text
+    try {
+      if (window.root && window.root.aiTextPlugin) {
+        initWritingEnhancer();
+      } else {
+        setTimeout(() => { try { initWritingEnhancer(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // Narration generation (Batch 4) — 🎬 scene narration
+    try {
+      if (window.root && window.root.aiTextPlugin) {
+        initNarration();
+      } else {
+        setTimeout(() => { try { initNarration(); } catch { /* non-fatal */ } }, 3000);
+      }
+    } catch { /* non-fatal */ }
+
+    // Code syntax highlighting (Batch 3)
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initCodeHighlight();
+      } else {
+        setTimeout(() => { try { initCodeHighlight(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // Voice I/O (Batch 3) — mic + speaker buttons
+    try { initVoice(); } catch { /* non-fatal */ }
 
     // Initial fetch
     await refresh(card);

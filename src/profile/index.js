@@ -242,6 +242,57 @@ export async function start() {
   // Glossary editor (Batch 2) — 📖 button near chat input
   try { initGlossaryEditor(); } catch { /* non-fatal */ }
 
+  // Chat export (Batch 5) — ⬇ button in chat header
+  try { initChatExport(); } catch { /* non-fatal */ }
+
+  // Thread archiving (Batch 5) — archive buttons on threads
+  try {
+    if (document.getElementById('chatThreads')) {
+      initThreadArchive();
+    } else {
+      setTimeout(() => { try { initThreadArchive(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // User impersonation (Batch 4) — ✍ "Write for me" button
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initImpersonation();
+    } else {
+      setTimeout(() => { try { initImpersonation(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Writing enhancer (Batch 4) — ✨ polish draft text
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initWritingEnhancer();
+    } else {
+      setTimeout(() => { try { initWritingEnhancer(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Narration generation (Batch 4) — 🎬 scene narration
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initNarration();
+    } else {
+      setTimeout(() => { try { initNarration(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
+  // Code syntax highlighting (Batch 3)
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initCodeHighlight();
+    } else {
+      setTimeout(() => { try { initCodeHighlight(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // Voice I/O (Batch 3) — mic + speaker buttons
+  try { initVoice(); } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 

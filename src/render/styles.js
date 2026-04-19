@@ -3662,4 +3662,131 @@ export const CSS = `
 .pf-glossary-trigger:hover {
   opacity: 1;
 }
+
+/* ---- Chat export button ---- */
+.pf-export-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  opacity: 0.5;
+  color: var(--text-color, #ccc);
+  transition: opacity 0.15s;
+}
+.pf-export-btn:hover {
+  opacity: 1;
+}
+
+/* ---- Thread archiving ---- */
+.pf-archive-btn {
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.thread:hover .pf-archive-btn {
+  opacity: 0.6;
+  pointer-events: auto;
+}
+.pf-archive-btn:hover {
+  opacity: 1 !important;
+}
+.thread.pf-archived {
+  opacity: 0.5;
+}
+.pf-archive-section {
+  padding: 4px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pf-archive-toggle {
+  background: none;
+  border: none;
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.6;
+  padding: 4px 0;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+}
+.pf-archive-toggle:hover {
+  opacity: 1;
+}
+
+/* ---- Impersonation button (Batch 4) ---- */
+.pf-impersonate-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.pf-impersonate-btn:hover {
+  opacity: 1;
+}
+.pf-impersonate-btn:disabled {
+  cursor: wait;
+  opacity: 0.3;
+}
+
+/* ---- Writing enhancer + Narration buttons (Batch 4) ---- */
+.pf-enhance-btn, .pf-narrate-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.pf-enhance-btn:hover, .pf-narrate-btn:hover {
+  opacity: 1;
+}
+.pf-enhance-btn:disabled, .pf-narrate-btn:disabled {
+  cursor: wait;
+  opacity: 0.3;
+}
+
+/* ---- Code syntax highlighting (Batch 3) ----
+   Token colors for regex-based highlighting of code blocks.
+   Designed for dark backgrounds matching upstream's code block style. */
+.pf-tok-kw { color: #c792ea; } /* keywords — purple */
+.pf-tok-str { color: #c3e88d; } /* strings — green */
+.pf-tok-cmt { color: #6a737d; font-style: italic; } /* comments — grey */
+.pf-tok-num { color: #f78c6c; } /* numbers — orange */
+.pf-tok-fn { color: #82aaff; } /* function names — blue */
+
+/* ---- Voice I/O buttons (Batch 3) ---- */
+.pf-voice-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.pf-voice-btn:hover {
+  opacity: 1;
+}
+.pf-mic-btn.pf-listening {
+  opacity: 1;
+  animation: pf-pulse 1s infinite;
+}
+@keyframes pf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 `.trim();

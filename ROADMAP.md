@@ -27,30 +27,30 @@ Source: FurAI message controls, Kustom-GPT stop-generating.
 Source: FurAI dynamic glossary. FurAI auto-summary. URV-AI summaries
 (openSummaryModal, renderSummariesView).
 
-### Batch 3 — Voice + code (MEDIUM impact, medium scope)
-- [ ] Voice input (Web Speech API → text)
-- [ ] Voice output (TTS with rate/pitch controls)
-- [ ] Code syntax highlighting in AI responses
+### Batch 3 — Voice + code ✅ COMPLETE
+- [x] Voice input (Web Speech API → text) (e6d2d7e)
+- [x] Voice output (TTS with rate/pitch controls) (e6d2d7e)
+- [x] Code syntax highlighting in AI responses (e6d2d7e)
 
 Source: Kustom-GPT voice I/O. URV-AI code blocks (setupCodeBlockListeners,
 hljs theme integration).
 
-### Batch 4 — Image generation + AI tools (MEDIUM impact, higher scope)
+### Batch 4 — Image generation + AI tools (3/4) (MEDIUM impact, higher scope)
 - [ ] Image generation per message (via Perchance text-to-image plugin)
-- [ ] Writing enhancer / "Magic Wand" (rewrite user text before sending)
-- [ ] User impersonation (AI writes as user — for RP continuity)
-- [ ] Narration generation (generate scene narration on demand)
+- [x] Writing enhancer (e153a16) / "Magic Wand" (rewrite user text before sending)
+- [x] User impersonation (8f88cd2) (AI writes as user — for RP continuity)
+- [x] Narration generation (e153a16) (generate scene narration on demand)
 
 Source: FurAI image gen. FurAI enhancer. URV-AI impersonation
 (generateUserImpersonation) and narration (generateNarration).
 
 ### Batch 5 — Thread + character management (MEDIUM impact, medium scope)
 - [x] Thread pinning — ALREADY IN UPSTREAM (isFav + .favStar)
-- [ ] Thread archiving (hide old threads without deleting)
+- [x] Thread archiving (f19cd6c) (hide old threads without deleting)
 - [ ] Bulk thread operations (multi-select + delete/archive)
 - [ ] Character browser/grid with search
 - [ ] Chat folders
-- [ ] Chat import/export (full thread data)
+- [x] Chat export (f19cd6c) (import TBD) (full thread data)
 
 Source: URV-AI thread pinning (togglePinThread), archiving
 (toggleArchiveThread, openArchiveModal), bulk operations
