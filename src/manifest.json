@@ -29,6 +29,7 @@
     "memory/bubbles.js",
     "memory/bubble_overrides.js",
     "memory/lock_persistence.js",
+    "memory/lore_order.js",
     "memory/snapshots.js",
     "memory/stage.js",
     "memory/db.js",

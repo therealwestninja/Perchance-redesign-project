@@ -33,6 +33,8 @@ const MEM_ID_SEP = '|';
  * @property {Object} [passthrough]    Any other fields preserved through edits
  */
 
+import { sortLoreByPersistedOrder, persistLoreOrder, forgetLoreFromOrder } from './lore_order.js';
+
 // ---- helpers ----
 
 function parseMemId(id) {
@@ -277,7 +279,16 @@ export async function loadBaseline({ threadId = activeThreadId() } = {}) {
     }
   }
 
-  return [...memoryItems, ...loreItems];
+  // Apply the persisted lore order (#4). Lore is unordered in upstream;
+  // we keep our display-only order in settings.loreOrderByBookId rather
+  // than polluting upstream's lore table. Items not in the persisted
+  // list land at the end (preserves the experience for newly-added
+  // lore that hasn't been positioned yet).
+  const sortedLoreItems = thread.loreBookId != null
+    ? sortLoreByPersistedOrder(loreItems, thread.loreBookId)
+    : loreItems;
+
+  return [...memoryItems, ...sortedLoreItems];
 }
 
 // ---- commit path ----
@@ -310,10 +321,15 @@ export async function loadBaseline({ threadId = activeThreadId() } = {}) {
  *     locked: boolean,
  *     userMoved?: boolean,
  *   }>,
+ *   loreOrder?: Array<{ id: string|number }>,
+ *     User's final rendered sequence of lore ids. When supplied,
+ *     persisted to settings.loreOrderByBookId (#4) so the order
+ *     survives across sessions. Upstream's lore table is NOT
+ *     modified — order lives only in our settings.
  * }} params
  * @returns {Promise<{ ok: true, stats: object } | { ok: false, error: string }>}
  */
-export async function commitDiff({ baselineItems, diff, threadId = activeThreadId(), memoryOrder = null } = {}) {
+export async function commitDiff({ baselineItems, diff, threadId = activeThreadId(), memoryOrder = null, loreOrder = null } = {}) {
   const db = safeDb();
   if (!db) return { ok: false, error: 'window.db not available' };
   if (threadId == null) return { ok: false, error: 'no active thread' };
@@ -692,7 +708,13 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
         }
       }
 
-      // Lore reorder: upstream has no order field, still a no-op.
+      // Lore reorder (#4): upstream has no order field. We persist the
+      // user's final lore order in OUR settings (loreOrderByBookId) so
+      // it survives across sessions WITHOUT touching upstream's lore
+      // table. The diff.reordered entries still bump stats.reorderedLore
+      // for the save-summary line; the actual persistence happens via
+      // persistLoreOrder() AFTER the Dexie tx, since settings live in
+      // localStorage and aren't part of the tx.
       for (const item of (diff.reordered || [])) {
         if (item.scope === 'lore') stats.reorderedLore++;
       }
@@ -702,6 +724,27 @@ export async function commitDiff({ baselineItems, diff, threadId = activeThreadI
         await flushMessage(messageId);
       }
     });
+
+    // Post-tx settings writes (NOT inside the Dexie tx — settings live
+    // in localStorage, not Dexie). Best-effort: settings write failures
+    // shouldn't fail the Dexie commit that just succeeded.
+    if (Array.isArray(loreOrder) && loreOrder.length > 0 && loreBookId != null) {
+      try {
+        const orderedIds = loreOrder.map(e => (e && e.id != null) ? e.id : null).filter(x => x != null);
+        persistLoreOrder(loreBookId, orderedIds);
+      } catch { /* best-effort */ }
+    }
+    // When lore is deleted, prune deleted ids from the persisted order
+    // so the list doesn't accumulate dead references over time. Cheap
+    // (single localStorage round-trip per deleted id) and bounded by
+    // diff size.
+    if (loreBookId != null) {
+      for (const item of (diff.deleted || [])) {
+        if (item && item.scope === 'lore' && item.id != null) {
+          try { forgetLoreFromOrder(loreBookId, item.id); } catch { /* best-effort */ }
+        }
+      }
+    }
 
     return { ok: true, stats };
   } catch (err) {

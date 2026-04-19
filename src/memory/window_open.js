@@ -739,6 +739,19 @@ export async function openMemoryWindow() {
         }
       }
 
+      // Lore order (#4): user's final flat lore sequence across all
+      // lore bubbles, top-to-bottom. Persisted to settings (NOT to
+      // upstream's lore table) by commitDiff so the order survives
+      // across sessions. No locked/userMoved partitioning here — lore
+      // doesn't have message slots to remap; it's just a display
+      // order in our settings.
+      const loreOrder = [];
+      for (const bubble of loreBubbles) {
+        for (const entry of bubble.entries) {
+          loreOrder.push({ id: entry.id });
+        }
+      }
+
       // Build confirm message from actual state, not by concatenating
       // pieces that don't know about each other.
       //
@@ -801,6 +814,7 @@ export async function openMemoryWindow() {
         baselineItems: baseline,
         diff,
         memoryOrder,
+        loreOrder,
       });
       if (!result.ok) {
         alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);

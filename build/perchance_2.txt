@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 74 };
+  NS.__meta = { modules: 75 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -18464,6 +18464,146 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: memory/lore_order.js
+     ────────────────────────────────────────────────────────── */
+  // memory/lore_order.js
+  //
+  // Per-book lore ordering, OUR-TOOL-ONLY.
+  //
+  // Upstream Perchance's lore schema has no `order` column. Adding one
+  // would mean our writes include a field upstream silently ignores —
+  // fine for cosmetic sorting, weird for anything that round-trips
+  // through upstream's editors.
+  //
+  // This module sidesteps the divergence by storing the order in OUR
+  // settings.loreOrderByBookId rather than in upstream's lore table.
+  // Upstream remains untouched. Our tool reads + sorts. If the user
+  // ever uninstalls our tool, the lore data is exactly what they
+  // started with — no orphan field.
+  //
+  // Storage shape:
+  //   settings.loreOrderByBookId = {
+  //     '<bookId>': ['<loreId>', '<loreId>', '<loreId>', ...],
+  //     ...
+  //   };
+  //
+  // IDs are stringified for storage-key safety. Reads coerce back as
+  // needed. Empty / missing → no override (lore loads in upstream's
+  // natural order, which is insertion order).
+  //
+  // Best-effort: errors swallowed (logged at debug level).
+
+
+
+  const LORE_ORDER_NS = 'loreOrderByBookId';
+
+  /**
+   * Read the persisted lore order for `bookId`. Returns an array of
+   * stringified ids, or empty array if no persisted order exists.
+   *
+   * @param {number|string} bookId
+   * @returns {string[]}
+   */
+  function loadLoreOrder(bookId) {
+    if (bookId == null) return [];
+    try {
+      const settings = loadSettings();
+      const map = (settings && settings[LORE_ORDER_NS]) || {};
+      const order = map[String(bookId)];
+      if (!Array.isArray(order)) return [];
+      return order.map(String);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Persist the lore order for `bookId`. Pass an array of lore ids
+   * in the desired display order. Safe to call with an empty array
+   * (will clear the persisted order for this book).
+   *
+   * @param {number|string} bookId
+   * @param {Array<number|string>} orderedIds
+   */
+  function persistLoreOrder(bookId, orderedIds) {
+    if (bookId == null) return;
+    if (!Array.isArray(orderedIds)) return;
+    try {
+      const settings = loadSettings();
+      if (!settings[LORE_ORDER_NS] || typeof settings[LORE_ORDER_NS] !== 'object') {
+        settings[LORE_ORDER_NS] = {};
+      }
+      if (orderedIds.length === 0) {
+        // Empty → clear the entry rather than store [] (smaller payload,
+        // and 'empty' is semantically the same as 'no override').
+        delete settings[LORE_ORDER_NS][String(bookId)];
+      } else {
+        settings[LORE_ORDER_NS][String(bookId)] = orderedIds.map(String);
+      }
+      saveSettings(settings);
+    } catch { /* best-effort */ }
+  }
+
+  /**
+   * Sort `loreItems` by the persisted order for `bookId`. Items present
+   * in the persisted order list land first, in that order. Items NOT in
+   * the list (newer entries, externally added) land at the end, in
+   * their original input order (stable).
+   *
+   * Pure function — does not mutate input. Returns a new array.
+   *
+   * @param {Array<{id: number|string}>} loreItems
+   * @param {number|string} bookId
+   * @returns {Array}
+   */
+  function sortLoreByPersistedOrder(loreItems, bookId) {
+    if (!Array.isArray(loreItems) || loreItems.length === 0) return [];
+    const order = loadLoreOrder(bookId);
+    if (order.length === 0) return [...loreItems];
+
+    const rank = new Map();
+    for (let i = 0; i < order.length; i++) rank.set(order[i], i);
+
+    // Stable partition: in-list (sorted by rank) followed by not-in-list
+    // (preserved input order).
+    const inList = [];
+    const notInList = [];
+    for (const item of loreItems) {
+      if (!item || item.id == null) continue;
+      if (rank.has(String(item.id))) inList.push(item);
+      else notInList.push(item);
+    }
+    inList.sort((a, b) => rank.get(String(a.id)) - rank.get(String(b.id)));
+    return [...inList, ...notInList];
+  }
+
+  /**
+   * Drop a lore id from the persisted order for `bookId`. Called when
+   * the user deletes a lore entry — keeps the persisted list from
+   * accumulating dead ids over time.
+   *
+   * @param {number|string} bookId
+   * @param {number|string} loreId
+   */
+  function forgetLoreFromOrder(bookId, loreId) {
+    if (bookId == null || loreId == null) return;
+    try {
+      const settings = loadSettings();
+      const map = settings && settings[LORE_ORDER_NS];
+      if (!map || typeof map !== 'object') return;
+      const arr = map[String(bookId)];
+      if (!Array.isArray(arr)) return;
+      const filtered = arr.filter(id => String(id) !== String(loreId));
+      if (filtered.length === 0) {
+        delete map[String(bookId)];
+      } else {
+        map[String(bookId)] = filtered;
+      }
+      saveSettings(settings);
+    } catch { /* best-effort */ }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: memory/snapshots.js
      ────────────────────────────────────────────────────────── */
   // memory/snapshots.js
@@ -19151,6 +19291,8 @@ Use this template for your response:
    * @property {Object} [passthrough]    Any other fields preserved through edits
    */
 
+
+
   // ---- helpers ----
 
   function parseMemId(id) {
@@ -19395,7 +19537,16 @@ Use this template for your response:
       }
     }
 
-    return [...memoryItems, ...loreItems];
+    // Apply the persisted lore order (#4). Lore is unordered in upstream;
+    // we keep our display-only order in settings.loreOrderByBookId rather
+    // than polluting upstream's lore table. Items not in the persisted
+    // list land at the end (preserves the experience for newly-added
+    // lore that hasn't been positioned yet).
+    const sortedLoreItems = thread.loreBookId != null
+      ? sortLoreByPersistedOrder(loreItems, thread.loreBookId)
+      : loreItems;
+
+    return [...memoryItems, ...sortedLoreItems];
   }
 
   // ---- commit path ----
@@ -19428,10 +19579,15 @@ Use this template for your response:
    *     locked: boolean,
    *     userMoved?: boolean,
    *   }>,
+   *   loreOrder?: Array<{ id: string|number }>,
+   *     User's final rendered sequence of lore ids. When supplied,
+   *     persisted to settings.loreOrderByBookId (#4) so the order
+   *     survives across sessions. Upstream's lore table is NOT
+   *     modified — order lives only in our settings.
    * }} params
    * @returns {Promise<{ ok: true, stats: object } | { ok: false, error: string }>}
    */
-  async function commitDiff({ baselineItems, diff, threadId = activeThreadId(), memoryOrder = null } = {}) {
+  async function commitDiff({ baselineItems, diff, threadId = activeThreadId(), memoryOrder = null, loreOrder = null } = {}) {
     const db = safeDb();
     if (!db) return { ok: false, error: 'window.db not available' };
     if (threadId == null) return { ok: false, error: 'no active thread' };
@@ -19810,7 +19966,13 @@ Use this template for your response:
           }
         }
 
-        // Lore reorder: upstream has no order field, still a no-op.
+        // Lore reorder (#4): upstream has no order field. We persist the
+        // user's final lore order in OUR settings (loreOrderByBookId) so
+        // it survives across sessions WITHOUT touching upstream's lore
+        // table. The diff.reordered entries still bump stats.reorderedLore
+        // for the save-summary line; the actual persistence happens via
+        // persistLoreOrder() AFTER the Dexie tx, since settings live in
+        // localStorage and aren't part of the tx.
         for (const item of (diff.reordered || [])) {
           if (item.scope === 'lore') stats.reorderedLore++;
         }
@@ -19820,6 +19982,27 @@ Use this template for your response:
           await flushMessage(messageId);
         }
       });
+
+      // Post-tx settings writes (NOT inside the Dexie tx — settings live
+      // in localStorage, not Dexie). Best-effort: settings write failures
+      // shouldn't fail the Dexie commit that just succeeded.
+      if (Array.isArray(loreOrder) && loreOrder.length > 0 && loreBookId != null) {
+        try {
+          const orderedIds = loreOrder.map(e => (e && e.id != null) ? e.id : null).filter(x => x != null);
+          persistLoreOrder(loreBookId, orderedIds);
+        } catch { /* best-effort */ }
+      }
+      // When lore is deleted, prune deleted ids from the persisted order
+      // so the list doesn't accumulate dead references over time. Cheap
+      // (single localStorage round-trip per deleted id) and bounded by
+      // diff size.
+      if (loreBookId != null) {
+        for (const item of (diff.deleted || [])) {
+          if (item && item.scope === 'lore' && item.id != null) {
+            try { forgetLoreFromOrder(loreBookId, item.id); } catch { /* best-effort */ }
+          }
+        }
+      }
 
       return { ok: true, stats };
     } catch (err) {
@@ -28909,6 +29092,19 @@ Use this template for your response:
           }
         }
 
+        // Lore order (#4): user's final flat lore sequence across all
+        // lore bubbles, top-to-bottom. Persisted to settings (NOT to
+        // upstream's lore table) by commitDiff so the order survives
+        // across sessions. No locked/userMoved partitioning here — lore
+        // doesn't have message slots to remap; it's just a display
+        // order in our settings.
+        const loreOrder = [];
+        for (const bubble of loreBubbles) {
+          for (const entry of bubble.entries) {
+            loreOrder.push({ id: entry.id });
+          }
+        }
+
         // Build confirm message from actual state, not by concatenating
         // pieces that don't know about each other.
         //
@@ -28971,6 +29167,7 @@ Use this template for your response:
           baselineItems: baseline,
           diff,
           memoryOrder,
+          loreOrder,
         });
         if (!result.ok) {
           alert(`Save failed: ${result.error}\n\nYour edits are still staged — you can retry or Cancel.`);
