@@ -57,45 +57,6 @@ This distinction needs careful design.
 
 ---
 
-## Hide upstream `/mem` and `/lore` commands
-
-Upstream ships `/mem` and `/lore` slash-commands in the chat input that
-open its own (simpler) memory editors. With our tool available, those
-commands are confusing. The original plan was to hide them via CSS
-injection.
-
-**Blocked on investigation:** We don't currently know where these
-commands appear in Perchance's DOM. Possibilities:
-- Menu items in a slash-command popup (typing "/" in chat shows a
-  menu) — CSS-hideable via predictable selectors
-- Buttons in a toolbar — CSS-hideable
-- Pure text commands interpreted by an input handler — CSS can't
-  help; would need to intercept the input
-- Some mix of the above
-
-Before we can implement, we need to:
-1. Open Perchance's chat input, type `/` and see what menu (if any)
-   appears. Find the upstream memory/lore items' DOM.
-2. Decide on intervention strategy based on what we find:
-   - Menu items → CSS `display: none` on matching selectors
-   - Input interception → monkey-patch the command dispatcher upstream
-     uses (riskier; upstream updates may break our patch)
-   - Both → hide the UI and either swallow or rewrite text commands
-
-**Possible deeper improvements once we're in:**
-- Instead of hiding, INTERCEPT — show our Memory window when user
-  types `/mem` in chat, so the tool works regardless of how they
-  invoke it
-- If the upstream commands take arguments (e.g., `/mem add Some text`),
-  preserve or translate those arguments into our stage.add flow
-- Give the user a settings toggle: "Hide upstream's memory commands"
-  defaulting to on, so a user who wants both tools can flip it back
-
-**Scope after investigation:** 10-100 lines depending on what we find.
-
-
----
-
 ## Commit 4 — drag bubble → new character — SHIPPED
 
 **Status: shipped.**
@@ -270,6 +231,28 @@ item — the core counter data is there now.
   streak achievements (3/7/14/30/100 days, common→legendary).
   recordActivityForStreak() called on profile open + memory tool
   open. Idempotent within a UTC day.
+- **Profile flair unlocks** (NEW): title picker lets the user
+  choose any unlocked achievement's name to wear on their splash,
+  with "Auto (rarest unlocked)" as the default. Kept the existing
+  free-text override as an escape hatch. Also shipped a 7-color
+  accent palette (amber default + slate/forest/azure/rose/violet/
+  crimson) unlocked by tier counts: bronze counts unlock neutral
+  accents, silver-tier unlocks rose+azure, one gold unlocks violet,
+  one legendary unlocks crimson. Accent tints the splash title,
+  level badge, pinned badge borders via a --pf-accent CSS var on
+  the overlay root. Picker lives in the Details form; changes
+  apply live via the existing settings-change subscription.
+  19 unit tests covering title/accent resolution and fallback chains.
+- **Personal-best notifications** (NEW): high-water-mark tracker
+  across 7 metrics (words written, characters created, threads
+  started, lore entries, memory saves, bubbles renamed, longest
+  streak). On profile open, compares current stats to stored peaks
+  and stacks celebratory toasts for each improvement over a prior
+  record. First-observation-above-threshold records silently to
+  avoid flooding users on first upgrade. Ships a reusable toast
+  module (`render/toast.js`) with info/ok/warn/celebrate variants
+  and stacking — available for future summary notifications.
+  11 unit tests.
 
 ### Remaining
 - **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
@@ -285,13 +268,6 @@ item — the core counter data is there now.
     snapshot restoration pattern, rename activity
   Each archetype = achievement that unlocks when a WEIGHTED
   combination of signals crosses a threshold. ~200 lines.
-- **Profile flair unlocks** — titles, avatar borders, accent colors
-  pinned to achievements/archetypes. Requires flair-storage field
-  in settings, flair-picker UI in profile, rendering in splash +
-  mini-card. ~200 lines.
-- **Personal-best notifications** — "beat your personal best in
-  words this session" toast. Needs per-session snapshot of relevant
-  stats at session start, comparison at end. ~80 lines.
 - **Shareable profile cards** — opt-in canvas-rendered image or
   share-link with user's stats. Opens share sheet / copy-to-
   clipboard. Privacy-sensitive; must exclude any identifying
@@ -299,6 +275,7 @@ item — the core counter data is there now.
 - **Summary notifications** — opt-in weekly/monthly summary toast
   or mini-card pulse ("this week: 3 memory saves, 12 bubble
   renames"). Needs a scheduler + a summary composer. ~150 lines.
+  (Partial substrate shipped: reusable toast module now available.)
 
 ### Dependencies cleared
 - ~~Second-pass user-stats tracking~~ SHIPPED (commit b101e98 +

@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 64 };
+  NS.__meta = { modules: 67 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -21496,6 +21496,34 @@ Use this template for your response:
   .pf-mem-export-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 10px;
+  }
+
+  /* Status pill inside the Import dialog — shows errors inline (wrong
+     JSON, nothing to import) or success (which briefly appears before
+     the dialog auto-closes). Matches tone of the save-confirm banner. */
+  .pf-mem-import-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-top: 10px;
+  }
+  .pf-mem-import-status[hidden] { display: none; }
+  .pf-mem-import-status-ok {
+    color: #6ab87c;
+    background: rgba(106, 184, 124, 0.08);
+    border: 1px solid rgba(106, 184, 124, 0.3);
+  }
+  .pf-mem-import-status-warn {
+    color: #d8b36a;
+    background: rgba(216, 179, 106, 0.08);
+    border: 1px solid rgba(216, 179, 106, 0.3);
+  }
+  .pf-mem-import-status-err {
+    color: #d87a7a;
+    background: rgba(216, 122, 122, 0.08);
+    border: 1px solid rgba(216, 122, 122, 0.3);
   }
 
   /* ---- restore dialog ---- */
@@ -21940,6 +21968,121 @@ Use this template for your response:
     justify-content: flex-end;
     gap: 10px;
   }
+
+  /* ---- Flair: accent swatch picker + accent color consumers ---- */
+  .pf-accent-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pf-accent-swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--pf-accent-preview, #d8b36a);
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+    padding: 0;
+    transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .pf-accent-swatch:hover:not(:disabled) {
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+  .pf-accent-swatch-active {
+    border-color: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+  }
+  .pf-accent-swatch-locked {
+    cursor: not-allowed;
+    opacity: 0.35;
+    filter: grayscale(0.7);
+  }
+  .pf-accent-swatch-locked:hover { transform: none; }
+
+  /* --- accent color consumers --- */
+  /* The overlay gets --pf-accent set via inline style by full_page.js.
+     Chrome that previously used the hardcoded gold (#d8b36a) now reads
+     --pf-accent so the user's pick shows everywhere appropriate. The
+     fallback on .pf-overlay covers the first paint before JS runs. */
+  .pf-overlay {
+    --pf-accent: #d8b36a;
+  }
+  .pf-splash-title {
+    color: var(--pf-accent);
+  }
+  .pf-splash-level {
+    background: var(--pf-accent);
+  }
+  .pf-pinned-badge {
+    border-color: var(--pf-accent);
+  }
+
+  /* ---- Toast notifications ---- */
+  .pf-toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 10000;
+    pointer-events: none;
+    max-width: min(90vw, 360px);
+  }
+  .pf-toast {
+    background: var(--box-color, #1e1e1e);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: var(--text-color);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    font-size: 13px;
+    line-height: 1.45;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: auto;
+  }
+  .pf-toast-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .pf-toast-info { border-color: rgba(106, 154, 216, 0.4); }
+  .pf-toast-ok   { border-color: rgba(106, 184, 124, 0.4); }
+  .pf-toast-warn { border-color: rgba(216, 179, 106, 0.4); }
+  .pf-toast-celebrate {
+    border-color: rgba(216, 179, 106, 0.6);
+    background: linear-gradient(135deg, var(--box-color, #1e1e1e), rgba(216, 179, 106, 0.08));
+  }
+
+  /* Personal-best toast inner layout */
+  .pf-toast-pb {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .pf-toast-pb-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    color: rgba(216, 179, 106, 0.95);
+    text-transform: uppercase;
+  }
+  .pf-toast-pb-line {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .pf-toast-pb-sub {
+    font-size: 11px;
+    opacity: 0.7;
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -21974,6 +22117,13 @@ Use this template for your response:
         ageRange: '',                       // '' | 'under-18' | '18-24' | '25-34' | '35-44' | '45-54' | '55+' | 'prefer-not-say'
         genderPos: { x01: 0.5, y01: 0.5 },  // normalized position on the 2D square, (0..1, 0..1)
         genderCustom: '',
+        // Flair — cosmetic unlocks tied to achievement progression.
+        // Null values = auto-derive (the default behavior before flair
+        // picker existed). See src/profile/flair.js for the resolver.
+        flair: {
+          title: null,   // null = auto pick rarest unlocked; else an achievement id
+          accent: null,  // null = default amber; else an accent id from ACCENTS list
+        },
       },
       display: {
         sections: {
@@ -22093,6 +22243,15 @@ Use this template for your response:
         current: 0,
         longest: 0,
         lastActiveDay: null,
+      },
+      personalBests: {
+        // Map of metric key -> { value, achievedAt: ISO string }.
+        // Populated lazily by personal_bests.checkAndUpdateBests.
+        // Missing keys are treated as "no record yet" and the first
+        // observation above minFirstRun becomes the initial record.
+        // Not a Set or array — intentional object shape for forward
+        // compatibility (new metrics added via METRICS table land
+        // gracefully without migration).
       },
     };
   }
@@ -22470,6 +22629,497 @@ Use this template for your response:
     const dayMs = 86400000;
     const diff = b - a;
     return diff === dayMs;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/share_chips.js
+     ────────────────────────────────────────────────────────── */
+  // render/share_chips.js
+  //
+  // Four compact stat callouts shown at the corners of the radar card in
+  // Focus mode. Chosen to NOT duplicate what's in the splash card or the
+  // radar's own readout, so the share screenshot gains new information
+  // rather than repeating it.
+  //
+  // Layout: two flex rows — one above the radar, one below. Chips within
+  // each row are justified space-between, so they anchor visually to the
+  // left and right corners of the card.
+
+
+
+
+  const TIER_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+  /**
+   * @param {{
+   *   level: number,
+   *   unlockedIds: string[],
+   *   achievements: Array<{ id: string, name: string, tier: string }>,
+   *   promptsCompleted: number,
+   * }} opts
+   * @returns {{ topRow: HTMLElement, bottomRow: HTMLElement }}
+   */
+  function createShareChips({ level, unlockedIds, achievements, promptsCompleted }) {
+    const unlockedCount = unlockedIds.length;
+    const totalAch = achievements.length;
+    const rarest = findRarestUnlocked(unlockedIds, achievements);
+
+    const topRow = h('div', { class: 'pf-share-chips-row pf-share-chips-top' }, [
+      chip({
+        label: 'Level',
+        value: 'LV ' + formatInt(level),
+      }),
+      chip({
+        label: 'Unlocks',
+        value: formatInt(unlockedCount) + ' / ' + formatInt(totalAch),
+      }),
+    ]);
+
+    const bottomRow = h('div', { class: 'pf-share-chips-row pf-share-chips-bottom' }, [
+      chip({
+        label: 'Prompts',
+        value: formatInt(promptsCompleted),
+      }),
+      chip({
+        label: 'Rarest',
+        value: rarest ? rarest.name : '—',
+        icon:  rarest ? (TIER_ICON[rarest.tier] || '◆') : null,
+        tier:  rarest ? rarest.tier : null,
+      }),
+    ]);
+
+    return { topRow, bottomRow };
+  }
+
+  function chip({ label, value, icon, tier }) {
+    const valueChildren = [];
+    if (icon) {
+      valueChildren.push(h('span', {
+        class: 'pf-share-chip-icon pf-share-chip-icon-' + (tier || 'common'),
+        'aria-hidden': 'true',
+      }, [icon]));
+    }
+    valueChildren.push(h('span', { class: 'pf-share-chip-value-text' }, [String(value)]));
+
+    return h('div', { class: 'pf-share-chip' }, [
+      h('div', { class: 'pf-share-chip-label' }, [String(label)]),
+      h('div', { class: 'pf-share-chip-value' }, valueChildren),
+    ]);
+  }
+
+  /**
+   * Find the rarest unlocked achievement for highlight. "Rarest" = highest
+   * tier in TIER_ORDER among the user's unlocks. Ties broken by registry
+   * order (first seen wins). Returns null if nothing is unlocked or if
+   * every unlocked id is unknown to the registry.
+   */
+  function findRarestUnlocked(unlockedIds, achievements) {
+    if (!Array.isArray(unlockedIds) || unlockedIds.length === 0) return null;
+    if (!Array.isArray(achievements)) return null;
+    const unlockedSet = new Set(unlockedIds);
+    const unlocked = achievements.filter(a => a && unlockedSet.has(a.id));
+    if (unlocked.length === 0) return null;
+    // Stable sort: higher tier first; within a tier, preserve registry order
+    const indexed = unlocked.map((a, i) => ({ a, i }));
+    indexed.sort((x, y) => {
+      const tierDiff = tierRank(y.a.tier) - tierRank(x.a.tier);
+      if (tierDiff !== 0) return tierDiff;
+      return x.i - y.i;
+    });
+    return indexed[0].a;
+  }
+
+  function tierRank(tier) {
+    const idx = TIER_ORDER.indexOf(tier);
+    return idx < 0 ? 0 : idx;
+  }
+
+  function formatInt(n) {
+    const v = Number(n) || 0;
+    return String(Math.round(v));
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: profile/flair.js
+     ────────────────────────────────────────────────────────── */
+  // profile/flair.js
+  //
+  // Flair — user-facing cosmetic unlocks tied to achievement progression.
+  //
+  // Today's flair types:
+  //   - Title: which achievement's name is worn in the profile splash.
+  //     Previously auto-picked the rarest unlocked; now the user can
+  //     pick any title they've earned (or keep the auto pick).
+  //   - Accent: a themed color that tints chrome around the splash +
+  //     mini-card. Unlocked in tiers as the user accumulates
+  //     bronze/silver/gold achievements.
+  //
+  // Extension-friendly: new flair types (avatar borders, background
+  // patterns, etc.) just add a selector here, a settings.profile.flair
+  // field, and a consumer in the splash/mini-card.
+
+
+
+
+  // ---- Accent palette ----
+  //
+  // Each accent has an id, label, and unlock criterion. The criterion
+  // is a pure function of stats+unlocked so we can tell "what's
+  // unlocked for this user" without polling lots of separate state.
+  //
+  // Unlock thresholds are intentionally modest so a user who's
+  // earned SOMETHING has SOMETHING to pick. A user with zero
+  // achievements still sees the default amber.
+
+  const ACCENTS = Object.freeze([
+    {
+      id: 'amber',
+      label: 'Amber',
+      color: '#d8b36a',        // matches existing brand gold
+      description: 'The default, available to all.',
+      criterion: () => true,
+    },
+    {
+      id: 'slate',
+      label: 'Slate',
+      color: '#7a96a8',
+      description: 'Unlocked at 3 bronze-tier achievements.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'common') >= 3,
+    },
+    {
+      id: 'forest',
+      label: 'Forest',
+      color: '#6ab87c',
+      description: 'Unlocked at 5 bronze-tier achievements.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'common') >= 5,
+    },
+    {
+      id: 'azure',
+      label: 'Azure',
+      color: '#6a9ad8',
+      description: 'Unlocked at 2 silver-tier achievements.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 2,
+    },
+    {
+      id: 'rose',
+      label: 'Rose',
+      color: '#d87a9a',
+      description: 'Unlocked at 1 silver-tier achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 1,
+    },
+    {
+      id: 'violet',
+      label: 'Violet',
+      color: '#b47ad8',
+      description: 'Unlocked at 1 gold-tier achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 1,
+    },
+    {
+      id: 'crimson',
+      label: 'Crimson',
+      color: '#d86a6a',
+      description: 'Unlocked at 1 legendary achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'legendary') >= 1,
+    },
+  ]);
+
+  /**
+   * Titles unlocked for a user: every unlocked achievement's name can be
+   * worn as a title, plus the always-available default.
+   *
+   * Returns [{ id, name, tier, isUnlocked }, ...] with isUnlocked always
+   * true here (callers already filtered), but kept in the shape for
+   * future "preview locked titles" UI if we add one.
+   *
+   * @param {string[]} unlockedIds
+   * @returns {Array<{id: string, name: string, tier: string, isUnlocked: boolean}>}
+   */
+  function getAvailableTitles(unlockedIds) {
+    const unlocked = new Set(unlockedIds || []);
+    const titles = [];
+    for (const a of ACHIEVEMENTS) {
+      if (unlocked.has(a.id)) {
+        titles.push({ id: a.id, name: a.name, tier: a.tier, isUnlocked: true });
+      }
+    }
+    // Sort by rarity desc so rarest titles show first in any picker.
+    titles.sort((x, y) => tierRank(y.tier) - tierRank(x.tier));
+    return titles;
+  }
+
+  /**
+   * Accents available to a user, annotated with whether each is
+   * unlocked. The full list is always returned so a picker can show
+   * locked accents greyed out with their unlock hint.
+   *
+   * @param {object} stats      - full stats bundle
+   * @param {string[]} unlockedIds
+   * @returns {Array<{id, label, color, description, isUnlocked}>}
+   */
+  function getAccents(stats, unlockedIds) {
+    const ids = unlockedIds || [];
+    return ACCENTS.map(a => ({
+      id: a.id,
+      label: a.label,
+      color: a.color,
+      description: a.description,
+      isUnlocked: Boolean(a.criterion(stats || {}, ids)),
+    }));
+  }
+
+  /**
+   * Resolve the ACTIVE accent. User's pick wins if valid+unlocked;
+   * otherwise falls back to 'amber' (always unlocked).
+   *
+   * @param {object} settings
+   * @param {object} stats
+   * @param {string[]} unlockedIds
+   * @returns {{ id: string, color: string }}
+   */
+  function resolveActiveAccent(settings, stats, unlockedIds) {
+    const picked =
+      (settings && settings.profile && settings.profile.flair &&
+       settings.profile.flair.accent) || null;
+
+    if (picked) {
+      const accent = ACCENTS.find(a => a.id === picked);
+      if (accent && accent.criterion(stats || {}, unlockedIds || [])) {
+        return { id: accent.id, color: accent.color };
+      }
+      // Picked accent but no longer eligible (e.g., backup restored to
+      // a state where the unlock hadn't happened yet). Silent fallback
+      // to the default rather than showing a broken style.
+    }
+    // Default
+    return { id: 'amber', color: '#d8b36a' };
+  }
+
+  /**
+   * Resolve the ACTIVE title. Priority:
+   *   1. user's picked flair.title if it's still unlocked
+   *   2. settings.profile.titleOverride (custom free text)
+   *   3. rarest unlocked achievement name
+   *   4. 'Newcomer' default
+   *
+   * @param {object} settings
+   * @param {string[]} unlockedIds
+   * @returns {string}
+   */
+  function resolveActiveTitle(settings, unlockedIds) {
+    const pickedId =
+      (settings && settings.profile && settings.profile.flair &&
+       settings.profile.flair.title) || null;
+
+    if (pickedId) {
+      const unlocked = new Set(unlockedIds || []);
+      if (unlocked.has(pickedId)) {
+        const ach = ACHIEVEMENTS.find(a => a.id === pickedId);
+        if (ach) return ach.name;
+      }
+      // Picked id no longer matches an unlocked achievement. Fall
+      // through rather than showing a stale string.
+    }
+
+    const override =
+      (settings && settings.profile && settings.profile.titleOverride) || '';
+    if (override && override.trim()) return override.trim();
+
+    // Fallback: rarest unlocked. Inlined to avoid circular imports with
+    // share_chips.js → full_page.js → flair.js.
+    const unlocked = new Set(unlockedIds || []);
+    const candidates = ACHIEVEMENTS.filter(a => unlocked.has(a.id));
+    candidates.sort((x, y) => tierRank(y.tier) - tierRank(x.tier));
+    return candidates[0] ? candidates[0].name : 'Newcomer';
+  }
+
+  // ---- helpers ----
+
+  function countTier(unlockedIds, tier) {
+    const unlocked = new Set(unlockedIds || []);
+    let n = 0;
+    for (const a of ACHIEVEMENTS) {
+      if (a.tier === tier && unlocked.has(a.id)) n++;
+    }
+    return n;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: profile/personal_bests.js
+     ────────────────────────────────────────────────────────── */
+  // profile/personal_bests.js
+  //
+  // Tracks the user's best-ever value for a set of engagement signals
+  // (total words written, total memory saves, longest streak, level,
+  // etc.) and detects when the current session crosses a previous
+  // high-water mark.
+  //
+  // Usage pattern:
+  //   1. At session start (profile open), pass the current stats to
+  //      checkAndUpdateBests(). It returns an array of { metric,
+  //      previous, current } for every metric that just improved.
+  //   2. If the list is non-empty, show a toast/notification with the
+  //      results. The store is already updated with the new peaks —
+  //      caller doesn't need to save.
+  //
+  // This is DELIBERATELY a simple high-water-mark tracker, NOT a
+  // per-session delta tracker. We report new records, not per-session
+  // improvements. Rationale: "You wrote 200 words this session" is
+  // cute but hard to define (what's a session?); "You broke your
+  // all-time word-count record of 1,500" is unambiguous and
+  // meaningful.
+  //
+  // Storage: settings.personalBests = { [metric]: { value, achievedAt } }.
+  // Missing metrics default to 0 and treat the first observed value as
+  // a record, so new fields land gracefully on old profiles.
+
+
+
+  /**
+   * Metric definitions. Each entry describes how to read the metric's
+   * current value from a stats bundle plus a user-facing label for the
+   * notification message.
+   *
+   * minFirstRun: below this value, we treat the observation as noise
+   * and DON'T record the first one as a personal best. Keeps us from
+   * celebrating "new record: 1 word!" on the very first page load.
+   * Once the user crosses the threshold, every subsequent improvement
+   * is a real record.
+   */
+  const METRICS = Object.freeze([
+    {
+      key: 'wordsWritten',
+      label: 'words written',
+      read: (s) => Number((s && s.wordsWritten) || 0),
+      format: (v) => `${v.toLocaleString()} words`,
+      minFirstRun: 100, // don't celebrate until they've at least hit 100
+    },
+    {
+      key: 'characterCount',
+      label: 'characters created',
+      read: (s) => Number((s && s.characterCount) || 0),
+      format: (v) => `${v} character${v === 1 ? '' : 's'}`,
+      minFirstRun: 2,
+    },
+    {
+      key: 'threadCount',
+      label: 'threads started',
+      read: (s) => Number((s && s.threadCount) || 0),
+      format: (v) => `${v} thread${v === 1 ? '' : 's'}`,
+      minFirstRun: 2,
+    },
+    {
+      key: 'loreCount',
+      label: 'lore entries',
+      read: (s) => Number((s && s.loreCount) || 0),
+      format: (v) => `${v} lore entr${v === 1 ? 'y' : 'ies'}`,
+      minFirstRun: 3,
+    },
+    {
+      key: 'memorySaves',
+      label: 'memory saves',
+      read: (s) => Number((s && s.counters && s.counters.memorySaves) || 0),
+      format: (v) => `${v} memory save${v === 1 ? '' : 's'}`,
+      minFirstRun: 2,
+    },
+    {
+      key: 'bubblesRenamed',
+      label: 'bubbles renamed',
+      read: (s) => Number((s && s.counters && s.counters.bubblesRenamed) || 0),
+      format: (v) => `${v} bubble${v === 1 ? '' : 's'} renamed`,
+      minFirstRun: 2,
+    },
+    {
+      key: 'streakLongest',
+      label: 'longest streak',
+      read: (s) => Number((s && s.streaks && s.streaks.longest) || 0),
+      format: (v) => `${v}-day streak`,
+      minFirstRun: 2,
+    },
+  ]);
+
+  /**
+   * Current personal-best record for a metric, or a zero record if
+   * nothing's been recorded yet.
+   */
+  function readStored(settings) {
+    const bests = (settings && settings.personalBests) || {};
+    return (bests && typeof bests === 'object' && !Array.isArray(bests)) ? bests : {};
+  }
+
+  /**
+   * Check every metric for an improvement over the stored best.
+   * Updates the store in-place with any improvements. Returns an array
+   * of improvement records the caller should surface.
+   *
+   * @param {object} stats - augmented stats bundle (counters + streaks
+   *   should already be injected; see profile/full_page.js)
+   * @returns {Array<{ key: string, label: string, previous: number,
+   *   current: number, formatted: string }>}
+   */
+  function checkAndUpdateBests(stats) {
+    const settings = safeLoad();
+    const stored = readStored(settings);
+    const improvements = [];
+    const nowIso = new Date().toISOString();
+    const nextStore = { ...stored };
+    let changed = false;
+
+    for (const m of METRICS) {
+      const current = m.read(stats);
+      const prevRec = stored[m.key];
+      const prev = prevRec ? Number(prevRec.value) || 0 : 0;
+
+      // Only record/report if we crossed a threshold. First-run guard
+      // prevents noise from trivial initial values.
+      if (current <= prev) continue;
+      if (prev === 0 && current < m.minFirstRun) continue;
+
+      // For subsequent bumps past a recorded best, ANY improvement
+      // counts. For first-ever records (prev === 0), require
+      // minFirstRun to avoid celebrating "1 word" type baselines.
+      nextStore[m.key] = { value: current, achievedAt: nowIso };
+      changed = true;
+
+      // Only surface to the user if the improvement is over a
+      // previously-recorded best (not the initial zero -> N jump,
+      // which feels like noise for metrics the user has been
+      // accumulating silently). Users shouldn't get a wall of 7
+      // notifications on their first profile open after upgrading.
+      if (prev > 0) {
+        improvements.push({
+          key: m.key,
+          label: m.label,
+          previous: prev,
+          current,
+          formatted: m.format(current),
+        });
+      }
+    }
+
+    if (changed) {
+      try {
+        updateField('personalBests', nextStore);
+      } catch { /* non-fatal */ }
+    }
+
+    return improvements;
+  }
+
+  /**
+   * Read current personal bests. Always returns an object (possibly
+   * empty). Useful for displaying "your records" somewhere in the UI.
+   *
+   * @returns {Object<string, { value: number, achievedAt: string }>}
+   */
+  function getPersonalBests() {
+    const settings = safeLoad();
+    return readStored(settings);
+  }
+
+  // ---- helpers ----
+
+  function safeLoad() {
+    try { return loadSettings(); } catch { return null; }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -23211,6 +23861,82 @@ Use this template for your response:
     root.setFocused = setFocused;
 
     return root;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/toast.js
+     ────────────────────────────────────────────────────────── */
+  // render/toast.js
+  //
+  // Lightweight toast notifications. Stacks messages in the bottom
+  // right, each auto-dismisses after a few seconds, click to dismiss
+  // early. Safe to call from anywhere in the profile flow — the
+  // container self-installs on first use and lives for the page
+  // lifetime.
+  //
+  // Kept deliberately simple: no queue prioritization, no animations
+  // beyond fade, no action buttons. If we later want richer
+  // notifications (action buttons, prioritized undo toasts, etc.) we
+  // can extend here or build a dedicated module.
+
+
+
+  const CONTAINER_ID = 'pf-toast-container';
+
+  function ensureContainer() {
+    let el = document.getElementById(CONTAINER_ID);
+    if (el) return el;
+    el = h('div', {
+      id: CONTAINER_ID,
+      class: 'pf-toast-container',
+      'aria-live': 'polite',
+      'aria-atomic': 'false',
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  /**
+   * Show a toast. Returns a handle with `.dismiss()` in case the
+   * caller wants to close it early. Auto-dismisses after `ms`.
+   *
+   * @param {string|HTMLElement} content - string or DOM node
+   * @param {{ ms?: number, kind?: 'ok'|'info'|'celebrate'|'warn' }} [opts]
+   */
+  function showToast(content, { ms = 5000, kind = 'info' } = {}) {
+    const container = ensureContainer();
+    const child = typeof content === 'string'
+      ? document.createTextNode(content)
+      : content;
+
+    const toast = h('div', {
+      class: `pf-toast pf-toast-${kind}`,
+      role: 'status',
+      onClick: () => dismiss(),
+      title: 'Click to dismiss',
+    }, [child]);
+    // Force a reflow so the CSS transition fires on the add.
+    container.appendChild(toast);
+    void toast.offsetWidth;
+    toast.classList.add('pf-toast-visible');
+
+    let dismissed = false;
+    function dismiss() {
+      if (dismissed) return;
+      dismissed = true;
+      toast.classList.remove('pf-toast-visible');
+      setTimeout(() => {
+        try { container.removeChild(toast); } catch {}
+        // Clean up the container if this was the last toast.
+        if (container.childNodes.length === 0 && container.parentNode) {
+          try { container.parentNode.removeChild(container); } catch {}
+        }
+      }, 220);
+    }
+
+    if (ms > 0) setTimeout(dismiss, ms);
+
+    return { dismiss };
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -24515,6 +25241,16 @@ Use this template for your response:
       onClick: () => { if (typeof handlers.onExport === 'function') handlers.onExport(); },
     }, ['Export…']);
 
+    // Import is the inverse of Export: paste a previously-exported
+    // state JSON and bring its memory/lore entries into the current
+    // thread's stage as new items. Distinct from Restore (which
+    // recovers automatic snapshots from this tool's own storage).
+    const importBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-secondary',
+      onClick: () => { if (typeof handlers.onImport === 'function') handlers.onImport(); },
+    }, ['Import…']);
+
     const restoreBtn = h('button', {
       type: 'button',
       class: 'pf-mem-btn pf-mem-btn-secondary',
@@ -24538,7 +25274,7 @@ Use this template for your response:
     }, ['Save']);
 
     const footer = h('footer', { class: 'pf-mem-footer' }, [
-      h('div', { class: 'pf-mem-footer-left' }, [exportBtn, restoreBtn]),
+      h('div', { class: 'pf-mem-footer-left' }, [exportBtn, importBtn, restoreBtn]),
       h('div', { class: 'pf-mem-footer-right' }, [cancelBtn, saveBtn]),
     ]);
 
@@ -24855,51 +25591,6 @@ Use this template for your response:
     }
 
     return { character: characterObj, loreCount };
-  }
-
-  /**
-   * Heal any previously-spun-off characters that were created before we
-   * populated the full field set. Walks db.characters, finds rows with
-   * pfSpawnedFrom but missing required fields, and backfills the
-   * defaults upstream's migration would normally provide.
-   *
-   * Safe to call on every window open — idempotent.
-   */
-  async function backfillSpawnedCharacterFields() {
-    const db = (typeof window !== 'undefined') ? window.db : null;
-    if (!db || !db.characters) return;
-    try {
-      const all = await db.characters.toArray();
-      for (const c of all) {
-        if (!c || !c.pfSpawnedFrom) continue;
-        const patch = {};
-        if (c.folderPath === undefined)           patch.folderPath = '';
-        if (c.uuid === undefined)                 patch.uuid = null;
-        if (c.customData === undefined)           patch.customData = {};
-        if (c.userCharacter === undefined)        patch.userCharacter = {};
-        if (c.systemCharacter === undefined)      patch.systemCharacter = { avatar: {} };
-        if (c.scene === undefined)                patch.scene = { background: {}, music: {} };
-        if (c.streamingResponse === undefined)    patch.streamingResponse = true;
-        if (c.roleInstruction === undefined)      patch.roleInstruction = '';
-        if (c.autoGenerateMemories === undefined) patch.autoGenerateMemories = 'none';
-        if (c.maxTokensPerMessage === undefined)  patch.maxTokensPerMessage = null;
-        if (c.customCode === undefined)           patch.customCode = '';
-        if (c.initialMessagesText === undefined)  patch.initialMessagesText = '';
-        if (c.reminderMessage === undefined)      patch.reminderMessage = '';
-        if (c.creationTime === undefined)         patch.creationTime = c.lastMessageTime || Date.now();
-        if (c.avatar === undefined)               patch.avatar = { url: '', size: 1, shape: 'square' };
-        if (c.loreBookUrls === undefined)         patch.loreBookUrls = [];
-        if (Object.keys(patch).length > 0) {
-          try {
-            await db.characters.update(c.id, patch);
-          } catch (e) {
-            console.warn('[pf] character backfill failed for id', c.id, ':', e && e.message);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[pf] backfillSpawnedCharacterFields failed:', e && e.message);
-    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -25666,6 +26357,69 @@ Use this template for your response:
         showExportDialog(JSON.stringify(state, null, 2));
       },
 
+      // Import: inverse of Export. Opens a paste dialog; on confirm,
+      // parses the JSON and adds each memory/lore entry as a new
+      // staged item in the current thread. Items arrive as ADDITIONS
+      // (not replacements) so nothing is lost — existing stage is
+      // preserved. User can Save to persist, or Cancel to discard.
+      //
+      // We import from BOTH `stagedItems` (unpersisted edits at time of
+      // export) AND `baseline` (what was on disk at export time), so the
+      // user doesn't have to care whether the source thread had pending
+      // edits when they exported. Every unique text makes it through.
+      onImport: () => {
+        showImportDialog(async (jsonText) => {
+          let parsed;
+          try {
+            parsed = JSON.parse(jsonText);
+          } catch {
+            return { ok: false, error: 'Not valid JSON — check for typos or missing braces.' };
+          }
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return { ok: false, error: 'Imported data must be an object.' };
+          }
+          // Accept both our schema (v1) and bare arrays of entries.
+          // Future schema bumps should read parsed.schema and migrate.
+          const sourceItems = [];
+          if (Array.isArray(parsed.baseline)) sourceItems.push(...parsed.baseline);
+          if (Array.isArray(parsed.stagedItems)) sourceItems.push(...parsed.stagedItems);
+          if (sourceItems.length === 0) {
+            return { ok: false, error: 'No memory or lore entries found in the imported data.' };
+          }
+
+          // Dedupe by (scope, text) so re-importing the same file from
+          // export+stage doesn't create two copies of every line. Also
+          // dedupe against the user's CURRENT stage so re-importing
+          // into the same thread is a no-op.
+          const existing = new Set(
+            stage.getStaged().map(it => `${it.scope}|${(it.text || '').trim()}`)
+          );
+          let memAdded = 0, loreAdded = 0;
+          for (const it of sourceItems) {
+            if (!it || !it.text) continue;
+            const scope = it.scope === 'lore' ? 'lore' : 'memory';
+            const text = String(it.text).trim();
+            if (!text) continue;
+            const key = `${scope}|${text}`;
+            if (existing.has(key)) continue;
+            existing.add(key);
+            stage.add({ scope, text });
+            if (scope === 'lore') loreAdded++; else memAdded++;
+          }
+
+          if (memAdded === 0 && loreAdded === 0) {
+            return { ok: false, error: 'Nothing new to import — all entries already in stage.' };
+          }
+
+          bumpCounter('backupsImported');
+          refresh();
+          const parts = [];
+          if (memAdded > 0)  parts.push(`${memAdded} memory ${memAdded === 1 ? 'entry' : 'entries'}`);
+          if (loreAdded > 0) parts.push(`${loreAdded} lore ${loreAdded === 1 ? 'entry' : 'entries'}`);
+          return { ok: true, message: `Imported ${parts.join(' and ')}. Save to persist.` };
+        });
+      },
+
       onRestore: () => {
         if (activeThreadId == null) {
           alert('No active thread — cannot restore.');
@@ -25845,6 +26599,102 @@ Use this template for your response:
       ],
     });
     overlay.show();
+  }
+
+  /**
+   * Show a paste-in dialog for importing previously-exported JSON into
+   * the current thread's stage. The `applyFn` callback receives the raw
+   * pasted text and should return a Promise resolving to either
+   * `{ ok: true, message }` (success — we close the dialog and the
+   * caller has already applied the import) or `{ ok: false, error }`
+   * (failure — we show the error inline and leave the dialog open so
+   * the user can retry or edit their paste).
+   */
+  function showImportDialog(applyFn) {
+    const textarea = h('textarea', {
+      class: 'pf-mem-export-textarea',
+      rows: '20',
+      spellcheck: 'false',
+      placeholder: 'Paste previously-exported Memory & Lore JSON here…',
+      'aria-label': 'Paste exported JSON to import',
+    });
+
+    const status = h('div', { class: 'pf-mem-import-status', hidden: true });
+
+    let busy = false;
+
+    const importBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      onClick: async () => {
+        if (busy) return;
+        const text = textarea.value || '';
+        if (!text.trim()) {
+          status.textContent = 'Paste your exported JSON first.';
+          status.className = 'pf-mem-import-status pf-mem-import-status-warn';
+          status.hidden = false;
+          textarea.focus();
+          return;
+        }
+        busy = true;
+        importBtn.disabled = true;
+        cancelBtn.disabled = true;
+        importBtn.textContent = 'Importing…';
+        try {
+          const res = await applyFn(text);
+          if (res && res.ok) {
+            status.textContent = res.message || 'Imported.';
+            status.className = 'pf-mem-import-status pf-mem-import-status-ok';
+            status.hidden = false;
+            // Briefly show success, then auto-close so the user sees
+            // their new entries land in the stage.
+            setTimeout(() => overlay.hide(), 900);
+          } else {
+            status.textContent = (res && res.error) || 'Import failed.';
+            status.className = 'pf-mem-import-status pf-mem-import-status-err';
+            status.hidden = false;
+            busy = false;
+            importBtn.disabled = false;
+            cancelBtn.disabled = false;
+            importBtn.textContent = 'Import';
+          }
+        } catch (e) {
+          status.textContent = `Import failed: ${(e && e.message) || String(e)}`;
+          status.className = 'pf-mem-import-status pf-mem-import-status-err';
+          status.hidden = false;
+          busy = false;
+          importBtn.disabled = false;
+          cancelBtn.disabled = false;
+          importBtn.textContent = 'Import';
+        }
+      },
+    }, ['Import']);
+
+    const cancelBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      onClick: () => { if (!busy) overlay.hide(); },
+    }, ['Cancel']);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Import saved state',
+      children: [
+        h('div', { class: 'pf-mem-export' }, [
+          h('h2', { class: 'pf-mem-title' }, ['Import']),
+          h('p', { class: 'pf-mem-export-hint' }, [
+            'Paste the JSON from a previous Memory & Lore Export. Entries ',
+            'will be added to your current stage as new items; existing ',
+            'entries are preserved. Use Save to persist, or Cancel in the ',
+            'main window to discard everything.',
+          ]),
+          textarea,
+          status,
+          h('div', { class: 'pf-mem-export-actions' }, [cancelBtn, importBtn]),
+        ]),
+      ],
+    });
+    overlay.show();
+    setTimeout(() => textarea.focus(), 0);
   }
 
   /**
@@ -26340,7 +27190,8 @@ Use this template for your response:
 
 
 
-  function createDetailsBody({ profile = {} }) {
+
+  function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} } = {}) {
     // ---- avatar upload ----
     const avatarControl = createAvatarControl({ initialUrl: profile.avatarUrl });
 
@@ -26364,15 +27215,94 @@ Use this template for your response:
     });
     usernameInput.value = String(profile.username || '');
 
-    // ---- title override ----
+    // ---- title: free-text override OR pick from unlocked achievements ----
+    //
+    // Previously this was a single text input ("type whatever" or fall
+    // back to auto-rarest). Now the user also sees a dropdown of titles
+    // they've actually earned, letting them wear a specific achievement
+    // instead of accepting the auto pick. Free text still wins if both
+    // are set (documented in flair.js#resolveActiveTitle).
+    const currentFlair = (profile.flair && typeof profile.flair === 'object')
+      ? profile.flair
+      : { title: null, accent: null };
+
+    const availableTitles = getAvailableTitles(unlockedIds);
+    const titleSelect = h('select', {
+      class: 'pf-field-input',
+      onChange: (ev) => {
+        const v = ev.target.value;
+        updateField('profile.flair.title', v || null);
+      },
+    }, [
+      h('option', { value: '' }, ['Auto (rarest unlocked)']),
+      ...availableTitles.map(t =>
+        h('option', {
+          value: t.id,
+          selected: t.id === currentFlair.title,
+        }, [`${t.name} (${t.tier})`])
+      ),
+    ]);
+
     const titleInput = h('input', {
       class: 'pf-field-input',
       type: 'text',
       maxlength: '40',
-      placeholder: 'Leave blank for auto (rarest achievement)',
+      placeholder: 'Or type a custom title (overrides the picker)',
       onBlur: (ev) => updateField('profile.titleOverride', ev.target.value.trim()),
     });
     titleInput.value = String(profile.titleOverride || '');
+
+    // ---- accent: themed color unlocked by achievement tiers ----
+    //
+    // Rendered as a row of swatches. Locked accents appear greyed with
+    // their unlock hint in the title attribute. Click an unlocked one
+    // to set it; click the active one again to clear back to auto.
+    const accents = getAccents(stats, unlockedIds);
+    const accentSwatches = h('div', { class: 'pf-accent-row' },
+      accents.map(a => {
+        const isActive = currentFlair.accent === a.id ||
+          (!currentFlair.accent && a.id === 'amber');
+        const btn = h('button', {
+          type: 'button',
+          class: [
+            'pf-accent-swatch',
+            isActive ? 'pf-accent-swatch-active' : '',
+            a.isUnlocked ? '' : 'pf-accent-swatch-locked',
+          ].filter(Boolean).join(' '),
+          'aria-label': a.isUnlocked
+            ? `Accent: ${a.label}${isActive ? ' (active)' : ''}`
+            : `Locked: ${a.description}`,
+          title: a.isUnlocked
+            ? `${a.label} — ${a.description}`
+            : `🔒 ${a.description}`,
+          disabled: !a.isUnlocked,
+          style: `--pf-accent-preview:${a.color};`,
+          onClick: () => {
+            if (!a.isUnlocked) return;
+            // Toggle: if clicked accent is already active, clear back to
+            // amber (null). Otherwise activate it.
+            const nextVal = (currentFlair.accent === a.id) ? null : a.id;
+            updateField('profile.flair.accent', nextVal);
+            // Re-render swatches in place to update active state. Quick
+            // rebuild rather than full form re-render so input focus
+            // isn't stolen from neighboring fields.
+            const updated = accents.map(x => ({
+              ...x,
+              _active: nextVal === x.id || (!nextVal && x.id === 'amber'),
+            }));
+            for (let i = 0; i < updated.length; i++) {
+              const swatch = accentSwatches.children[i];
+              if (!swatch) continue;
+              swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
+            }
+            currentFlair.accent = nextVal;
+          },
+        }, [
+          h('span', { 'aria-hidden': 'true' }, [a.isUnlocked ? '●' : '🔒']),
+        ]);
+        return btn;
+      })
+    );
 
     // ---- age range ----
     const ageSelect = h('select', {
@@ -26400,7 +27330,9 @@ Use this template for your response:
       row('Avatar',       avatarControl),
       row('Display name', displayNameInput),
       row('Username',     usernameInput),
-      row('Title',        titleInput),
+      row('Title',        titleSelect),
+      row('Custom title', titleInput),
+      row('Accent',       accentSwatches),
       row('Age range',    ageSelect),
       row('Gender',       h('div', { class: 'pf-field-stack' }, [
         genderSquare,
@@ -27189,114 +28121,6 @@ Use this template for your response:
   function describeShape(values) {
     const parts = values.map(v => `${v.label}: ${formatNumber(v.raw)}`);
     return 'Writing-style shape — ' + parts.join(', ');
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: render/share_chips.js
-     ────────────────────────────────────────────────────────── */
-  // render/share_chips.js
-  //
-  // Four compact stat callouts shown at the corners of the radar card in
-  // Focus mode. Chosen to NOT duplicate what's in the splash card or the
-  // radar's own readout, so the share screenshot gains new information
-  // rather than repeating it.
-  //
-  // Layout: two flex rows — one above the radar, one below. Chips within
-  // each row are justified space-between, so they anchor visually to the
-  // left and right corners of the card.
-
-
-
-
-  const TIER_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-
-  /**
-   * @param {{
-   *   level: number,
-   *   unlockedIds: string[],
-   *   achievements: Array<{ id: string, name: string, tier: string }>,
-   *   promptsCompleted: number,
-   * }} opts
-   * @returns {{ topRow: HTMLElement, bottomRow: HTMLElement }}
-   */
-  function createShareChips({ level, unlockedIds, achievements, promptsCompleted }) {
-    const unlockedCount = unlockedIds.length;
-    const totalAch = achievements.length;
-    const rarest = findRarestUnlocked(unlockedIds, achievements);
-
-    const topRow = h('div', { class: 'pf-share-chips-row pf-share-chips-top' }, [
-      chip({
-        label: 'Level',
-        value: 'LV ' + formatInt(level),
-      }),
-      chip({
-        label: 'Unlocks',
-        value: formatInt(unlockedCount) + ' / ' + formatInt(totalAch),
-      }),
-    ]);
-
-    const bottomRow = h('div', { class: 'pf-share-chips-row pf-share-chips-bottom' }, [
-      chip({
-        label: 'Prompts',
-        value: formatInt(promptsCompleted),
-      }),
-      chip({
-        label: 'Rarest',
-        value: rarest ? rarest.name : '—',
-        icon:  rarest ? (TIER_ICON[rarest.tier] || '◆') : null,
-        tier:  rarest ? rarest.tier : null,
-      }),
-    ]);
-
-    return { topRow, bottomRow };
-  }
-
-  function chip({ label, value, icon, tier }) {
-    const valueChildren = [];
-    if (icon) {
-      valueChildren.push(h('span', {
-        class: 'pf-share-chip-icon pf-share-chip-icon-' + (tier || 'common'),
-        'aria-hidden': 'true',
-      }, [icon]));
-    }
-    valueChildren.push(h('span', { class: 'pf-share-chip-value-text' }, [String(value)]));
-
-    return h('div', { class: 'pf-share-chip' }, [
-      h('div', { class: 'pf-share-chip-label' }, [String(label)]),
-      h('div', { class: 'pf-share-chip-value' }, valueChildren),
-    ]);
-  }
-
-  /**
-   * Find the rarest unlocked achievement for highlight. "Rarest" = highest
-   * tier in TIER_ORDER among the user's unlocks. Ties broken by registry
-   * order (first seen wins). Returns null if nothing is unlocked or if
-   * every unlocked id is unknown to the registry.
-   */
-  function findRarestUnlocked(unlockedIds, achievements) {
-    if (!Array.isArray(unlockedIds) || unlockedIds.length === 0) return null;
-    if (!Array.isArray(achievements)) return null;
-    const unlockedSet = new Set(unlockedIds);
-    const unlocked = achievements.filter(a => a && unlockedSet.has(a.id));
-    if (unlocked.length === 0) return null;
-    // Stable sort: higher tier first; within a tier, preserve registry order
-    const indexed = unlocked.map((a, i) => ({ a, i }));
-    indexed.sort((x, y) => {
-      const tierDiff = tierRank(y.a.tier) - tierRank(x.a.tier);
-      if (tierDiff !== 0) return tierDiff;
-      return x.i - y.i;
-    });
-    return indexed[0].a;
-  }
-
-  function tierRank(tier) {
-    const idx = TIER_ORDER.indexOf(tier);
-    return idx < 0 ? 0 : idx;
-  }
-
-  function formatInt(n) {
-    const v = Number(n) || 0;
-    return String(Math.round(v));
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -28164,6 +28988,9 @@ Use this template for your response:
 
 
 
+
+
+
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
    * on the splash. Highest tier first; within a tier, registry order.
@@ -28181,13 +29008,30 @@ Use this template for your response:
   }
 
   /**
-   * Derive a title string: override > rarest unlocked achievement's name > default.
+   * Build a DOM node for a personal-best toast. Two-line layout: an
+   * eyebrow "NEW RECORD" label above a single-sentence summary like
+   * "1,200 words written (was 1,000)". Kept as DOM rather than a
+   * plain string so the eyebrow can be styled separately.
+   *
+   * @param {{ label: string, formatted: string, previous: number }} imp
+   */
+  function buildPersonalBestMessage(imp) {
+    return h('div', { class: 'pf-toast-pb' }, [
+      h('div', { class: 'pf-toast-pb-eyebrow' }, ['🏆 NEW PERSONAL BEST']),
+      h('div', { class: 'pf-toast-pb-line' }, [imp.formatted]),
+      h('div', { class: 'pf-toast-pb-sub' }, [
+        `Previous best: ${imp.previous.toLocaleString()} ${imp.label}`,
+      ]),
+    ]);
+  }
+
+  /**
+   * Derive a title string. Delegates to the flair module, which
+   * honors the user's flair.title pick before falling back to
+   * titleOverride and then auto-rarest.
    */
   function deriveTitle(unlockedIds, settings) {
-    const override = settings && settings.profile && settings.profile.titleOverride;
-    if (override && override.trim()) return override.trim();
-    const rarest = findRarestUnlocked(unlockedIds, ACHIEVEMENTS);
-    return rarest ? rarest.name : 'Newcomer';
+    return resolveActiveTitle(settings, unlockedIds);
   }
 
   /**
@@ -28244,6 +29088,31 @@ Use this template for your response:
     // the mode they weren't using.
     try { markWeekSeen(); } catch { /* non-fatal */ }
     try { markDaySeen(); } catch { /* non-fatal */ }
+
+    // Personal-best detection. Compares current stats against stored
+    // peaks, updates peaks if any improved, returns improvements to
+    // surface. Done AFTER achievement acknowledgment so the user's
+    // "open profile → see your wins" moment flows as one experience.
+    //
+    // Toast fires async so it doesn't block profile render. If the
+    // user just crossed 3 metrics at once we stack them — showToast
+    // is built to support stacking natively.
+    try {
+      const improvements = checkAndUpdateBests(stats);
+      // Defer so the overlay paints before toasts stack over it. Small
+      // delay also feels more deliberate than an instant pop.
+      if (improvements.length > 0) {
+        setTimeout(() => {
+          for (const imp of improvements) {
+            showToast(
+              buildPersonalBestMessage(imp),
+              { kind: 'celebrate', ms: 6000 }
+            );
+          }
+        }, 600);
+      }
+    } catch { /* non-fatal */ }
+
     const activeEvents = getActiveEvents();
     try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
@@ -28306,6 +29175,18 @@ Use this template for your response:
         progress01: lvl.progress01,
         pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
       });
+
+      // Re-apply the user's accent — they may have just picked a new
+      // one in the Details form. resolveActiveAccent falls back to
+      // amber if the picked id isn't currently unlocked. Guard against
+      // the first-pass call (before the overlay variable is set) —
+      // applyAccent() down below handles that initial case.
+      if (typeof overlay !== 'undefined' && overlay && overlay.style) {
+        try {
+          const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+          overlay.style.setProperty('--pf-accent', accent.color);
+        } catch { /* non-fatal */ }
+      }
 
       // Rebuild the Prompts section body when the cadence setting changes.
       // Previously we closed the overlay to force a reload; that slammed
@@ -28374,7 +29255,7 @@ Use this template for your response:
     const detailsSection = createSection({
       id: 'details',
       title: 'Details',
-      children: createDetailsBody({ profile }),
+      children: createDetailsBody({ profile, unlockedIds, stats }),
       initialState: displayState.details,
     });
 
@@ -28467,6 +29348,28 @@ Use this template for your response:
       ],
     });
 
+    // Apply the user's chosen accent (or the default amber) as a CSS
+    // custom property on the overlay root. Consumers: splash title,
+    // level badge, pinned-badge borders, section focus rings. If the
+    // user changes their accent mid-session, refreshSplashFromSettings
+    // (wired to onSettingsChange) picks up the new value and calls
+    // applyAccent() again.
+    function applyAccent() {
+      let freshSettings = settings;
+      try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+      let freshUnlocked = unlockedIds;
+      try {
+        freshUnlocked = computeUnlockedIds({
+          ...stats,
+          counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+          streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+        });
+      } catch { /* fall back */ }
+      const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+      overlay.style.setProperty('--pf-accent', accent.color);
+    }
+    applyAccent();
+
     overlay.show();
   }
 
@@ -28485,7 +29388,6 @@ Use this template for your response:
   // This module is the one "main" for the project — everything else is a pure
   // helper. Keep it small: if logic lives here and it grows past ~100 lines,
   // extract it.
-
 
 
 
@@ -28583,14 +29485,6 @@ Use this template for your response:
   async function start() {
     if (start._started) return;
     start._started = true;
-
-    // One-shot backfill for characters spun off before we included the
-    // full field set. Without this, upstream's renderCharacterList will
-    // throw "Cannot read properties of undefined (reading 'startsWith')"
-    // when it iterates over c.folderPath. Fire-and-forget; errors logged
-    // inside the backfill helper. Runs every session but is idempotent
-    // (only writes when a character actually has missing fields).
-    backfillSpawnedCharacterFields().catch(() => { /* best-effort */ });
 
     const card = await mountMiniCard({
       buildElement: () => createMiniCard({

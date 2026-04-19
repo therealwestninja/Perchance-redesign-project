@@ -27,6 +27,13 @@ export function defaultSettings() {
       ageRange: '',                       // '' | 'under-18' | '18-24' | '25-34' | '35-44' | '45-54' | '55+' | 'prefer-not-say'
       genderPos: { x01: 0.5, y01: 0.5 },  // normalized position on the 2D square, (0..1, 0..1)
       genderCustom: '',
+      // Flair — cosmetic unlocks tied to achievement progression.
+      // Null values = auto-derive (the default behavior before flair
+      // picker existed). See src/profile/flair.js for the resolver.
+      flair: {
+        title: null,   // null = auto pick rarest unlocked; else an achievement id
+        accent: null,  // null = default amber; else an accent id from ACCENTS list
+      },
     },
     display: {
       sections: {
@@ -146,6 +153,15 @@ export function defaultSettings() {
       current: 0,
       longest: 0,
       lastActiveDay: null,
+    },
+    personalBests: {
+      // Map of metric key -> { value, achievedAt: ISO string }.
+      // Populated lazily by personal_bests.checkAndUpdateBests.
+      // Missing keys are treated as "no record yet" and the first
+      // observation above minFirstRun becomes the initial record.
+      // Not a Set or array — intentional object shape for forward
+      // compatibility (new metrics added via METRICS table land
+      // gracefully without migration).
     },
   };
 }

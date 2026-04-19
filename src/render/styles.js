@@ -2318,6 +2318,34 @@ export const CSS = `
 .pf-mem-export-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Status pill inside the Import dialog — shows errors inline (wrong
+   JSON, nothing to import) or success (which briefly appears before
+   the dialog auto-closes). Matches tone of the save-confirm banner. */
+.pf-mem-import-status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 10px;
+}
+.pf-mem-import-status[hidden] { display: none; }
+.pf-mem-import-status-ok {
+  color: #6ab87c;
+  background: rgba(106, 184, 124, 0.08);
+  border: 1px solid rgba(106, 184, 124, 0.3);
+}
+.pf-mem-import-status-warn {
+  color: #d8b36a;
+  background: rgba(216, 179, 106, 0.08);
+  border: 1px solid rgba(216, 179, 106, 0.3);
+}
+.pf-mem-import-status-err {
+  color: #d87a7a;
+  background: rgba(216, 122, 122, 0.08);
+  border: 1px solid rgba(216, 122, 122, 0.3);
 }
 
 /* ---- restore dialog ---- */
@@ -2761,5 +2789,120 @@ export const CSS = `
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+/* ---- Flair: accent swatch picker + accent color consumers ---- */
+.pf-accent-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pf-accent-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--pf-accent-preview, #d8b36a);
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  padding: 0;
+  transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
+}
+.pf-accent-swatch:hover:not(:disabled) {
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.pf-accent-swatch-active {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3);
+}
+.pf-accent-swatch-locked {
+  cursor: not-allowed;
+  opacity: 0.35;
+  filter: grayscale(0.7);
+}
+.pf-accent-swatch-locked:hover { transform: none; }
+
+/* --- accent color consumers --- */
+/* The overlay gets --pf-accent set via inline style by full_page.js.
+   Chrome that previously used the hardcoded gold (#d8b36a) now reads
+   --pf-accent so the user's pick shows everywhere appropriate. The
+   fallback on .pf-overlay covers the first paint before JS runs. */
+.pf-overlay {
+  --pf-accent: #d8b36a;
+}
+.pf-splash-title {
+  color: var(--pf-accent);
+}
+.pf-splash-level {
+  background: var(--pf-accent);
+}
+.pf-pinned-badge {
+  border-color: var(--pf-accent);
+}
+
+/* ---- Toast notifications ---- */
+.pf-toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10000;
+  pointer-events: none;
+  max-width: min(90vw, 360px);
+}
+.pf-toast {
+  background: var(--box-color, #1e1e1e);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 18px;
+  color: var(--text-color);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+}
+.pf-toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.pf-toast-info { border-color: rgba(106, 154, 216, 0.4); }
+.pf-toast-ok   { border-color: rgba(106, 184, 124, 0.4); }
+.pf-toast-warn { border-color: rgba(216, 179, 106, 0.4); }
+.pf-toast-celebrate {
+  border-color: rgba(216, 179, 106, 0.6);
+  background: linear-gradient(135deg, var(--box-color, #1e1e1e), rgba(216, 179, 106, 0.08));
+}
+
+/* Personal-best toast inner layout */
+.pf-toast-pb {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pf-toast-pb-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: rgba(216, 179, 106, 0.95);
+  text-transform: uppercase;
+}
+.pf-toast-pb-line {
+  font-size: 15px;
+  font-weight: 600;
+}
+.pf-toast-pb-sub {
+  font-size: 11px;
+  opacity: 0.7;
 }
 `.trim();

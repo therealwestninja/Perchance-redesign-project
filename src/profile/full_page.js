@@ -35,6 +35,9 @@ import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completio
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
+import { resolveActiveTitle, resolveActiveAccent } from './flair.js';
+import { checkAndUpdateBests } from './personal_bests.js';
+import { showToast } from '../render/toast.js';
 
 /**
  * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -53,13 +56,30 @@ function pickPinnedBadges(unlockedIds, n = 6) {
 }
 
 /**
- * Derive a title string: override > rarest unlocked achievement's name > default.
+ * Build a DOM node for a personal-best toast. Two-line layout: an
+ * eyebrow "NEW RECORD" label above a single-sentence summary like
+ * "1,200 words written (was 1,000)". Kept as DOM rather than a
+ * plain string so the eyebrow can be styled separately.
+ *
+ * @param {{ label: string, formatted: string, previous: number }} imp
+ */
+function buildPersonalBestMessage(imp) {
+  return h('div', { class: 'pf-toast-pb' }, [
+    h('div', { class: 'pf-toast-pb-eyebrow' }, ['🏆 NEW PERSONAL BEST']),
+    h('div', { class: 'pf-toast-pb-line' }, [imp.formatted]),
+    h('div', { class: 'pf-toast-pb-sub' }, [
+      `Previous best: ${imp.previous.toLocaleString()} ${imp.label}`,
+    ]),
+  ]);
+}
+
+/**
+ * Derive a title string. Delegates to the flair module, which
+ * honors the user's flair.title pick before falling back to
+ * titleOverride and then auto-rarest.
  */
 function deriveTitle(unlockedIds, settings) {
-  const override = settings && settings.profile && settings.profile.titleOverride;
-  if (override && override.trim()) return override.trim();
-  const rarest = findRarestUnlocked(unlockedIds, ACHIEVEMENTS);
-  return rarest ? rarest.name : 'Newcomer';
+  return resolveActiveTitle(settings, unlockedIds);
 }
 
 /**
@@ -116,6 +136,31 @@ export async function openFullPage() {
   // the mode they weren't using.
   try { markWeekSeen(); } catch { /* non-fatal */ }
   try { markDaySeen(); } catch { /* non-fatal */ }
+
+  // Personal-best detection. Compares current stats against stored
+  // peaks, updates peaks if any improved, returns improvements to
+  // surface. Done AFTER achievement acknowledgment so the user's
+  // "open profile → see your wins" moment flows as one experience.
+  //
+  // Toast fires async so it doesn't block profile render. If the
+  // user just crossed 3 metrics at once we stack them — showToast
+  // is built to support stacking natively.
+  try {
+    const improvements = checkAndUpdateBests(stats);
+    // Defer so the overlay paints before toasts stack over it. Small
+    // delay also feels more deliberate than an instant pop.
+    if (improvements.length > 0) {
+      setTimeout(() => {
+        for (const imp of improvements) {
+          showToast(
+            buildPersonalBestMessage(imp),
+            { kind: 'celebrate', ms: 6000 }
+          );
+        }
+      }, 600);
+    }
+  } catch { /* non-fatal */ }
+
   const activeEvents = getActiveEvents();
   try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
@@ -178,6 +223,18 @@ export async function openFullPage() {
       progress01: lvl.progress01,
       pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
     });
+
+    // Re-apply the user's accent — they may have just picked a new
+    // one in the Details form. resolveActiveAccent falls back to
+    // amber if the picked id isn't currently unlocked. Guard against
+    // the first-pass call (before the overlay variable is set) —
+    // applyAccent() down below handles that initial case.
+    if (typeof overlay !== 'undefined' && overlay && overlay.style) {
+      try {
+        const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+        overlay.style.setProperty('--pf-accent', accent.color);
+      } catch { /* non-fatal */ }
+    }
 
     // Rebuild the Prompts section body when the cadence setting changes.
     // Previously we closed the overlay to force a reload; that slammed
@@ -246,7 +303,7 @@ export async function openFullPage() {
   const detailsSection = createSection({
     id: 'details',
     title: 'Details',
-    children: createDetailsBody({ profile }),
+    children: createDetailsBody({ profile, unlockedIds, stats }),
     initialState: displayState.details,
   });
 
@@ -338,6 +395,28 @@ export async function openFullPage() {
       backupSection,
     ],
   });
+
+  // Apply the user's chosen accent (or the default amber) as a CSS
+  // custom property on the overlay root. Consumers: splash title,
+  // level badge, pinned-badge borders, section focus rings. If the
+  // user changes their accent mid-session, refreshSplashFromSettings
+  // (wired to onSettingsChange) picks up the new value and calls
+  // applyAccent() again.
+  function applyAccent() {
+    let freshSettings = settings;
+    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+    let freshUnlocked = unlockedIds;
+    try {
+      freshUnlocked = computeUnlockedIds({
+        ...stats,
+        counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+        streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+      });
+    } catch { /* fall back */ }
+    const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+    overlay.style.setProperty('--pf-accent', accent.color);
+  }
+  applyAccent();
 
   overlay.show();
 }
