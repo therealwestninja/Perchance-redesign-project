@@ -278,3 +278,69 @@ function base64urlEncode(str) {
   const b = Buffer.from(str, 'utf8').toString('base64');
   return b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+
+// ---- buildShareUrl + parseShareUrl (#share-links) ----
+
+const { buildShareUrl, parseShareUrl } = await import('../src/profile/share_code.js');
+
+test('buildShareUrl: produces a URL with ?h= parameter', () => {
+  // Mock window.location.href for the URL builder
+  const origWindow = globalThis.window;
+  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/ai-character-hero-chat' } };
+  try {
+    const code = encodeShareCode(toShareViewModel({ displayName: 'Test' }));
+    const url = buildShareUrl(code);
+    assert.ok(url.startsWith('https://perchance.org/ai-character-hero-chat?h='), `URL should start with base + ?h=, got: ${url}`);
+    assert.ok(url.includes('pf1%3A') || url.includes('pf1:'), `URL should contain the share code, got: ${url}`);
+  } finally {
+    globalThis.window = origWindow;
+  }
+});
+
+test('buildShareUrl: strips existing ?h= parameter before appending', () => {
+  const origWindow = globalThis.window;
+  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/ai-character-hero-chat?h=old' } };
+  try {
+    const url = buildShareUrl('pf1:new');
+    // Should NOT contain 'old', only 'new'
+    assert.ok(!url.includes('old'), `should not contain old ?h= value, got: ${url}`);
+    assert.ok(url.includes('pf1'), `should contain new code, got: ${url}`);
+  } finally {
+    globalThis.window = origWindow;
+  }
+});
+
+test('parseShareUrl: returns decoded VM when ?h= is present', () => {
+  const origWindow = globalThis.window;
+  const code = encodeShareCode(toShareViewModel({ displayName: 'Alice', level: 7 }));
+  globalThis.window = { ...origWindow, location: { href: `https://perchance.org/test?h=${encodeURIComponent(code)}` } };
+  try {
+    const vm = parseShareUrl();
+    assert.ok(vm, 'should return a decoded VM');
+    assert.equal(vm.displayName, 'Alice');
+    assert.equal(vm.level, 7);
+    assert.equal(vm.source, 'shareCode');
+  } finally {
+    globalThis.window = origWindow;
+  }
+});
+
+test('parseShareUrl: returns null when no ?h= parameter', () => {
+  const origWindow = globalThis.window;
+  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/test' } };
+  try {
+    assert.equal(parseShareUrl(), null);
+  } finally {
+    globalThis.window = origWindow;
+  }
+});
+
+test('parseShareUrl: returns null for malformed share code', () => {
+  const origWindow = globalThis.window;
+  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/test?h=garbage' } };
+  try {
+    assert.equal(parseShareUrl(), null, 'should gracefully return null for invalid code');
+  } finally {
+    globalThis.window = origWindow;
+  }
+});

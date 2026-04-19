@@ -3394,4 +3394,117 @@ export const CSS = `
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+/* ---- Share-link card viewer (#share-viewer) ----
+   Read-only overlay shown when someone opens a ?h= share link.
+   Styled as a centered card with the shared profile's accent color. */
+.pf-sv-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.pf-sv-heading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+  font-weight: 600;
+}
+.pf-sv-card {
+  width: 100%;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid var(--pf-palette-amber);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pf-sv-name {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+.pf-sv-sub {
+  font-size: 13px;
+  opacity: 0.75;
+  text-align: center;
+}
+.pf-sv-badges {
+  display: flex;
+  gap: 6px;
+  font-size: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.pf-sv-badge {
+  cursor: default;
+}
+.pf-sv-xp-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.pf-sv-xp-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.pf-sv-xp-label {
+  font-size: 11px;
+  opacity: 0.55;
+  text-align: center;
+}
+.pf-sv-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ---- Message controls (Batch 1) ----
+   Per-message copy/edit/delete/regen buttons. Hidden by default,
+   appear on hover over the message. Positioned below the message
+   content. Adapted from FurAI's MIT-licensed CSS. */
+.pf-msg-ctrls {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  position: absolute;
+  bottom: -4px;
+  right: 8px;
+  z-index: 5;
+}
+.message:hover > .pf-msg-ctrls,
+.pf-msg-ctrls:hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+.message.user > .pf-msg-ctrls {
+  right: auto;
+  left: 8px;
+}
+.pf-msg-ctrl-btn {
+  background: var(--box-color, #2a2a2a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+.pf-msg-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--pf-accent, var(--pf-palette-amber));
+}
 `.trim();

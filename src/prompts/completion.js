@@ -58,12 +58,10 @@ export function setCompleted(weekKey, id, completed) {
   // non-event prompts.
   if (completed) {
     try {
-      // Dynamic import to avoid a circular dependency cycle with
-      // events/registry.js and keep completion.js free of event
-      // logic at module load.
-      import('../events/participation.js').then(mod => {
-        mod.recordPromptCompletionParticipation(id);
-      }).catch(() => { /* non-fatal */ });
+      // recordPromptCompletionParticipation is in the same IIFE scope
+      // (bundled from events/participation.js). No dynamic import
+      // needed — the bundle has no separate module files.
+      recordPromptCompletionParticipation(id);
     } catch { /* non-fatal */ }
   }
 }

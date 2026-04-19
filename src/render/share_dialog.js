@@ -2,51 +2,51 @@
 //
 // Dialog shown when the user wants to share their profile.
 //
-// Produces a short, versioned share code (see profile/share_code.js)
-// — a text string the user can paste anywhere that accepts text.
-// No PNG, no avatar data, nothing you can't read with your eyes.
-// The card is now something you COPY, not something you DOWNLOAD.
+// Produces a shareable URL with the profile data encoded in a `?h=`
+// query parameter. The URL is fully clickable — when someone visits
+// it, the boot code reads `?h=` and opens a card viewer showing the
+// shared profile.
 //
-// Why text-only: simpler (no canvas/blob pipeline), safer (no image
-// metadata to audit, no clipboard-write permission needed beyond
-// plain text), and it pastes cleanly into chat, DMs, forums, etc.
-// When we want to add new fields later we bump the format version
-// in share_code.js; old codes stay decodable.
+// Why URL instead of raw code: URLs are clickable, pasteable, and
+// auto-preview in most chat/social platforms. The underlying data is
+// the same share code (pf1:<base64url JSON>) that was always used —
+// now it's just wrapped in a URL.
+//
+// Privacy: same contract as before. Only public-display fields
+// (name, title, archetype, level, accent, badges, XP) are included.
+// No avatar, no bio, no personal details.
 
 import { h } from '../utils/dom.js';
-import { encodeShareCode, toShareViewModel } from '../profile/share_code.js';
+import { encodeShareCode, toShareViewModel, buildShareUrl } from '../profile/share_code.js';
 import { createOverlay } from './overlay.js';
 
 /**
- * Open the share dialog. Renders a read-only textarea with the
- * user's share code and offers Copy + (optional) native Share.
+ * Open the share dialog. Renders a read-only URL with the user's
+ * profile data and offers Copy Link + (optional) native Share.
  *
- * @param {object} vm   raw view-model, same shape the old PNG path
- *                      accepted. toShareViewModel filters it.
+ * @param {object} vm   raw view-model (same shape the old paths
+ *                      accepted). toShareViewModel filters it.
  */
 export async function openShareDialog(vm) {
   const safeVm = toShareViewModel(vm || {});
   const code = encodeShareCode(safeVm);
+  const shareUrl = buildShareUrl(code);
 
   const status = h('div', { class: 'pf-share-status', 'aria-live': 'polite' });
 
-  // Read-only code box. Textarea (not input) so long codes wrap
-  // cleanly instead of horizontally scrolling. readonly + select
-  // all on focus for easy keyboard-copy workflow.
-  const codeBox = h('textarea', {
+  // Read-only URL box. Textarea so long URLs wrap cleanly.
+  const urlBox = h('textarea', {
     class: 'pf-share-code',
     readonly: true,
-    rows: '4',
+    rows: '3',
     spellcheck: 'false',
-    'aria-label': 'Your share code',
+    'aria-label': 'Your share link',
     onClick: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
     onFocus: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
   });
-  codeBox.value = code;
+  urlBox.value = shareUrl;
 
-  // Human-readable preview of what's packed into the code, so users
-  // can see what they're about to paste. Purely decorative — the
-  // code itself is the source of truth.
+  // Human-readable preview of what's in the link.
   const badgePreview = (safeVm.pinnedBadges || [])
     .map(b => b.icon || '◆').join(' ');
   const previewLines = [
@@ -68,23 +68,21 @@ export async function openShareDialog(vm) {
     onClick: async () => {
       try {
         if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(code);
+          await navigator.clipboard.writeText(shareUrl);
         } else {
-          // Fallback: rely on the textarea select + execCommand
-          codeBox.focus();
-          codeBox.select();
+          urlBox.focus();
+          urlBox.select();
           try { document.execCommand('copy'); }
           catch { throw new Error('clipboard not supported'); }
         }
-        flash(status, 'Copied to clipboard.', 'ok');
+        flash(status, 'Link copied!', 'ok');
       } catch (e) {
         flash(status, `Copy failed: ${(e && e.message) || 'browser blocked it'}`, 'err');
       }
     },
-  }, ['Copy code']);
+  }, ['Copy link']);
 
-  // Web Share API — text share is broadly supported on mobile
-  // without the file-upload gating the old PNG flow needed.
+  // Web Share API — share the URL directly.
   let shareBtn = null;
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     shareBtn = h('button', {
@@ -94,7 +92,7 @@ export async function openShareDialog(vm) {
         try {
           await navigator.share({
             title: `${safeVm.displayName}'s profile`,
-            text: code,
+            url: shareUrl,
           });
         } catch (e) {
           if (e && e.name !== 'AbortError') {
@@ -112,7 +110,7 @@ export async function openShareDialog(vm) {
   }, ['Close']);
 
   const privacyNote = h('p', { class: 'pf-share-privacy' }, [
-    'Share codes contain only your display name, earned title, ',
+    'Share links contain only your display name, earned title, ',
     'level, archetype, and pinned badges. Bio, personal details, ',
     'and avatar image are never included.',
   ]);
@@ -123,8 +121,8 @@ export async function openShareDialog(vm) {
       h('div', { class: 'pf-share-body' }, [
         h('h2', { class: 'pf-mem-title' }, ['Share your profile']),
         previewCard,
-        h('label', { class: 'pf-share-code-label' }, ['Share code']),
-        codeBox,
+        h('label', { class: 'pf-share-code-label' }, ['Share link']),
+        urlBox,
         status,
         privacyNote,
         h('div', { class: 'pf-share-actions' },

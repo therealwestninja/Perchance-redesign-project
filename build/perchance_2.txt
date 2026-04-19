@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 75 };
+  NS.__meta = { modules: 77 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -23535,6 +23535,119 @@ Use this template for your response:
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+
+  /* ---- Share-link card viewer (#share-viewer) ----
+     Read-only overlay shown when someone opens a ?h= share link.
+     Styled as a centered card with the shared profile's accent color. */
+  .pf-sv-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 20px;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .pf-sv-heading {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+    font-weight: 600;
+  }
+  .pf-sv-card {
+    width: 100%;
+    padding: 20px;
+    border-radius: 12px;
+    border: 2px solid var(--pf-palette-amber);
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .pf-sv-name {
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .pf-sv-sub {
+    font-size: 13px;
+    opacity: 0.75;
+    text-align: center;
+  }
+  .pf-sv-badges {
+    display: flex;
+    gap: 6px;
+    font-size: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .pf-sv-badge {
+    cursor: default;
+  }
+  .pf-sv-xp-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .pf-sv-xp-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+  .pf-sv-xp-label {
+    font-size: 11px;
+    opacity: 0.55;
+    text-align: center;
+  }
+  .pf-sv-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* ---- Message controls (Batch 1) ----
+     Per-message copy/edit/delete/regen buttons. Hidden by default,
+     appear on hover over the message. Positioned below the message
+     content. Adapted from FurAI's MIT-licensed CSS. */
+  .pf-msg-ctrls {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    position: absolute;
+    bottom: -4px;
+    right: 8px;
+    z-index: 5;
+  }
+  .message:hover > .pf-msg-ctrls,
+  .pf-msg-ctrls:hover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .message.user > .pf-msg-ctrls {
+    right: auto;
+    left: 8px;
+  }
+  .pf-msg-ctrl-btn {
+    background: var(--box-color, #2a2a2a);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: background 0.1s, color 0.1s;
+  }
+  .pf-msg-ctrl-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--pf-accent, var(--pf-palette-amber));
+  }
   `.trim();
 
   /* ──────────────────────────────────────────────────────────
@@ -25607,6 +25720,55 @@ Use this template for your response:
    */
   const __shareCodeTest = { LIMITS, CODE_PREFIX, CURRENT_VERSION };
 
+  /**
+   * Build a share URL by appending the share code as a `?h=` parameter
+   * to the current page's base URL. The URL is fully clickable — when
+   * someone visits it, the boot code reads `?h=` and opens the card
+   * viewer.
+   *
+   * URL construction strips any existing `h` parameter from the current
+   * URL before appending, so re-sharing doesn't double-stack.
+   *
+   * @param {string} shareCode  output of encodeShareCode
+   * @returns {string}  full URL like https://perchance.org/ai-character-hero-chat?h=pf1:eyJ...
+   */
+  function buildShareUrl(shareCode) {
+    let base;
+    try {
+      const url = new URL(typeof window !== 'undefined' ? window.location.href : 'https://perchance.org/');
+      // Strip existing share params so we don't double-stack
+      url.searchParams.delete('h');
+      // Also remove hash fragment if any (not part of the share flow)
+      url.hash = '';
+      base = url;
+    } catch {
+      // Fallback: construct from scratch if URL parsing fails
+      base = new URL('https://perchance.org/');
+    }
+    base.searchParams.set('h', shareCode);
+    return base.toString();
+  }
+
+  /**
+   * Check the current page URL for a `?h=` share code parameter.
+   * If present and decodable, returns the decoded view-model.
+   * Returns null if absent, malformed, or non-decodable.
+   *
+   * Called on boot to decide whether to auto-open the card viewer.
+   *
+   * @returns {object|null}  decoded view-model with `source: 'shareCode'`
+   */
+  function parseShareUrl() {
+    try {
+      const url = new URL(typeof window !== 'undefined' ? window.location.href : '');
+      const h = url.searchParams.get('h');
+      if (!h) return null;
+      return decodeShareCode(h);
+    } catch {
+      return null;
+    }
+  }
+
   /* ──────────────────────────────────────────────────────────
      module: profile/summary_notifications.js
      ────────────────────────────────────────────────────────── */
@@ -25967,12 +26129,11 @@ Use this template for your response:
     // active event, ensure at least 'seen' state is recorded. Monotonic
     // — won't overwrite 'responded' or 'chronicled' that prompt
     // completion may already have registered. Dynamic import to avoid
-    // circular dependency between notifications.js and events/* .
+    // recordEventParticipation is in the same IIFE scope (bundled
+    // from events/participation.js). No dynamic import needed.
     if (nextSet.length > 0) {
       try {
-        import('../events/participation.js').then(mod => {
-          for (const id of nextSet) mod.recordEventParticipation(id, 'seen');
-        }).catch(() => { /* non-fatal */ });
+        for (const id of nextSet) recordEventParticipation(id, 'seen');
       } catch { /* non-fatal */ }
     }
   }
@@ -26072,11 +26233,10 @@ Use this template for your response:
       saveSettings(settings);
       // Bump the import counter AFTER saving (so the bump itself lands
       // in the post-import settings and isn't clobbered by restoring
-      // an old counter value). Dynamic import avoids the circular dep
-      // described above.
-      import('../stats/counters.js')
-        .then(mod => { try { mod.bumpCounter('backupsImported'); } catch {} })
-        .catch(() => { /* best-effort */ });
+      // bumpCounter is in the same IIFE scope (bundled from
+      // stats/counters.js). The old dynamic import was designed for
+      // circular-dep avoidance in ESM, but the bundle has no modules.
+      try { bumpCounter('backupsImported'); } catch { /* best-effort */ }
       return { success: true, schema };
     } catch (err) {
       return { success: false, error: (err && err.message) || 'Could not save settings.' };
@@ -26296,12 +26456,10 @@ Use this template for your response:
     // non-event prompts.
     if (completed) {
       try {
-        // Dynamic import to avoid a circular dependency cycle with
-        // events/registry.js and keep completion.js free of event
-        // logic at module load.
-        import('../events/participation.js').then(mod => {
-          mod.recordPromptCompletionParticipation(id);
-        }).catch(() => { /* non-fatal */ });
+        // recordPromptCompletionParticipation is in the same IIFE scope
+        // (bundled from events/participation.js). No dynamic import
+        // needed — the bundle has no separate module files.
+        recordPromptCompletionParticipation(id);
       } catch { /* non-fatal */ }
     }
   }
@@ -26621,51 +26779,51 @@ Use this template for your response:
   //
   // Dialog shown when the user wants to share their profile.
   //
-  // Produces a short, versioned share code (see profile/share_code.js)
-  // — a text string the user can paste anywhere that accepts text.
-  // No PNG, no avatar data, nothing you can't read with your eyes.
-  // The card is now something you COPY, not something you DOWNLOAD.
+  // Produces a shareable URL with the profile data encoded in a `?h=`
+  // query parameter. The URL is fully clickable — when someone visits
+  // it, the boot code reads `?h=` and opens a card viewer showing the
+  // shared profile.
   //
-  // Why text-only: simpler (no canvas/blob pipeline), safer (no image
-  // metadata to audit, no clipboard-write permission needed beyond
-  // plain text), and it pastes cleanly into chat, DMs, forums, etc.
-  // When we want to add new fields later we bump the format version
-  // in share_code.js; old codes stay decodable.
+  // Why URL instead of raw code: URLs are clickable, pasteable, and
+  // auto-preview in most chat/social platforms. The underlying data is
+  // the same share code (pf1:<base64url JSON>) that was always used —
+  // now it's just wrapped in a URL.
+  //
+  // Privacy: same contract as before. Only public-display fields
+  // (name, title, archetype, level, accent, badges, XP) are included.
+  // No avatar, no bio, no personal details.
 
 
 
 
 
   /**
-   * Open the share dialog. Renders a read-only textarea with the
-   * user's share code and offers Copy + (optional) native Share.
+   * Open the share dialog. Renders a read-only URL with the user's
+   * profile data and offers Copy Link + (optional) native Share.
    *
-   * @param {object} vm   raw view-model, same shape the old PNG path
-   *                      accepted. toShareViewModel filters it.
+   * @param {object} vm   raw view-model (same shape the old paths
+   *                      accepted). toShareViewModel filters it.
    */
   async function openShareDialog(vm) {
     const safeVm = toShareViewModel(vm || {});
     const code = encodeShareCode(safeVm);
+    const shareUrl = buildShareUrl(code);
 
     const status = h('div', { class: 'pf-share-status', 'aria-live': 'polite' });
 
-    // Read-only code box. Textarea (not input) so long codes wrap
-    // cleanly instead of horizontally scrolling. readonly + select
-    // all on focus for easy keyboard-copy workflow.
-    const codeBox = h('textarea', {
+    // Read-only URL box. Textarea so long URLs wrap cleanly.
+    const urlBox = h('textarea', {
       class: 'pf-share-code',
       readonly: true,
-      rows: '4',
+      rows: '3',
       spellcheck: 'false',
-      'aria-label': 'Your share code',
+      'aria-label': 'Your share link',
       onClick: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
       onFocus: (e) => { try { e.target.select(); } catch { /* non-fatal */ } },
     });
-    codeBox.value = code;
+    urlBox.value = shareUrl;
 
-    // Human-readable preview of what's packed into the code, so users
-    // can see what they're about to paste. Purely decorative — the
-    // code itself is the source of truth.
+    // Human-readable preview of what's in the link.
     const badgePreview = (safeVm.pinnedBadges || [])
       .map(b => b.icon || '◆').join(' ');
     const previewLines = [
@@ -26687,23 +26845,21 @@ Use this template for your response:
       onClick: async () => {
         try {
           if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(code);
+            await navigator.clipboard.writeText(shareUrl);
           } else {
-            // Fallback: rely on the textarea select + execCommand
-            codeBox.focus();
-            codeBox.select();
+            urlBox.focus();
+            urlBox.select();
             try { document.execCommand('copy'); }
             catch { throw new Error('clipboard not supported'); }
           }
-          flash(status, 'Copied to clipboard.', 'ok');
+          flash(status, 'Link copied!', 'ok');
         } catch (e) {
           flash(status, `Copy failed: ${(e && e.message) || 'browser blocked it'}`, 'err');
         }
       },
-    }, ['Copy code']);
+    }, ['Copy link']);
 
-    // Web Share API — text share is broadly supported on mobile
-    // without the file-upload gating the old PNG flow needed.
+    // Web Share API — share the URL directly.
     let shareBtn = null;
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       shareBtn = h('button', {
@@ -26713,7 +26869,7 @@ Use this template for your response:
           try {
             await navigator.share({
               title: `${safeVm.displayName}'s profile`,
-              text: code,
+              url: shareUrl,
             });
           } catch (e) {
             if (e && e.name !== 'AbortError') {
@@ -26731,7 +26887,7 @@ Use this template for your response:
     }, ['Close']);
 
     const privacyNote = h('p', { class: 'pf-share-privacy' }, [
-      'Share codes contain only your display name, earned title, ',
+      'Share links contain only your display name, earned title, ',
       'level, archetype, and pinned badges. Bio, personal details, ',
       'and avatar image are never included.',
     ]);
@@ -26742,8 +26898,8 @@ Use this template for your response:
         h('div', { class: 'pf-share-body' }, [
           h('h2', { class: 'pf-mem-title' }, ['Share your profile']),
           previewCard,
-          h('label', { class: 'pf-share-code-label' }, ['Share code']),
-          codeBox,
+          h('label', { class: 'pf-share-code-label' }, ['Share link']),
+          urlBox,
           status,
           privacyNote,
           h('div', { class: 'pf-share-actions' },
@@ -26766,6 +26922,291 @@ Use this template for your response:
         el.className = 'pf-share-status';
       }
     }, 2500);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/share_viewer.js
+     ────────────────────────────────────────────────────────── */
+  // render/share_viewer.js
+  //
+  // Read-only card viewer that renders a profile from decoded share-link
+  // data. Triggered on boot when the page URL contains a `?h=` parameter
+  // carrying a valid share code.
+  //
+  // The viewer is an overlay that sits on top of everything, showing the
+  // shared profile as a styled card: name, title, archetype, level, XP
+  // bar, accent color, and badges. The card is NOT editable — it's what
+  // the link recipient sees.
+  //
+  // Dismissable via a Close button. After dismissal, the URL's `?h=`
+  // parameter is cleaned so a page refresh doesn't re-show the viewer.
+
+
+
+
+  /**
+   * Render the share-link card viewer.
+   *
+   * @param {object} vm  decoded view-model from decodeShareCode, with
+   *   fields: displayName, title, archetype, level, accent, pinnedBadges,
+   *   xpIntoLevel, xpForNextLevel, progress01
+   * @returns {{ overlay: object }}  the overlay instance for lifecycle
+   */
+  function openShareViewer(vm) {
+    if (!vm) return { overlay: null };
+
+    const accentHex = vm.accent ? `#${vm.accent}` : '#d8b36a';
+
+    // XP bar
+    const progress = Math.max(0, Math.min(1, vm.progress01 || 0));
+    const xpBarFill = h('div', {
+      class: 'pf-sv-xp-fill',
+      style: `width:${Math.round(progress * 100)}%;background:${accentHex};`,
+    });
+    const xpBar = h('div', { class: 'pf-sv-xp-bar' }, [xpBarFill]);
+    const xpLabel = h('div', { class: 'pf-sv-xp-label' }, [
+      `${vm.xpIntoLevel || 0} / ${vm.xpForNextLevel || 1} XP`,
+    ]);
+
+    // Badges row
+    const badgeNodes = (vm.pinnedBadges || []).map(b =>
+      h('span', {
+        class: 'pf-sv-badge',
+        title: b.name || '',
+      }, [b.icon || '◆'])
+    );
+
+    // Subtitle line: "Lv 5 · Earned Title · Archetype"
+    const subParts = [`Lv ${vm.level || 1}`, vm.title || 'Newcomer'];
+    if (vm.archetype) subParts.push(vm.archetype);
+    const subtitle = subParts.join(' · ');
+
+    // Card body
+    const card = h('div', {
+      class: 'pf-sv-card',
+      style: `border-color:${accentHex};`,
+    }, [
+      h('div', { class: 'pf-sv-name', style: `color:${accentHex};` }, [
+        vm.displayName || 'Chronicler',
+      ]),
+      h('div', { class: 'pf-sv-sub' }, [subtitle]),
+      badgeNodes.length > 0
+        ? h('div', { class: 'pf-sv-badges' }, badgeNodes)
+        : null,
+      xpBar,
+      xpLabel,
+    ].filter(Boolean));
+
+    // Close button
+    const closeBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      onClick: () => {
+        overlay.hide();
+        // Clean the URL so a page refresh doesn't re-show the viewer.
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('h');
+          const cleanUrl = url.toString();
+          if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', cleanUrl);
+          }
+        } catch { /* non-fatal — URL stays but viewer is closed */ }
+      },
+    }, ['Close']);
+
+    const body = h('div', { class: 'pf-sv-body' }, [
+      h('div', { class: 'pf-sv-heading' }, ['Shared profile']),
+      card,
+      h('div', { class: 'pf-sv-actions' }, [closeBtn]),
+    ]);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Shared profile card',
+      children: [body],
+    });
+    overlay.show();
+    return { overlay };
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/message_controls.js
+     ────────────────────────────────────────────────────────── */
+  // chat/message_controls.js
+  //
+  // Injects per-message control buttons (copy, edit, delete, regenerate)
+  // into the upstream Perchance chat UI. Adapted from FurAI's MIT-licensed
+  // implementation (MutationObserver + delegated click handler pattern).
+  //
+  // Architecture:
+  //   - MutationObserver watches #chatMessagesEl for new .message nodes
+  //   - A single delegated click handler on the container routes all
+  //     button clicks (efficient: no per-button listeners)
+  //   - Hooks into upstream's window.editMessage, window.deleteMessage,
+  //     window.sendMessage globals (already exist on the Perchance page)
+  //   - Uses simple Unicode glyphs (no icon font dependency)
+  //
+  // Bootstrap:
+  //   Call initMessageControls() from start() after the chat DOM is
+  //   available. Safe to call multiple times (idempotent via guard).
+
+  /**
+   * Initialize message controls. Finds #chatMessagesEl, sets up the
+   * observer and delegated handler. Idempotent.
+   */
+  function initMessageControls() {
+    if (initMessageControls._done) return;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) {
+      // Chat DOM not ready yet — caller can retry later.
+      return;
+    }
+    initMessageControls._done = true;
+
+    // ---- Delegated click handler ----
+    // Single listener on the container handles all control-btn clicks.
+    // Adapted from FurAI's "Master Event Listener" pattern.
+    chatEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.pf-msg-ctrl-btn');
+      if (!btn) return;
+
+      const message = btn.closest('.message');
+      if (!message) return;
+
+      // Copy
+      if (btn.dataset.action === 'copy') {
+        const text = (message.querySelector('.content') || {}).innerText || '';
+        if (!text) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            // Fallback for sandboxed iframes
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:absolute;left:-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          btn.textContent = '✓';
+          setTimeout(() => { btn.textContent = '⎘'; }, 1000);
+        } catch { /* clipboard blocked */ }
+      }
+
+      // Edit
+      else if (btn.dataset.action === 'edit') {
+        if (typeof window.editMessage === 'function') {
+          window.editMessage(message);
+        }
+      }
+
+      // Delete
+      else if (btn.dataset.action === 'delete') {
+        if (typeof window.deleteMessage === 'function') {
+          window.deleteMessage(message);
+        }
+      }
+
+      // Regenerate (AI messages only)
+      else if (btn.dataset.action === 'regen') {
+        // Adapted from FurAI's regenerate logic:
+        // 1. Find the message index (excluding typing indicators)
+        // 2. For group RP, lock in the specific bot via profile lookup
+        // 3. Delete the message, then resend with regenerate flag
+        const allMessages = Array.from(
+          chatEl.querySelectorAll('.message')
+        ).filter(m =>
+          !m.id.startsWith('typing-') &&
+          m.id !== 'personality-selector-message'
+        );
+        const index = allMessages.indexOf(message);
+
+        // Group RP bot lock-in (from FurAI FIX 2)
+        let forcedIndex = null;
+        const nameEl = message.querySelector('.chat-username');
+        const currentId = window.currentChatId;
+        if (nameEl && currentId) {
+          const botName = (nameEl.innerText || '').trim();
+          try {
+            const profile = typeof window.getChatProfile === 'function'
+              ? window.getChatProfile(currentId)
+              : null;
+            if (profile && profile.bots) {
+              const found = profile.bots.findIndex(b => b.name === botName);
+              if (found !== -1) forcedIndex = found;
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        if (typeof window.deleteMessage === 'function') {
+          window.deleteMessage(message);
+        }
+        if (typeof window.sendMessage === 'function') {
+          window.sendMessage({
+            regenerate: true,
+            insertIndex: index,
+            forceBotIndex: forcedIndex,
+          });
+        }
+      }
+    });
+
+    // ---- Button injection ----
+    // Adds control buttons to a .message element. Skips system messages
+    // and messages that already have controls.
+    function addControls(messageEl) {
+      if (!messageEl) return;
+      if (messageEl.querySelector('.pf-msg-ctrls')) return;
+      if (messageEl.classList.contains('system')) return;
+      if (messageEl.id === 'personality-selector-message') return;
+      if (messageEl.id.startsWith('typing-')) return;
+
+      const bar = document.createElement('div');
+      bar.className = 'pf-msg-ctrls';
+
+      // Regen — AI messages only, first in the row
+      if (messageEl.classList.contains('ai')) {
+        const regen = makeBtn('↺', 'regen', 'Regenerate');
+        bar.appendChild(regen);
+      }
+
+      bar.appendChild(makeBtn('⎘', 'copy', 'Copy'));
+      bar.appendChild(makeBtn('✎', 'edit', 'Edit'));
+      bar.appendChild(makeBtn('✕', 'delete', 'Delete'));
+
+      messageEl.appendChild(bar);
+    }
+
+    function makeBtn(glyph, action, title) {
+      const btn = document.createElement('button');
+      btn.className = 'pf-msg-ctrl-btn';
+      btn.dataset.action = action;
+      btn.title = title;
+      btn.textContent = glyph;
+      btn.type = 'button';
+      return btn;
+    }
+
+    // ---- MutationObserver ----
+    // Watches for new messages added to the chat. subtree:false is
+    // important — only watch direct children of chatMessagesEl, not
+    // every DOM mutation inside each message bubble.
+    const observer = new MutationObserver(mutations => {
+      for (const mut of mutations) {
+        for (const node of mut.addedNodes) {
+          if (node.nodeType === 1 && node.classList.contains('message')) {
+            addControls(node);
+          }
+        }
+      }
+    });
+    observer.observe(chatEl, { childList: true, subtree: false });
+
+    // Inject into existing messages on first load
+    chatEl.querySelectorAll('.message').forEach(addControls);
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -30105,11 +30546,10 @@ Use this template for your response:
 
   /**
    * @param {{
-   *   onShareClick?: () => void,     // existing: enter focus mode for screenshot
-   *   onCardClick?: () => void,      // new: open share card dialog
+   *   onCardClick?: () => void,      // open share dialog (copies a URL link)
    * }} [opts]
    */
-  function createSplash({ onShareClick, onCardClick } = {}) {
+  function createSplash({ onCardClick } = {}) {
     const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
     const nameEl = h('h1', { class: 'pf-splash-name' });
     const titleEl = h('div', { class: 'pf-splash-title' });
@@ -30119,42 +30559,24 @@ Use this template for your response:
     const xpLabel = h('span', { class: 'pf-splash-xp-label' });
     const badgesRow = h('div', { class: 'pf-splash-badges' });
 
-    // Small "view for screenshot" button, top-right corner of the splash.
-    // Only rendered when onShareClick is supplied.
-    const focusBtn = typeof onShareClick === 'function'
+    // Share button — opens the share dialog which produces a copyable
+    // URL link. Replaces the old split (screenshot + download card)
+    // buttons with a single clear action.
+    const shareBtn = typeof onCardClick === 'function'
       ? h('button', {
           class: 'pf-splash-share',
           type: 'button',
-          title: 'View for screenshot',
-          'aria-label': 'Open a clean, screenshot-ready view of this card',
-          onClick: (ev) => { ev.stopPropagation(); onShareClick(); },
-        }, [
-          // Camera-ish glyph that works in system fonts without needing an icon font
-          h('span', { 'aria-hidden': 'true' }, ['◉']),
-        ])
-      : null;
-
-    // Share-card button, adjacent to the focus button. Opens the share
-    // dialog (render PNG, Download/Copy/Share actions). Distinct from
-    // focus mode: focus is for manual screenshots; the card is a
-    // canvas-rendered PNG that travels predictably regardless of
-    // browser zoom, scroll offset, etc.
-    const cardBtn = typeof onCardClick === 'function'
-      ? h('button', {
-          class: 'pf-splash-share pf-splash-card-btn',
-          type: 'button',
-          title: 'Download a shareable profile card',
-          'aria-label': 'Open the shareable profile card dialog',
+          title: 'Share your profile',
+          'aria-label': 'Copy a shareable link to your profile card',
           onClick: (ev) => { ev.stopPropagation(); onCardClick(); },
         }, [
-          // Picture-ish glyph
-          h('span', { 'aria-hidden': 'true' }, ['▤']),
+          // Link-ish glyph
+          h('span', { 'aria-hidden': 'true' }, ['🔗']),
         ])
       : null;
 
     const root = h('div', { class: 'pf-splash' }, [
-      focusBtn,
-      cardBtn,
+      shareBtn,
       h('div', { class: 'pf-splash-top' }, [
         avatar,
         h('div', { class: 'pf-splash-ident' }, [
@@ -32791,8 +33213,9 @@ Use this template for your response:
     try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
     // Celebrant achievement criteria read stats.eventsResponded —
     // distinct events the user has completed at least one prompt for.
+    // countEventsResponded is in the same IIFE scope (bundled from
+    // events/participation.js).
     try {
-      const { countEventsResponded } = await import('../events/participation.js');
       stats.eventsResponded = countEventsResponded();
     } catch { stats.eventsResponded = 0; }
 
@@ -32822,7 +33245,6 @@ Use this template for your response:
       try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
       try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
       try {
-        const { countEventsResponded } = await import('../events/participation.js');
         fresh.eventsResponded = countEventsResponded();
       } catch { fresh.eventsResponded = stats.eventsResponded || 0; }
       // Future fields go here. Any new mutable stat source referenced
@@ -32930,32 +33352,23 @@ Use this template for your response:
     const lvl = levelFromXP(xp);
 
     const splash = createSplash({
-      onShareClick: () => {
-        if (overlay && typeof overlay.setFocused === 'function') {
-          overlay.setFocused(true);
-          bumpCounter('focusModeToggles');
-        }
-      },
-      onCardClick: () => {
-        // Dynamic import so the share machinery loads only when the
-        // user asks for it — keeps the cold-start cost of the profile
-        // overlay down for the common case where nobody shares.
-        import('../render/share_dialog.js').then(async (mod) => {
-          // Derive the latest-display view-model from freshest settings +
-          // stats — the card should reflect the user's current state
-          // (flair pick, archetype, accent), not the init-time snapshot.
-          let freshSettings = settings;
-          try { freshSettings = loadSettings(); } catch { /* keep stale */ }
-          let freshUnlocked = unlockedIds;
-          let freshArchetype = null;
-          try {
-            const freshStats = await buildFreshStats();
-            freshUnlocked = computeUnlockedIds(freshStats);
-            try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
-          } catch { /* fall back */ }
-          const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
-          const p = (freshSettings && freshSettings.profile) || {};
-          mod.openShareDialog({
+      onCardClick: async () => {
+        // openShareDialog is in the same IIFE scope (bundled from
+        // render/share_dialog.js). No dynamic import needed — the
+        // bundler concatenates everything into one file.
+        let freshSettings = settings;
+        try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+        let freshUnlocked = unlockedIds;
+        let freshArchetype = null;
+        try {
+          const freshStats = await buildFreshStats();
+          freshUnlocked = computeUnlockedIds(freshStats);
+          try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
+        } catch { /* fall back */ }
+        const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+        const p = (freshSettings && freshSettings.profile) || {};
+        try {
+          openShareDialog({
             displayName: p.displayName || p.username || 'Chronicler',
             title: deriveTitle(freshUnlocked, freshSettings),
             archetype: freshArchetype,
@@ -32967,10 +33380,10 @@ Use this template for your response:
             xpForNextLevel: lvl.xpForNextLevel,
             progress01: lvl.progress01,
           });
-          try { bumpCounter('shareCardOpens'); } catch { /* non-fatal */ }
-        }).catch(e => {
-          console.warn('[pf] share dialog failed to load:', e && e.message);
-        });
+          bumpCounter('shareCardOpens');
+        } catch (e) {
+          console.warn('[pf] share dialog failed:', e && e.message);
+        }
       },
     });
 
@@ -33312,6 +33725,7 @@ Use this template for your response:
 
 
 
+
   const REFRESH_INTERVAL_MS = 30_000;
 
   /**
@@ -33388,8 +33802,9 @@ Use this template for your response:
       try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
       // Celebrant achievement criteria read stats.eventsResponded —
       // distinct events the user has completed at least one prompt for.
+      // countEventsResponded is in the same IIFE scope (bundled from
+      // events/participation.js).
       try {
-        const { countEventsResponded } = await import('../events/participation.js');
         stats.eventsResponded = countEventsResponded();
       } catch { stats.eventsResponded = 0; }
       const unlockedIds = computeUnlockedIds(stats);
@@ -33478,6 +33893,19 @@ Use this template for your response:
 
     console.info('[pf] profile fork active — mini-card mounted');
 
+    // ---- Chat UX enhancements (Batch 1) ----
+    // Message controls: copy, edit, delete, regen buttons on each message.
+    // Waits a tick for chatMessagesEl to be in the DOM (it may not exist
+    // at the exact moment start() runs if the chat UI initializes async).
+    try {
+      if (document.getElementById('chatMessagesEl')) {
+        initMessageControls();
+      } else {
+        // Retry after a short delay — chat DOM might still be loading
+        setTimeout(() => { try { initMessageControls(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
     // Initial fetch
     await refresh(card);
 
@@ -33504,6 +33932,17 @@ Use this template for your response:
       const bootUnlocked = computeUnlockedIds(bootStats);
       paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
     } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+
+    // ---- Share-link detection ----
+    // If the URL contains ?h=<shareCode>, auto-open the card viewer
+    // overlay showing the shared profile. openShareViewer is in the
+    // same IIFE scope (bundled from render/share_viewer.js).
+    try {
+      const sharedVM = parseShareUrl();
+      if (sharedVM) {
+        try { openShareViewer(sharedVM); } catch { /* non-fatal */ }
+      }
+    } catch { /* non-fatal */ }
 
     // Live refresh when the user changes settings (avatar, title, etc.) —
     // no need to wait for the 30s interval.

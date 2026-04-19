@@ -195,12 +195,11 @@ export function markEventsSeen(currentlyActiveIds) {
   // active event, ensure at least 'seen' state is recorded. Monotonic
   // — won't overwrite 'responded' or 'chronicled' that prompt
   // completion may already have registered. Dynamic import to avoid
-  // circular dependency between notifications.js and events/* .
+  // recordEventParticipation is in the same IIFE scope (bundled
+  // from events/participation.js). No dynamic import needed.
   if (nextSet.length > 0) {
     try {
-      import('../events/participation.js').then(mod => {
-        for (const id of nextSet) mod.recordEventParticipation(id, 'seen');
-      }).catch(() => { /* non-fatal */ });
+      for (const id of nextSet) recordEventParticipation(id, 'seen');
     } catch { /* non-fatal */ }
   }
 }

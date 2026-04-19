@@ -5,6 +5,74 @@ sprint. Ordered by rough priority, not schedule.
 
 ---
 
+## Competitive upgrade path (Apr 2026)
+
+Feature gap analysis from reviewing two MIT-licensed Perchance forks
+(FurAI and Kustom-GPT). Reusing their code where possible to save
+development time. Code first, design/polish last.
+
+### Batch 1 — Chat UX fundamentals (HIGH impact, moderate scope)
+- [ ] Message controls: copy, edit, delete per message
+- [ ] Regenerate last AI response
+- [ ] Chat search (sidebar thread filter)
+- [ ] Stop-generating button
+
+Source: FurAI message controls (MutationObserver pattern, delegated
+click handler). Kustom-GPT stop-generating (abort controller pattern).
+
+### Batch 2 — AI intelligence (HIGH impact, medium scope)
+- [ ] Dynamic glossary / context-aware lore injection (only inject
+      lore when keywords match recent messages — saves tokens)
+- [ ] Auto-summary compression for older messages
+- [ ] Token count awareness / display
+
+Source: FurAI dynamic glossary (keyword matching in
+buildTruncatedHistory). FurAI auto-summary compression.
+
+### Batch 3 — Voice + code (MEDIUM impact, medium scope)
+- [ ] Voice input (Web Speech API → text)
+- [ ] Voice output (TTS with rate/pitch controls)
+- [ ] Code syntax highlighting in AI responses
+
+Source: Kustom-GPT voice input/output (initVoiceOutput, startRecording,
+stopRecording, loadVoices). Kustom-GPT code highlighting.
+
+### Batch 4 — Image generation (MEDIUM impact, higher scope)
+- [ ] Image generation per message (via Perchance text-to-image plugin)
+- [ ] Writing enhancer / "Magic Wand" (rewrite user text before sending)
+
+Source: FurAI image generation (generateImagesForMessage). FurAI
+enhancer (enhanceText, openEnhancerSettingsModal).
+
+### Batch 5 — Character management (MEDIUM impact, medium scope)
+- [ ] Character browser/grid with search
+- [ ] Chat folders / pinned chats
+- [ ] Chat import/export (full thread data)
+
+Source: FurAI characters modal (renderCharactersGrid,
+openCharactersModal). FurAI folder system (createNewFolderPrompt,
+openFolderOptions). FurAI import/export modals.
+
+### Batch 6 — Advanced (LOWER priority, higher scope)
+- [ ] Local LLM connection support (Ollama, KoboldCPP, etc.)
+- [ ] Advanced generation settings (temperature, max tokens)
+- [ ] Visual Novel mode (sprite layer, backgrounds)
+- [ ] Keyboard shortcuts
+
+Source: Kustom-GPT local LLM (initLocalLLM, generateFromLocalLLM,
+7 provider presets). FurAI VN mode (vnOverlay, renderVnSprites).
+
+### Batch 7 — Design polish (LAST)
+- [ ] Dark/light theme toggle (full reskin)
+- [ ] Custom backgrounds per chat
+- [ ] UI animation polish
+- [ ] Mobile-responsive refinements
+
+Source: both forks have theme toggles. FurAI has custom backgrounds.
+Design pass happens after all functional work is done.
+
+---
+
 ## ✓ ROADMAP DIRECTIVE — CLEARED (Apr 2026 session)
 
 User said "do all in order, no notes." All listed roadmap items

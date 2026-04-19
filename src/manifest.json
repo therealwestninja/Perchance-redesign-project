@@ -50,6 +50,8 @@
     "render/overlay.js",
     "render/toast.js",
     "render/share_dialog.js",
+    "render/share_viewer.js",
+    "chat/message_controls.js",
     "render/memory_panels.js",
     "render/memory_settings_drawer.js",
     "render/memory_window.js",

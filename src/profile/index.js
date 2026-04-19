@@ -28,6 +28,7 @@ import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents, r
 import { initPromptsOnFirstRun, hasNewWeekPending, hasNewDayPending } from '../prompts/completion.js';
 import { getActiveEventIds } from '../events/active.js';
 import { resolveAccentVars, paintAppAccent } from './flair.js';
+import { parseShareUrl } from './share_code.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -105,8 +106,9 @@ async function refresh(card) {
     try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
     // Celebrant achievement criteria read stats.eventsResponded —
     // distinct events the user has completed at least one prompt for.
+    // countEventsResponded is in the same IIFE scope (bundled from
+    // events/participation.js).
     try {
-      const { countEventsResponded } = await import('../events/participation.js');
       stats.eventsResponded = countEventsResponded();
     } catch { stats.eventsResponded = 0; }
     const unlockedIds = computeUnlockedIds(stats);
@@ -195,6 +197,19 @@ export async function start() {
 
   console.info('[pf] profile fork active — mini-card mounted');
 
+  // ---- Chat UX enhancements (Batch 1) ----
+  // Message controls: copy, edit, delete, regen buttons on each message.
+  // Waits a tick for chatMessagesEl to be in the DOM (it may not exist
+  // at the exact moment start() runs if the chat UI initializes async).
+  try {
+    if (document.getElementById('chatMessagesEl')) {
+      initMessageControls();
+    } else {
+      // Retry after a short delay — chat DOM might still be loading
+      setTimeout(() => { try { initMessageControls(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 
@@ -221,6 +236,17 @@ export async function start() {
     const bootUnlocked = computeUnlockedIds(bootStats);
     paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
   } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+
+  // ---- Share-link detection ----
+  // If the URL contains ?h=<shareCode>, auto-open the card viewer
+  // overlay showing the shared profile. openShareViewer is in the
+  // same IIFE scope (bundled from render/share_viewer.js).
+  try {
+    const sharedVM = parseShareUrl();
+    if (sharedVM) {
+      try { openShareViewer(sharedVM); } catch { /* non-fatal */ }
+    }
+  } catch { /* non-fatal */ }
 
   // Live refresh when the user changes settings (avatar, title, etc.) —
   // no need to wait for the 30s interval.

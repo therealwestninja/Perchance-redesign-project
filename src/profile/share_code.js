@@ -265,3 +265,52 @@ function base64urlDecode(b64url) {
  * into a single IIFE, so identical export names clash).
  */
 export const __shareCodeTest = { LIMITS, CODE_PREFIX, CURRENT_VERSION };
+
+/**
+ * Build a share URL by appending the share code as a `?h=` parameter
+ * to the current page's base URL. The URL is fully clickable — when
+ * someone visits it, the boot code reads `?h=` and opens the card
+ * viewer.
+ *
+ * URL construction strips any existing `h` parameter from the current
+ * URL before appending, so re-sharing doesn't double-stack.
+ *
+ * @param {string} shareCode  output of encodeShareCode
+ * @returns {string}  full URL like https://perchance.org/ai-character-hero-chat?h=pf1:eyJ...
+ */
+export function buildShareUrl(shareCode) {
+  let base;
+  try {
+    const url = new URL(typeof window !== 'undefined' ? window.location.href : 'https://perchance.org/');
+    // Strip existing share params so we don't double-stack
+    url.searchParams.delete('h');
+    // Also remove hash fragment if any (not part of the share flow)
+    url.hash = '';
+    base = url;
+  } catch {
+    // Fallback: construct from scratch if URL parsing fails
+    base = new URL('https://perchance.org/');
+  }
+  base.searchParams.set('h', shareCode);
+  return base.toString();
+}
+
+/**
+ * Check the current page URL for a `?h=` share code parameter.
+ * If present and decodable, returns the decoded view-model.
+ * Returns null if absent, malformed, or non-decodable.
+ *
+ * Called on boot to decide whether to auto-open the card viewer.
+ *
+ * @returns {object|null}  decoded view-model with `source: 'shareCode'`
+ */
+export function parseShareUrl() {
+  try {
+    const url = new URL(typeof window !== 'undefined' ? window.location.href : '');
+    const h = url.searchParams.get('h');
+    if (!h) return null;
+    return decodeShareCode(h);
+  } catch {
+    return null;
+  }
+}

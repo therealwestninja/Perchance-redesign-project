@@ -44,6 +44,16 @@ export function exportSettingsAsJson() {
  * @param {string} jsonText
  * @returns {{ success: boolean, error?: string, schema?: number }}
  */
+// stats/counters.js — imported lazily inside importSettingsFromJson
+// to avoid a circular import with settings_store (counters imports
+// settings_store, and we don't want backup.js → settings_store →
+// counters → settings_store).
+
+/**
+ * Import settings from a JSON blob (either wrapped with schema meta
+ * or raw settings). Returns { success, schema } on happy path or
+ * { success: false, error } otherwise.
+ */
 export function importSettingsFromJson(jsonText) {
   if (typeof jsonText !== 'string' || !jsonText.trim()) {
     return { success: false, error: 'No backup text provided.' };
@@ -78,6 +88,12 @@ export function importSettingsFromJson(jsonText) {
 
   try {
     saveSettings(settings);
+    // Bump the import counter AFTER saving (so the bump itself lands
+    // in the post-import settings and isn't clobbered by restoring
+    // bumpCounter is in the same IIFE scope (bundled from
+    // stats/counters.js). The old dynamic import was designed for
+    // circular-dep avoidance in ESM, but the bundle has no modules.
+    try { bumpCounter('backupsImported'); } catch { /* best-effort */ }
     return { success: true, schema };
   } catch (err) {
     return { success: false, error: (err && err.message) || 'Could not save settings.' };

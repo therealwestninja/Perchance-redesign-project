@@ -112,8 +112,9 @@ export async function openFullPage() {
   try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
   // Celebrant achievement criteria read stats.eventsResponded —
   // distinct events the user has completed at least one prompt for.
+  // countEventsResponded is in the same IIFE scope (bundled from
+  // events/participation.js).
   try {
-    const { countEventsResponded } = await import('../events/participation.js');
     stats.eventsResponded = countEventsResponded();
   } catch { stats.eventsResponded = 0; }
 
@@ -143,7 +144,6 @@ export async function openFullPage() {
     try { fresh.counters = getCounters(); } catch { fresh.counters = stats.counters || {}; }
     try { fresh.streaks  = getStreaks();  } catch { fresh.streaks  = stats.streaks  || { current: 0, longest: 0 }; }
     try {
-      const { countEventsResponded } = await import('../events/participation.js');
       fresh.eventsResponded = countEventsResponded();
     } catch { fresh.eventsResponded = stats.eventsResponded || 0; }
     // Future fields go here. Any new mutable stat source referenced
@@ -251,32 +251,23 @@ export async function openFullPage() {
   const lvl = levelFromXP(xp);
 
   const splash = createSplash({
-    onShareClick: () => {
-      if (overlay && typeof overlay.setFocused === 'function') {
-        overlay.setFocused(true);
-        bumpCounter('focusModeToggles');
-      }
-    },
-    onCardClick: () => {
-      // Dynamic import so the share machinery loads only when the
-      // user asks for it — keeps the cold-start cost of the profile
-      // overlay down for the common case where nobody shares.
-      import('../render/share_dialog.js').then(async (mod) => {
-        // Derive the latest-display view-model from freshest settings +
-        // stats — the card should reflect the user's current state
-        // (flair pick, archetype, accent), not the init-time snapshot.
-        let freshSettings = settings;
-        try { freshSettings = loadSettings(); } catch { /* keep stale */ }
-        let freshUnlocked = unlockedIds;
-        let freshArchetype = null;
-        try {
-          const freshStats = await buildFreshStats();
-          freshUnlocked = computeUnlockedIds(freshStats);
-          try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
-        } catch { /* fall back */ }
-        const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
-        const p = (freshSettings && freshSettings.profile) || {};
-        mod.openShareDialog({
+    onCardClick: async () => {
+      // openShareDialog is in the same IIFE scope (bundled from
+      // render/share_dialog.js). No dynamic import needed — the
+      // bundler concatenates everything into one file.
+      let freshSettings = settings;
+      try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+      let freshUnlocked = unlockedIds;
+      let freshArchetype = null;
+      try {
+        const freshStats = await buildFreshStats();
+        freshUnlocked = computeUnlockedIds(freshStats);
+        try { freshArchetype = getPrimaryArchetype(freshStats); } catch { /* null */ }
+      } catch { /* fall back */ }
+      const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+      const p = (freshSettings && freshSettings.profile) || {};
+      try {
+        openShareDialog({
           displayName: p.displayName || p.username || 'Chronicler',
           title: deriveTitle(freshUnlocked, freshSettings),
           archetype: freshArchetype,
@@ -288,10 +279,10 @@ export async function openFullPage() {
           xpForNextLevel: lvl.xpForNextLevel,
           progress01: lvl.progress01,
         });
-        try { bumpCounter('shareCardOpens'); } catch { /* non-fatal */ }
-      }).catch(e => {
-        console.warn('[pf] share dialog failed to load:', e && e.message);
-      });
+        bumpCounter('shareCardOpens');
+      } catch (e) {
+        console.warn('[pf] share dialog failed:', e && e.message);
+      }
     },
   });
 

@@ -21,11 +21,10 @@ import { formatNumber, formatPercent, getInitialFromName } from '../utils/format
 
 /**
  * @param {{
- *   onShareClick?: () => void,     // existing: enter focus mode for screenshot
- *   onCardClick?: () => void,      // new: open share card dialog
+ *   onCardClick?: () => void,      // open share dialog (copies a URL link)
  * }} [opts]
  */
-export function createSplash({ onShareClick, onCardClick } = {}) {
+export function createSplash({ onCardClick } = {}) {
   const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
   const nameEl = h('h1', { class: 'pf-splash-name' });
   const titleEl = h('div', { class: 'pf-splash-title' });
@@ -35,42 +34,24 @@ export function createSplash({ onShareClick, onCardClick } = {}) {
   const xpLabel = h('span', { class: 'pf-splash-xp-label' });
   const badgesRow = h('div', { class: 'pf-splash-badges' });
 
-  // Small "view for screenshot" button, top-right corner of the splash.
-  // Only rendered when onShareClick is supplied.
-  const focusBtn = typeof onShareClick === 'function'
+  // Share button — opens the share dialog which produces a copyable
+  // URL link. Replaces the old split (screenshot + download card)
+  // buttons with a single clear action.
+  const shareBtn = typeof onCardClick === 'function'
     ? h('button', {
         class: 'pf-splash-share',
         type: 'button',
-        title: 'View for screenshot',
-        'aria-label': 'Open a clean, screenshot-ready view of this card',
-        onClick: (ev) => { ev.stopPropagation(); onShareClick(); },
-      }, [
-        // Camera-ish glyph that works in system fonts without needing an icon font
-        h('span', { 'aria-hidden': 'true' }, ['◉']),
-      ])
-    : null;
-
-  // Share-card button, adjacent to the focus button. Opens the share
-  // dialog (render PNG, Download/Copy/Share actions). Distinct from
-  // focus mode: focus is for manual screenshots; the card is a
-  // canvas-rendered PNG that travels predictably regardless of
-  // browser zoom, scroll offset, etc.
-  const cardBtn = typeof onCardClick === 'function'
-    ? h('button', {
-        class: 'pf-splash-share pf-splash-card-btn',
-        type: 'button',
-        title: 'Download a shareable profile card',
-        'aria-label': 'Open the shareable profile card dialog',
+        title: 'Share your profile',
+        'aria-label': 'Copy a shareable link to your profile card',
         onClick: (ev) => { ev.stopPropagation(); onCardClick(); },
       }, [
-        // Picture-ish glyph
-        h('span', { 'aria-hidden': 'true' }, ['▤']),
+        // Link-ish glyph
+        h('span', { 'aria-hidden': 'true' }, ['🔗']),
       ])
     : null;
 
   const root = h('div', { class: 'pf-splash' }, [
-    focusBtn,
-    cardBtn,
+    shareBtn,
     h('div', { class: 'pf-splash-top' }, [
       avatar,
       h('div', { class: 'pf-splash-ident' }, [
