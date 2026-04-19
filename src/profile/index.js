@@ -27,6 +27,7 @@ import { loadSettings, onSettingsChange } from './settings_store.js';
 import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents, recordUnlockDates } from './notifications.js';
 import { initPromptsOnFirstRun, hasNewWeekPending, hasNewDayPending } from '../prompts/completion.js';
 import { getActiveEventIds } from '../events/active.js';
+import { resolveAccentVars, paintAppAccent } from './flair.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
 
@@ -196,6 +197,30 @@ export async function start() {
 
   // Initial fetch
   await refresh(card);
+
+  // Boot-time app-wide accent paint. Cascades the user's picked
+  // accent into upstream Perchance's CSS variables so the whole app
+  // re-tints BEFORE the user even opens the profile. Safe no-op if
+  // the user hasn't picked an accent (resolves to amber, which is
+  // close to the default #005ac2 blue upstream ships with — still
+  // a noticeable shift, but that's the user's point: "even the
+  // standard Perchance has been replaced by the new theme color").
+  //
+  // Derived from the same settings+stats+unlocked signal the
+  // profile uses — so if the user picks an accent they haven't
+  // unlocked yet (e.g. from a restored backup), we fall back to
+  // amber consistently everywhere.
+  try {
+    const bootSettings = loadSettings();
+    const bootStats = await (async () => {
+      try {
+        const data = await readAllStores();
+        return { ...computeStats(data), ...computePromptStats(bootSettings) };
+      } catch { return {}; }
+    })();
+    const bootUnlocked = computeUnlockedIds(bootStats);
+    paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
+  } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
   // Live refresh when the user changes settings (avatar, title, etc.) —
   // no need to wait for the 30s interval.

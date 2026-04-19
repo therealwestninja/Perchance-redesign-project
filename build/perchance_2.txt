@@ -24232,6 +24232,52 @@ Use this template for your response:
   }
 
   /**
+   * Cascade the user's accent beyond our own overlay into upstream
+   * Perchance's chrome. Upstream defines its theme via CSS custom
+   * properties on :root — we shadow the handful that carry brand /
+   * highlight meaning so the whole app re-tints with the picker.
+   *
+   * Scouted-and-chosen upstream targets:
+   *   --notification-bg-color          top banner background (accent)
+   *   --link-color                     all <a> links throughout
+   *   --selected-thread-border-color   active thread highlight ring
+   *   --selected-thread-bg             active thread soft tint (~18%)
+   *
+   * Scope: only these four. Structural/neutral upstream vars
+   * (--background, --text-color, --button-bg, --box-color, etc.) are
+   * left alone so our accent-tint doesn't overpaint layout chrome the
+   * user expects to stay neutral. Light/dark mode continues to work
+   * because upstream resolves those vars per-color-scheme; we only
+   * shadow the accent-y subset.
+   *
+   * Called at boot (profile/index.js start) so the theme applies even
+   * before the user opens the profile, and from applyAccent() on any
+   * subsequent pick.
+   *
+   * No-op if document or documentElement isn't available (server-side
+   * safety or early-boot edge).
+   *
+   * @param {{ color: string, rgb: string }} accent  from resolveAccentVars
+   */
+  function paintAppAccent(accent) {
+    if (typeof document === 'undefined' || !document.documentElement) return;
+    if (!accent || typeof accent.color !== 'string') return;
+    const root = document.documentElement;
+    try {
+      root.style.setProperty('--notification-bg-color', accent.color);
+      root.style.setProperty('--link-color', accent.color);
+      root.style.setProperty('--selected-thread-border-color', accent.color);
+      // The selected-thread BACKGROUND wants a soft tint rather than
+      // a solid fill — 18% alpha reads as "this one's picked" without
+      // overpowering the thread text.
+      root.style.setProperty(
+        '--selected-thread-bg',
+        `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
+      );
+    } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+  }
+
+  /**
    * Resolve the ACTIVE title. Priority:
    *   1. user's picked flair.title if it's still unlocked
    *   2. settings.profile.titleOverride (custom free text)
@@ -31957,6 +32003,9 @@ Use this template for your response:
           const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
           overlay.style.setProperty('--pf-accent', accent.color);
           overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
+          // Cascade the same accent into upstream Perchance's chrome —
+          // user picks a color in the profile, the whole app re-tints.
+          paintAppAccent(accent);
         } catch { /* non-fatal */ }
       }
 
@@ -32145,6 +32194,11 @@ Use this template for your response:
       const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
       overlay.style.setProperty('--pf-accent', accent.color);
       overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
+      // Cascade to upstream Perchance chrome — notification banner,
+      // link color, selected-thread highlight all re-tint to match
+      // the user's pick. Boot-time paint is handled by profile/index.js
+      // start() so the theme persists even when the profile isn't open.
+      paintAppAccent(accent);
     }
     applyAccent();
 
@@ -32166,6 +32220,7 @@ Use this template for your response:
   // This module is the one "main" for the project — everything else is a pure
   // helper. Keep it small: if logic lives here and it grows past ~100 lines,
   // extract it.
+
 
 
 
@@ -32352,6 +32407,30 @@ Use this template for your response:
 
     // Initial fetch
     await refresh(card);
+
+    // Boot-time app-wide accent paint. Cascades the user's picked
+    // accent into upstream Perchance's CSS variables so the whole app
+    // re-tints BEFORE the user even opens the profile. Safe no-op if
+    // the user hasn't picked an accent (resolves to amber, which is
+    // close to the default #005ac2 blue upstream ships with — still
+    // a noticeable shift, but that's the user's point: "even the
+    // standard Perchance has been replaced by the new theme color").
+    //
+    // Derived from the same settings+stats+unlocked signal the
+    // profile uses — so if the user picks an accent they haven't
+    // unlocked yet (e.g. from a restored backup), we fall back to
+    // amber consistently everywhere.
+    try {
+      const bootSettings = loadSettings();
+      const bootStats = await (async () => {
+        try {
+          const data = await readAllStores();
+          return { ...computeStats(data), ...computePromptStats(bootSettings) };
+        } catch { return {}; }
+      })();
+      const bootUnlocked = computeUnlockedIds(bootStats);
+      paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
+    } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
     // Live refresh when the user changes settings (avatar, title, etc.) —
     // no need to wait for the 30s interval.

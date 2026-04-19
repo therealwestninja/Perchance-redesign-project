@@ -355,6 +355,52 @@ export function resolveAccentVars(settings, stats, unlockedIds) {
 }
 
 /**
+ * Cascade the user's accent beyond our own overlay into upstream
+ * Perchance's chrome. Upstream defines its theme via CSS custom
+ * properties on :root — we shadow the handful that carry brand /
+ * highlight meaning so the whole app re-tints with the picker.
+ *
+ * Scouted-and-chosen upstream targets:
+ *   --notification-bg-color          top banner background (accent)
+ *   --link-color                     all <a> links throughout
+ *   --selected-thread-border-color   active thread highlight ring
+ *   --selected-thread-bg             active thread soft tint (~18%)
+ *
+ * Scope: only these four. Structural/neutral upstream vars
+ * (--background, --text-color, --button-bg, --box-color, etc.) are
+ * left alone so our accent-tint doesn't overpaint layout chrome the
+ * user expects to stay neutral. Light/dark mode continues to work
+ * because upstream resolves those vars per-color-scheme; we only
+ * shadow the accent-y subset.
+ *
+ * Called at boot (profile/index.js start) so the theme applies even
+ * before the user opens the profile, and from applyAccent() on any
+ * subsequent pick.
+ *
+ * No-op if document or documentElement isn't available (server-side
+ * safety or early-boot edge).
+ *
+ * @param {{ color: string, rgb: string }} accent  from resolveAccentVars
+ */
+export function paintAppAccent(accent) {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  if (!accent || typeof accent.color !== 'string') return;
+  const root = document.documentElement;
+  try {
+    root.style.setProperty('--notification-bg-color', accent.color);
+    root.style.setProperty('--link-color', accent.color);
+    root.style.setProperty('--selected-thread-border-color', accent.color);
+    // The selected-thread BACKGROUND wants a soft tint rather than
+    // a solid fill — 18% alpha reads as "this one's picked" without
+    // overpowering the thread text.
+    root.style.setProperty(
+      '--selected-thread-bg',
+      `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
+    );
+  } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
+}
+
+/**
  * Resolve the ACTIVE title. Priority:
  *   1. user's picked flair.title if it's still unlocked
  *   2. settings.profile.titleOverride (custom free text)
