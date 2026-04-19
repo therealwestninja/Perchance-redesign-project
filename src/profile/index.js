@@ -219,6 +219,16 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
+  // Stop generating: button + aiTextPlugin monkey-patch
+  try {
+    if (window.root && window.root.aiTextPlugin) {
+      initStopGenerating();
+    } else {
+      // root.aiTextPlugin might load async — retry
+      setTimeout(() => { try { initStopGenerating(); } catch { /* non-fatal */ } }, 3000);
+    }
+  } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 

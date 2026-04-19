@@ -3548,4 +3548,22 @@ export const CSS = `
 .pf-chat-search-clear:hover {
   opacity: 1;
 }
+
+/* ---- Stop generating button (Batch 1) ----
+   Appears during AI generation, sits near the chat input. */
+.pf-stop-gen-btn {
+  background: rgba(220, 60, 60, 0.15);
+  border: 1px solid rgba(220, 60, 60, 0.4);
+  color: #e06060;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 5px 14px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  margin: 4px;
+}
+.pf-stop-gen-btn:hover {
+  background: rgba(220, 60, 60, 0.3);
+}
 `.trim();

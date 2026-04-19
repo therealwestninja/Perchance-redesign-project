@@ -53,6 +53,7 @@
     "render/share_viewer.js",
     "chat/message_controls.js",
     "chat/chat_search.js",
+    "chat/stop_generating.js",
     "render/memory_panels.js",
     "render/memory_settings_drawer.js",
     "render/memory_window.js",
