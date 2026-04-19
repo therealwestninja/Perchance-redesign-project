@@ -47,7 +47,7 @@ Source: FurAI image gen. FurAI enhancer. URV-AI impersonation
 ### Batch 5 — Thread + character management (MEDIUM impact, medium scope)
 - [x] Thread pinning — ALREADY IN UPSTREAM (isFav + .favStar)
 - [x] Thread archiving (f19cd6c) (hide old threads without deleting)
-- [ ] Bulk thread operations (multi-select + delete/archive)
+- [x] Bulk thread operations (multi-select + delete/archive)
 - [ ] Character browser/grid with search
 - [ ] Chat folders
 - [x] Chat export (f19cd6c) (import TBD) (full thread data)
@@ -59,11 +59,11 @@ modal, folder system, import/export.
 
 ### Batch 6 — Advanced (LOWER priority, higher scope)
 - [ ] Conversation branching / tree navigation
-- [ ] Prompt presets (save/load prompt templates)
-- [ ] Quick reminder editor (edit reminder message inline)
-- [ ] Show AI reasoning / thinking toggle
+- [x] Prompt presets (save/load prompt templates)
+- [x] Quick reminder editor (edit reminder message inline)
+- [x] Show AI reasoning / thinking toggle
 - [ ] Local LLM connection support (Ollama, KoboldCPP, etc.)
-- [ ] Advanced generation settings (temperature, max tokens)
+- [x] Advanced generation settings (temperature, max tokens)
 - [ ] Document / file analysis (upload + chat about docs)
 - [ ] Web search integration (search web from chat)
 - [ ] Vision / image understanding (describe uploaded images)
@@ -81,8 +81,8 @@ VN mode.
 ### Batch 7 — Design polish (LAST)
 - [ ] Dark/light theme toggle (full reskin)
 - [ ] Custom backgrounds per chat
-- [ ] Font customization (family + size)
-- [ ] Fullscreen mode
+- [x] Font customization (family + size)
+- [x] Fullscreen mode
 - [ ] UI animation polish
 - [ ] Mobile-responsive refinements
 

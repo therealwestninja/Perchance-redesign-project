@@ -112,6 +112,20 @@ export function initStopGenerating() {
       } catch { /* non-fatal — generation proceeds without glossary */ }
     }
 
+    // ---- Generation settings overrides (Batch 6) ----
+    // Apply user's temperature / maxTokens preferences if set.
+    // getGenOverrides() is in the same IIFE scope (gen_settings.js).
+    if (firstArg && typeof firstArg === 'object') {
+      try {
+        const overrides = getGenOverrides();
+        if (overrides.temperature != null || overrides.maxTokens != null) {
+          if (args[0] === firstArg) args[0] = { ...firstArg };
+          if (overrides.temperature != null) args[0].temperature = overrides.temperature;
+          if (overrides.maxTokens != null) args[0].maxTokensPerMessage = overrides.maxTokens;
+        }
+      } catch { /* non-fatal */ }
+    }
+
     const result = original.apply(this, args);
 
     // result is a promise-like with a .stop() method (streamObj)

@@ -3759,6 +3759,98 @@ export const CSS = `
   opacity: 0.3;
 }
 
+/* ---- Prompt presets dropdown ---- */
+.pf-presets-container { position: relative; display: inline-block; }
+.pf-presets-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.pf-presets-btn:hover { opacity: 1; }
+.pf-presets-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--box-color, #1e1e1e);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 4px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pf-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: left;
+  font-family: inherit;
+  width: 100%;
+}
+.pf-preset-item:hover { background: rgba(255,255,255,0.08); }
+.pf-preset-save { opacity: 0.6; font-style: italic; }
+.pf-preset-del {
+  font-size: 11px;
+  opacity: 0.4;
+  margin-left: 8px;
+  cursor: pointer;
+}
+.pf-preset-del:hover { opacity: 1; color: #e06060; }
+
+/* ---- Bulk thread operations ---- */
+.pf-bulk-toggle {
+  background: none;
+  border: none;
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  opacity: 0.6;
+  font-family: inherit;
+}
+.pf-bulk-toggle:hover { opacity: 1; }
+.pf-bulk-cb {
+  margin-right: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.pf-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+}
+.pf-bulk-count { opacity: 0.6; }
+.pf-bulk-action {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+}
+.pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
+.pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
+
 /* ---- Code syntax highlighting (Batch 3) ----
    Token colors for regex-based highlighting of code blocks.
    Designed for dark backgrounds matching upstream's code block style. */

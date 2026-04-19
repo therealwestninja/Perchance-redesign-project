@@ -284,6 +284,33 @@ export async function start() {
   // Keyboard shortcuts (Batch 6)
   try { initKeyboardShortcuts(); } catch { /* non-fatal */ }
 
+  // Prompt presets (Batch 6) — 📋 dropdown near input
+  try { initPromptPresets(); } catch { /* non-fatal */ }
+
+  // Quick reminder editor (Batch 6) — 📌 button near input
+  try { initQuickReminder(); } catch { /* non-fatal */ }
+
+  // Fullscreen toggle (Batch 7) — ⛶ button in header
+  try { initFullscreen(); } catch { /* non-fatal */ }
+
+  // Bulk thread operations (Batch 5) — multi-select in sidebar
+  try {
+    if (document.getElementById('chatThreads')) {
+      initBulkThreads();
+    } else {
+      setTimeout(() => { try { initBulkThreads(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
+  // AI reasoning toggle (Batch 6) — 🧠/💭 in header
+  try { initReasoningToggle(); } catch { /* non-fatal */ }
+
+  // Font settings (Batch 7) — Aa dropdown in header
+  try { initFontSettings(); } catch { /* non-fatal */ }
+
+  // Generation settings (Batch 6) — ⚙ temp/tokens near input
+  try { initGenSettings(); } catch { /* non-fatal */ }
+
   // Code syntax highlighting (Batch 3)
   try {
     if (document.getElementById('chatMessagesEl')) {

@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 90 };
+  NS.__meta = { modules: 97 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -23900,6 +23900,98 @@ Use this template for your response:
     opacity: 0.3;
   }
 
+  /* ---- Prompt presets dropdown ---- */
+  .pf-presets-container { position: relative; display: inline-block; }
+  .pf-presets-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+  .pf-presets-btn:hover { opacity: 1; }
+  .pf-presets-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    min-width: 200px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--box-color, #1e1e1e);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 4px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .pf-preset-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: none;
+    border: none;
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    text-align: left;
+    font-family: inherit;
+    width: 100%;
+  }
+  .pf-preset-item:hover { background: rgba(255,255,255,0.08); }
+  .pf-preset-save { opacity: 0.6; font-style: italic; }
+  .pf-preset-del {
+    font-size: 11px;
+    opacity: 0.4;
+    margin-left: 8px;
+    cursor: pointer;
+  }
+  .pf-preset-del:hover { opacity: 1; color: #e06060; }
+
+  /* ---- Bulk thread operations ---- */
+  .pf-bulk-toggle {
+    background: none;
+    border: none;
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+    opacity: 0.6;
+    font-family: inherit;
+  }
+  .pf-bulk-toggle:hover { opacity: 1; }
+  .pf-bulk-cb {
+    margin-right: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .pf-bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 12px;
+  }
+  .pf-bulk-count { opacity: 0.6; }
+  .pf-bulk-action {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--text-color, #ccc);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
+  .pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -28528,6 +28620,851 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/prompt_presets.js
+     ────────────────────────────────────────────────────────── */
+  // chat/prompt_presets.js
+  //
+  // Prompt presets: save and reuse common message templates.
+  // A small 📋 button near the input opens a dropdown of saved
+  // presets. Clicking one fills the input box. Users can also
+  // save the current input as a new preset.
+  //
+  // Storage: settings.promptPresets = [{name, text}, ...]
+  //
+  // Bootstrap: call initPromptPresets() from start(). Idempotent.
+
+
+
+  const PRESETS_KEY = 'promptPresets';
+  const DEFAULT_PRESETS = [
+    { name: 'Continue the scene', text: '*continues*' },
+    { name: 'Describe the surroundings', text: 'Describe what I see around me in detail.' },
+    { name: 'Time skip', text: '*Some time passes...*' },
+  ];
+
+  function getPresets() {
+    try {
+      const s = loadSettings();
+      return Array.isArray(s[PRESETS_KEY]) ? s[PRESETS_KEY] : DEFAULT_PRESETS;
+    } catch { return DEFAULT_PRESETS; }
+  }
+
+  function setPresets(presets) {
+    try {
+      const s = loadSettings();
+      s[PRESETS_KEY] = presets;
+      saveSettings(s);
+    } catch {}
+  }
+
+  function initPromptPresets() {
+    if (initPromptPresets._done) return;
+    initPromptPresets._done = true;
+
+    // Find input
+    const inputEl = document.querySelector('#messageInputEl') ||
+                    document.querySelector('.chat-input textarea') ||
+                    document.querySelector('textarea[placeholder]');
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (!inputArea) return;
+    const parent = inputArea.parentElement || inputArea;
+
+    // ---- Dropdown ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container';
+    container.style.position = 'relative';
+    container.style.display = 'inline-block';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '📋';
+    btn.title = 'Prompt presets';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'pf-presets-dropdown';
+    dropdown.hidden = true;
+
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+    parent.appendChild(container);
+
+    function renderDropdown() {
+      const presets = getPresets();
+      dropdown.innerHTML = '';
+
+      for (const p of presets) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'pf-preset-item';
+        item.textContent = p.name;
+        item.title = p.text;
+        item.addEventListener('click', () => {
+          if (inputEl) {
+            inputEl.value = p.text;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.focus();
+          }
+          dropdown.hidden = true;
+        });
+
+        const delBtn = document.createElement('span');
+        delBtn.className = 'pf-preset-del';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete preset';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const updated = getPresets().filter(x => x.name !== p.name || x.text !== p.text);
+          setPresets(updated);
+          renderDropdown();
+        });
+        item.appendChild(delBtn);
+        dropdown.appendChild(item);
+      }
+
+      // Save current input as preset
+      const saveItem = document.createElement('button');
+      saveItem.type = 'button';
+      saveItem.className = 'pf-preset-item pf-preset-save';
+      saveItem.textContent = '+ Save current as preset';
+      saveItem.addEventListener('click', () => {
+        const text = inputEl ? (inputEl.value || '').trim() : '';
+        if (!text) return;
+        const name = prompt('Preset name:', text.substring(0, 40));
+        if (!name) return;
+        const presets = getPresets();
+        presets.push({ name, text });
+        setPresets(presets);
+        renderDropdown();
+      });
+      dropdown.appendChild(saveItem);
+    }
+
+    btn.addEventListener('click', () => {
+      dropdown.hidden = !dropdown.hidden;
+      if (!dropdown.hidden) renderDropdown();
+    });
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.hidden = true;
+    });
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/quick_reminder.js
+     ────────────────────────────────────────────────────────── */
+  // chat/quick_reminder.js
+  //
+  // Quick reminder editor — edit the current character's
+  // reminderMessage from a small modal without opening the
+  // full character editor. The reminder is the text that's
+  // always injected right before the AI's response.
+  //
+  // Reads/writes via window.db.characters (upstream Dexie DB).
+  //
+  // Bootstrap: call initQuickReminder() from start(). Idempotent.
+
+  function initQuickReminder() {
+    if (initQuickReminder._done) return;
+    initQuickReminder._done = true;
+
+    // ---- Modal ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay'; // reuse glossary overlay style
+    overlay.hidden = true;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal'; // reuse glossary modal style
+
+    const title = document.createElement('h3');
+    title.className = 'pf-glossary-title';
+    title.textContent = 'Quick Reminder';
+
+    const hint = document.createElement('p');
+    hint.className = 'pf-glossary-hint';
+    hint.textContent = 'This text is injected before every AI response. Use it to reinforce character behavior.';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'pf-glossary-textarea';
+    textarea.rows = 8;
+    textarea.placeholder = 'e.g. Stay in character. Use vivid descriptions.';
+
+    const actions = document.createElement('div');
+    actions.className = 'pf-glossary-actions';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'pf-glossary-save';
+    saveBtn.addEventListener('click', async () => {
+      await saveReminder(textarea.value);
+      close();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.className = 'pf-glossary-cancel';
+    cancelBtn.addEventListener('click', close);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+    modal.appendChild(title);
+    modal.appendChild(hint);
+    modal.appendChild(textarea);
+    modal.appendChild(actions);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    async function loadReminder() {
+      try {
+        const charId = window.currentCharacterId || window.currentChatId;
+        if (!charId || !window.db || !window.db.characters) return '';
+        const char = await window.db.characters.get(charId);
+        return (char && char.reminderMessage) || '';
+      } catch { return ''; }
+    }
+
+    async function saveReminder(text) {
+      try {
+        const charId = window.currentCharacterId || window.currentChatId;
+        if (!charId || !window.db || !window.db.characters) return;
+        await window.db.characters.update(charId, { reminderMessage: text });
+      } catch (e) { console.warn('[pf] save reminder failed:', e && e.message); }
+    }
+
+    async function open() {
+      textarea.value = await loadReminder();
+      overlay.hidden = false;
+      textarea.focus();
+    }
+
+    function close() { overlay.hidden = true; }
+
+    // ---- Trigger button ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn'; // reuse preset button style
+    btn.textContent = '📌';
+    btn.title = 'Edit quick reminder';
+    btn.addEventListener('click', open);
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(btn);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/fullscreen.js
+     ────────────────────────────────────────────────────────── */
+  // chat/fullscreen.js
+  //
+  // Fullscreen mode toggle. Adds a button that uses the Fullscreen
+  // API to go fullscreen on the chat container, providing a
+  // distraction-free experience.
+  //
+  // Adapted from URV-AI's toggleAppFullscreen concept (MIT).
+  //
+  // Bootstrap: call initFullscreen() from start(). Idempotent.
+
+  function initFullscreen() {
+    if (initFullscreen._done) return;
+    if (!document.documentElement.requestFullscreen &&
+        !document.documentElement.webkitRequestFullscreen) return;
+    initFullscreen._done = true;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn'; // reuse small header button style
+    btn.textContent = '⛶';
+    btn.title = 'Toggle fullscreen';
+
+    btn.addEventListener('click', () => {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        const el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      }
+    });
+
+    // Update icon on fullscreen change
+    const updateIcon = () => {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      btn.textContent = isFs ? '⛶' : '⛶';
+      btn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
+    };
+    document.addEventListener('fullscreenchange', updateIcon);
+    document.addEventListener('webkitfullscreenchange', updateIcon);
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(btn);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/bulk_threads.js
+     ────────────────────────────────────────────────────────── */
+  // chat/bulk_threads.js
+  //
+  // Bulk thread operations: multi-select threads in the sidebar
+  // then delete or archive them all at once.
+  //
+  // Adds a "Select" toggle button above the thread list. When
+  // active, threads show checkboxes. A floating action bar appears
+  // with "Delete selected" and "Archive selected" buttons.
+  //
+  // Bootstrap: call initBulkThreads() from start(). Idempotent.
+
+  function initBulkThreads() {
+    if (initBulkThreads._done) return;
+
+    const chatThreads = document.getElementById('chatThreads');
+    if (!chatThreads) return;
+    const parent = chatThreads.parentElement;
+    if (!parent) return;
+
+    initBulkThreads._done = true;
+
+    let selectMode = false;
+    const selected = new Set();
+
+    // ---- Toggle button ----
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'pf-bulk-toggle';
+    toggleBtn.textContent = '☐ Select';
+    toggleBtn.title = 'Toggle multi-select mode';
+
+    // Insert near the search bar if present, otherwise before threads
+    const searchBar = parent.querySelector('.pf-chat-search-bar');
+    if (searchBar) {
+      searchBar.appendChild(toggleBtn);
+    } else {
+      parent.insertBefore(toggleBtn, chatThreads);
+    }
+
+    // ---- Action bar ----
+    const actionBar = document.createElement('div');
+    actionBar.className = 'pf-bulk-bar';
+    actionBar.hidden = true;
+
+    const countLabel = document.createElement('span');
+    countLabel.className = 'pf-bulk-count';
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.textContent = '🗑 Delete';
+    delBtn.className = 'pf-bulk-action pf-bulk-del';
+    delBtn.addEventListener('click', () => {
+      if (selected.size === 0) return;
+      const count = selected.size;
+      if (!confirm(`Delete ${count} thread${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+      for (const id of selected) {
+        try {
+          if (window.db && window.db.threads) window.db.threads.delete(Number(id) || id);
+        } catch {}
+      }
+      selected.clear();
+      // Trigger upstream re-render
+      try { if (typeof window.renderThreadList === 'function') window.renderThreadList(); } catch {}
+      exitSelectMode();
+    });
+
+    const archBtn = document.createElement('button');
+    archBtn.type = 'button';
+    archBtn.textContent = '📥 Archive';
+    archBtn.className = 'pf-bulk-action';
+    archBtn.addEventListener('click', () => {
+      if (selected.size === 0) return;
+      // Use the thread_archive module's storage if available
+      try {
+        const { loadSettings, saveSettings } = { loadSettings: window.__pfLoadSettings, saveSettings: window.__pfSaveSettings };
+        // Fallback: directly manipulate localStorage
+        const raw = localStorage.getItem('pf:settings');
+        const s = raw ? JSON.parse(raw) : {};
+        if (!Array.isArray(s.archivedThreadIds)) s.archivedThreadIds = [];
+        for (const id of selected) {
+          if (!s.archivedThreadIds.includes(String(id))) {
+            s.archivedThreadIds.push(String(id));
+          }
+        }
+        localStorage.setItem('pf:settings', JSON.stringify(s));
+      } catch {}
+      selected.clear();
+      exitSelectMode();
+      // Force re-apply archive state
+      location.reload();
+    });
+
+    actionBar.appendChild(countLabel);
+    actionBar.appendChild(archBtn);
+    actionBar.appendChild(delBtn);
+    parent.appendChild(actionBar);
+
+    // ---- Select mode logic ----
+    function enterSelectMode() {
+      selectMode = true;
+      selected.clear();
+      toggleBtn.textContent = '✓ Done';
+      addCheckboxes();
+      updateBar();
+    }
+
+    function exitSelectMode() {
+      selectMode = false;
+      selected.clear();
+      toggleBtn.textContent = '☐ Select';
+      actionBar.hidden = true;
+      removeCheckboxes();
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (selectMode) exitSelectMode();
+      else enterSelectMode();
+    });
+
+    function addCheckboxes() {
+      chatThreads.querySelectorAll('.thread[data-thread-id]').forEach(el => {
+        if (el.querySelector('.pf-bulk-cb')) return;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'pf-bulk-cb';
+        cb.addEventListener('change', () => {
+          const id = el.dataset.threadId;
+          if (cb.checked) selected.add(id);
+          else selected.delete(id);
+          updateBar();
+        });
+        el.insertBefore(cb, el.firstChild);
+      });
+    }
+
+    function removeCheckboxes() {
+      chatThreads.querySelectorAll('.pf-bulk-cb').forEach(cb => cb.remove());
+    }
+
+    function updateBar() {
+      actionBar.hidden = selected.size === 0;
+      countLabel.textContent = `${selected.size} selected `;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/reasoning_toggle.js
+     ────────────────────────────────────────────────────────── */
+  // chat/reasoning_toggle.js
+  //
+  // Toggle to show/hide AI reasoning/thinking blocks in messages.
+  // Some AI responses contain thinking blocks (wrapped in <think>,
+  // <!--thinking-->, or similar tags). This module adds a toggle
+  // that reveals or hides them.
+  //
+  // Also watches for code blocks containing "reasoning" or "thinking"
+  // content and toggles their visibility.
+  //
+  // Bootstrap: call initReasoningToggle() from start(). Idempotent.
+
+
+
+  function initReasoningToggle() {
+    if (initReasoningToggle._done) return;
+    initReasoningToggle._done = true;
+
+    // Read initial state from settings
+    let showReasoning = false;
+    try {
+      const s = loadSettings();
+      showReasoning = !!s.showReasoning;
+    } catch {}
+
+    // ---- Toggle button in header ----
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn'; // reuse header button style
+    btn.title = 'Toggle AI reasoning visibility';
+    updateBtn();
+
+    btn.addEventListener('click', () => {
+      showReasoning = !showReasoning;
+      try {
+        const s = loadSettings();
+        s.showReasoning = showReasoning;
+        saveSettings(s);
+      } catch {}
+      updateBtn();
+      applyVisibility();
+    });
+
+    function updateBtn() {
+      btn.textContent = showReasoning ? '🧠' : '💭';
+    }
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(btn);
+
+    // ---- Apply visibility ----
+    function applyVisibility() {
+      const chatEl = document.getElementById('chatMessagesEl');
+      if (!chatEl) return;
+
+      // Find thinking/reasoning blocks: <think>, <details> with
+      // "thinking" summary, or elements with specific classes
+      const selectors = [
+        'think',
+        '.thinking',
+        '.reasoning',
+        'details[data-thinking]',
+        '[data-reasoning]',
+      ];
+
+      for (const sel of selectors) {
+        try {
+          chatEl.querySelectorAll(sel).forEach(el => {
+            el.style.display = showReasoning ? '' : 'none';
+          });
+        } catch {}
+      }
+
+      // Also look for HTML comments like <!--thinking--> content <!--/thinking-->
+      // These are rendered by some models but hidden by default
+      chatEl.querySelectorAll('.message .content').forEach(content => {
+        const html = content.innerHTML;
+        if (!html.includes('thinking') && !html.includes('reasoning')) return;
+        // Toggle visibility of any hidden thinking wrappers
+        content.querySelectorAll('.pf-thinking-block').forEach(el => {
+          el.style.display = showReasoning ? '' : 'none';
+        });
+      });
+    }
+
+    // Initial apply
+    applyVisibility();
+
+    // Re-apply on new messages
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (chatEl) {
+      const observer = new MutationObserver(() => {
+        clearTimeout(applyVisibility._t);
+        applyVisibility._t = setTimeout(applyVisibility, 300);
+      });
+      observer.observe(chatEl, { childList: true, subtree: true });
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/font_settings.js
+     ────────────────────────────────────────────────────────── */
+  // chat/font_settings.js
+  //
+  // Font customization: change the chat's font family and size.
+  // Settings persist via our settings store. Applied via CSS
+  // custom properties on the document root.
+  //
+  // Bootstrap: call initFontSettings() from start(). Idempotent.
+
+
+
+  const FONT_FAMILIES = [
+    { label: 'Default', value: '' },
+    { label: 'Sans-serif', value: 'system-ui, -apple-system, sans-serif' },
+    { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+    { label: 'Monospace', value: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace' },
+    { label: 'Dyslexic-friendly', value: '"Comic Sans MS", "Comic Sans", cursive' },
+  ];
+
+  const FONT_SIZES = [
+    { label: 'Small', value: '13px' },
+    { label: 'Medium', value: '15px' },
+    { label: 'Large', value: '17px' },
+    { label: 'X-Large', value: '20px' },
+  ];
+
+  function initFontSettings() {
+    if (initFontSettings._done) return;
+    initFontSettings._done = true;
+
+    // Load saved settings and apply immediately
+    let fontFamily = '';
+    let fontSize = '';
+    try {
+      const s = loadSettings();
+      fontFamily = s.fontFamily || '';
+      fontSize = s.fontSize || '';
+    } catch {}
+    applyFont(fontFamily, fontSize);
+
+    // ---- Button + dropdown ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container'; // reuse positioning
+    container.style.position = 'relative';
+    container.style.display = 'inline-block';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-export-btn';
+    btn.textContent = 'Aa';
+    btn.title = 'Font settings';
+    btn.style.fontSize = '14px';
+    btn.style.fontWeight = '700';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'pf-presets-dropdown';
+    dropdown.hidden = true;
+    dropdown.style.minWidth = '180px';
+
+    // Font family selector
+    const famLabel = document.createElement('div');
+    famLabel.textContent = 'Font';
+    famLabel.style.cssText = 'font-size:11px;opacity:0.5;padding:4px 8px 2px;';
+    dropdown.appendChild(famLabel);
+
+    for (const f of FONT_FAMILIES) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pf-preset-item';
+      item.textContent = f.label;
+      item.style.fontFamily = f.value || 'inherit';
+      item.addEventListener('click', () => {
+        fontFamily = f.value;
+        save();
+        applyFont(fontFamily, fontSize);
+      });
+      dropdown.appendChild(item);
+    }
+
+    // Font size selector
+    const sizeLabel = document.createElement('div');
+    sizeLabel.textContent = 'Size';
+    sizeLabel.style.cssText = 'font-size:11px;opacity:0.5;padding:8px 8px 2px;border-top:1px solid rgba(255,255,255,0.06);';
+    dropdown.appendChild(sizeLabel);
+
+    for (const s of FONT_SIZES) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'pf-preset-item';
+      item.textContent = s.label;
+      item.addEventListener('click', () => {
+        fontSize = s.value;
+        save();
+        applyFont(fontFamily, fontSize);
+      });
+      dropdown.appendChild(item);
+    }
+
+    container.appendChild(btn);
+    container.appendChild(dropdown);
+
+    const header = document.querySelector('.chat-header-right') ||
+                   document.querySelector('.chat-header');
+    if (header) header.appendChild(container);
+
+    btn.addEventListener('click', () => {
+      dropdown.hidden = !dropdown.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) dropdown.hidden = true;
+    });
+
+    function save() {
+      try {
+        const s = loadSettings();
+        s.fontFamily = fontFamily;
+        s.fontSize = fontSize;
+        saveSettings(s);
+      } catch {}
+    }
+  }
+
+  function applyFont(family, size) {
+    const root = document.documentElement;
+    if (family) root.style.setProperty('--pf-font-family', family);
+    else root.style.removeProperty('--pf-font-family');
+    if (size) root.style.setProperty('--pf-font-size', size);
+    else root.style.removeProperty('--pf-font-size');
+
+    // Apply to chat messages area
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (chatEl) {
+      if (family) chatEl.style.fontFamily = family;
+      else chatEl.style.fontFamily = '';
+      if (size) chatEl.style.fontSize = size;
+      else chatEl.style.fontSize = '';
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/gen_settings.js
+     ────────────────────────────────────────────────────────── */
+  // chat/gen_settings.js
+  //
+  // Advanced generation settings: temperature and max tokens per
+  // message. These are injected into every aiTextPlugin call via
+  // the existing monkey-patch (stop_generating.js).
+  //
+  // Adds a ⚙ button near the input that opens a small popover
+  // with sliders for temperature (0.1-2.0) and max tokens (100-2000).
+  //
+  // Storage: settings.genTemperature, settings.genMaxTokens
+  //
+  // The stop_generating.js monkey-patch reads these values from
+  // settings and applies them to the call args. This module just
+  // provides the UI + storage.
+  //
+  // Bootstrap: call initGenSettings() from start(). Idempotent.
+
+
+
+  function initGenSettings() {
+    if (initGenSettings._done) return;
+    initGenSettings._done = true;
+
+    // Read current settings
+    let temp, maxTok;
+    try {
+      const s = loadSettings();
+      temp = s.genTemperature;
+      maxTok = s.genMaxTokens;
+    } catch {}
+
+    // ---- Popover ----
+    const container = document.createElement('div');
+    container.className = 'pf-presets-container';
+    container.style.position = 'relative';
+    container.style.display = 'inline-block';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-presets-btn';
+    btn.textContent = '⚙';
+    btn.title = 'Generation settings';
+
+    const popover = document.createElement('div');
+    popover.className = 'pf-presets-dropdown';
+    popover.hidden = true;
+    popover.style.minWidth = '220px';
+    popover.style.padding = '12px';
+
+    // Temperature
+    const tempLabel = document.createElement('label');
+    tempLabel.style.cssText = 'display:block;font-size:12px;margin-bottom:4px;';
+    const tempVal = document.createElement('span');
+    tempVal.textContent = temp != null ? temp : 'default';
+
+    tempLabel.textContent = 'Temperature: ';
+    tempLabel.appendChild(tempVal);
+
+    const tempSlider = document.createElement('input');
+    tempSlider.type = 'range';
+    tempSlider.min = '0';
+    tempSlider.max = '20';
+    tempSlider.step = '1';
+    tempSlider.value = temp != null ? String(Math.round(temp * 10)) : '8';
+    tempSlider.style.cssText = 'width:100%;margin:4px 0 12px;';
+    tempSlider.addEventListener('input', () => {
+      const v = Number(tempSlider.value) / 10;
+      tempVal.textContent = v.toFixed(1);
+      save('genTemperature', v);
+    });
+
+    // Max tokens
+    const tokLabel = document.createElement('label');
+    tokLabel.style.cssText = 'display:block;font-size:12px;margin-bottom:4px;';
+    const tokVal = document.createElement('span');
+    tokVal.textContent = maxTok != null ? maxTok : 'default';
+
+    tokLabel.textContent = 'Max tokens: ';
+    tokLabel.appendChild(tokVal);
+
+    const tokSlider = document.createElement('input');
+    tokSlider.type = 'range';
+    tokSlider.min = '100';
+    tokSlider.max = '2000';
+    tokSlider.step = '50';
+    tokSlider.value = maxTok != null ? String(maxTok) : '500';
+    tokSlider.style.cssText = 'width:100%;margin:4px 0 8px;';
+    tokSlider.addEventListener('input', () => {
+      const v = Number(tokSlider.value);
+      tokVal.textContent = v;
+      save('genMaxTokens', v);
+    });
+
+    // Reset button
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.textContent = 'Reset to defaults';
+    resetBtn.className = 'pf-preset-item pf-preset-save';
+    resetBtn.style.marginTop = '4px';
+    resetBtn.addEventListener('click', () => {
+      save('genTemperature', null);
+      save('genMaxTokens', null);
+      tempSlider.value = '8';
+      tempVal.textContent = 'default';
+      tokSlider.value = '500';
+      tokVal.textContent = 'default';
+    });
+
+    popover.appendChild(tempLabel);
+    popover.appendChild(tempSlider);
+    popover.appendChild(tokLabel);
+    popover.appendChild(tokSlider);
+    popover.appendChild(resetBtn);
+
+    container.appendChild(btn);
+    container.appendChild(popover);
+
+    const inputArea = document.getElementById('chatInputEl') ||
+                      document.getElementById('inputBarEl') ||
+                      document.querySelector('.chat-input-container') ||
+                      document.querySelector('.input-bar');
+    if (inputArea) {
+      (inputArea.parentElement || inputArea).appendChild(container);
+    }
+
+    btn.addEventListener('click', () => { popover.hidden = !popover.hidden; });
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) popover.hidden = true;
+    });
+
+    function save(key, val) {
+      try {
+        const s = loadSettings();
+        if (val == null) delete s[key];
+        else s[key] = val;
+        saveSettings(s);
+      } catch {}
+    }
+  }
+
+  /**
+   * Read generation settings from our settings store. Called by the
+   * aiTextPlugin monkey-patch to apply temperature/maxTokens overrides.
+   * Returns {temperature, maxTokens} or nulls for defaults.
+   */
+  function getGenOverrides() {
+    try {
+      const s = loadSettings();
+      return {
+        temperature: s.genTemperature != null ? s.genTemperature : null,
+        maxTokens: s.genMaxTokens != null ? s.genMaxTokens : null,
+      };
+    } catch {
+      return { temperature: null, maxTokens: null };
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/token_display.js
      ────────────────────────────────────────────────────────── */
   // chat/token_display.js
@@ -29045,6 +29982,20 @@ Use this template for your response:
             }
           }
         } catch { /* non-fatal — generation proceeds without glossary */ }
+      }
+
+      // ---- Generation settings overrides (Batch 6) ----
+      // Apply user's temperature / maxTokens preferences if set.
+      // getGenOverrides() is in the same IIFE scope (gen_settings.js).
+      if (firstArg && typeof firstArg === 'object') {
+        try {
+          const overrides = getGenOverrides();
+          if (overrides.temperature != null || overrides.maxTokens != null) {
+            if (args[0] === firstArg) args[0] = { ...firstArg };
+            if (overrides.temperature != null) args[0].temperature = overrides.temperature;
+            if (overrides.maxTokens != null) args[0].maxTokensPerMessage = overrides.maxTokens;
+          }
+        } catch { /* non-fatal */ }
       }
 
       const result = original.apply(this, args);
@@ -35846,6 +36797,33 @@ Use this template for your response:
 
     // Keyboard shortcuts (Batch 6)
     try { initKeyboardShortcuts(); } catch { /* non-fatal */ }
+
+    // Prompt presets (Batch 6) — 📋 dropdown near input
+    try { initPromptPresets(); } catch { /* non-fatal */ }
+
+    // Quick reminder editor (Batch 6) — 📌 button near input
+    try { initQuickReminder(); } catch { /* non-fatal */ }
+
+    // Fullscreen toggle (Batch 7) — ⛶ button in header
+    try { initFullscreen(); } catch { /* non-fatal */ }
+
+    // Bulk thread operations (Batch 5) — multi-select in sidebar
+    try {
+      if (document.getElementById('chatThreads')) {
+        initBulkThreads();
+      } else {
+        setTimeout(() => { try { initBulkThreads(); } catch { /* non-fatal */ } }, 1500);
+      }
+    } catch { /* non-fatal */ }
+
+    // AI reasoning toggle (Batch 6) — 🧠/💭 in header
+    try { initReasoningToggle(); } catch { /* non-fatal */ }
+
+    // Font settings (Batch 7) — Aa dropdown in header
+    try { initFontSettings(); } catch { /* non-fatal */ }
+
+    // Generation settings (Batch 6) — ⚙ temp/tokens near input
+    try { initGenSettings(); } catch { /* non-fatal */ }
 
     // Code syntax highlighting (Batch 3)
     try {
