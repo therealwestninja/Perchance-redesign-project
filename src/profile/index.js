@@ -210,6 +210,15 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
+  // Chat search: sidebar thread filter
+  try {
+    if (document.getElementById('chatThreads')) {
+      initChatSearch();
+    } else {
+      setTimeout(() => { try { initChatSearch(); } catch { /* non-fatal */ } }, 1500);
+    }
+  } catch { /* non-fatal */ }
+
   // Initial fetch
   await refresh(card);
 

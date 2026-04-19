@@ -3507,4 +3507,45 @@ export const CSS = `
   background: rgba(255, 255, 255, 0.12);
   color: var(--pf-accent, var(--pf-palette-amber));
 }
+
+/* ---- Chat search bar (Batch 1) ----
+   Injected above #chatThreads in the sidebar. Filters threads
+   by name as the user types. */
+.pf-chat-search-bar {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  gap: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pf-chat-search-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--text-color, #ccc);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.pf-chat-search-input:focus {
+  border-color: var(--pf-accent, var(--pf-palette-amber));
+}
+.pf-chat-search-input::placeholder {
+  opacity: 0.5;
+}
+.pf-chat-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-color, #ccc);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  opacity: 0.5;
+  line-height: 1;
+}
+.pf-chat-search-clear:hover {
+  opacity: 1;
+}
 `.trim();
