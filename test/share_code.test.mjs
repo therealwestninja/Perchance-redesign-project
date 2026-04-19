@@ -1,14 +1,8 @@
 // test/share_code.test.mjs
 //
-// Tests for src/profile/share_code.js. Covers:
-//   - toShareViewModel whitelist (same privacy contract as the old
-//     PNG-card path)
-//   - encode produces a 'pf1:<base64url>' string
-//   - encode → decode round-trip preserves every visible field
-//   - decode rejects malformed codes, unknown prefixes, wrong
-//     versions, and non-string input
-//   - Decode re-applies the whitelist — hand-crafted oversized
-//     fields get trimmed
+// Tests for src/profile/share_code.js (pf3 binary format).
+// Covers: toShareViewModel whitelist, encode/decode round-trip,
+// malformed input rejection, buildShareUrl, parseShareUrl.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -200,7 +194,7 @@ test('decodeShareCode: returns null for non-string input', () => {
 });
 
 test('decodeShareCode: rejects codes without a colon', () => {
-  assert.equal(decodeShareCode('pf1eyJ2Ijox'), null);
+  assert.equal(decodeShareCode('pf3noseparator'), null);
   assert.equal(decodeShareCode(''), null);
 });
 
@@ -215,79 +209,36 @@ test('decodeShareCode: rejects obviously-non-share-code prefixes', () => {
   assert.equal(decodeShareCode(`::${body}`), null, 'empty prefix rejected');
 });
 
-test('decodeShareCode: version tracking is stubbed — accepts pf2, pf9, etc.', () => {
-  // While the format is still being iterated on, any pf<digit>
-  // prefix is accepted. Same for payload `v` values. This test
-  // documents the development-stub behavior; when version
-  // enforcement is turned on, this test will need to flip to
-  // expect rejection.
+test('decodeShareCode: rejects non-pf3 prefixes', () => {
   const realCode = encodeShareCode({ displayName: 'X', level: 5 });
   const body = realCode.split(':')[1];
-  const pf2 = decodeShareCode(`pf3:${body}`);
-  assert.ok(pf2, 'pf2 prefix accepted during dev stub');
-  assert.equal(pf2.level, 5);
+  // pf3 works
+  const ok = decodeShareCode(`pf3:${body}`);
+  assert.ok(ok, 'pf3 prefix accepted');
+  assert.equal(ok.level, 5);
+  // pf1, pf2 rejected
+  assert.equal(decodeShareCode(`pf1:${body}`), null, 'pf1 rejected');
+  assert.equal(decodeShareCode(`pf2:${body}`), null, 'pf2 rejected');
+  assert.equal(decodeShareCode(`pf9:${body}`), null, 'pf9 rejected');
 });
 
 test('decodeShareCode: rejects malformed base64', () => {
-  assert.equal(decodeShareCode('pf1:@@@@@'), null);
-  assert.equal(decodeShareCode('pf1:not-base64-at-all!!!'), null);
+  assert.equal(decodeShareCode('pf3:@@@@@'), null);
+  assert.equal(decodeShareCode('pf3:not-base64-at-all!!!'), null);
 });
 
-test('decodeShareCode: rejects non-JSON payload', () => {
-  // Base64url of plain text "hello"
-  assert.equal(decodeShareCode('pf1:aGVsbG8'), null);
+test('decodeShareCode: rejects truncated binary payload', () => {
+  // Too short to be a valid pf3 payload
+  assert.equal(decodeShareCode('pf3:AQID'), null);
 });
-
-test('decodeShareCode: accepts any payload version during dev stub', () => {
-  // While the format is in flux, payloads stamped with any `v`
-  // value decode fine (as long as the rest of the schema is
-  // sane). Test documents the stub behavior; will flip to expect
-  // rejection when version tracking is enabled.
-  const future = 'pf1:' + base64urlEncode(JSON.stringify({ v: 7, n: 'FromFuture', l: 10 }));
-  const vm = decodeShareCode(future);
-  assert.ok(vm);
-  assert.equal(vm.displayName, 'FromFuture');
-  assert.equal(vm.level, 10);
-});
-
-test('decodeShareCode: re-applies whitelist — oversized fields get trimmed', () => {
-  const oversized = {
-    v: 1,
-    n: 'x'.repeat(500),
-    t: 'x'.repeat(500),
-    a: 'x'.repeat(500),
-    l: 5,
-    c: 'd8b36a',
-    b: Array.from({ length: 50 }, (_, i) => ({ n: 'x'.repeat(500), i: 'x'.repeat(50) })),
-    x: { i: 0, f: 1 },
-    p: 0,
-  };
-  const forged = 'pf1:' + base64urlEncode(JSON.stringify(oversized));
-  const vm = decodeShareCode(forged);
-  assert.ok(vm, 'decode succeeds for a valid-shape payload');
-  assert.equal(vm.displayName.length, __shareCodeTest.LIMITS.displayName);
-  assert.equal(vm.title.length, __shareCodeTest.LIMITS.title);
-  assert.equal(vm.archetype.length, __shareCodeTest.LIMITS.archetype);
-  assert.equal(vm.pinnedBadges.length, __shareCodeTest.LIMITS.maxBadges);
-  assert.equal(vm.pinnedBadges[0].name.length, __shareCodeTest.LIMITS.badgeName);
-  assert.equal(vm.pinnedBadges[0].icon.length, __shareCodeTest.LIMITS.badgeIcon);
-});
-
-// ---- test helpers ----
-
-function base64urlEncode(str) {
-  const b = Buffer.from(str, 'utf8').toString('base64');
-  return b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 // ---- buildShareUrl + parseShareUrl (#share-links) ----
 
 const { buildShareUrl, parseShareUrl } = await import('../src/profile/share_code.js');
 
 test('buildShareUrl: produces a URL with ?h= parameter', () => {
-  // Mock window.location.href for the URL builder
   const origWindow = globalThis.window;
-  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/ai-character-hero-chat' } };
+  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/ai-character-hero-chat', pathname: '/ai-character-hero-chat' } };
   try {
     const code = encodeShareCode(toShareViewModel({ displayName: 'Test' }));
     const url = buildShareUrl(code);
@@ -298,14 +249,15 @@ test('buildShareUrl: produces a URL with ?h= parameter', () => {
   }
 });
 
-test('buildShareUrl: strips existing ?h= parameter before appending', () => {
+test('buildShareUrl: strips hashed subdomain and internal params', () => {
   const origWindow = globalThis.window;
-  globalThis.window = { ...origWindow, location: { href: 'https://perchance.org/ai-character-hero-chat?h=old' } };
+  globalThis.window = { ...origWindow, location: { href: 'https://b7b87bd7cc56b30fe95d472cd81985e4.perchance.org/ai-character-hero-chat?__generatorLastEditTime=123', pathname: '/ai-character-hero-chat' } };
   try {
-    const url = buildShareUrl('pf1:new');
-    // Should NOT contain 'old', only 'new'
-    assert.ok(!url.includes('old'), `should not contain old ?h= value, got: ${url}`);
-    assert.ok(url.includes('pf1'), `should contain new code, got: ${url}`);
+    const code = encodeShareCode(toShareViewModel({ displayName: 'Fresh' }));
+    const url = buildShareUrl(code);
+    assert.ok(url.startsWith('https://perchance.org/ai-character-hero-chat?h='), `should use canonical domain, got: ${url}`);
+    assert.ok(!url.includes('b7b87bd7'), `should not contain hashed subdomain, got: ${url}`);
+    assert.ok(!url.includes('__generator'), `should not contain internal params, got: ${url}`);
   } finally {
     globalThis.window = origWindow;
   }

@@ -120,7 +120,7 @@ export async function openFullPage() {
 
   /**
    * Rebuild a FRESH stats bundle for mid-session refreshes (splash
-   * redraw after a new unlock, share-dialog open, accent repaint,
+   * redraw after a new unlock, share link copy, accent repaint,
    * etc.). Starts from the init-time `stats` (which carries IDB-
    * derived + prompt-derived data that doesn't change mid-session)
    * and re-reads the mutable fields from their sources.
@@ -252,9 +252,7 @@ export async function openFullPage() {
 
   const splash = createSplash({
     onCardClick: async () => {
-      // openShareDialog is in the same IIFE scope (bundled from
-      // render/share_dialog.js). No dynamic import needed — the
-      // bundler concatenates everything into one file.
+      // One-click share: build link → copy to clipboard → toast.
       let freshSettings = settings;
       try { freshSettings = loadSettings(); } catch { /* keep stale */ }
       let freshUnlocked = unlockedIds;
@@ -267,21 +265,35 @@ export async function openFullPage() {
       const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
       const p = (freshSettings && freshSettings.profile) || {};
       try {
-        openShareDialog({
+        const shareVm = toShareViewModel({
           displayName: p.displayName || p.username || 'Chronicler',
           title: deriveTitle(freshUnlocked, freshSettings),
           archetype: freshArchetype,
           level: lvl.level,
           accent: accent.color,
-          avatarUrl: p.avatarUrl || null,
           pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
           xpIntoLevel: lvl.xpIntoLevel,
           xpForNextLevel: lvl.xpForNextLevel,
           progress01: lvl.progress01,
         });
+        const code = encodeShareCode(shareVm);
+        const shareUrl = buildShareUrl(code);
+        if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+        } else {
+          const tmp = document.createElement('textarea');
+          tmp.value = shareUrl;
+          tmp.style.cssText = 'position:fixed;opacity:0;';
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand('copy');
+          tmp.remove();
+        }
+        showToast('Copied to clipboard!', { ms: 2000, kind: 'info' });
         bumpCounter('shareCardOpens');
       } catch (e) {
-        console.warn('[pf] share dialog failed:', e && e.message);
+        console.warn('[pf] share copy failed:', e && e.message);
+        showToast('Copy failed — try again', { ms: 2000, kind: 'info' });
       }
     },
   });

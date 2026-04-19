@@ -1,16 +1,14 @@
 // profile/share_code.js
 //
-// Compact, versioned profile share codes. Three format generations:
+// Binary-packed profile share codes (pf3 format).
 //
-//   pf1: JSON → base64url (legacy, 250+ chars)
-//   pf2: pipe-delimited → base64url (compact, ~135 chars)
-//   pf3: binary-packed → base64url (indices, ~38 chars)
+// Encodes profile data as numeric indices into existing registries
+// (achievements, archetypes, accents). Only the display name is raw
+// text. Produces ~36-char codes embedded in shareable URLs.
 //
-// pf3 encodes everything except the display name as numeric indices
-// into existing registries (achievements, archetypes, accents).
-// Only the display name is sent as raw text. This cuts codes by 85%.
-//
-// All three formats decode transparently. New codes always use pf3.
+// Flow: User clicks share → encodeShareCode() → buildShareUrl() →
+//       URL copied → recipient clicks → parseShareUrl() →
+//       decodeShareCode() → openShareViewer()
 
 import { ACHIEVEMENTS } from '../achievements/registry.js';
 
@@ -27,14 +25,13 @@ const LIMITS = Object.freeze({
 });
 
 // ---- Index tables for binary packing ----
-// Built once at module load from the registries.
 
 const ARCHETYPE_IDS = ['newcomer','storyteller','rp','daily','twice_weekly','casual'];
+const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
 const ACCENT_IDS = ['amber','sage','ash','clay','moss','mist','honey','rust',
   'iron','copper','jade','slate','wine','ocean','plum','silver',
   'pink','purple','sky','gold','ruby','teal','pearl','obsidian'];
 
-// Achievement ID → index (0-based). Built from ACHIEVEMENTS registry.
 const ACH_ID_TO_IDX = {};
 const ACH_IDX_TO_OBJ = [];
 for (let i = 0; i < ACHIEVEMENTS.length; i++) {
@@ -42,41 +39,7 @@ for (let i = 0; i < ACHIEVEMENTS.length; i++) {
   ACH_IDX_TO_OBJ[i] = ACHIEVEMENTS[i];
 }
 
-// Badge icon from tier — local helper to avoid load-order dependency
-// on TIER_ICON from achievements_grid.js.
 function badgeIconForTier(tier) { return '◆'; }
-// prefixes so a later pf2 format can ship without silently
-// misinterpreting old data. Payload JSON uses short field keys so
-// codes stay short even with more fields added later:
-//
-//   { v: 1,                  payload schema version (also in prefix, repeated for robustness)
-//     n: "Display Name",     n = name
-//     t: "Earned Title",     t = title
-//     a: "archetype label",  a = archetype (null/omitted if Newcomer)
-//     l: 5,                  l = level
-//     c: "d8b36a",           c = accent hex (no '#' to save 1 char)
-//     b: [                   b = badges; up to 5
-//       { n: "Curator", i: "●" },
-//       ...
-//     ],
-//     x: { i: 30, f: 100 },  x = XP: into level / for next level
-//     p: 0.30,               p = progress 0..1
-//   }
-//
-// IMPORTANT: there is no avatar / image data here. Codes are
-// strictly text descriptors — small enough to paste into chat and
-// safe from metadata leakage. Reconstruction of a visual card is
-// not a goal of this module; downstream UI can render a preview
-// from the decoded fields if it wants to.
-//
-// PRIVACY CONTRACT (same as the old PNG flow, enforced on encode):
-//   - Accepts only the public-display fields.
-//   - DOES NOT accept bio, username, age range, custom gender text,
-//     raw counter values, or any unlisted field.
-//   - Accent is coerced to /^[0-9a-f]{6}$/i (strips '#').
-//   - String fields are length-capped to prevent bloated codes.
-//   - Badge list is capped to 5.
-//   - Newcomer archetype is filtered to null (noise; not a signal).
 
 /**
  * Build a safe, whitelist-enforced view-model from raw profile
@@ -133,7 +96,7 @@ export function toShareViewModel({
 /**
  * Encode a view-model into a share code string.
  *
- *   encodeShareCode(viewModel) => 'pf1:eyJ2Ijox...'
+ *   encodeShareCode(viewModel) => 'pf3:AwIEBBEA...'
  *
  * Safe against extraneous caller fields — the payload is built from
  * the fixed schema below, so extras in the input are ignored.
@@ -222,23 +185,8 @@ export function encodeShareCode(viewModel) {
 }
 
 /**
- * Decode a share code back to a view-model. Returns null only if
- * the code is truly malformed — unparseable base64, non-JSON
- * payload, etc. Never throws.
- *
- * VERSION TRACKING IS CURRENTLY STUBBED OUT (see
- * `enforceVersion = false` below). While the format is still in
- * flux, we accept any `pf*:` prefix and any `v:` value so schema
- * changes during development don't invalidate codes in flight.
- * When the format stabilizes, flip `enforceVersion` to `true` and
- * update the tests that round-trip at specific versions.
- *
- * The returned shape matches toShareViewModel's output, with one
- * addition: a `source: 'shareCode'` tag so UI code can tell
- * decoded codes apart from locally-built view-models.
- *
- * @param {string} code
- * @returns {object|null}
+ * Decode a pf3 share code back to a view-model.
+ * Returns null if malformed. Never throws.
  */
 export function decodeShareCode(code) {
   if (typeof code !== 'string') return null;
@@ -248,42 +196,8 @@ export function decodeShareCode(code) {
   const prefix = trimmed.slice(0, idx);
   const body   = trimmed.slice(idx + 1);
 
-  if (!/^pf\d/.test(prefix)) return null;
-
-  // ---- pf3: binary-packed ----
-  if (prefix === 'pf3') {
-    try { return decodePf3(body); } catch { return null; }
-  }
-
-  // ---- pf2 / pf1: text-based (legacy) ----
-  let raw;
-  try { raw = base64urlDecode(body); } catch { return null; }
-
-  // pf2: pipe-delimited
-  if (raw[0] === '2' && raw[1] === '|') return decodePf2(raw);
-
-  // pf1: JSON
-  try {
-    const payload = JSON.parse(raw);
-    if (!payload || typeof payload !== 'object') return null;
-    const badges = Array.isArray(payload.b) ? payload.b : [];
-    return {
-      source: 'shareCode',
-      displayName: String(payload.n || 'Chronicler').slice(0, LIMITS.displayName),
-      title: String(payload.t || 'Newcomer').slice(0, LIMITS.title),
-      archetype: payload.a == null ? null
-        : (String(payload.a).slice(0, LIMITS.archetype) || null),
-      level: Math.max(1, Math.floor(Number(payload.l) || 1)),
-      accent: normalizeAccent(payload.c),
-      pinnedBadges: badges.slice(0, LIMITS.maxBadges).map(b => ({
-        name: String((b && b.n) || '').slice(0, LIMITS.badgeName),
-        icon: String((b && b.i) || '◆').slice(0, LIMITS.badgeIcon),
-      })),
-      xpIntoLevel: Math.max(0, Math.floor(Number(payload.x && payload.x.i) || 0)),
-      xpForNextLevel: Math.max(1, Math.floor(Number(payload.x && payload.x.f) || 1)),
-      progress01: Math.max(0, Math.min(1, Number(payload.p) || 0)),
-    };
-  } catch { return null; }
+  if (prefix !== 'pf3') return null;
+  try { return decodePf3(body); } catch { return null; }
 }
 
 /** Decode pf3 binary format. */
@@ -367,48 +281,11 @@ function decodePf3(b64body) {
   };
 }
 
-/** Decode pf2 pipe-delimited format. */
-function decodePf2(raw) {
-  const parts = raw.split('|');
-  if (parts.length < 9) return null;
-
-  const pct = Math.max(0, Math.min(100, parseInt(parts[8], 10) || 0));
-  const badges = [];
-  for (let i = 9; i < parts.length && badges.length < LIMITS.maxBadges; i++) {
-    const sep = parts[i].indexOf('\x01');
-    if (sep >= 0) {
-      badges.push({
-        name: parts[i].substring(0, sep).slice(0, LIMITS.badgeName),
-        icon: parts[i].substring(sep + 1).slice(0, LIMITS.badgeIcon),
-      });
-    } else if (parts[i]) {
-      badges.push({ name: parts[i].slice(0, LIMITS.badgeName), icon: '◆' });
-    }
-  }
-
-  return {
-    source: 'shareCode',
-    displayName: String(parts[1] || 'Chronicler').slice(0, LIMITS.displayName),
-    title: String(parts[2] || 'Newcomer').slice(0, LIMITS.title),
-    archetype: parts[3] ? String(parts[3]).slice(0, LIMITS.archetype) : null,
-    level: Math.max(1, Math.floor(Number(parts[4]) || 1)),
-    accent: normalizeAccent(parts[5]),
-    pinnedBadges: badges,
-    xpIntoLevel: Math.max(0, Math.floor(Number(parts[6]) || 0)),
-    xpForNextLevel: Math.max(1, Math.floor(Number(parts[7]) || 1)),
-    progress01: pct / 100,
-  };
-}
-
 // ---- helpers ----
 
 function normalizeAccent(accent) {
   const raw = String(accent || '').replace(/^#/, '').toLowerCase();
   return /^[0-9a-f]{6}$/.test(raw) ? raw : 'd8b36a';
-}
-
-function round2(n) {
-  return Math.round(Number(n) * 100) / 100;
 }
 
 /** Find accent ID from hex color (reverse lookup). Returns null if not in palette. */
@@ -494,47 +371,6 @@ function base64urlToUint8(b64url) {
 }
 
 /**
- * Base64url encode (URL-safe base64, no padding). Works in both
- * browser and Node test environments.
- */
-function base64urlEncode(str) {
-  // Prefer TextEncoder + btoa path for wide support; fall back to
-  // Buffer in Node test contexts where btoa may still exist but
-  // TextEncoder could be the cleaner bridge.
-  let b64;
-  if (typeof btoa === 'function') {
-    // Handle multi-byte characters correctly via URI-encode detour
-    const bytes = new TextEncoder().encode(str);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    b64 = btoa(binary);
-  } else {
-    // Node-native fallback
-    b64 = Buffer.from(str, 'utf8').toString('base64');
-  }
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function base64urlDecode(b64url) {
-  // Restore padding
-  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = b64.length % 4;
-  if (pad === 2) b64 += '==';
-  else if (pad === 3) b64 += '=';
-  else if (pad === 1) throw new Error('malformed base64');
-
-  if (typeof atob === 'function') {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  }
-  return Buffer.from(b64, 'base64').toString('utf8');
-}
-
-/**
  * Test-only export — exposes internal constants for assertions.
  * Renamed from `__test` to avoid top-level collision with the
  * counters.js `__test` export (the bundler concatenates modules
@@ -543,32 +379,30 @@ function base64urlDecode(b64url) {
 export const __shareCodeTest = { LIMITS, CODE_PREFIX, CURRENT_VERSION };
 
 /**
- * Build a share URL by appending the share code as a `?h=` parameter
- * to the current page's base URL. The URL is fully clickable — when
- * someone visits it, the boot code reads `?h=` and opens the card
- * viewer.
+ * Build a canonical share URL.
  *
- * URL construction strips any existing `h` parameter from the current
- * URL before appending, so re-sharing doesn't double-stack.
+ * Perchance serves pages from hashed subdomains like
+ * `b7b87bd7cc56b30fe95d472cd81985e4.perchance.org` and adds
+ * internal query params like `__generatorLastEditTime`. We strip
+ * all of that and build a clean canonical URL:
+ *
+ *   https://perchance.org/<generator-slug>?h=pf3:...
  *
  * @param {string} shareCode  output of encodeShareCode
- * @returns {string}  full URL like https://perchance.org/ai-character-hero-chat?h=pf1:eyJ...
+ * @returns {string}
  */
 export function buildShareUrl(shareCode) {
-  let base;
+  // Extract the generator slug from the current pathname.
+  // On Perchance this is always /<slug> (e.g. /ai-character-hero-chat).
+  let slug = 'ai-character-hero-chat';
   try {
-    const url = new URL(typeof window !== 'undefined' ? window.location.href : 'https://perchance.org/');
-    // Strip existing share params so we don't double-stack
-    url.searchParams.delete('h');
-    // Also remove hash fragment if any (not part of the share flow)
-    url.hash = '';
-    base = url;
-  } catch {
-    // Fallback: construct from scratch if URL parsing fails
-    base = new URL('https://perchance.org/');
-  }
-  base.searchParams.set('h', shareCode);
-  return base.toString();
+    const path = (typeof window !== 'undefined' && window.location && window.location.pathname) || '/';
+    // Remove leading slash, take first segment
+    const clean = path.replace(/^\/+/, '').split('/')[0];
+    if (clean) slug = clean;
+  } catch { /* use default */ }
+
+  return `https://perchance.org/${slug}?h=${encodeURIComponent(shareCode)}`;
 }
 
 /**

@@ -21,7 +21,7 @@ import { formatNumber, formatPercent, getInitialFromName } from '../utils/format
 
 /**
  * @param {{
- *   onCardClick?: () => void,      // open share dialog (copies a URL link)
+ *   onCardClick?: () => void,      // copies share link to clipboard
  * }} [opts]
  */
 export function createSplash({ onCardClick } = {}) {
@@ -34,7 +34,7 @@ export function createSplash({ onCardClick } = {}) {
   const xpLabel = h('span', { class: 'pf-splash-xp-label' });
   const badgesRow = h('div', { class: 'pf-splash-badges' });
 
-  // Share button — opens the share dialog which produces a copyable
+  // Share button — copies profile link to clipboard. One click,
   // URL link. Replaces the old split (screenshot + download card)
   // buttons with a single clear action.
   const shareBtn = typeof onCardClick === 'function'
