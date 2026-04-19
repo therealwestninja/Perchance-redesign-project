@@ -190,4 +190,17 @@ export function markEventsSeen(currentlyActiveIds) {
   if (!Array.isArray(currentlyActiveIds)) return;
   const nextSet = currentlyActiveIds.filter(id => typeof id === 'string');
   updateField('notifications.seenEventIds', nextSet);
+
+  // Mirror into the richer participation record. For each currently-
+  // active event, ensure at least 'seen' state is recorded. Monotonic
+  // — won't overwrite 'responded' or 'chronicled' that prompt
+  // completion may already have registered. Dynamic import to avoid
+  // circular dependency between notifications.js and events/* .
+  if (nextSet.length > 0) {
+    try {
+      import('../events/participation.js').then(mod => {
+        for (const id of nextSet) mod.recordEventParticipation(id, 'seen');
+      }).catch(() => { /* non-fatal */ });
+    } catch { /* non-fatal */ }
+  }
 }

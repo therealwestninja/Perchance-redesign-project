@@ -13,6 +13,8 @@
 // moment later.
 
 import { h } from '../utils/dom.js';
+import { createSparkline } from './sparkline.js';
+import { getCounterSeriesByDay } from '../stats/counters.js';
 
 /**
  * Display metadata for each counter. Order here drives render order.
@@ -145,12 +147,27 @@ export function createActivityBody({ counters, streaks, streakStatus: status } =
   for (const spec of CHIPS) {
     const raw = Number(c[spec.key]) || 0;
     if (spec.hideIfZero && raw === 0) continue;
+
+    // 30-day sparkline under the label. Values beyond the window are
+    // not reflected — this is "recent activity shape", not "lifetime
+    // shape". A flat zero bar renders if the user hasn't done this
+    // action in the last 30 days.
+    const series = getCounterSeriesByDay(spec.key, 30);
+    const spark = createSparkline(series, {
+      width: 80,
+      height: 16,
+      color: 'currentColor',
+      fill: 'currentColor',
+      label: `${spec.label} — last 30 days`,
+    });
+
     chipNodes.push(h('div', {
       class: 'pf-activity-chip',
       title: spec.hint || '',
     }, [
       h('div', { class: 'pf-activity-chip-count' }, [formatCount(raw)]),
       h('div', { class: 'pf-activity-chip-label' }, [spec.label]),
+      h('div', { class: 'pf-activity-chip-spark' }, [spark]),
     ]));
   }
 

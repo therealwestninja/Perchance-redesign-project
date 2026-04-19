@@ -49,6 +49,23 @@ export function setCompleted(weekKey, id, completed) {
 
   byWeek[weekKey] = [...current];
   updateField('prompts.completedByWeek', byWeek);
+
+  // Event-participation hook. When the user completes a prompt
+  // whose ID belongs to an event (namespaced with `e-`), bump that
+  // event's participation record to 'responded'. Monotonic — a
+  // later un-check doesn't regress the record (see
+  // events/participation.js#recordEventParticipation). No-op for
+  // non-event prompts.
+  if (completed) {
+    try {
+      // Dynamic import to avoid a circular dependency cycle with
+      // events/registry.js and keep completion.js free of event
+      // logic at module load.
+      import('../events/participation.js').then(mod => {
+        mod.recordPromptCompletionParticipation(id);
+      }).catch(() => { /* non-fatal */ });
+    } catch { /* non-fatal */ }
+  }
 }
 
 // ---- "new week pending" — feeds the mini-card pulse ----

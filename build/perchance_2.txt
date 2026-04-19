@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 67 };
+  NS.__meta = { modules: 74 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/escape.js
@@ -14617,6 +14617,38 @@ Use this template for your response:
       thresholds: { bronze: 1, silver: 5, gold: 20 },
     }),
 
+    // --- Event participation ---
+    //
+    // "Celebrant" tiers reward the user for actually engaging with
+    // holiday/event-themed prompts, not just seeing them. A response
+    // counts once per distinct event (completing 3 New Year prompts =
+    // 1 towards the tier, not 3). See events/participation.js for
+    // countEventsResponded().
+    //
+    // Criteria read stats.eventsResponded (injected at unlock-compute
+    // time; see src/profile/full_page.js). Keeps this registry pure.
+    {
+      id: 'celebrant_bronze',
+      name: 'Celebrant',
+      description: 'Responded to your first event prompt.',
+      tier: 'common',
+      criteria: (s) => Number((s && s.eventsResponded) || 0) >= 1,
+    },
+    {
+      id: 'celebrant_silver',
+      name: 'Seasoned Celebrant',
+      description: 'Responded to 5 different events.',
+      tier: 'rare',
+      criteria: (s) => Number((s && s.eventsResponded) || 0) >= 5,
+    },
+    {
+      id: 'celebrant_gold',
+      name: 'Calendar Keeper',
+      description: 'Responded to 15 different events.',
+      tier: 'epic',
+      criteria: (s) => Number((s && s.eventsResponded) || 0) >= 15,
+    },
+
     // --- Streak-based achievements ---
     //
     // These unlock based on consecutive-day activity tracked by
@@ -14725,6 +14757,179 @@ Use this template for your response:
    */
   function getAchievementById(id) {
     return ACHIEVEMENTS.find(a => a.id === id) || null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: achievements/categories.js
+     ────────────────────────────────────────────────────────── */
+  // achievements/categories.js
+  //
+  // Groups achievements into navigable categories so the grid doesn't
+  // dump all 58 cards at once. Organization takes cues from RPG-style
+  // achievement UIs (Diablo III's career tabs, MagicaVoxel's left
+  // rail) — a summary view by default, then click a category to see
+  // its achievements.
+  //
+  // Category assignment lives here so we can test it independently of
+  // the rendering. Tier families stay together inside their category
+  // (Curator — Bronze/Silver/Gold appear as three sequential cards
+  // under Curation, so the progression is visible at a glance).
+  //
+  // When a new achievement is added to registry.js, update matches()
+  // below to sort it into the right bucket. Achievements that don't
+  // match any explicit rule fall into 'other' — useful during
+  // development; the rendered grid surfaces that bucket only when
+  // non-empty so it's visible as a bug rather than silently hidden.
+
+  const CATEGORIES = Object.freeze([
+    {
+      id: 'writing',
+      label: 'Writing',
+      icon: '✎',
+      description: 'Word counts and prose volume.',
+    },
+    {
+      id: 'stories',
+      label: 'Stories',
+      icon: '❧',
+      description: 'Characters, threads, and worldbuilding.',
+    },
+    {
+      id: 'prompts',
+      label: 'Prompts',
+      icon: '❝',
+      description: 'Prompt completions and exploration.',
+    },
+    {
+      id: 'consistency',
+      label: 'Consistency',
+      icon: '🔥',
+      description: 'Active periods and streaks.',
+    },
+    {
+      id: 'curation',
+      label: 'Curation',
+      icon: '⚙',
+      description: 'Memory tool use: organizing, renaming, reordering.',
+    },
+    {
+      id: 'preservation',
+      label: 'Preservation',
+      icon: '💾',
+      description: 'Snapshots, backups, and restoration.',
+    },
+    {
+      id: 'creation',
+      label: 'Creation',
+      icon: '✨',
+      description: 'Characters spun off from memory.',
+    },
+    {
+      id: 'events',
+      label: 'Events',
+      icon: '🎉',
+      description: 'Holiday and event participation.',
+    },
+  ]);
+
+  // Rules for sorting each achievement into exactly one category. Order
+  // within each bucket is preserved from registry.js order (common →
+  // epic → legendary tends to be the natural reading order there).
+  //
+  // Each rule is a predicate over the achievement id prefix or full id.
+  // Evaluated in order; first match wins.
+  const RULES = [
+    { cat: 'writing',      match: id => (
+      ['first_word', 'hundred_words', 'thousand_words', 'ten_thousand_words', 'fifty_thousand_words'].includes(id)
+    )},
+    { cat: 'stories',      match: id => (
+      ['first_character', 'long_conversation', 'epic_arc',
+       'cast_of_five', 'cast_of_twenty', 'cartographer', 'worldbuilder'].includes(id)
+    )},
+    { cat: 'prompts',      match: id => (
+      id.startsWith('first_prompt') || id.startsWith('prompt_') || id === 'weekly_regular'
+    )},
+    { cat: 'consistency',  match: id => (
+      id.startsWith('active_') || id === 'dedicated' || id.startsWith('streak_')
+    )},
+    { cat: 'preservation', match: id => (
+      id.startsWith('preservationist_') || id.startsWith('restorer_') || id.startsWith('archivist_')
+    )},
+    { cat: 'curation',     match: id => (
+      id.startsWith('curator_') || id.startsWith('namer_') ||
+      id.startsWith('organizer_') || id.startsWith('shuffler_') ||
+      id.startsWith('sorter_') || id.startsWith('regular_')
+    )},
+    { cat: 'creation',     match: id => id.startsWith('demiurge_') },
+    { cat: 'events',       match: id => id.startsWith('celebrant_') },
+  ];
+
+  /**
+   * Return the category id for the given achievement id. Falls back
+   * to 'other' if no rule matches (surfaces mis-categorization in
+   * the UI rather than silently hiding the achievement).
+   *
+   * @param {string} achievementId
+   * @returns {string} category id
+   */
+  function getCategoryFor(achievementId) {
+    if (typeof achievementId !== 'string') return 'other';
+    for (const rule of RULES) {
+      if (rule.match(achievementId)) return rule.cat;
+    }
+    return 'other';
+  }
+
+  /**
+   * Bucket a list of achievement objects by category id. Returns an
+   * object with category ids as keys and arrays of achievements as
+   * values. Categories with zero matches are included as empty arrays
+   * so renderers can show "0 / N unlocked — none yet" for uncompleted
+   * areas.
+   *
+   * @param {Array<object>} achievements
+   * @returns {Object<string, Array<object>>}
+   */
+  function groupByCategory(achievements) {
+    const out = {};
+    for (const cat of CATEGORIES) out[cat.id] = [];
+    out.other = [];
+    for (const a of achievements || []) {
+      if (!a || typeof a.id !== 'string') continue;
+      const cat = getCategoryFor(a.id);
+      if (!out[cat]) out[cat] = [];
+      out[cat].push(a);
+    }
+    return out;
+  }
+
+  /**
+   * For each category, compute (unlocked, total). Useful for the
+   * Summary view's progress bars.
+   *
+   * @param {Array<object>} achievements   full ACHIEVEMENTS registry
+   * @param {Set<string>} unlockedSet       unlocked id set
+   * @returns {Array<{ category: object, unlocked: number, total: number }>}
+   */
+  function computeCategoryProgress(achievements, unlockedSet) {
+    const byCat = groupByCategory(achievements);
+    const rows = [];
+    for (const cat of CATEGORIES) {
+      const list = byCat[cat.id] || [];
+      const unlockedN = list.reduce((n, a) => (unlockedSet.has(a.id) ? n + 1 : n), 0);
+      rows.push({ category: cat, unlocked: unlockedN, total: list.length });
+    }
+    // "other" only if non-empty, and only tacked on so devs see it
+    if ((byCat.other || []).length > 0) {
+      const list = byCat.other;
+      const unlockedN = list.reduce((n, a) => (unlockedSet.has(a.id) ? n + 1 : n), 0);
+      rows.push({
+        category: { id: 'other', label: 'Other', icon: '?' },
+        unlocked: unlockedN,
+        total: list.length,
+      });
+    }
+    return rows;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -15573,6 +15778,137 @@ Use this template for your response:
       }
     }
     return out;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: events/participation.js
+     ────────────────────────────────────────────────────────── */
+  // events/participation.js
+  //
+  // Tracks the user's engagement with each holiday/event beyond the
+  // existing seenEventIds "I saw the badge" signal. Three states, each
+  // a strict upgrade from the previous:
+  //
+  //   null           — never encountered (no record)
+  //   'seen'         — user has been shown the badge/announcement
+  //   'responded'    — user completed at least one prompt from this event
+  //   'chronicled'   — user explicitly added something from this event to
+  //                    their chronicle (future hook; no UI yet)
+  //
+  // State transitions are MONOTONIC: once you've "responded", you can't
+  // regress to "seen" by un-completing prompts. This keeps the record
+  // a historical badge rather than a fragile live-state — if a user
+  // un-checks a prompt after participating, we don't forget the moment.
+  //
+  // Storage: settings.notifications.eventParticipation = {
+  //   [eventId]: { state: 'seen'|'responded'|'chronicled', at: ISO }
+  // }
+  //
+  // Writes are idempotent and guarded against downgrades. Errors are
+  // silently swallowed — participation is a pleasant history signal,
+  // not critical state.
+
+
+
+
+  const STATE_RANK = Object.freeze({
+    seen: 1,
+    responded: 2,
+    chronicled: 3,
+  });
+
+  /**
+   * Read the full event-participation map. Always returns an object.
+   * @returns {Object<string, { state: string, at: string }>}
+   */
+  function getEventParticipation() {
+    try {
+      const s = loadSettings();
+      const map = (s && s.notifications && s.notifications.eventParticipation) || {};
+      return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Read a single event's participation record.
+   * @param {string} eventId
+   * @returns {{ state: string, at: string } | null}
+   */
+  function getEventParticipationFor(eventId) {
+    if (typeof eventId !== 'string' || !eventId) return null;
+    const map = getEventParticipation();
+    return map[eventId] || null;
+  }
+
+  /**
+   * Record that the user has reached a participation state for the
+   * given event. Monotonic — will NOT regress an existing higher state
+   * to a lower one. Idempotent if the state is already at or above the
+   * one requested.
+   *
+   * @param {string} eventId
+   * @param {'seen'|'responded'|'chronicled'} state
+   */
+  function recordEventParticipation(eventId, state) {
+    if (typeof eventId !== 'string' || !eventId) return;
+    const rank = STATE_RANK[state];
+    if (!rank) return;
+    try {
+      const map = { ...getEventParticipation() };
+      const prev = map[eventId];
+      const prevRank = prev ? (STATE_RANK[prev.state] || 0) : 0;
+      if (rank <= prevRank) return; // no downgrade, no duplicate writes
+      map[eventId] = { state, at: new Date().toISOString() };
+      updateField('notifications.eventParticipation', map);
+    } catch { /* best-effort */ }
+  }
+
+  /**
+   * Given a prompt ID, return the event it belongs to, or null if the
+   * prompt is a regular weekly prompt. Event prompts are namespaced
+   * with `e-` prefix (and their events by `e-<eventname>`), but the
+   * source of truth is the registry itself.
+   *
+   * @param {string} promptId
+   * @returns {object|null}  the event object from registry, or null
+   */
+  function findEventForPrompt(promptId) {
+    if (typeof promptId !== 'string' || !promptId.startsWith('e-')) return null;
+    for (const ev of EVENTS) {
+      if (ev.prompts && ev.prompts.some(p => p.id === promptId)) return ev;
+    }
+    return null;
+  }
+
+  /**
+   * If the given prompt belongs to an event, bump that event's
+   * participation to 'responded'. Called from the prompt-completion
+   * pipeline. No-op for non-event prompts.
+   *
+   * @param {string} promptId
+   */
+  function recordPromptCompletionParticipation(promptId) {
+    const ev = findEventForPrompt(promptId);
+    if (!ev) return;
+    recordEventParticipation(ev.id, 'responded');
+  }
+
+  /**
+   * Count how many distinct events the user has ever responded to (or
+   * reached a higher state for). Used by achievements that reward
+   * event participation variety.
+   *
+   * @returns {number}
+   */
+  function countEventsResponded() {
+    const map = getEventParticipation();
+    let n = 0;
+    for (const rec of Object.values(map)) {
+      if (rec && STATE_RANK[rec.state] >= STATE_RANK.responded) n++;
+    }
+    return n;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -19532,6 +19868,27 @@ Use this template for your response:
     color: #d8b36a;
   }
 
+  /* Archetype tag — small pill under the title. Only present when the
+     user's play-style has been classified; empty element otherwise so
+     it doesn't reserve space. */
+  .pf-splash-archetype {
+    margin-top: 6px;
+    min-height: 0;
+  }
+  .pf-splash-archetype-tag {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+    color: var(--pf-accent, #d8b36a);
+    border: 1px solid var(--pf-accent, #d8b36a);
+    opacity: 0.85;
+  }
+
   .pf-splash-levelrow {
     display: flex;
     align-items: center;
@@ -19632,6 +19989,20 @@ Use this template for your response:
     outline: 2px solid rgba(216, 179, 106, 0.55);
     outline-offset: 1px;
     opacity: 1;
+  }
+  /* Second share button (card PNG) — positioned to the LEFT of the
+     focus-mode button, which stays in its top-right slot. */
+  .pf-splash-card-btn {
+    right: auto;
+    left: auto;
+    transform: translateX(0);
+    position: absolute;
+    top: 10px;
+    right: 50px;
+    font-size: 16px;
+  }
+  .pf-splash-card-btn:hover {
+    transform: scale(1.05);
   }
 
   /* ============================================================
@@ -20793,6 +21164,211 @@ Use this template for your response:
     border-color: rgba(216, 179, 106, 0.20);
   }
 
+  /* ---- Description line on cards (new in categorized view) ---- */
+  .pf-ach-desc {
+    font-size: 10px;
+    opacity: 0.55;
+    line-height: 1.3;
+    padding: 0 4px;
+  }
+  .pf-ach-locked .pf-ach-desc {
+    opacity: 0.4;
+  }
+
+  /* ---- Tabbed browser ---- */
+  .pf-ach-browser {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pf-ach-tabs {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .pf-ach-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    background: transparent;
+    color: var(--text-color);
+    border: 1px solid transparent;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.12s, background 0.12s, border-color 0.12s;
+  }
+  .pf-ach-tab:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .pf-ach-tab-active {
+    opacity: 1;
+    background: rgba(216, 179, 106, 0.08);
+    border-color: var(--pf-accent, rgba(216, 179, 106, 0.45));
+    border-bottom-color: transparent;
+    color: var(--pf-accent, #d8b36a);
+  }
+  .pf-ach-tab-icon {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .pf-ach-tab-label {
+    font-weight: 500;
+  }
+  .pf-ach-tab-badge {
+    font-size: 10px;
+    opacity: 0.65;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.04em;
+    padding-left: 2px;
+  }
+  .pf-ach-tab-active .pf-ach-tab-badge {
+    opacity: 0.85;
+  }
+
+  /* ---- Panes ---- */
+  .pf-ach-panes {
+    min-height: 200px;
+  }
+  .pf-ach-pane[hidden] { display: none; }
+  .pf-ach-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pf-ach-pane-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  }
+  .pf-ach-pane-head-main {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .pf-ach-pane-icon {
+    font-size: 18px;
+  }
+  .pf-ach-pane-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-accent, #d8b36a);
+  }
+  .pf-ach-pane-count {
+    font-size: 12px;
+    opacity: 0.65;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    margin-left: auto;
+  }
+  .pf-ach-pane-desc {
+    font-size: 12px;
+    opacity: 0.65;
+    margin: 0;
+    line-height: 1.4;
+  }
+  .pf-ach-pane-empty {
+    font-size: 12px;
+    opacity: 0.5;
+    padding: 18px;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* ---- Summary pane ---- */
+  .pf-ach-summary-overall {
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+  }
+  .pf-ach-summary-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .pf-ach-summary-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.65;
+    font-weight: 600;
+  }
+  .pf-ach-summary-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--pf-accent, #d8b36a);
+  }
+  .pf-ach-prog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pf-ach-prog-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 2fr auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .pf-ach-prog-icon {
+    font-size: 13px;
+    opacity: 0.75;
+  }
+  .pf-ach-prog-label {
+    opacity: 0.8;
+  }
+  .pf-ach-prog-pct {
+    font-size: 11px;
+    opacity: 0.6;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    text-align: right;
+    min-width: 44px;
+  }
+
+  /* ---- Progress bars (reused for summary overall + per-category + pane head) ---- */
+  .pf-ach-prog-bar {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .pf-ach-prog-bar-lg {
+    height: 10px;
+    border-radius: 5px;
+  }
+  .pf-ach-prog-bar-fill {
+    height: 100%;
+    background: var(--pf-accent, #d8b36a);
+    transition: width 0.25s;
+    border-radius: inherit;
+    min-width: 0;
+  }
+
+  /* ---- Section title for subgroups inside a pane (e.g., "Recent unlocks") ---- */
+  .pf-ach-sec-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin: 4px 0 2px;
+    opacity: 0.85;
+  }
+
+  /* Recent-unlocks row in Summary reuses .pf-ach-grid for the row shape */
+  .pf-ach-recent {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
   /* ============================================================
      MEMORY / LORE WINDOW
      ============================================================ */
@@ -21633,6 +22209,22 @@ Use this template for your response:
     letter-spacing: 0.02em;
     line-height: 1.2;
   }
+  /* 30-day activity sparkline under each chip's label. Uses
+     currentColor so it inherits the chip's text color, then we tint
+     to accent on hover for an extra beat of visual feedback. */
+  .pf-activity-chip-spark {
+    margin-top: 4px;
+    opacity: 0.55;
+    color: var(--pf-accent, #d8b36a);
+    line-height: 0; /* avoid inline-SVG baseline gap */
+    transition: opacity 0.15s;
+  }
+  .pf-activity-chip:hover .pf-activity-chip-spark {
+    opacity: 0.9;
+  }
+  .pf-sparkline {
+    display: block;
+  }
   .pf-activity-footer {
     display: flex;
     gap: 18px;
@@ -22075,6 +22667,9 @@ Use this template for your response:
     color: rgba(216, 179, 106, 0.95);
     text-transform: uppercase;
   }
+  .pf-toast-pb-eyebrow-info {
+    color: rgba(106, 154, 216, 0.95);
+  }
   .pf-toast-pb-line {
     font-size: 15px;
     font-weight: 600;
@@ -22082,6 +22677,43 @@ Use this template for your response:
   .pf-toast-pb-sub {
     font-size: 11px;
     opacity: 0.7;
+  }
+
+  /* ---- Share dialog ---- */
+  .pf-share-body {
+    padding: 24px 28px;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .pf-share-preview {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: #111;
+  }
+  .pf-share-privacy {
+    font-size: 11px;
+    line-height: 1.5;
+    opacity: 0.6;
+    margin: 0;
+  }
+  .pf-share-status {
+    font-size: 12px;
+    min-height: 16px;
+  }
+  .pf-share-status-ok  { color: #6ab87c; }
+  .pf-share-status-err { color: #d87a7a; }
+  .pf-share-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   `.trim();
 
@@ -22155,6 +22787,12 @@ Use this template for your response:
         // window. Auto-GC'd to the currently-active set on each acknowledgment
         // so next year's window re-announces.
         seenEventIds: [],
+        // Richer event engagement signal. Map of eventId -> { state, at }
+        // where state ∈ {'seen', 'responded', 'chronicled'}. Unlike
+        // seenEventIds (which GCs to the current active set), this
+        // persists across years so it becomes a history of event
+        // participation. See events/participation.js for the API.
+        eventParticipation: {},
       },
       prompts: {
         // Per-week record of which prompts the user marked done.
@@ -22218,10 +22856,24 @@ Use this template for your response:
         focusModeToggles:           0, // focus mode enter or exit
         memorySaves:                0, // successful Save clicks in window
         charactersSpawned:          0, // spin-off characters created from bubbles
+        shareCardOpens:             0, // share-card dialog opened
         // First and last action timestamps. Set on any counter bump.
         firstUsedAt:                null,
         lastUsedAt:                 null,
       },
+      // Per-day counter histogram — parallel structure to `counters`,
+      // bucketed by UTC day-key ("YYYY-MM-DD"). Each bump increments
+      // both the lifetime count AND today's bucket. Pruned to the last
+      // ~60 days on every bump + every read, so a user who's been
+      // around for years doesn't accumulate unbounded history.
+      //
+      //   countersByDay: {
+      //     "2026-04-18": { memorySaves: 3, bubblesRenamed: 1 },
+      //     ...
+      //   }
+      //
+      // Used for 30-day sparklines in the Activity section.
+      countersByDay: {},
       streaks: {
         // Consecutive-day activity streak.
         //
@@ -22252,6 +22904,20 @@ Use this template for your response:
         // Not a Set or array — intentional object shape for forward
         // compatibility (new metrics added via METRICS table land
         // gracefully without migration).
+      },
+      summaryNotifications: {
+        // Weekly "this week you did X" summary toast.
+        //
+        // enabled: opt-out toggle. Default on. No UI to flip yet —
+        // users who want to silence can flip it via backup JSON edit
+        // until we add the settings affordance.
+        //
+        // lastSnapshot: { timestamp: ISO, counters: {...} } or null.
+        // Set on first profile open; advanced on every check that
+        // exceeds the 7-day window regardless of whether a toast
+        // surfaces. Prevents multi-week accumulation.
+        enabled: true,
+        lastSnapshot: null,
       },
     };
   }
@@ -22393,6 +23059,11 @@ Use this template for your response:
   // persistence path as the rest of the profile), so they round-trip
   // through the backup/export/import flow for free.
   //
+  // In addition to the lifetime counters, we maintain a per-day
+  // histogram (`settings.countersByDay`) with the same counter keys,
+  // used to render 30-day sparklines. Pruned to the last ~60 days on
+  // every bump to prevent unbounded growth for long-lived profiles.
+  //
   // Writes are best-effort: if localStorage is full or unavailable,
   // we silently swallow the error. Counters are a pleasant-to-have
   // indicator, not critical data — the user's primary work is their
@@ -22400,9 +23071,46 @@ Use this template for your response:
 
 
 
+  // Keep this many days of per-day history. 60 gives us a 30-day
+  // sparkline window plus some slack for users who visit at irregular
+  // cadences. Raising this has linear storage cost (~200 bytes/day for
+  // an active user), so we keep it tight by default.
+  const DAILY_HISTORY_DAYS = 60;
+
+  /**
+   * UTC day-key for the given date: "YYYY-MM-DD". UTC (not local) so
+   * the histogram is timezone-neutral — a user traveling across time
+   * zones won't see their sparkline get weird double-counting or
+   * gap days from midnight-shifts. Matches the convention used by
+   * streaks.js.
+   */
+  function dayKey(date = new Date()) {
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Prune day-buckets older than DAILY_HISTORY_DAYS from `byDay` IN
+   * PLACE. Returns the same object for chaining.
+   */
+  function pruneByDay(byDay, now = new Date()) {
+    if (!byDay || typeof byDay !== 'object') return byDay;
+    const cutoffMs = now.getTime() - DAILY_HISTORY_DAYS * 86400_000;
+    const cutoffKey = dayKey(new Date(cutoffMs));
+    for (const k of Object.keys(byDay)) {
+      if (k < cutoffKey) {
+        delete byDay[k];
+      }
+    }
+    return byDay;
+  }
+
   /**
    * Increment a named counter by `n` (default 1). Also updates the
-   * firstUsedAt (set-once) and lastUsedAt (always) timestamps.
+   * firstUsedAt (set-once) and lastUsedAt (always) timestamps, and
+   * bumps today's per-day bucket in countersByDay.
    *
    * Missing counters are created at 0 before the bump, which means a
    * new counter name added in code lands smoothly on existing profiles
@@ -22425,11 +23133,25 @@ Use this template for your response:
       const current = Number(settings.counters[name]) || 0;
       settings.counters[name] = current + delta;
 
-      const nowIso = new Date().toISOString();
+      const now = new Date();
+      const nowIso = now.toISOString();
       if (!settings.counters.firstUsedAt) {
         settings.counters.firstUsedAt = nowIso;
       }
       settings.counters.lastUsedAt = nowIso;
+
+      // Per-day histogram. Bump today's bucket, then prune older-than-
+      // 60-days entries so the histogram never grows unbounded.
+      if (!settings.countersByDay || typeof settings.countersByDay !== 'object') {
+        settings.countersByDay = {};
+      }
+      const key = dayKey(now);
+      if (!settings.countersByDay[key] || typeof settings.countersByDay[key] !== 'object') {
+        settings.countersByDay[key] = {};
+      }
+      const dayCurrent = Number(settings.countersByDay[key][name]) || 0;
+      settings.countersByDay[key][name] = dayCurrent + delta;
+      pruneByDay(settings.countersByDay, now);
 
       saveSettings(settings);
     } catch { /* best-effort */ }
@@ -22460,6 +23182,7 @@ Use this template for your response:
         focusModeToggles:          Number(c.focusModeToggles)          || 0,
         memorySaves:               Number(c.memorySaves)               || 0,
         charactersSpawned:         Number(c.charactersSpawned)         || 0,
+        shareCardOpens:            Number(c.shareCardOpens)             || 0,
         firstUsedAt:               c.firstUsedAt || null,
         lastUsedAt:                c.lastUsedAt  || null,
       };
@@ -22471,6 +23194,7 @@ Use this template for your response:
         backupsExported: 0, backupsImported: 0,
         promptArchiveOpens: 0, focusModeToggles: 0, memorySaves: 0,
         charactersSpawned: 0,
+        shareCardOpens: 0,
         firstUsedAt: null, lastUsedAt: null,
       };
     }
@@ -22491,10 +23215,65 @@ Use this template for your response:
         }
         settings.counters.firstUsedAt = keep.firstUsedAt;
         settings.counters.lastUsedAt = keep.lastUsedAt;
-        saveSettings(settings);
       }
+      settings.countersByDay = {};
+      saveSettings(settings);
     } catch { /* best-effort */ }
   }
+
+  /**
+   * Return the full countersByDay object, pruned to the last
+   * DAILY_HISTORY_DAYS days. Returns an empty object if storage is
+   * unavailable or the field is missing.
+   *
+   * Shape:
+   *   { "2026-04-17": { memorySaves: 2 }, "2026-04-18": { memorySaves: 3 }, ... }
+   *
+   * Prunes lazily on READ too so older buckets fall off even if the
+   * user hasn't bumped anything recently.
+   */
+  function getCountersByDay() {
+    try {
+      const settings = loadSettings();
+      const byDay = (settings && settings.countersByDay) || {};
+      return pruneByDay({ ...byDay }, new Date());
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Return a contiguous numeric series for one counter over the last
+   * `days` days, with the oldest at index 0 and today at index
+   * `days-1`. Missing days are 0.
+   *
+   * Useful for rendering sparklines (most SVG sparkline code expects
+   * a flat array of points).
+   *
+   * @param {string} name   counter key
+   * @param {number} [days=30]
+   * @param {Date}   [now=new Date()] injected for tests
+   * @returns {number[]}
+   */
+  function getCounterSeriesByDay(name, days = 30, now = new Date()) {
+    const byDay = getCountersByDay();
+    const out = new Array(days).fill(0);
+    for (let i = 0; i < days; i++) {
+      const dt = new Date(now.getTime() - (days - 1 - i) * 86400_000);
+      const k = dayKey(dt);
+      const bucket = byDay[k];
+      if (bucket && typeof bucket === 'object') {
+        out[i] = Number(bucket[name]) || 0;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Expose dayKey and pruneByDay for tests. Not part of the public API
+   * for other modules — use the series/map readers above.
+   */
+  const __test = { dayKey, pruneByDay, DAILY_HISTORY_DAYS };
 
   /* ──────────────────────────────────────────────────────────
      module: stats/streaks.js
@@ -23123,6 +23902,415 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: profile/archetypes.js
+     ────────────────────────────────────────────────────────── */
+  // profile/archetypes.js
+  //
+  // User archetype classification. Identifies which "player style" a
+  // user best matches based on patterns across many signals, as opposed
+  // to the tiered-counter achievements which reward heavy use of a
+  // SINGLE signal.
+  //
+  // Archetypes:
+  //   - Casual        — opens occasionally, small totals
+  //   - Twice-weekly  — steadier rhythm, moderate totals
+  //   - Daily         — frequent, active streak, high counters
+  //   - RP            — character-heavy, active characters, in-character
+  //                     writing patterns (short replies)
+  //   - Storyteller   — long-form writing (long average message),
+  //                     multi-session continuity, rename/curation activity
+  //
+  // Each archetype has a `score(stats)` function that returns a number
+  // in [0, 1] roughly indicating how well the user fits that archetype.
+  // The HIGHEST-SCORING archetype is declared the user's primary.
+  // Ties broken by the order below (Storyteller > RP > Daily > Twice-
+  // weekly > Casual) on the assumption that more "specific" archetypes
+  // should win ties over general ones.
+  //
+  // A minimum threshold applies: if every archetype scores < 0.15, the
+  // user is considered unclassified (new) and we report "Newcomer" so
+  // they don't get stuck as "Casual" on first visit.
+  //
+  // Classification is PURE — depends only on the input stats bundle
+  // (which should include counters + streaks). No storage here; the
+  // caller decides whether/where to persist.
+
+  /**
+   * Score each archetype in [0, 1] and return the results sorted by
+   * score descending. Highest-scoring wins.
+   *
+   * @param {object} stats augmented stats bundle (counters + streaks)
+   * @returns {Array<{ id, label, description, score }>}
+   */
+  function scoreArchetypes(stats) {
+    const s = stats || {};
+    return ARCHETYPES
+      .map(a => ({
+        id: a.id,
+        label: a.label,
+        description: a.description,
+        score: clamp01(a.score(s)),
+      }))
+      .sort((x, y) => y.score - x.score);
+  }
+
+  /**
+   * Return the primary archetype — the highest-scoring one, or the
+   * "Newcomer" sentinel if no archetype scores above the minimum.
+   *
+   * @param {object} stats
+   * @returns {{ id, label, description, score }}
+   */
+  function getPrimaryArchetype(stats) {
+    const scored = scoreArchetypes(stats);
+    const top = scored[0];
+    if (!top || top.score < 0.15) {
+      return {
+        id: 'newcomer',
+        label: 'Newcomer',
+        description: 'Keep exploring — your style is still emerging.',
+        score: top ? top.score : 0,
+      };
+    }
+    return top;
+  }
+
+  // ---- archetype definitions ----
+
+  const ARCHETYPES = [
+    {
+      id: 'storyteller',
+      label: 'Storyteller',
+      description:
+        'Long-form writer. Extended messages, multi-session continuity, ' +
+        'active memory curation.',
+      score: (s) => {
+        const wordsPerMsg = (s.userMessageCount || 0) > 0
+          ? (s.wordsWritten || 0) / s.userMessageCount
+          : 0;
+        // Signals:
+        //   - High words-per-message (the defining signal): full at 50
+        //   - Uses memory tool aggressively: full at 50 saves
+        //   - Renames bubbles often: full at 20
+        //   - Has a long thread (>= 100 msgs): 0 or 1
+        const longProse = satNorm(wordsPerMsg, 50);
+        const curator   = satNorm((s.counters && s.counters.memorySaves) || 0, 50);
+        const namer     = satNorm((s.counters && s.counters.bubblesRenamed) || 0, 20);
+        const continuity = (s.longestThread || 0) >= 100 ? 1 : (s.longestThread || 0) / 100;
+        return weighted([
+          [longProse,  0.40],
+          [curator,    0.25],
+          [namer,      0.20],
+          [continuity, 0.15],
+        ]);
+      },
+    },
+    {
+      id: 'rp',
+      label: 'Roleplayer',
+      description:
+        'Character-driven. Many characters, active in multiple threads, ' +
+        'short-to-medium replies that keep scenes flowing.',
+      score: (s) => {
+        const wordsPerMsg = (s.userMessageCount || 0) > 0
+          ? (s.wordsWritten || 0) / s.userMessageCount
+          : 0;
+        // Signals:
+        //   - Many characters created: full at 8
+        //   - Moderate words-per-message (not massive, not tiny)
+        //     sweet spot ~15–30 words per reply
+        //   - Uses threads to keep scenes going: full at 10 threads
+        //   - Spawns characters from bubbles (Demiurge behavior)
+        const charsSignal  = satNorm(s.characterCount || 0, 8);
+        const convoPace    = bellish(wordsPerMsg, 20, 15); // peaks at ~20 wpm
+        const threadsUsed  = satNorm(s.threadCount || 0, 10);
+        const demiurgeSig  = satNorm((s.counters && s.counters.charactersSpawned) || 0, 5);
+        return weighted([
+          [charsSignal,  0.35],
+          [convoPace,    0.25],
+          [threadsUsed,  0.25],
+          [demiurgeSig,  0.15],
+        ]);
+      },
+    },
+    {
+      id: 'daily',
+      label: 'Daily User',
+      description:
+        'Shows up every day. Active streaks, frequent tool use, ' +
+        'steady engagement.',
+      score: (s) => {
+        // Signals:
+        //   - Current streak (present-day engagement): full at 14
+        //   - Longest streak (proves the pattern): full at 30
+        //   - Memory tool opens (routine use): full at 50
+        //   - Many distinct active days: full at 60
+        const currentStreak = satNorm((s.streaks && s.streaks.current) || 0, 14);
+        const longestStreak = satNorm((s.streaks && s.streaks.longest) || 0, 30);
+        const toolUse       = satNorm(
+          (s.counters && s.counters.memoryWindowOpens) || 0, 50);
+        const daysActive    = satNorm(s.daysActive || 0, 60);
+        return weighted([
+          [currentStreak, 0.40],
+          [longestStreak, 0.25],
+          [toolUse,       0.20],
+          [daysActive,    0.15],
+        ]);
+      },
+    },
+    {
+      id: 'twice_weekly',
+      label: 'Regular',
+      description:
+        'Comes back steadily without the daily grind. Moderate totals, ' +
+        'consistent patterns.',
+      score: (s) => {
+        // Signals:
+        //   - Moderate daysActive: peak ~20–40 days, lower at extremes
+        //   - Moderate streak (not null, not huge)
+        //   - Some tool use
+        //   - Some message volume
+        const daysActive = bellish(s.daysActive || 0, 30, 20);
+        const modStreak  = bellish((s.streaks && s.streaks.longest) || 0, 7, 4);
+        const toolUse    = satNorm(
+          (s.counters && s.counters.memoryWindowOpens) || 0, 20);
+        const msgs       = satNorm(s.userMessageCount || 0, 100);
+        return weighted([
+          [daysActive, 0.35],
+          [modStreak,  0.25],
+          [toolUse,    0.20],
+          [msgs,       0.20],
+        ]);
+      },
+    },
+    {
+      id: 'casual',
+      label: 'Casual',
+      description:
+        'Drops in once in a while. Smaller totals, shorter streaks, ' +
+        'occasional exploration.',
+      score: (s) => {
+        // Casual scores higher for LOW totals — it's a negative-fit
+        // archetype. We compute the complement of "heavy use" signals
+        // so it wins when the heavy-use archetypes score poorly.
+        const notManyMsgs   = 1 - satNorm(s.userMessageCount || 0, 50);
+        const notManyDays   = 1 - satNorm(s.daysActive || 0, 14);
+        const notManyStreak = 1 - satNorm((s.streaks && s.streaks.longest) || 0, 5);
+        // But there has to be SOME engagement — we don't want to
+        // classify a zero-activity user as "Casual". Minimum floor:
+        // the user must have at least one message.
+        if ((s.userMessageCount || 0) < 1) return 0;
+        return weighted([
+          [notManyMsgs,   0.40],
+          [notManyDays,   0.30],
+          [notManyStreak, 0.30],
+        ]);
+      },
+    },
+  ];
+
+  // ---- helpers ----
+
+  /** Clamp to [0, 1]. */
+  function clamp01(x) {
+    const n = Number(x) || 0;
+    return Math.max(0, Math.min(1, n));
+  }
+
+  /**
+   * Saturating normalize: value / peak, clamped to [0, 1]. At value=peak
+   * returns 1; value>peak still returns 1 (no bonus for overshooting).
+   */
+  function satNorm(value, peak) {
+    if (peak <= 0) return 0;
+    return clamp01(value / peak);
+  }
+
+  /**
+   * Bell-curve-ish score: peaks at `center`, falls off with radius `r`.
+   * Returns 1 at center, ~0.5 at center±r, tail at center±2r.
+   * Used for archetypes where "moderate" is better than "high"
+   * (e.g., "twice-weekly" — too many days active becomes "daily").
+   */
+  function bellish(value, center, r) {
+    if (r <= 0) return value === center ? 1 : 0;
+    const dist = Math.abs((Number(value) || 0) - center);
+    const score = 1 - (dist / (2 * r));
+    return clamp01(score);
+  }
+
+  /**
+   * Weighted average. Weights should sum to 1.
+   *
+   * @param {Array<[number, number]>} pairs [score01, weight] pairs
+   */
+  function weighted(pairs) {
+    let sum = 0;
+    for (const [s, w] of pairs) sum += clamp01(s) * w;
+    return clamp01(sum);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: profile/summary_notifications.js
+     ────────────────────────────────────────────────────────── */
+  // profile/summary_notifications.js
+  //
+  // Weekly "what you did" summary. On profile open, if a week has
+  // passed since the last snapshot AND the user has meaningful activity
+  // deltas, fire a celebratory toast summarizing their week.
+  //
+  // Design: pull-based (not scheduled). We don't need background
+  // timers — the snapshot lives in settings, the delta is computed
+  // lazily the next time the user opens their profile. Quiet weeks
+  // don't get notifications; opening the profile after a busy week
+  // does.
+  //
+  // Opt-out: settings.summaryNotifications.enabled defaults to true.
+  // Users who find the weekly summary noisy can disable it from
+  // details/settings (UI affordance is out-of-scope for this commit —
+  // can be added later without touching this module; disabling via
+  // direct settings edit works today).
+
+
+
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  /**
+   * Metrics we summarize, in priority order. The top 3 non-zero deltas
+   * appear in the summary; the rest are silently ignored to keep the
+   * message short.
+   *
+   * Each entry is a counter key + a labeled plural/singular renderer.
+   * Easy to extend: add a new counter key to settings, then add a
+   * METRIC entry here and it's automatically eligible for summaries.
+   */
+  const SUMMARY_METRICS = [
+    { key: 'memorySaves',                 noun: 'memory save'           },
+    { key: 'bubblesRenamed',              noun: 'bubble rename'         },
+    { key: 'bubblesLocked',               noun: 'bubble lock'           },
+    { key: 'cardsReorderedInBubble',      noun: 'card reorder'          },
+    { key: 'cardsReorderedCrossBubble',   noun: 'cross-bubble reorder'  },
+    { key: 'snapshotsRestored',           noun: 'snapshot restore'      },
+    { key: 'charactersSpawned',           noun: 'new character'         },
+    { key: 'backupsExported',             noun: 'backup'                },
+    { key: 'memoryWindowOpens',           noun: 'memory tool open'      },
+    { key: 'promptArchiveOpens',          noun: 'prompt review'         },
+  ];
+
+  /**
+   * Check whether the user should see a summary toast right now.
+   * Updates the snapshot in settings as a side effect.
+   *
+   * Returns either:
+   *   { kind: 'none' } — nothing to show (no snapshot yet, under 7
+   *     days, or no deltas worth surfacing)
+   *   { kind: 'summary', line, deltas } — caller should toast this
+   *
+   * `line` is a human-readable sentence like "This week: 5 memory
+   * saves, 12 bubble renames, and 2 new characters."
+   *
+   * @param {object} currentCounters  result of getCounters()
+   * @param {Date}   [now=new Date()] injected for testability
+   */
+  function checkSummary(currentCounters, now = new Date()) {
+    const settings = safeLoad();
+    if (settings && settings.summaryNotifications &&
+        settings.summaryNotifications.enabled === false) {
+      return { kind: 'none', reason: 'disabled' };
+    }
+
+    const snap = (settings && settings.summaryNotifications &&
+                  settings.summaryNotifications.lastSnapshot) || null;
+
+    if (!snap || !snap.timestamp) {
+      // No snapshot yet — record one and stay silent. Next week's
+      // check will have a baseline to compare against.
+      writeSnapshot(currentCounters, now);
+      return { kind: 'none', reason: 'first-run' };
+    }
+
+    const elapsed = now.getTime() - new Date(snap.timestamp).getTime();
+    if (elapsed < WEEK_MS) {
+      return { kind: 'none', reason: 'too-soon' };
+    }
+
+    const deltas = computeDeltas(snap.counters || {}, currentCounters || {});
+    // Advance the snapshot window regardless of whether we surface.
+    // Prevents a user who comes back every 8 days from accumulating
+    // 2-week, 3-week deltas — the summary tracks "since we last told
+    // you," not "since you first used the app."
+    writeSnapshot(currentCounters, now);
+
+    const top = pickTopDeltas(deltas, 3);
+    if (top.length === 0) return { kind: 'none', reason: 'no-activity' };
+
+    const line = composeSummaryLine(top);
+    return { kind: 'summary', line, deltas: top };
+  }
+
+  /**
+   * Raw delta computation. Exported for tests + possible UI use.
+   */
+  function computeDeltas(prevCounters, currCounters) {
+    const out = {};
+    for (const m of SUMMARY_METRICS) {
+      const prev = Number((prevCounters || {})[m.key]) || 0;
+      const curr = Number((currCounters || {})[m.key]) || 0;
+      const diff = curr - prev;
+      if (diff > 0) out[m.key] = diff;
+    }
+    return out;
+  }
+
+  /**
+   * Pick the top N deltas (by magnitude) and attach metric metadata.
+   */
+  function pickTopDeltas(deltas, n = 3) {
+    const entries = Object.entries(deltas || {})
+      .map(([key, delta]) => {
+        const meta = SUMMARY_METRICS.find(m => m.key === key);
+        return meta ? { key, delta, noun: meta.noun } : null;
+      })
+      .filter(Boolean);
+    entries.sort((a, b) => b.delta - a.delta);
+    return entries.slice(0, n);
+  }
+
+  /**
+   * Turn an array of [{ delta, noun }] into a readable sentence.
+   * "This week: 5 memory saves, 12 bubble renames, and 2 characters."
+   */
+  function composeSummaryLine(top) {
+    if (!top || !top.length) return '';
+    const parts = top.map(t => `${t.delta} ${pluralize(t.noun, t.delta)}`);
+    let joined;
+    if (parts.length === 1) joined = parts[0];
+    else if (parts.length === 2) joined = `${parts[0]} and ${parts[1]}`;
+    else joined = `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+    return `This week: ${joined}.`;
+  }
+
+  // ---- helpers ----
+
+  function writeSnapshot(counters, now) {
+    const snap = {
+      timestamp: now.toISOString(),
+      counters: { ...(counters || {}) },
+    };
+    try {
+      updateField('summaryNotifications.lastSnapshot', snap);
+    } catch { /* non-fatal */ }
+  }
+
+  function pluralize(noun, n) {
+    return n === 1 ? noun : `${noun}s`;
+  }
+
+  function safeLoad() {
+    try { return loadSettings(); } catch { return null; }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: profile/notifications.js
      ────────────────────────────────────────────────────────── */
   // profile/notifications.js
@@ -23317,6 +24505,19 @@ Use this template for your response:
     if (!Array.isArray(currentlyActiveIds)) return;
     const nextSet = currentlyActiveIds.filter(id => typeof id === 'string');
     updateField('notifications.seenEventIds', nextSet);
+
+    // Mirror into the richer participation record. For each currently-
+    // active event, ensure at least 'seen' state is recorded. Monotonic
+    // — won't overwrite 'responded' or 'chronicled' that prompt
+    // completion may already have registered. Dynamic import to avoid
+    // circular dependency between notifications.js and events/* .
+    if (nextSet.length > 0) {
+      try {
+        import('../events/participation.js').then(mod => {
+          for (const id of nextSet) mod.recordEventParticipation(id, 'seen');
+        }).catch(() => { /* non-fatal */ });
+      } catch { /* non-fatal */ }
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -23629,6 +24830,23 @@ Use this template for your response:
 
     byWeek[weekKey] = [...current];
     updateField('prompts.completedByWeek', byWeek);
+
+    // Event-participation hook. When the user completes a prompt
+    // whose ID belongs to an event (namespaced with `e-`), bump that
+    // event's participation record to 'responded'. Monotonic — a
+    // later un-check doesn't regress the record (see
+    // events/participation.js#recordEventParticipation). No-op for
+    // non-event prompts.
+    if (completed) {
+      try {
+        // Dynamic import to avoid a circular dependency cycle with
+        // events/registry.js and keep completion.js free of event
+        // logic at module load.
+        import('../events/participation.js').then(mod => {
+          mod.recordPromptCompletionParticipation(id);
+        }).catch(() => { /* non-fatal */ });
+      } catch { /* non-fatal */ }
+    }
   }
 
   // ---- "new week pending" — feeds the mini-card pulse ----
@@ -23937,6 +25155,476 @@ Use this template for your response:
     if (ms > 0) setTimeout(dismiss, ms);
 
     return { dismiss };
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/share_card.js
+     ────────────────────────────────────────────────────────── */
+  // render/share_card.js
+  //
+  // Canvas-rendered shareable profile card.
+  //
+  // Takes a safe view-model (name, title, archetype, level, accent,
+  // pinned badges, optional avatar) and produces a square PNG image
+  // suitable for posting or copying. Rendered entirely client-side;
+  // nothing leaves the browser.
+  //
+  // Privacy contract: the fields this module accepts are ONLY the
+  // public-display fields of the profile (display name, avatar the
+  // user chose, achievement-derived title, archetype, level, badge
+  // names). It does NOT accept — and will not render — bio,
+  // username, age range, custom gender text, or raw counter values.
+  // The caller is responsible for constructing the view-model from
+  // those public fields only.
+
+  const CARD_SIZE = 1080;                // square, Instagram/X-friendly
+  const BG = '#151515';                  // dark base matching site aesthetic
+  const BG_ACCENT_ALPHA = 0.14;          // how strongly the accent tints the bg
+
+  /**
+   * Produce a Blob for the rendered card. Async because avatar images
+   * have to load first.
+   *
+   * @param {{
+   *   displayName: string,
+   *   title: string,
+   *   archetype: string|null,
+   *   level: number,
+   *   accent: string,                    hex like '#d8b36a'
+   *   avatarUrl: string|null,            data URL or null
+   *   pinnedBadges: Array<{ name: string, icon: string }>,
+   *   xpLabel: string,
+   *   progress01: number,
+   * }} vm
+   * @returns {Promise<Blob|null>} PNG blob, or null if Canvas isn't available
+   */
+  async function renderShareCard(vm) {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = CARD_SIZE;
+    canvas.height = CARD_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    drawBackground(ctx, vm.accent || '#d8b36a');
+    if (vm.avatarUrl) {
+      try { await drawAvatar(ctx, vm.avatarUrl); }
+      catch { drawAvatarFallback(ctx, vm.displayName || 'Chronicler'); }
+    } else {
+      drawAvatarFallback(ctx, vm.displayName || 'Chronicler');
+    }
+    drawIdentity(ctx, vm);
+    drawLevelBar(ctx, vm);
+    drawBadges(ctx, vm.pinnedBadges || [], vm.accent || '#d8b36a');
+    drawFooter(ctx);
+
+    return new Promise((resolve) => {
+      try {
+        canvas.toBlob((blob) => resolve(blob), 'image/png');
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  /**
+   * Build a safe view-model from the live profile state. Accepts the
+   * same kind of bundle full_page.js passes into splash.update(), plus
+   * an explicit accent hex. EXCLUDES every field not listed in the
+   * privacy contract above.
+   */
+  function toShareViewModel({
+    displayName,
+    title,
+    archetype,
+    level,
+    accent,
+    avatarUrl,
+    pinnedBadges,
+    xpIntoLevel,
+    xpForNextLevel,
+    progress01,
+  }) {
+    // Whitelist explicitly — new fields from callers don't land in the
+    // card unless we add them here.
+    return {
+      displayName: String(displayName || 'Chronicler').slice(0, 40),
+      title: String(title || 'Newcomer').slice(0, 60),
+      archetype: archetype && typeof archetype === 'object' && archetype.label !== 'Newcomer'
+        ? String(archetype.label).slice(0, 30)
+        : null,
+      level: Math.max(1, Math.floor(Number(level) || 1)),
+      accent: /^#[0-9a-f]{6}$/i.test(String(accent || '')) ? accent : '#d8b36a',
+      avatarUrl: typeof avatarUrl === 'string' && avatarUrl.startsWith('data:') ? avatarUrl : null,
+      pinnedBadges: Array.isArray(pinnedBadges)
+        ? pinnedBadges.slice(0, 5).map(b => ({
+            name: String((b && b.name) || '').slice(0, 40),
+            icon: String((b && b.icon) || '◆').slice(0, 4),
+          }))
+        : [],
+      xpLabel: `${Math.floor(Number(xpIntoLevel) || 0)} / ${Math.floor(Number(xpForNextLevel) || 1)} XP`,
+      progress01: Math.max(0, Math.min(1, Number(progress01) || 0)),
+    };
+  }
+
+  // ---- drawing primitives ----
+
+  function drawBackground(ctx, accent) {
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
+    // Radial accent wash from top
+    const grad = ctx.createRadialGradient(CARD_SIZE / 2, 180, 40, CARD_SIZE / 2, 180, 900);
+    grad.addColorStop(0, withAlpha(accent, BG_ACCENT_ALPHA));
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
+    // Thin accent border
+    ctx.strokeStyle = withAlpha(accent, 0.6);
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, CARD_SIZE - 40, CARD_SIZE - 40);
+  }
+
+  async function drawAvatar(ctx, url) {
+    const img = await loadImage(url);
+    const size = 240;
+    const cx = CARD_SIZE / 2;
+    const cy = 230;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+    ctx.restore();
+    // Ring
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  function drawAvatarFallback(ctx, name) {
+    const size = 240;
+    const cx = CARD_SIZE / 2;
+    const cy = 230;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = 'bold 100px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initialOf(name), cx, cy + 8);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  function drawIdentity(ctx, vm) {
+    const cx = CARD_SIZE / 2;
+    // Name
+    ctx.fillStyle = '#f0ebe0';
+    ctx.font = 'bold 56px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(truncate(vm.displayName, 24), cx, 400);
+    // Title
+    ctx.fillStyle = vm.accent;
+    ctx.font = 'italic 30px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`— ${truncate(vm.title, 30)} —`, cx, 476);
+    // Archetype pill (if present)
+    if (vm.archetype) {
+      const label = vm.archetype.toUpperCase();
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      const metrics = ctx.measureText(label);
+      const padX = 18, padY = 10;
+      const pillW = metrics.width + padX * 2;
+      const pillH = 36;
+      const pillX = cx - pillW / 2;
+      const pillY = 528;
+      roundRect(ctx, pillX, pillY, pillW, pillH, 18);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fill();
+      ctx.strokeStyle = vm.accent;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = vm.accent;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, cx, pillY + pillH / 2 + 1);
+    }
+  }
+
+  function drawLevelBar(ctx, vm) {
+    const cx = CARD_SIZE / 2;
+    const barY = 620;
+    const barW = 640, barH = 14;
+    const barX = cx - barW / 2;
+    // Level label
+    ctx.fillStyle = vm.accent;
+    ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`Lv ${vm.level}`, cx, 588);
+    // Bar bg
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    roundRect(ctx, barX, barY, barW, barH, barH / 2);
+    ctx.fill();
+    // Bar fill
+    if (vm.progress01 > 0) {
+      const fillW = Math.max(barH, barW * vm.progress01);
+      ctx.fillStyle = vm.accent;
+      roundRect(ctx, barX, barY, fillW, barH, barH / 2);
+      ctx.fill();
+    }
+    // XP label
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(vm.xpLabel, cx, barY + barH + 12);
+  }
+
+  function drawBadges(ctx, badges, accent) {
+    if (!badges.length) return;
+    const cx = CARD_SIZE / 2;
+    const y = 740;
+    const count = Math.min(5, badges.length);
+    const gap = 20;
+    const iconSize = 70;
+    const totalW = count * iconSize + (count - 1) * gap;
+    let x = cx - totalW / 2;
+    for (let i = 0; i < count; i++) {
+      const b = badges[i];
+      // Ring
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.arc(x + iconSize / 2, y + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = withAlpha(accent, 0.6);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Icon glyph
+      ctx.fillStyle = accent;
+      ctx.font = '38px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.icon || '◆', x + iconSize / 2, y + iconSize / 2 + 2);
+      x += iconSize + gap;
+    }
+  }
+
+  function drawFooter(ctx) {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '16px system-ui, -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Perchance AI Character Chat', CARD_SIZE / 2, CARD_SIZE - 60);
+  }
+
+  // ---- helpers ----
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = (e) => reject(e);
+      img.src = src;
+    });
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x,     y + h, rr);
+    ctx.arcTo(x,     y + h, x,     y,     rr);
+    ctx.arcTo(x,     y,     x + w, y,     rr);
+    ctx.closePath();
+  }
+
+  function withAlpha(hex, alpha) {
+    const m = /^#([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return `rgba(216,179,106,${alpha})`;
+    const r = parseInt(m[1].slice(0, 2), 16);
+    const g = parseInt(m[1].slice(2, 4), 16);
+    const b = parseInt(m[1].slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function truncate(s, max) {
+    const str = String(s || '');
+    return str.length > max ? str.slice(0, max - 1) + '…' : str;
+  }
+
+  function initialOf(name) {
+    const s = String(name || '').trim();
+    if (!s) return '?';
+    return s.charAt(0).toUpperCase();
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/share_dialog.js
+     ────────────────────────────────────────────────────────── */
+  // render/share_dialog.js
+  //
+  // Dialog shown when the user wants to share their profile card.
+  // Renders a PNG via share_card.renderShareCard, previews it, and
+  // offers Download / Copy / (if supported) native Share actions.
+  //
+  // Self-contained — accepts a view-model and an overlay-mounter;
+  // no direct dependency on full_page.js so it can be composed from
+  // elsewhere later (e.g., Milestones page, summary-notifications).
+
+
+
+
+
+  /**
+   * Open a share dialog on top of the current UI. Self-installs its
+   * own overlay (separate from the main profile overlay) so the user
+   * doesn't lose their place when they close the card.
+   *
+   * @param {object} vm    raw inputs; passed through toShareViewModel
+   *                       for whitelist filtering
+   */
+  async function openShareDialog(vm) {
+    const safeVm = toShareViewModel(vm || {});
+
+    const previewImg = h('img', {
+      class: 'pf-share-preview',
+      alt: 'Your profile card',
+    });
+    const status = h('div', { class: 'pf-share-status', 'aria-live': 'polite' });
+
+    let blob = null;
+    try {
+      blob = await renderShareCard(safeVm);
+    } catch (e) {
+      status.textContent = `Couldn't render the card: ${(e && e.message) || e}`;
+      status.className = 'pf-share-status pf-share-status-err';
+    }
+    if (blob) {
+      previewImg.src = URL.createObjectURL(blob);
+    }
+
+    const downloadBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-primary',
+      disabled: !blob,
+      onClick: () => {
+        if (!blob) return;
+        const filename = `${sanitizeFilename(safeVm.displayName)}-profile.png`;
+        const a = h('a', { href: URL.createObjectURL(blob), download: filename });
+        document.body.appendChild(a);
+        try { a.click(); } finally { a.remove(); }
+        flash(status, 'Saved.', 'ok');
+      },
+    }, ['Download PNG']);
+
+    const copyBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-secondary',
+      disabled: !blob || typeof ClipboardItem === 'undefined',
+      title: typeof ClipboardItem === 'undefined'
+        ? 'Clipboard image copy not supported in this browser'
+        : 'Copy card to clipboard',
+      onClick: async () => {
+        if (!blob) return;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ [blob.type]: blob }),
+          ]);
+          flash(status, 'Copied to clipboard.', 'ok');
+        } catch (e) {
+          flash(status, `Copy failed: ${(e && e.message) || 'browser blocked it'}`, 'err');
+        }
+      },
+    }, ['Copy image']);
+
+    // Web Share API — if available, many mobile browsers will route
+    // this to the native share sheet (Messages, mail, social apps).
+    // We only render the button when support is present so desktop
+    // users don't see a non-functional button.
+    let shareBtn = null;
+    const canShare =
+      typeof navigator !== 'undefined' &&
+      typeof navigator.canShare === 'function' &&
+      blob && navigator.canShare({
+        files: [new File([blob], 'profile.png', { type: blob.type })],
+      });
+    if (canShare) {
+      shareBtn = h('button', {
+        type: 'button',
+        class: 'pf-mem-btn pf-mem-btn-secondary',
+        onClick: async () => {
+          try {
+            const file = new File([blob], 'profile.png', { type: blob.type });
+            await navigator.share({
+              files: [file],
+              title: `${safeVm.displayName}'s profile`,
+              text: `Lv ${safeVm.level} · ${safeVm.title}`,
+            });
+          } catch (e) {
+            // User-canceled share is noisy on some platforms — swallow AbortError
+            if (e && e.name !== 'AbortError') {
+              flash(status, `Share failed: ${e.message || e}`, 'err');
+            }
+          }
+        },
+      }, ['Share…']);
+    }
+
+    const closeBtn = h('button', {
+      type: 'button',
+      class: 'pf-mem-btn pf-mem-btn-neutral',
+      onClick: () => overlay.hide(),
+    }, ['Close']);
+
+    const privacyNote = h('p', { class: 'pf-share-privacy' }, [
+      'Only your display name, avatar, earned title, level, archetype, ',
+      'and achievement badges appear on the card. Bio and personal ',
+      'details are never included.',
+    ]);
+
+    const overlay = createOverlay({
+      ariaLabel: 'Share your profile card',
+      children: [
+        h('div', { class: 'pf-share-body' }, [
+          h('h2', { class: 'pf-mem-title' }, ['Profile card']),
+          previewImg,
+          status,
+          privacyNote,
+          h('div', { class: 'pf-share-actions' },
+            [downloadBtn, copyBtn, shareBtn, closeBtn].filter(Boolean)
+          ),
+        ]),
+      ],
+    });
+    overlay.show();
+  }
+
+  // ---- helpers ----
+
+  function flash(el, text, kind) {
+    el.textContent = text;
+    el.className = `pf-share-status pf-share-status-${kind === 'err' ? 'err' : 'ok'}`;
+    setTimeout(() => {
+      if (el.textContent === text) {
+        el.textContent = '';
+        el.className = 'pf-share-status';
+      }
+    }, 2500);
+  }
+
+  function sanitizeFilename(name) {
+    return String(name || 'profile')
+      .replace(/[^\w\-]/g, '_')
+      .slice(0, 32) || 'profile';
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -26898,12 +28586,16 @@ Use this template for your response:
    */
 
   /**
-   * @param {{ onShareClick?: () => void }} [opts]
+   * @param {{
+   *   onShareClick?: () => void,     // existing: enter focus mode for screenshot
+   *   onCardClick?: () => void,      // new: open share card dialog
+   * }} [opts]
    */
-  function createSplash({ onShareClick } = {}) {
+  function createSplash({ onShareClick, onCardClick } = {}) {
     const avatar = h('div', { class: 'pf-splash-avatar', 'aria-hidden': 'true' });
     const nameEl = h('h1', { class: 'pf-splash-name' });
     const titleEl = h('div', { class: 'pf-splash-title' });
+    const archetypeEl = h('div', { class: 'pf-splash-archetype' });
     const levelChip = h('span', { class: 'pf-splash-level' });
     const xpBarFill = h('div', { class: 'pf-splash-xpbar-fill' });
     const xpLabel = h('span', { class: 'pf-splash-xp-label' });
@@ -26911,7 +28603,7 @@ Use this template for your response:
 
     // Small "view for screenshot" button, top-right corner of the splash.
     // Only rendered when onShareClick is supplied.
-    const shareBtn = typeof onShareClick === 'function'
+    const focusBtn = typeof onShareClick === 'function'
       ? h('button', {
           class: 'pf-splash-share',
           type: 'button',
@@ -26924,13 +28616,33 @@ Use this template for your response:
         ])
       : null;
 
+    // Share-card button, adjacent to the focus button. Opens the share
+    // dialog (render PNG, Download/Copy/Share actions). Distinct from
+    // focus mode: focus is for manual screenshots; the card is a
+    // canvas-rendered PNG that travels predictably regardless of
+    // browser zoom, scroll offset, etc.
+    const cardBtn = typeof onCardClick === 'function'
+      ? h('button', {
+          class: 'pf-splash-share pf-splash-card-btn',
+          type: 'button',
+          title: 'Download a shareable profile card',
+          'aria-label': 'Open the shareable profile card dialog',
+          onClick: (ev) => { ev.stopPropagation(); onCardClick(); },
+        }, [
+          // Picture-ish glyph
+          h('span', { 'aria-hidden': 'true' }, ['▤']),
+        ])
+      : null;
+
     const root = h('div', { class: 'pf-splash' }, [
-      shareBtn,
+      focusBtn,
+      cardBtn,
       h('div', { class: 'pf-splash-top' }, [
         avatar,
         h('div', { class: 'pf-splash-ident' }, [
           nameEl,
           titleEl,
+          archetypeEl,
         ]),
       ]),
       h('div', { class: 'pf-splash-levelrow' }, [
@@ -26957,6 +28669,16 @@ Use this template for your response:
 
       replaceContents(nameEl, [vm.displayName || 'Chronicler']);
       replaceContents(titleEl, [vm.title ? `— ${vm.title} —` : '— Newcomer —']);
+      // Archetype line — user's play-style classification. Subtle, under
+      // the title. Only rendered when we have one; the element stays
+      // empty otherwise to avoid reserving layout space.
+      if (vm.archetype && vm.archetype.label && vm.archetype.label !== 'Newcomer') {
+        replaceContents(archetypeEl, [
+          h('span', { class: 'pf-splash-archetype-tag' }, [vm.archetype.label]),
+        ]);
+      } else {
+        replaceContents(archetypeEl, []);
+      }
 
       replaceContents(levelChip, [
         h('span', { class: 'pf-splash-level-word' }, ['Lv']),
@@ -27861,9 +29583,27 @@ Use this template for your response:
      ────────────────────────────────────────────────────────── */
   // render/achievements_grid.js
   //
-  // Grid showing every achievement. Unlocked ones are tier-colored;
-  // locked ones are dimmed. Hovering / focusing shows name + description,
-  // plus the unlock date if the achievement has been earned.
+  // Achievement browser. Horizontal tab strip across the top (Summary,
+  // Writing, Stories, Prompts, Consistency, Curation, Preservation,
+  // Creation, Events) lets the user drill into one category at a time
+  // instead of scrolling through all 58 cards at once.
+  //
+  // Summary tab shows progress bars per category — quick overview of
+  // where the user has unlocks and where they don't.
+  //
+  // Category tabs show the achievements in that category as cards,
+  // tier families appearing together in registry order so progression
+  // is readable (Curator Bronze → Silver → Gold, side by side).
+  //
+  // Locked achievements are still visible (dimmed). This is
+  // deliberate — locked entries serve as discovery hints, showing the
+  // user what they could work toward. Hide-locked-by-default was
+  // considered and rejected because it would make the grid feel empty
+  // for new users.
+  //
+  // Visual style stays aligned with the rest of the profile — we'll
+  // reskin later during the theme overhaul. Today's goal is structure.
+
 
 
 
@@ -27877,10 +29617,6 @@ Use this template for your response:
   };
 
 
-  /**
-   * Format an ISO timestamp as a short relative string. Null/missing
-   * input returns empty string so callers can conditionally prepend.
-   */
   function formatUnlockDate(iso) {
     if (!iso) return '';
     const ts = Date.parse(iso);
@@ -27899,16 +29635,11 @@ Use this template for your response:
     return `${Math.floor(diffMon / 12)}y ago`;
   }
 
-  /**
-   * Absolute-date form for the tooltip. Keeps the card text short but
-   * lets hover reveal the exact date for users who want it.
-   */
   function formatUnlockDateAbsolute(iso) {
     if (!iso) return '';
     const ts = Date.parse(iso);
     if (!Number.isFinite(ts)) return '';
     const d = new Date(ts);
-    // ISO-like, local: 2026-04-18
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -27918,60 +29649,212 @@ Use this template for your response:
   /**
    * @param {{ unlockedIds: string[], unlockDates?: Object<string, string> }} opts
    */
-  function createAchievementsGrid({ unlockedIds, unlockDates }) {
+  function createAchievementsGrid({ unlockedIds, unlockDates } = {}) {
     const unlocked = new Set(unlockedIds || []);
     const dates = (unlockDates && typeof unlockDates === 'object') ? unlockDates : {};
+    const byCat = groupByCategory(ACHIEVEMENTS);
+    const progress = computeCategoryProgress(ACHIEVEMENTS, unlocked);
 
-    const cards = ACHIEVEMENTS.map(a => {
-      const isUnlocked = unlocked.has(a.id);
-      const icon = TIER_ICON[a.tier] || '◆';
-      const unlockIso = dates[a.id];
-      const relative = isUnlocked ? formatUnlockDate(unlockIso) : '';
-      const absolute = isUnlocked ? formatUnlockDateAbsolute(unlockIso) : '';
+    // Mounted panes — kept in DOM and toggled via hidden. Cheaper than
+    // re-creating on tab switch, and preserves scroll position within
+    // a category if the user jumps away and back.
+    const summaryPane = createSummaryPane(progress, unlocked, dates);
+    const categoryPanes = {};
+    for (const cat of CATEGORIES) {
+      categoryPanes[cat.id] = createCategoryPane(cat, byCat[cat.id] || [], unlocked, dates);
+    }
+    if ((byCat.other || []).length > 0) {
+      categoryPanes.other = createCategoryPane(
+        { id: 'other', label: 'Other', icon: '?', description: 'Uncategorized achievements.' },
+        byCat.other,
+        unlocked,
+        dates
+      );
+    }
 
-      const titleParts = [`${a.name} — ${a.description}`];
-      if (isUnlocked && absolute) titleParts.push(`Unlocked: ${absolute}`);
-      const ariaParts = [`${a.name}. ${a.description}.`];
-      if (isUnlocked) {
-        ariaParts.push(absolute ? `Unlocked ${absolute}.` : 'Unlocked.');
-      } else {
-        ariaParts.push('Locked.');
-      }
+    const panes = [summaryPane, ...Object.values(categoryPanes)];
+    for (const p of panes) p.hidden = p !== summaryPane;
 
-      const cardChildren = [
-        h('div', { class: 'pf-ach-icon', 'aria-hidden': 'true' }, [icon]),
-        h('div', { class: 'pf-ach-name' }, [a.name]),
-        h('div', { class: 'pf-ach-tier' }, [a.tier]),
-      ];
-      // Only show the unlock-date row for achievements that have one.
-      // Keeps locked cards visually cleaner and avoids a stale "—" for
-      // achievements unlocked before unlockDates tracking shipped.
-      if (isUnlocked && relative) {
-        cardChildren.push(h('div', { class: 'pf-ach-unlock-date' }, [relative]));
-      }
-
-      return h('div', {
-        class: [
-          'pf-ach-card',
-          `pf-ach-tier-${a.tier}`,
-          isUnlocked ? 'pf-ach-unlocked' : 'pf-ach-locked',
-        ].join(' '),
-        title: titleParts.join(' · '),
-        tabindex: '0',
-        'aria-label': ariaParts.join(' '),
-      }, cardChildren);
+    // Tab strip
+    const tabs = [];
+    const summaryTab = createTabButton({
+      id: 'summary',
+      label: 'Summary',
+      icon: '★',
+      badge: `${unlocked.size}/${ACHIEVEMENTS.length}`,
+      active: true,
+      onClick: () => activate('summary'),
     });
+    tabs.push(summaryTab);
 
-    // Small summary at the top of the grid
-    const total = ACHIEVEMENTS.length;
-    const unlockedCount = cards.filter((_, i) => unlocked.has(ACHIEVEMENTS[i].id)).length;
+    for (const row of progress) {
+      if (row.category.id === 'other' && row.total === 0) continue;
+      const tab = createTabButton({
+        id: row.category.id,
+        label: row.category.label,
+        icon: row.category.icon,
+        badge: `${row.unlocked}/${row.total}`,
+        active: false,
+        onClick: () => activate(row.category.id),
+      });
+      tabs.push(tab);
+    }
 
-    return h('div', { class: 'pf-ach-wrap' }, [
-      h('div', { class: 'pf-ach-summary' }, [
-        `${unlockedCount} of ${total} unlocked`,
-      ]),
-      h('div', { class: 'pf-ach-grid' }, cards),
+    const tabBar = h('div', { class: 'pf-ach-tabs', role: 'tablist' }, tabs);
+    const paneWrap = h('div', { class: 'pf-ach-panes' }, panes);
+
+    function activate(id) {
+      for (const t of tabs) {
+        const match = t.dataset.tabId === id;
+        t.classList.toggle('pf-ach-tab-active', match);
+        t.setAttribute('aria-selected', match ? 'true' : 'false');
+      }
+      for (const p of panes) p.hidden = p.dataset.paneId !== id;
+    }
+
+    return h('div', { class: 'pf-ach-browser' }, [tabBar, paneWrap]);
+  }
+
+  // ---- tab button ----
+
+  function createTabButton({ id, label, icon, badge, active, onClick }) {
+    const btn = h('button', {
+      type: 'button',
+      role: 'tab',
+      class: 'pf-ach-tab' + (active ? ' pf-ach-tab-active' : ''),
+      'aria-selected': active ? 'true' : 'false',
+      onClick,
+    }, [
+      h('span', { class: 'pf-ach-tab-icon', 'aria-hidden': 'true' }, [icon]),
+      h('span', { class: 'pf-ach-tab-label' }, [label]),
+      h('span', { class: 'pf-ach-tab-badge' }, [badge]),
     ]);
+    btn.dataset.tabId = id;
+    return btn;
+  }
+
+  // ---- Summary pane ----
+
+  function createSummaryPane(progress, unlocked, dates) {
+    const totalUnlocked = [...unlocked].filter(id =>
+      ACHIEVEMENTS.some(a => a.id === id)
+    ).length;
+    const pct = ACHIEVEMENTS.length > 0
+      ? Math.round((totalUnlocked / ACHIEVEMENTS.length) * 100)
+      : 0;
+
+    const rows = progress
+      .filter(r => r.total > 0)
+      .map(r => {
+        const p = r.total > 0 ? Math.round((r.unlocked / r.total) * 100) : 0;
+        return h('div', { class: 'pf-ach-prog-row' }, [
+          h('span', { class: 'pf-ach-prog-icon', 'aria-hidden': 'true' }, [r.category.icon]),
+          h('span', { class: 'pf-ach-prog-label' }, [r.category.label]),
+          h('div', { class: 'pf-ach-prog-bar' }, [
+            h('div', { class: 'pf-ach-prog-bar-fill', style: `width: ${p}%;` }),
+          ]),
+          h('span', { class: 'pf-ach-prog-pct' }, [`${r.unlocked}/${r.total}`]),
+        ]);
+      });
+
+    // Recent unlocks — last 6 with dates, newest first
+    const withDates = ACHIEVEMENTS
+      .filter(a => unlocked.has(a.id) && dates[a.id])
+      .map(a => ({ a, ts: Date.parse(dates[a.id]) || 0 }))
+      .filter(x => x.ts > 0)
+      .sort((x, y) => y.ts - x.ts)
+      .slice(0, 6);
+
+    const recentChildren = withDates.length > 0
+      ? [
+          h('h3', { class: 'pf-ach-sec-title' }, ['Recent unlocks']),
+          h('div', { class: 'pf-ach-recent' },
+            withDates.map(({ a }) => createCard(a, unlocked, dates))
+          ),
+        ]
+      : [];
+
+    const pane = h('div', { class: 'pf-ach-pane pf-ach-pane-summary' }, [
+      h('div', { class: 'pf-ach-summary-overall' }, [
+        h('div', { class: 'pf-ach-summary-head' }, [
+          h('span', { class: 'pf-ach-summary-label' }, ['Achievements earned']),
+          h('span', { class: 'pf-ach-summary-count' }, [`${totalUnlocked} of ${ACHIEVEMENTS.length}`]),
+        ]),
+        h('div', { class: 'pf-ach-prog-bar pf-ach-prog-bar-lg' }, [
+          h('div', { class: 'pf-ach-prog-bar-fill', style: `width: ${pct}%;` }),
+        ]),
+      ]),
+      h('div', { class: 'pf-ach-prog-list' }, rows),
+      ...recentChildren,
+    ]);
+    pane.dataset.paneId = 'summary';
+    return pane;
+  }
+
+  // ---- Category pane ----
+
+  function createCategoryPane(cat, items, unlocked, dates) {
+    const unlockedN = items.reduce((n, a) => (unlocked.has(a.id) ? n + 1 : n), 0);
+    const pct = items.length > 0 ? Math.round((unlockedN / items.length) * 100) : 0;
+
+    const headChildren = [
+      h('div', { class: 'pf-ach-pane-head-main' }, [
+        h('span', { class: 'pf-ach-pane-icon', 'aria-hidden': 'true' }, [cat.icon || '◆']),
+        h('span', { class: 'pf-ach-pane-title' }, [cat.label]),
+        h('span', { class: 'pf-ach-pane-count' }, [`${unlockedN}/${items.length}`]),
+      ]),
+    ];
+    if (cat.description) {
+      headChildren.push(h('p', { class: 'pf-ach-pane-desc' }, [cat.description]));
+    }
+    headChildren.push(h('div', { class: 'pf-ach-prog-bar' }, [
+      h('div', { class: 'pf-ach-prog-bar-fill', style: `width: ${pct}%;` }),
+    ]));
+
+    const children = [
+      h('div', { class: 'pf-ach-pane-head' }, headChildren),
+      items.length > 0
+        ? h('div', { class: 'pf-ach-grid' }, items.map(a => createCard(a, unlocked, dates)))
+        : h('p', { class: 'pf-ach-pane-empty' }, ['No achievements in this category yet.']),
+    ];
+
+    const pane = h('div', { class: 'pf-ach-pane' }, children);
+    pane.dataset.paneId = cat.id;
+    return pane;
+  }
+
+  // ---- card ----
+
+  function createCard(a, unlocked, dates) {
+    const isUnlocked = unlocked.has(a.id);
+    const icon = TIER_ICON[a.tier] || '◆';
+    const unlockIso = dates[a.id];
+    const relative = isUnlocked ? formatUnlockDate(unlockIso) : '';
+    const absolute = isUnlocked ? formatUnlockDateAbsolute(unlockIso) : '';
+
+    const titleParts = [`${a.name} — ${a.description}`];
+    if (isUnlocked && absolute) titleParts.push(`Unlocked: ${absolute}`);
+
+    const children = [
+      h('div', { class: 'pf-ach-icon', 'aria-hidden': 'true' }, [icon]),
+      h('div', { class: 'pf-ach-name' }, [a.name]),
+      h('div', { class: 'pf-ach-desc' }, [a.description]),
+      h('div', { class: 'pf-ach-tier' }, [a.tier]),
+    ];
+    if (isUnlocked && relative) {
+      children.push(h('div', { class: 'pf-ach-unlock-date' }, [relative]));
+    }
+
+    return h('div', {
+      class: [
+        'pf-ach-card',
+        `pf-ach-tier-${a.tier}`,
+        isUnlocked ? 'pf-ach-unlocked' : 'pf-ach-locked',
+      ].join(' '),
+      title: titleParts.join(' · '),
+      tabindex: '0',
+      'aria-label': `${a.name}. ${a.description}. ${isUnlocked ? (absolute ? `Unlocked ${absolute}.` : 'Unlocked.') : 'Locked.'}`,
+    }, children);
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -28124,6 +30007,140 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: render/sparkline.js
+     ────────────────────────────────────────────────────────── */
+  // render/sparkline.js
+  //
+  // Tiny inline SVG sparkline. Designed for chips in the Activity
+  // section — 30 data points squeezed into a small horizontal strip
+  // under each counter's label.
+  //
+  // Renders as a single <polyline> for the line + a filled <polygon>
+  // for the area under the line. Scales y to the series max so even
+  // small-value counters show relative shape, not a flat zero.
+  //
+  // If every value is zero (or the series is empty), returns a minimal
+  // empty SVG rather than null, so callers can unconditionally append
+  // it without a layout shift.
+
+
+
+  const DEFAULT_W = 80;
+  const DEFAULT_H = 20;
+  const PAD_Y = 2;
+
+  /**
+   * Pure helper — turn a series into an array of [x, y] points. Exported
+   * for tests; consumers that just want a rendered SVG should use
+   * createSparkline.
+   *
+   * Returns { points, max, lastIdx }. `points` is empty for empty/null
+   * input; `max === 0` indicates the "flat-line" rendering case.
+   */
+  function computeSparklinePoints(series, width = DEFAULT_W, height = DEFAULT_H) {
+    if (!Array.isArray(series) || series.length === 0) {
+      return { points: [], max: 0, lastIdx: -1 };
+    }
+    const max = series.reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+    const stepX = series.length > 1 ? width / (series.length - 1) : 0;
+    const usableH = height - PAD_Y * 2;
+    const points = series.map((v, i) => {
+      const x = i * stepX;
+      const y = max > 0
+        ? height - PAD_Y - ((Number(v) || 0) / max) * usableH
+        : height - PAD_Y;
+      return [x, y];
+    });
+    return { points, max, lastIdx: series.length - 1 };
+  }
+
+  /**
+   * Build a sparkline SVG element.
+   *
+   * @param {number[]} series - data points, oldest-first. Length drives
+   *                            the horizontal resolution.
+   * @param {{ width?: number, height?: number, color?: string,
+   *           fill?: string, label?: string }} [opts]
+   * @returns {SVGElement}
+   */
+  function createSparkline(series, {
+    width = DEFAULT_W,
+    height = DEFAULT_H,
+    color = 'currentColor',
+    fill,
+    label,
+  } = {}) {
+    const attrs = {
+      class: 'pf-sparkline',
+      viewBox: `0 0 ${width} ${height}`,
+      width: String(width),
+      height: String(height),
+      'aria-hidden': label ? 'false' : 'true',
+    };
+    if (label) attrs['aria-label'] = label;
+
+    if (!Array.isArray(series) || series.length === 0) {
+      return hSVG('svg', attrs, []);
+    }
+
+    const { points, max } = computeSparklinePoints(series, width, height);
+    // No data yet — draw a flat line along the bottom so the element
+    // still has a visible shape without pretending there's activity.
+    if (max === 0) {
+      return hSVG('svg', attrs, [
+        hSVG('line', {
+          x1: '0',
+          y1: String(height - PAD_Y),
+          x2: String(width),
+          y2: String(height - PAD_Y),
+          stroke: color,
+          'stroke-opacity': '0.25',
+          'stroke-width': '1',
+        }),
+      ]);
+    }
+
+    // Area fill under the line. Optional — if no fill color is passed,
+    // we derive a translucent version of the stroke color.
+    const areaFill = fill || 'currentColor';
+    const areaPoints = [
+      [0, height],
+      ...points,
+      [points[points.length - 1][0], height],
+    ];
+    const children = [
+      hSVG('polygon', {
+        points: areaPoints.map(p => p.join(',')).join(' '),
+        fill: areaFill,
+        'fill-opacity': '0.18',
+      }),
+      hSVG('polyline', {
+        points: points.map(p => p.join(',')).join(' '),
+        fill: 'none',
+        stroke: color,
+        'stroke-width': '1.25',
+        'stroke-linejoin': 'round',
+        'stroke-linecap': 'round',
+      }),
+    ];
+
+    // Highlight today's point (the last one) as a small dot. Gives a
+    // "you're here" anchor and also pulls focus to present activity.
+    const lastValue = Number(series[series.length - 1]) || 0;
+    if (lastValue > 0) {
+      const [lx, ly] = points[points.length - 1];
+      children.push(hSVG('circle', {
+        cx: String(lx),
+        cy: String(ly),
+        r: '1.8',
+        fill: color,
+      }));
+    }
+
+    return hSVG('svg', attrs, children);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/activity_sparkline.js
      ────────────────────────────────────────────────────────── */
   // render/activity_sparkline.js
@@ -28251,6 +30268,8 @@ Use this template for your response:
   // about their own use, and (b) makes the data visible before it's
   // used for unlocks, so there's no "wait, where did that come from?"
   // moment later.
+
+
 
 
 
@@ -28385,12 +30404,27 @@ Use this template for your response:
     for (const spec of CHIPS) {
       const raw = Number(c[spec.key]) || 0;
       if (spec.hideIfZero && raw === 0) continue;
+
+      // 30-day sparkline under the label. Values beyond the window are
+      // not reflected — this is "recent activity shape", not "lifetime
+      // shape". A flat zero bar renders if the user hasn't done this
+      // action in the last 30 days.
+      const series = getCounterSeriesByDay(spec.key, 30);
+      const spark = createSparkline(series, {
+        width: 80,
+        height: 16,
+        color: 'currentColor',
+        fill: 'currentColor',
+        label: `${spec.label} — last 30 days`,
+      });
+
       chipNodes.push(h('div', {
         class: 'pf-activity-chip',
         title: spec.hint || '',
       }, [
         h('div', { class: 'pf-activity-chip-count' }, [formatCount(raw)]),
         h('div', { class: 'pf-activity-chip-label' }, [spec.label]),
+        h('div', { class: 'pf-activity-chip-spark' }, [spark]),
       ]));
     }
 
@@ -28991,6 +31025,8 @@ Use this template for your response:
 
 
 
+
+
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
    * on the splash. Highest tier first; within a tier, registry order.
@@ -29026,6 +31062,19 @@ Use this template for your response:
   }
 
   /**
+   * Build a DOM node for a weekly-summary toast. Single line above a
+   * "📅 THIS WEEK" eyebrow, matching the personal-best visual pattern.
+   *
+   * @param {{ line: string, deltas: Array }} summary
+   */
+  function buildSummaryMessage(summary) {
+    return h('div', { class: 'pf-toast-pb' }, [
+      h('div', { class: 'pf-toast-pb-eyebrow pf-toast-pb-eyebrow-info' }, ['📅 WEEKLY RECAP']),
+      h('div', { class: 'pf-toast-pb-line' }, [summary.line]),
+    ]);
+  }
+
+  /**
    * Derive a title string. Delegates to the flair module, which
    * honors the user's flair.title pick before falling back to
    * titleOverride and then auto-rarest.
@@ -29051,6 +31100,13 @@ Use this template for your response:
     // Idempotent within a day — repeated opens don't inflate.
     try { recordActivityForStreak(); } catch { /* non-fatal */ }
 
+    // Declare `overlay` as `let` initialized to null up-front so
+    // refreshSplashFromSettings() — which is called synchronously
+    // during init, before createOverlay has returned — can safely
+    // test `if (overlay) ...` without a temporal-dead-zone violation.
+    // Assigned exactly once further down when createOverlay runs.
+    let overlay = null;
+
     try {
       const data = await readAllStores();
       // Merge IDB-derived stats with settings-derived prompt stats so
@@ -29068,6 +31124,12 @@ Use this template for your response:
     // Same story for streaks — achievement criteria that gate on
     // consecutive-day activity read stats.streaks.current.
     try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
+    // Celebrant achievement criteria read stats.eventsResponded —
+    // distinct events the user has completed at least one prompt for.
+    try {
+      const { countEventsResponded } = await import('../events/participation.js');
+      stats.eventsResponded = countEventsResponded();
+    } catch { stats.eventsResponded = 0; }
     try {
       unlockedIds = computeUnlockedIds(stats);
     } catch {
@@ -29113,6 +31175,24 @@ Use this template for your response:
       }
     } catch { /* non-fatal */ }
 
+    // Weekly activity summary. If a week has passed since the last
+    // snapshot AND the user has non-zero activity deltas, fire a
+    // single summary toast listing the top 3. Quiet weeks are
+    // silent; busy weeks show a celebratory recap. Opens the same
+    // toast lane so it stacks with personal-best toasts cleanly
+    // when both fire in the same session.
+    try {
+      const counters = (() => { try { return getCounters(); } catch { return {}; } })();
+      const summary = checkSummary(counters);
+      if (summary && summary.kind === 'summary') {
+        // Deferred slightly longer than personal bests so they stack
+        // in a logical order (wins first, then summary).
+        setTimeout(() => {
+          showToast(buildSummaryMessage(summary), { kind: 'info', ms: 7000 });
+        }, 1400);
+      }
+    } catch { /* non-fatal */ }
+
     const activeEvents = getActiveEvents();
     try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
@@ -29147,6 +31227,54 @@ Use this template for your response:
           bumpCounter('focusModeToggles');
         }
       },
+      onCardClick: () => {
+        // Dynamic import so the share machinery loads only when the
+        // user asks for it — keeps the cold-start cost of the profile
+        // overlay down for the common case where nobody shares.
+        import('../render/share_dialog.js').then((mod) => {
+          // Derive the latest-display view-model from freshest settings +
+          // stats — the card should reflect the user's current state
+          // (flair pick, archetype, accent), not the init-time snapshot.
+          let freshSettings = settings;
+          try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+          let freshUnlocked = unlockedIds;
+          try {
+            const archeStats = {
+              ...stats,
+              counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+              streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+            };
+            freshUnlocked = computeUnlockedIds(archeStats);
+          } catch { /* fall back */ }
+          const freshArchetype = (() => {
+            try {
+              const archeStats = {
+                ...stats,
+                counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+                streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+              };
+              return getPrimaryArchetype(archeStats);
+            } catch { return null; }
+          })();
+          const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+          const p = (freshSettings && freshSettings.profile) || {};
+          mod.openShareDialog({
+            displayName: p.displayName || p.username || 'Chronicler',
+            title: deriveTitle(freshUnlocked, freshSettings),
+            archetype: freshArchetype,
+            level: lvl.level,
+            accent: accent.color,
+            avatarUrl: p.avatarUrl || null,
+            pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
+            xpIntoLevel: lvl.xpIntoLevel,
+            xpForNextLevel: lvl.xpForNextLevel,
+            progress01: lvl.progress01,
+          });
+          try { bumpCounter('shareCardOpens'); } catch { /* non-fatal */ }
+        }).catch(e => {
+          console.warn('[pf] share dialog failed to load:', e && e.message);
+        });
+      },
     });
 
     function refreshSplashFromSettings() {
@@ -29165,10 +31293,24 @@ Use this template for your response:
         freshUnlocked = computeUnlockedIds(freshStats);
       } catch { /* fall back to initial unlock list */ }
 
+      // Re-derive archetype on every refresh so a threshold crossing
+      // (e.g., just completed the streak that pushes them into Daily)
+      // reflects live in the splash.
+      let freshArchetype = null;
+      try {
+        const archeStats = {
+          ...stats,
+          counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+          streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+        };
+        freshArchetype = getPrimaryArchetype(archeStats);
+      } catch { /* non-fatal */ }
+
       splash.update({
         displayName: p.displayName || p.username || 'Chronicler',
         avatarUrl: p.avatarUrl || null,
         title: deriveTitle(freshUnlocked, freshSettings),
+        archetype: freshArchetype,
         level: lvl.level,
         xpIntoLevel: lvl.xpIntoLevel,
         xpForNextLevel: lvl.xpForNextLevel,
@@ -29178,10 +31320,12 @@ Use this template for your response:
 
       // Re-apply the user's accent — they may have just picked a new
       // one in the Details form. resolveActiveAccent falls back to
-      // amber if the picked id isn't currently unlocked. Guard against
-      // the first-pass call (before the overlay variable is set) —
-      // applyAccent() down below handles that initial case.
-      if (typeof overlay !== 'undefined' && overlay && overlay.style) {
+      // amber if the picked id isn't currently unlocked. overlay is
+      // declared up-front as `let overlay = null`, so a truthiness
+      // check is safe on the first synchronous call (before
+      // createOverlay returns) — we just skip. applyAccent() below
+      // handles the initial paint.
+      if (overlay && overlay.style) {
         try {
           const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
           overlay.style.setProperty('--pf-accent', accent.color);
@@ -29330,7 +31474,12 @@ Use this template for your response:
     });
 
     // ---- overlay ----
-    const overlay = createOverlay({
+    //
+    // `overlay` was declared `let overlay = null` at the top of
+    // openFullPage() so refreshSplashFromSettings(), which fires
+    // synchronously during init, can safely test `if (overlay)`
+    // without a TDZ violation. Assign exactly once, here.
+    overlay = createOverlay({
       ariaLabel: 'Your profile',
       onClose: () => { try { unsubscribe(); } catch {} },
       children: [
@@ -29446,6 +31595,12 @@ Use this template for your response:
       // the "activity" signal to explicit user actions (profile open,
       // memory tool open) that already handle it.
       try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
+      // Celebrant achievement criteria read stats.eventsResponded —
+      // distinct events the user has completed at least one prompt for.
+      try {
+        const { countEventsResponded } = await import('../events/participation.js');
+        stats.eventsResponded = countEventsResponded();
+      } catch { stats.eventsResponded = 0; }
       const unlockedIds = computeUnlockedIds(stats);
 
       // First deploy: treat current unlocks as "already seen" so this commit

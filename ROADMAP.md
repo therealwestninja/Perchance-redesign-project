@@ -180,25 +180,51 @@ plumbing-pass required.
 - Round-trip through backup/export/import works for free (counters
   live in settings)
 - 10 unit tests for counters module
+- **30-day sparklines for counters** (NEW): per-day histogram
+  (`settings.countersByDay`) stored alongside lifetime counters.
+  `bumpCounter` now writes to today's UTC day-bucket in addition
+  to the lifetime total, and prunes entries older than 60 days
+  on every write AND read. New `getCounterSeriesByDay(name,
+  days)` returns a contiguous array (oldest-first, today at
+  index N-1). Each Activity chip now renders a small inline-SVG
+  sparkline (80×16 px, area fill + polyline + "you're here" dot
+  at today) under its label, tinted with the user's
+  `--pf-accent` color. Reusable `src/render/sparkline.js` module
+  with extracted pure `computeSparklinePoints` helper for test
+  coverage without DOM. Includes graceful no-data flat-line and
+  zero-max handling. 19 unit tests covering UTC day-key
+  formatting, read/write pruning, bump-writes-to-today, series
+  positioning of historical bumps, missing-key returns all zeros,
+  reset-clears-histogram, empty/null series safety, y-inversion
+  (SVG convention), width-span normalization, and non-numeric
+  value coercion.
 
 ### Still open
-- **30-day sparklines for counters.** Counters are lifetime totals
-  today; a sparkline showing the last 30 days would feel more
-  dynamic and give users a "I used this a lot this week" signal.
-  Would require adding a daily-bucket histogram alongside lifetime
-  counters (`countersByDay: { '2026-04-18': { memorySaves: 3 } }`).
-  Plus UI to render it. ~150 lines.
 - **Weekly prompts completed BY CATEGORY tracking.** Currently we
   track completedByWeek as a flat list. A category breakdown
   (writing prompt vs roleplay prompt vs worldbuilding, etc.) would
   let us surface "your preferred prompt type" and tier achievements
   on variety. ~100 lines.
-- **Holiday event participations.** We track seenEventIds but not
-  any engagement signal beyond viewing. Could add "acknowledged",
-  "responded", "added to chronicle" states. ~80 lines.
 - **Per-thread counter breakdowns.** Today counters are global;
   breaking them down per-thread could surface "your Davie thread
   has the most memory edits" kind of insights. ~200 lines.
+
+### Shipped (continued)
+- **Holiday event participation states** (NEW): richer engagement
+  tracking beyond the existing seenEventIds "saw the badge" signal.
+  Three states per event, strictly monotonic: `seen` (user shown
+  the announcement), `responded` (user completed at least one of
+  the event's prompts), `chronicled` (reserved for future chronicle
+  hook; no UI yet). Storage at
+  `settings.notifications.eventParticipation[eventId]`. Wired via
+  dynamic imports from setCompleted (prompts/completion.js) and
+  markEventsSeen (notifications.js) so the events/* modules stay
+  outside the main completion/notifications load path. New tiered
+  "Celebrant" achievement reads `stats.eventsResponded` — bronze
+  at 1 distinct event, silver at 5, gold at 15. Criteria read
+  `countEventsResponded()` injected at all unlock-compute sites.
+  23 unit tests covering monotonicity, idempotency, findEventForPrompt
+  correctness, storage-safety, and the three Celebrant tiers.
 
 These remaining items are all additive and can be tackled
 independently. None are blockers for the gamification roadmap
@@ -207,9 +233,9 @@ item — the core counter data is there now.
 
 ---
 
-## Achievement levels + profile gamification
+## Achievement levels + profile gamification — SHIPPED
 
-**Status: PARTIAL. Tiered counter-backed achievements shipped.**
+**Status: complete. All 8 items from the gamification arc shipped.**
 
 ### Shipped
 - Tiered counter-backed achievements: bronze/silver/gold for 9
@@ -253,29 +279,85 @@ item — the core counter data is there now.
   module (`render/toast.js`) with info/ok/warn/celebrate variants
   and stacking — available for future summary notifications.
   11 unit tests.
+- **User archetypes** (NEW): play-style classification across 5
+  types — Storyteller, Roleplayer, Daily User, Regular, Casual.
+  Each archetype scores in [0, 1] from a WEIGHTED combination of
+  signals: Storyteller = long words-per-message + memory saves +
+  bubble renames + continuity; Roleplayer = characters + moderate
+  wpm + threads + characters-spawned; Daily User = current streak
+  + longest streak + tool opens + days active; Regular = bell-
+  curve moderate-everything; Casual = negative-fit, high when
+  heavy-use signals are LOW. Primary archetype picks the top
+  scorer (or "Newcomer" if all below 0.15). Shown as a small
+  pill under the splash title, styled in the user's accent color.
+  Live-updates on settings change so threshold crossings reflect
+  without reopening the profile. 18 unit tests covering each
+  archetype's winning profile, edge cases (null/negative/extreme
+  inputs), purity, and Newcomer fallback.
+- **Shareable profile cards** (NEW): canvas-rendered 1080×1080
+  PNG with display name, avatar, earned title, level + XP bar,
+  archetype pill, up to 5 pinned badges. Rendered client-side
+  entirely — nothing leaves the browser. Delivery: Download PNG
+  (always), Copy image (if ClipboardItem supported), Share… (if
+  Web Share API with files supports it). Privacy: strict whitelist
+  in `toShareViewModel` — bio, username, age range, custom gender
+  text, and raw counter values are NEVER included; avatar must
+  be a data: URL (rejects external fetches); accent must be valid
+  hex. Button appears as a second icon ▤ on the splash next to
+  the existing ◉ focus-mode icon. Share dialog is code-split
+  (dynamic import) so the share machinery only loads when asked
+  for. 11 unit tests on the privacy whitelist (each private field
+  verified absent; length clamping; avatar URL validation; Newcomer
+  archetype filtered from card).
+- **Summary notifications** (NEW): weekly "what you did" recap
+  toast. On profile open, if a week has passed since the last
+  snapshot AND the user has non-zero counter deltas, surfaces a
+  single info-colored toast with the top 3 activities, e.g.
+  "This week: 5 memory saves, 12 bubble renames, and 2 new
+  characters." Pull-based — no background timers; snapshot lives
+  in settings and is compared lazily at profile open. Cadence
+  protection: snapshot advances on every 7+-day check so a user
+  who returns every 10 days doesn't accumulate multi-week deltas.
+  Silent on quiet weeks (no deltas) and under-7-days re-opens.
+  Opt-out via `settings.summaryNotifications.enabled = false`
+  (no UI toggle yet — out of scope for this commit; can be added
+  later via the details form). Uses the existing toast module
+  (from bfb3a64), visually distinguished from personal-best
+  toasts via a blue eyebrow. 18 unit tests covering delta
+  computation, top-N picking, sentence composition (1/2/3 items
+  with Oxford commas), cadence edge cases, and opt-out.
+- **Celebrant tier family** (NEW, from holiday-events work):
+  3-tier achievement reading `stats.eventsResponded` (distinct
+  events the user has completed at least one prompt for).
+  Bronze at 1 event, silver at 5, gold at 15.
+- **Categorized achievement browser** (NEW, UX refactor):
+  `src/achievements/categories.js` sorts all shipped achievements
+  into 8 categories (Writing, Stories, Prompts, Consistency,
+  Curation, Preservation, Creation, Events). Grid replaced with
+  a horizontal tab strip + pane system. Default Summary tab shows
+  overall progress bar, per-category progress bars, and the last
+  6 unlocked with dates. Category tabs show that category's
+  cards in registry order so tier families read naturally
+  (Bronze → Silver → Gold side by side). Panes pre-mount + toggle
+  `hidden` for scroll-position preservation. 12 tests verify
+  every shipped achievement sorts into a real category (guards
+  against registry drift when new achievements are added without
+  a matching categories rule). Style aligned with current
+  profile look; deeper reskin deferred to the theme-overhaul
+  phase.
+
+### Gamification arc: complete
+All user-requested gamification items from this arc are shipped:
+tiered counter achievements, achievement unlock dates, streak
+tracking, profile flair unlocks, personal-best notifications,
+user archetype classification, shareable profile cards, weekly
+summary notifications. Plus the Celebrant tier family (tied to
+holiday-events participation tracking) and a UX refactor that
+categorizes all 61 shipped achievements into a tabbed browser
+so the grid stays browsable as new tiers are added.
 
 ### Remaining
-- **User archetypes** — the "Casual / Twice-weekly / Daily / RP /
-  Storyteller" classification that the user asked for. Unlike
-  tiered counter achievements (which reward doing a lot of ONE
-  thing), archetypes reward patterns across MANY signals:
-  - Casual: profile opened ~weekly, small counter totals
-  - Twice-weekly: steadier cadence, moderate counters
-  - Daily: high cadence, high counters
-  - RP: character creation, long threads, in-character writing
-    style indicators
-  - Storyteller: long-form writing, multi-session continuity,
-    snapshot restoration pattern, rename activity
-  Each archetype = achievement that unlocks when a WEIGHTED
-  combination of signals crosses a threshold. ~200 lines.
-- **Shareable profile cards** — opt-in canvas-rendered image or
-  share-link with user's stats. Opens share sheet / copy-to-
-  clipboard. Privacy-sensitive; must exclude any identifying
-  details by default. ~200 lines.
-- **Summary notifications** — opt-in weekly/monthly summary toast
-  or mini-card pulse ("this week: 3 memory saves, 12 bubble
-  renames"). Needs a scheduler + a summary composer. ~150 lines.
-  (Partial substrate shipped: reusable toast module now available.)
+(none)
 
 ### Dependencies cleared
 - ~~Second-pass user-stats tracking~~ SHIPPED (commit b101e98 +

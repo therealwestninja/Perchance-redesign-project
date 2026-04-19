@@ -266,3 +266,30 @@ test('achievements: no demiurge without spawns', () => {
   const unlocked = computeUnlockedIds({ counters: { memorySaves: 100 } });
   assert.ok(!unlocked.some(id => id.startsWith('demiurge_')));
 });
+
+// ---- Celebrant (event participation) ----
+
+test('achievements: celebrant_bronze at 1 event responded', () => {
+  const unlocked = computeUnlockedIds({ eventsResponded: 1 });
+  assert.ok(unlocked.includes('celebrant_bronze'));
+  assert.ok(!unlocked.includes('celebrant_silver'));
+});
+
+test('achievements: celebrant_silver at 5 events', () => {
+  const unlocked = computeUnlockedIds({ eventsResponded: 5 });
+  assert.ok(unlocked.includes('celebrant_bronze'));
+  assert.ok(unlocked.includes('celebrant_silver'));
+  assert.ok(!unlocked.includes('celebrant_gold'));
+});
+
+test('achievements: celebrant_gold at 15 events', () => {
+  const unlocked = computeUnlockedIds({ eventsResponded: 15 });
+  assert.ok(unlocked.includes('celebrant_bronze'));
+  assert.ok(unlocked.includes('celebrant_silver'));
+  assert.ok(unlocked.includes('celebrant_gold'));
+});
+
+test('achievements: no celebrant without any event responses', () => {
+  const unlocked = computeUnlockedIds({ counters: { memorySaves: 100 } });
+  assert.ok(!unlocked.some(id => id.startsWith('celebrant_')));
+});

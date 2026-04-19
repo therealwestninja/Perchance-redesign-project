@@ -18,7 +18,6 @@ import { xpFromStats, levelFromXP } from '../achievements/tiers.js';
 import { computeUnlockedIds } from '../achievements/unlocks.js';
 import { getCounters } from '../stats/counters.js';
 import { recordActivityForStreak, getStreaks } from '../stats/streaks.js';
-import { backfillSpawnedCharacterFields } from '../memory/spinoff_character.js';
 import { createMiniCard } from '../render/mini_card.js';
 import { mountMiniCard } from './mount.js';
 import { createMemoryButton } from '../render/memory_button.js';
@@ -69,6 +68,12 @@ async function refresh(card) {
     // the "activity" signal to explicit user actions (profile open,
     // memory tool open) that already handle it.
     try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
+    // Celebrant achievement criteria read stats.eventsResponded —
+    // distinct events the user has completed at least one prompt for.
+    try {
+      const { countEventsResponded } = await import('../events/participation.js');
+      stats.eventsResponded = countEventsResponded();
+    } catch { stats.eventsResponded = 0; }
     const unlockedIds = computeUnlockedIds(stats);
 
     // First deploy: treat current unlocks as "already seen" so this commit
@@ -108,14 +113,6 @@ async function refresh(card) {
 export async function start() {
   if (start._started) return;
   start._started = true;
-
-  // One-shot backfill for characters spun off before we included the
-  // full field set. Without this, upstream's renderCharacterList will
-  // throw "Cannot read properties of undefined (reading 'startsWith')"
-  // when it iterates over c.folderPath. Fire-and-forget; errors logged
-  // inside the backfill helper. Runs every session but is idempotent
-  // (only writes when a character actually has missing fields).
-  backfillSpawnedCharacterFields().catch(() => { /* best-effort */ });
 
   const card = await mountMiniCard({
     buildElement: () => createMiniCard({

@@ -65,6 +65,12 @@ export function defaultSettings() {
       // window. Auto-GC'd to the currently-active set on each acknowledgment
       // so next year's window re-announces.
       seenEventIds: [],
+      // Richer event engagement signal. Map of eventId -> { state, at }
+      // where state ∈ {'seen', 'responded', 'chronicled'}. Unlike
+      // seenEventIds (which GCs to the current active set), this
+      // persists across years so it becomes a history of event
+      // participation. See events/participation.js for the API.
+      eventParticipation: {},
     },
     prompts: {
       // Per-week record of which prompts the user marked done.
@@ -128,10 +134,24 @@ export function defaultSettings() {
       focusModeToggles:           0, // focus mode enter or exit
       memorySaves:                0, // successful Save clicks in window
       charactersSpawned:          0, // spin-off characters created from bubbles
+      shareCardOpens:             0, // share-card dialog opened
       // First and last action timestamps. Set on any counter bump.
       firstUsedAt:                null,
       lastUsedAt:                 null,
     },
+    // Per-day counter histogram — parallel structure to `counters`,
+    // bucketed by UTC day-key ("YYYY-MM-DD"). Each bump increments
+    // both the lifetime count AND today's bucket. Pruned to the last
+    // ~60 days on every bump + every read, so a user who's been
+    // around for years doesn't accumulate unbounded history.
+    //
+    //   countersByDay: {
+    //     "2026-04-18": { memorySaves: 3, bubblesRenamed: 1 },
+    //     ...
+    //   }
+    //
+    // Used for 30-day sparklines in the Activity section.
+    countersByDay: {},
     streaks: {
       // Consecutive-day activity streak.
       //
@@ -162,6 +182,20 @@ export function defaultSettings() {
       // Not a Set or array — intentional object shape for forward
       // compatibility (new metrics added via METRICS table land
       // gracefully without migration).
+    },
+    summaryNotifications: {
+      // Weekly "this week you did X" summary toast.
+      //
+      // enabled: opt-out toggle. Default on. No UI to flip yet —
+      // users who want to silence can flip it via backup JSON edit
+      // until we add the settings affordance.
+      //
+      // lastSnapshot: { timestamp: ISO, counters: {...} } or null.
+      // Set on first profile open; advanced on every check that
+      // exceeds the 7-day window regardless of whether a toast
+      // surfaces. Prevents multi-week accumulation.
+      enabled: true,
+      lastSnapshot: null,
     },
   };
 }

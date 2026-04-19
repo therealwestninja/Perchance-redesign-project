@@ -354,6 +354,27 @@ export const CSS = `
   color: #d8b36a;
 }
 
+/* Archetype tag — small pill under the title. Only present when the
+   user's play-style has been classified; empty element otherwise so
+   it doesn't reserve space. */
+.pf-splash-archetype {
+  margin-top: 6px;
+  min-height: 0;
+}
+.pf-splash-archetype-tag {
+  display: inline-block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--pf-accent, #d8b36a);
+  border: 1px solid var(--pf-accent, #d8b36a);
+  opacity: 0.85;
+}
+
 .pf-splash-levelrow {
   display: flex;
   align-items: center;
@@ -454,6 +475,20 @@ export const CSS = `
   outline: 2px solid rgba(216, 179, 106, 0.55);
   outline-offset: 1px;
   opacity: 1;
+}
+/* Second share button (card PNG) — positioned to the LEFT of the
+   focus-mode button, which stays in its top-right slot. */
+.pf-splash-card-btn {
+  right: auto;
+  left: auto;
+  transform: translateX(0);
+  position: absolute;
+  top: 10px;
+  right: 50px;
+  font-size: 16px;
+}
+.pf-splash-card-btn:hover {
+  transform: scale(1.05);
 }
 
 /* ============================================================
@@ -1615,6 +1650,211 @@ export const CSS = `
   border-color: rgba(216, 179, 106, 0.20);
 }
 
+/* ---- Description line on cards (new in categorized view) ---- */
+.pf-ach-desc {
+  font-size: 10px;
+  opacity: 0.55;
+  line-height: 1.3;
+  padding: 0 4px;
+}
+.pf-ach-locked .pf-ach-desc {
+  opacity: 0.4;
+}
+
+/* ---- Tabbed browser ---- */
+.pf-ach-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pf-ach-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+.pf-ach-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.12s, background 0.12s, border-color 0.12s;
+}
+.pf-ach-tab:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+.pf-ach-tab-active {
+  opacity: 1;
+  background: rgba(216, 179, 106, 0.08);
+  border-color: var(--pf-accent, rgba(216, 179, 106, 0.45));
+  border-bottom-color: transparent;
+  color: var(--pf-accent, #d8b36a);
+}
+.pf-ach-tab-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.pf-ach-tab-label {
+  font-weight: 500;
+}
+.pf-ach-tab-badge {
+  font-size: 10px;
+  opacity: 0.65;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  padding-left: 2px;
+}
+.pf-ach-tab-active .pf-ach-tab-badge {
+  opacity: 0.85;
+}
+
+/* ---- Panes ---- */
+.pf-ach-panes {
+  min-height: 200px;
+}
+.pf-ach-pane[hidden] { display: none; }
+.pf-ach-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pf-ach-pane-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.pf-ach-pane-head-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.pf-ach-pane-icon {
+  font-size: 18px;
+}
+.pf-ach-pane-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pf-accent, #d8b36a);
+}
+.pf-ach-pane-count {
+  font-size: 12px;
+  opacity: 0.65;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  margin-left: auto;
+}
+.pf-ach-pane-desc {
+  font-size: 12px;
+  opacity: 0.65;
+  margin: 0;
+  line-height: 1.4;
+}
+.pf-ach-pane-empty {
+  font-size: 12px;
+  opacity: 0.5;
+  padding: 18px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ---- Summary pane ---- */
+.pf-ach-summary-overall {
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+.pf-ach-summary-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.pf-ach-summary-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.65;
+  font-weight: 600;
+}
+.pf-ach-summary-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pf-accent, #d8b36a);
+}
+.pf-ach-prog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-ach-prog-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 2fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.pf-ach-prog-icon {
+  font-size: 13px;
+  opacity: 0.75;
+}
+.pf-ach-prog-label {
+  opacity: 0.8;
+}
+.pf-ach-prog-pct {
+  font-size: 11px;
+  opacity: 0.6;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  text-align: right;
+  min-width: 44px;
+}
+
+/* ---- Progress bars (reused for summary overall + per-category + pane head) ---- */
+.pf-ach-prog-bar {
+  height: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pf-ach-prog-bar-lg {
+  height: 10px;
+  border-radius: 5px;
+}
+.pf-ach-prog-bar-fill {
+  height: 100%;
+  background: var(--pf-accent, #d8b36a);
+  transition: width 0.25s;
+  border-radius: inherit;
+  min-width: 0;
+}
+
+/* ---- Section title for subgroups inside a pane (e.g., "Recent unlocks") ---- */
+.pf-ach-sec-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 4px 0 2px;
+  opacity: 0.85;
+}
+
+/* Recent-unlocks row in Summary reuses .pf-ach-grid for the row shape */
+.pf-ach-recent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
 /* ============================================================
    MEMORY / LORE WINDOW
    ============================================================ */
@@ -2455,6 +2695,22 @@ export const CSS = `
   letter-spacing: 0.02em;
   line-height: 1.2;
 }
+/* 30-day activity sparkline under each chip's label. Uses
+   currentColor so it inherits the chip's text color, then we tint
+   to accent on hover for an extra beat of visual feedback. */
+.pf-activity-chip-spark {
+  margin-top: 4px;
+  opacity: 0.55;
+  color: var(--pf-accent, #d8b36a);
+  line-height: 0; /* avoid inline-SVG baseline gap */
+  transition: opacity 0.15s;
+}
+.pf-activity-chip:hover .pf-activity-chip-spark {
+  opacity: 0.9;
+}
+.pf-sparkline {
+  display: block;
+}
 .pf-activity-footer {
   display: flex;
   gap: 18px;
@@ -2897,6 +3153,9 @@ export const CSS = `
   color: rgba(216, 179, 106, 0.95);
   text-transform: uppercase;
 }
+.pf-toast-pb-eyebrow-info {
+  color: rgba(106, 154, 216, 0.95);
+}
 .pf-toast-pb-line {
   font-size: 15px;
   font-weight: 600;
@@ -2904,5 +3163,42 @@ export const CSS = `
 .pf-toast-pb-sub {
   font-size: 11px;
   opacity: 0.7;
+}
+
+/* ---- Share dialog ---- */
+.pf-share-body {
+  padding: 24px 28px;
+  max-width: 580px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pf-share-preview {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: #111;
+}
+.pf-share-privacy {
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.6;
+  margin: 0;
+}
+.pf-share-status {
+  font-size: 12px;
+  min-height: 16px;
+}
+.pf-share-status-ok  { color: #6ab87c; }
+.pf-share-status-err { color: #d87a7a; }
+.pf-share-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 `.trim();

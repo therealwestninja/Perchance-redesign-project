@@ -254,6 +254,38 @@ export const ACHIEVEMENTS = Object.freeze([
     thresholds: { bronze: 1, silver: 5, gold: 20 },
   }),
 
+  // --- Event participation ---
+  //
+  // "Celebrant" tiers reward the user for actually engaging with
+  // holiday/event-themed prompts, not just seeing them. A response
+  // counts once per distinct event (completing 3 New Year prompts =
+  // 1 towards the tier, not 3). See events/participation.js for
+  // countEventsResponded().
+  //
+  // Criteria read stats.eventsResponded (injected at unlock-compute
+  // time; see src/profile/full_page.js). Keeps this registry pure.
+  {
+    id: 'celebrant_bronze',
+    name: 'Celebrant',
+    description: 'Responded to your first event prompt.',
+    tier: 'common',
+    criteria: (s) => Number((s && s.eventsResponded) || 0) >= 1,
+  },
+  {
+    id: 'celebrant_silver',
+    name: 'Seasoned Celebrant',
+    description: 'Responded to 5 different events.',
+    tier: 'rare',
+    criteria: (s) => Number((s && s.eventsResponded) || 0) >= 5,
+  },
+  {
+    id: 'celebrant_gold',
+    name: 'Calendar Keeper',
+    description: 'Responded to 15 different events.',
+    tier: 'epic',
+    criteria: (s) => Number((s && s.eventsResponded) || 0) >= 15,
+  },
+
   // --- Streak-based achievements ---
   //
   // These unlock based on consecutive-day activity tracked by

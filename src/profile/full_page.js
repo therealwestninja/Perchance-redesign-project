@@ -37,6 +37,8 @@ import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
 import { resolveActiveTitle, resolveActiveAccent } from './flair.js';
 import { checkAndUpdateBests } from './personal_bests.js';
+import { getPrimaryArchetype } from './archetypes.js';
+import { checkSummary } from './summary_notifications.js';
 import { showToast } from '../render/toast.js';
 
 /**
@@ -74,6 +76,19 @@ function buildPersonalBestMessage(imp) {
 }
 
 /**
+ * Build a DOM node for a weekly-summary toast. Single line above a
+ * "📅 THIS WEEK" eyebrow, matching the personal-best visual pattern.
+ *
+ * @param {{ line: string, deltas: Array }} summary
+ */
+function buildSummaryMessage(summary) {
+  return h('div', { class: 'pf-toast-pb' }, [
+    h('div', { class: 'pf-toast-pb-eyebrow pf-toast-pb-eyebrow-info' }, ['📅 WEEKLY RECAP']),
+    h('div', { class: 'pf-toast-pb-line' }, [summary.line]),
+  ]);
+}
+
+/**
  * Derive a title string. Delegates to the flair module, which
  * honors the user's flair.title pick before falling back to
  * titleOverride and then auto-rarest.
@@ -99,6 +114,13 @@ export async function openFullPage() {
   // Idempotent within a day — repeated opens don't inflate.
   try { recordActivityForStreak(); } catch { /* non-fatal */ }
 
+  // Declare `overlay` as `let` initialized to null up-front so
+  // refreshSplashFromSettings() — which is called synchronously
+  // during init, before createOverlay has returned — can safely
+  // test `if (overlay) ...` without a temporal-dead-zone violation.
+  // Assigned exactly once further down when createOverlay runs.
+  let overlay = null;
+
   try {
     const data = await readAllStores();
     // Merge IDB-derived stats with settings-derived prompt stats so
@@ -116,6 +138,12 @@ export async function openFullPage() {
   // Same story for streaks — achievement criteria that gate on
   // consecutive-day activity read stats.streaks.current.
   try { stats.streaks = getStreaks(); } catch { stats.streaks = { current: 0, longest: 0 }; }
+  // Celebrant achievement criteria read stats.eventsResponded —
+  // distinct events the user has completed at least one prompt for.
+  try {
+    const { countEventsResponded } = await import('../events/participation.js');
+    stats.eventsResponded = countEventsResponded();
+  } catch { stats.eventsResponded = 0; }
   try {
     unlockedIds = computeUnlockedIds(stats);
   } catch {
@@ -161,6 +189,24 @@ export async function openFullPage() {
     }
   } catch { /* non-fatal */ }
 
+  // Weekly activity summary. If a week has passed since the last
+  // snapshot AND the user has non-zero activity deltas, fire a
+  // single summary toast listing the top 3. Quiet weeks are
+  // silent; busy weeks show a celebratory recap. Opens the same
+  // toast lane so it stacks with personal-best toasts cleanly
+  // when both fire in the same session.
+  try {
+    const counters = (() => { try { return getCounters(); } catch { return {}; } })();
+    const summary = checkSummary(counters);
+    if (summary && summary.kind === 'summary') {
+      // Deferred slightly longer than personal bests so they stack
+      // in a logical order (wins first, then summary).
+      setTimeout(() => {
+        showToast(buildSummaryMessage(summary), { kind: 'info', ms: 7000 });
+      }, 1400);
+    }
+  } catch { /* non-fatal */ }
+
   const activeEvents = getActiveEvents();
   try { markEventsSeen(activeEvents.map(ev => ev.id)); } catch { /* non-fatal */ }
 
@@ -195,6 +241,54 @@ export async function openFullPage() {
         bumpCounter('focusModeToggles');
       }
     },
+    onCardClick: () => {
+      // Dynamic import so the share machinery loads only when the
+      // user asks for it — keeps the cold-start cost of the profile
+      // overlay down for the common case where nobody shares.
+      import('../render/share_dialog.js').then((mod) => {
+        // Derive the latest-display view-model from freshest settings +
+        // stats — the card should reflect the user's current state
+        // (flair pick, archetype, accent), not the init-time snapshot.
+        let freshSettings = settings;
+        try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+        let freshUnlocked = unlockedIds;
+        try {
+          const archeStats = {
+            ...stats,
+            counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+            streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+          };
+          freshUnlocked = computeUnlockedIds(archeStats);
+        } catch { /* fall back */ }
+        const freshArchetype = (() => {
+          try {
+            const archeStats = {
+              ...stats,
+              counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+              streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+            };
+            return getPrimaryArchetype(archeStats);
+          } catch { return null; }
+        })();
+        const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
+        const p = (freshSettings && freshSettings.profile) || {};
+        mod.openShareDialog({
+          displayName: p.displayName || p.username || 'Chronicler',
+          title: deriveTitle(freshUnlocked, freshSettings),
+          archetype: freshArchetype,
+          level: lvl.level,
+          accent: accent.color,
+          avatarUrl: p.avatarUrl || null,
+          pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
+          xpIntoLevel: lvl.xpIntoLevel,
+          xpForNextLevel: lvl.xpForNextLevel,
+          progress01: lvl.progress01,
+        });
+        try { bumpCounter('shareCardOpens'); } catch { /* non-fatal */ }
+      }).catch(e => {
+        console.warn('[pf] share dialog failed to load:', e && e.message);
+      });
+    },
   });
 
   function refreshSplashFromSettings() {
@@ -213,10 +307,24 @@ export async function openFullPage() {
       freshUnlocked = computeUnlockedIds(freshStats);
     } catch { /* fall back to initial unlock list */ }
 
+    // Re-derive archetype on every refresh so a threshold crossing
+    // (e.g., just completed the streak that pushes them into Daily)
+    // reflects live in the splash.
+    let freshArchetype = null;
+    try {
+      const archeStats = {
+        ...stats,
+        counters: (() => { try { return getCounters(); } catch { return {}; } })(),
+        streaks:  (() => { try { return getStreaks();  } catch { return { current: 0, longest: 0 }; } })(),
+      };
+      freshArchetype = getPrimaryArchetype(archeStats);
+    } catch { /* non-fatal */ }
+
     splash.update({
       displayName: p.displayName || p.username || 'Chronicler',
       avatarUrl: p.avatarUrl || null,
       title: deriveTitle(freshUnlocked, freshSettings),
+      archetype: freshArchetype,
       level: lvl.level,
       xpIntoLevel: lvl.xpIntoLevel,
       xpForNextLevel: lvl.xpForNextLevel,
@@ -226,10 +334,12 @@ export async function openFullPage() {
 
     // Re-apply the user's accent — they may have just picked a new
     // one in the Details form. resolveActiveAccent falls back to
-    // amber if the picked id isn't currently unlocked. Guard against
-    // the first-pass call (before the overlay variable is set) —
-    // applyAccent() down below handles that initial case.
-    if (typeof overlay !== 'undefined' && overlay && overlay.style) {
+    // amber if the picked id isn't currently unlocked. overlay is
+    // declared up-front as `let overlay = null`, so a truthiness
+    // check is safe on the first synchronous call (before
+    // createOverlay returns) — we just skip. applyAccent() below
+    // handles the initial paint.
+    if (overlay && overlay.style) {
       try {
         const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
         overlay.style.setProperty('--pf-accent', accent.color);
@@ -378,7 +488,12 @@ export async function openFullPage() {
   });
 
   // ---- overlay ----
-  const overlay = createOverlay({
+  //
+  // `overlay` was declared `let overlay = null` at the top of
+  // openFullPage() so refreshSplashFromSettings(), which fires
+  // synchronously during init, can safely test `if (overlay)`
+  // without a TDZ violation. Assign exactly once, here.
+  overlay = createOverlay({
     ariaLabel: 'Your profile',
     onClose: () => { try { unsubscribe(); } catch {} },
     children: [
