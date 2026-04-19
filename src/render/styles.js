@@ -4697,4 +4697,23 @@ body.pf-light-theme .pf-glossary-textarea {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* ---- Copyright footer ---- */
+.pf-footer {
+  text-align: center;
+  padding: 20px 16px 12px;
+  font-size: 11px;
+  color: #8b95a3;
+  font-family: Georgia, 'Times New Roman', serif;
+  letter-spacing: 0.02em;
+}
+.pf-footer-link {
+  color: var(--pf-accent, #d4a855);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.pf-footer-link:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
 `.trim();

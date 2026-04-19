@@ -547,6 +547,36 @@ export async function openFullPage() {
     initialState: displayState.backup,
   });
 
+  // ---- Copyright footer ----
+  const footer = document.createElement('div');
+  footer.className = 'pf-footer';
+
+  const copyright = document.createElement('span');
+  copyright.textContent = '© 2026 therealwestninja.';
+
+  const deviantLink = document.createElement('a');
+  deviantLink.href = 'https://www.deviantart.com/west-ninja';
+  deviantLink.target = '_blank';
+  deviantLink.rel = 'noopener';
+  deviantLink.textContent = 'DeviantArt';
+  deviantLink.className = 'pf-footer-link';
+
+  const githubLink = document.createElement('a');
+  githubLink.href = 'https://github.com/therealwestninja';
+  githubLink.target = '_blank';
+  githubLink.rel = 'noopener';
+  githubLink.textContent = 'GitHub';
+  githubLink.className = 'pf-footer-link';
+
+  const sep1 = document.createTextNode(' · ');
+  const sep2 = document.createTextNode(' · ');
+
+  footer.appendChild(copyright);
+  footer.appendChild(sep1);
+  footer.appendChild(deviantLink);
+  footer.appendChild(sep2);
+  footer.appendChild(githubLink);
+
   // ---- overlay ----
   //
   // `overlay` was declared `let overlay = null` at the top of
@@ -568,6 +598,7 @@ export async function openFullPage() {
       achievementsSection,
       activitySection,
       backupSection,
+      footer,
     ],
   });
 

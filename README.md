@@ -1,171 +1,168 @@
 # Perchance AI Character Chat — Redesign Fork
 
-A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds **35+ chat tools**, a **gamified profile system**, a **memory manager**, and a **design-truth dark-parchment UI** — all running client-side in your browser with zero accounts or servers.
+A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds a full suite of roleplay and writing tools, a gamified profile system, a memory manager, and a polished dark-parchment UI — all running client-side in your browser with zero accounts, zero servers, zero cost.
 
-**119 modules · 942 tests · MIT license**
+> **118 modules · 940 tests · 91 achievements · MIT license**
+
+Built by [therealwestninja](https://github.com/therealwestninja) · [DeviantArt](https://www.deviantart.com/west-ninja) · [GitHub](https://github.com/therealwestninja/Perchance-redesign-project)
 
 ---
 
-## What makes this different
+## What is this?
 
-| Vanilla Perchance | This fork |
+Perchance AI Character Chat is a free, browser-based AI roleplay tool. This fork keeps everything that makes it great — free access, no login, runs anywhere — and adds the tools that serious roleplayers and creative writers have been asking for.
+
+Think of it as the difference between Notepad and VS Code. Same file, way more power.
+
+| Vanilla Perchance | This Fork |
 |---|---|
-| Basic chat interface | 30+ tools in a popup grid (anti-repetition, glossary, dice, voice, branching...) |
-| No memory management | Full memory manager with drag-and-drop columns, snapshots, lore ordering |
-| No profile/identity | Gamified profile: avatar, level, XP, 42 achievements, 24 accent colors |
-| No sharing | Shareable profile links with rich card viewer |
-| Generic styling | Dark-parchment RPG aesthetic with customizable theme colors |
+| Basic chat | 40+ tools behind a single ⚙ menu |
+| No memory management | Drag-and-drop memory columns with snapshots |
+| No profile | Gamified profile: levels, XP, 91 achievements |
+| No sharing | One-click shareable profile links |
+| No writing aids | Glossary, anti-repetition, persona, AI writer |
+| Generic look | Dark-parchment RPG aesthetic with 24 accent colors |
 
 ---
 
-## Chat Tools (30 modules)
+## Quick Start
 
-Every tool lives behind a single **⚙ Tools** button that opens a popup grid — no UI clutter.
+### Use it now
+1. Fork [AI Character Chat](https://perchance.org/ai-character-chat) on Perchance
+2. Replace `perchance_2.txt` with [`build/perchance_2.txt`](build/perchance_2.txt) from this repo
+3. Save and reload — all features are active immediately
 
-### AI Intelligence
-- **Dynamic Glossary** 📖 — keyword-triggered lore injection with recursive scanning (2 levels deep)
-- **Auto-Lorebook** 🔮 — AI generates glossary entries from your conversation
-- **Auto-Summary** — compresses older messages into a paragraph injected into context
-- **Anti-Repetition** 🚫 — word/phrase banlist + auto-detection of repeated phrases
-- **User Persona** 👤 — define your character (name + description), injected into every AI prompt
-- **Quick Reminder** 📌 — persistent instruction injected before every AI reply
-- **Prompt Presets** 📋 — save and load prompt templates
-
-### Writing & Generation
-- **Writing Enhancer** ✨ — AI rewrites your message with more detail
-- **Impersonation** ✍ — AI writes as your character
-- **Narration** 🎬 — generate scene narration
-- **Image Generation** 🖼 — in-chat AI image generation
-- **Voice I/O** 🎤🔊 — speech-to-text input + text-to-speech output
-- **Reasoning Toggle** 🧠💭 — show/hide AI reasoning
-
-### Chat Management
-- **Message Controls** — per-message copy, edit, delete, regenerate
-- **Conversation Branching** ◀1/3▶ — navigate between regenerated alternatives
-- **Chat Search** — search through message history
-- **Stop Generating** ⬛ — interrupt AI generation mid-stream
-- **Chat Export** ⬇ — download chat as text/JSON
-- **Thread Archive** 📥 — archive and restore threads
-- **Bulk Threads** ☐ — multi-select thread operations
-- **Timestamps** — time stamps on new messages
-
-### Characters & World
-- **Character Browser** 👥 — searchable grid of all your characters
-- **Character Cards** 🃏 — import/export in SillyTavern-compatible JSON format
-- **Document Analysis** 📎 — upload a text file and chat about its contents
-- **Dice Roller** 🎲 — /roll XdY+Z command for TTRPG play
-
-### Customization
-- **Theme Toggle** ☀🌙 — dark/light mode
-- **Custom Backgrounds** 🏞 — per-chat background images
-- **Font Settings** Aa — font family + size controls
-- **Fullscreen** ⛶ — distraction-free mode
-- **Generation Settings** ⚙ — temperature + max tokens overrides
-- **Keyboard Shortcuts** ⌨ — configurable hotkeys
-- **Code Highlighting** — syntax highlighting in AI responses
-- **Token Display** — live token count in the header
-
----
-
-## Profile System
-
-### Hero Card
-Avatar with ornate gold ring · display name · italic title · level chip with XP bar · hexagonal pinned badges · share button
-
-### Gamification
-- **91 achievements** across 5 rarity tiers (Common → Legendary)
-- **Leveling system** with XP derived from chat activity
-- **Archetype classification** based on play style
-- **24 accent colors** unlocked through achievements
-- **Theme color pickers** — customize background gradient (unlock at 15% and 25% achievements)
-
-### Shareable Profiles
-Generate a link that shows your profile card to anyone — level circle, stats, badges, XP bar, all themed to your accent color.
-
----
-
-## Memory Manager
-
-Three-column drag-and-drop interface for managing AI memory:
-- **Active memories** — currently injected into AI context
-- **Stored memories** — saved but not active
-- **Delete zone** — drag to remove
-- **Snapshots** — save and restore memory states
-- **Lore ordering** — control injection priority
-
----
-
-## Design
-
-The UI follows a design-truth document (`docs/design-truth/profile-card-v1.html`):
-
-- **Palette**: ink blacks, vellum text, gold accents, crimson, silver
-- **Typography**: Georgia serif headings, monospace data labels, system sans body
-- **Elements**: conic-gradient avatar ring, hexagonal badges, 3D gold buttons
-- **Customizable**: Primary + Secondary background colors via achievement-gated pickers
-
----
-
-## Architecture
-
-```
-vendor/                    ← Upstream Perchance (untouched)
-src/
-  chat/        (42 files)  ← Chat tool modules
-  render/      (20 files)  ← UI rendering
-  profile/     (12 files)  ← Profile logic
-  memory/      (10 files)  ← Memory manager
-  stats/        (5 files)  ← Chat statistics
-  achievements/ (4 files)  ← Achievement system
-  events/       (3 files)  ← Event participation
-  utils/        (5 files)  ← DOM helpers, formatting
-build/
-  build.mjs                ← Bundler (single IIFE)
-  perchance_2.txt          ← Final output
-test/           (51 files) ← 942 tests
-docs/
-  design-truth/            ← Visual mockups
-  architecture.md          ← Technical decisions
-```
-
-All modules share a flat IIFE scope. The bundler reads `src/manifest.json` and concatenates into a single `<script>` block appended to the upstream code.
-
-**AI injection**: All context modifications (glossary, summary, persona, anti-repetition, document, gen settings) flow through a single `aiTextPlugin` monkey-patch in `stop_generating.js`.
-
----
-
-## Installation
-
-1. Fork [Perchance AI Character Chat](https://perchance.org/ai-character-chat)
-2. Replace `perchance_2.txt` with `build/perchance_2.txt` from this repo
-3. Save and reload
-
-Development:
-
+### Develop locally
 ```bash
 git clone https://github.com/therealwestninja/Perchance-redesign-project.git
 cd Perchance-redesign-project
 npm install
-npm test        # 943 tests
-npm run build   # → build/perchance_2.txt
+npm test          # run 940 tests
+npm run build     # outputs build/perchance_2.txt
 ```
+
+---
+
+## Features
+
+### Chat Tools (42 modules)
+
+All tools live behind a single **⚙ Tools** button organized into labeled categories. No clutter.
+
+| Category | Tools |
+|---|---|
+| **AI** | AI Writer (✍ impersonate, 🎬 narrate, ✨ enhance, 📜 recap) |
+| **Context** | Context Editor (📖 glossary, 🚫 banlist, 📌 reminder, 👤 persona), 📊 Context Dashboard |
+| **World** | 🎲 Dice Roller, 📎 Document Analysis, 🔮 Auto-Lorebook |
+| **Chat** | ⬇ Export, 📥 Archive, 🔖 Bookmarks, Chat Search, ◀1/3▶ Branching |
+| **Characters** | 👥 Character Browser, 🃏 SillyTavern Card Import/Export |
+| **View** | ☀🌙 Theme, Aa Fonts, ⛶ Fullscreen, 🏞 Backgrounds, 🧠 Reasoning |
+
+Plus: stop generating, token display, timestamps, keyboard shortcuts, code highlighting, voice I/O, image generation, auto-summary, generation settings, bulk thread ops, and per-message controls (copy/edit/delete/regenerate).
+
+> **[Full tool documentation →](docs/TOOLS.md)**
+
+### Profile System
+
+- **Hero Card** — avatar with ornate gold ring, display name, title, level badge, XP bar, pinned badges
+- **91 achievements** across 9 categories and 5 rarity tiers (Common → Legendary)
+- **Leveling** — XP from chat activity, prompt completions, event participation
+- **24 accent colors** — unlockable palette for your profile theme
+- **One-click sharing** — click Share, link is copied, paste anywhere
+- **Daily Quests** — AI-generated creative writing challenge each day with a sealed-card reveal mechanic
+
+> **[Profile and achievements guide →](docs/PROFILE.md)**
+
+### Memory Manager
+
+Three-column drag-and-drop interface for organizing AI memory and lore. Active memories are injected into the AI's context. Snapshots let you save and restore memory states. Lore ordering controls injection priority.
+
+### AI Context Pipeline
+
+Seven sources are automatically injected into every AI message, all visible in the **Context Dashboard (📊)**:
+
+1. **Glossary** — keyword-triggered lore definitions (recursive 2-level scan)
+2. **Summary** — auto-compressed older conversation context
+3. **Document** — uploaded text file content
+4. **Anti-repetition** — word banlists + auto-detected repeated phrases
+5. **Persona** — your character's name and description
+6. **Reminder** — persistent instruction before every reply
+7. **Gen settings** — temperature and max token overrides
+
+### Design
+
+Dark-parchment RPG aesthetic following a [design-truth document](docs/design-truth/profile-card-v1.html). Ink blacks, vellum text, gold accents, Georgia serif headings, monospace data labels. Background gradient colors are customizable via achievement-gated pickers.
+
+---
+
+## How To
+
+### How do I use the tools?
+Click the **⚙ Tools** button near the chat input. Tools are organized into categories (AI, Context, World, Chat, Characters, View). Click any tool to open it.
+
+### How do I set up a glossary?
+Open **⚙ Tools → 📝 Context Editor → 📖 Glossary tab**. Add entries as `keyword = definition`, one per line. Keywords are automatically detected in conversation and their definitions are injected into the AI's context.
+
+### How do I share my profile?
+Click the **Share** button on your hero card. The link is copied to your clipboard. Paste it anywhere — when someone clicks your link, your profile card opens automatically.
+
+### How do I import SillyTavern characters?
+Open **⚙ Tools → 🃏 Character Cards**. Import `.json` character card files or export your characters in the same format.
+
+### How do I roll dice?
+Type `/roll 2d6+3` in the chat input. Supports standard `XdY+Z` notation.
+
+### How does the AI Writer work?
+Open **⚙ Tools → ✍ AI Writer** and pick a mode: Impersonate (AI writes as you), Narrate (scene description), Enhance (rewrite your draft), or Recap ("Previously on..." summary).
+
+### How do I earn achievements?
+Achievements unlock automatically from your activity — writing, completing prompts, using tools, maintaining streaks, participating in events. Check progress in the Achievements section of your profile.
+
+### How do daily quests work?
+A sealed quest card appears each day. Click to reveal — the seal breaks while the AI generates a creative writing challenge themed to that day (30 themes cycling deterministically). Complete quests to earn achievements.
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| **[Tools Guide](docs/TOOLS.md)** | Detailed reference for all 42 chat tools |
+| **[Profile & Achievements](docs/PROFILE.md)** | Profile system, 91 achievements, sharing, daily quests |
+| **[Architecture](docs/ARCHITECTURE.md)** | Modules, bundling, AI injection pipeline, build system |
+| **[FAQ](docs/FAQ.md)** | Common questions and troubleshooting |
+| **[Roadmap](ROADMAP.md)** | Planned features and current status |
+| **[Credits](CREDITS.md)** | Upstream sources, research, and inspiration |
+
+---
+
+## FAQ
+
+**Is this free?**
+Yes. Perchance is free, this fork is free, and it always will be. MIT license.
+
+**Do I need an account?**
+No. Everything runs in your browser. Your data lives in localStorage and IndexedDB on your machine.
+
+**Will this break my existing setup?**
+No. The fork adds to the upstream code without modifying it. Your characters, threads, and settings are preserved.
+
+**How big is the build?**
+About 1.86 MB for the full `perchance_2.txt`. This includes all 118 modules, CSS, and the upstream Perchance code.
+
+**Can I contribute?**
+Yes. The repo is public under the MIT license. Fork, change, PR.
+
+> **[More FAQ →](docs/FAQ.md)**
 
 ---
 
 ## Credits
 
+- **Author**: [therealwestninja](https://github.com/therealwestninja) — [DeviantArt](https://www.deviantart.com/west-ninja)
 - **Upstream**: [Perchance AI Character Chat](https://perchance.org/ai-character-chat)
-- **Research**: FurAI, Kustom-GPT, URV-AI (all MIT) — glossary algorithm, feature patterns
+- **Research**: FurAI, Kustom-GPT, URV-AI (all MIT)
 - **Inspiration**: SillyTavern WorldInfo, NovelAI lorebooks
-- **License**: MIT
+- **License**: [MIT](LICENSE)
 
-## Recent additions (April 2026)
-
-### Daily Quests
-A sealed quest card appears each day. Click to reveal — a seal-break animation plays while the AI generates a creative writing quest from a date-seeded theme (30 themes, deterministic hash). Quest results are cached per-day. Complete quests to earn achievements.
-
-### Tool consolidation
-The **AI Writer** (✍) merges impersonation, narration, enhancer, and recap into a single mode-picker dropdown. The **Context Editor** (📝) merges glossary, banlist, reminder, and persona into a tabbed modal. The Tools menu organizes everything into labeled categories (AI, Context, World, Chat, Characters, View).
-
-### Share codes (pf3 binary format)
-Share codes are now **86% smaller** than the original format. Instead of encoding text, pf3 sends numeric indices into the achievement registry (1 byte per badge), archetype enum, and accent palette. Only the display name is raw text. A 36-char code replaces a 252-char code. All three formats (pf1/pf2/pf3) decode transparently.
+© 2026 therealwestninja
