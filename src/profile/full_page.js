@@ -403,6 +403,11 @@ export async function openFullPage() {
       const bodyWrap = promptsSection.querySelector('.pf-section-body');
       if (bodyWrap) {
         bodyWrap.replaceChildren(newBody);
+        // Re-mount daily quests into the freshly created prompts list.
+        try {
+          const pl = newBody.querySelector('.pf-prompts-list');
+          if (pl) initDailyQuest(pl);
+        } catch { /* non-fatal */ }
       }
     }
   }
@@ -650,8 +655,13 @@ export async function openFullPage() {
 
   overlay.show();
 
-  // Daily quests mount into .pf-prompts-list, which only exists after
-  // the overlay is in the DOM. The boot-time call in index.js is a
-  // no-op (target doesn't exist yet); this is the real mount point.
-  try { initDailyQuest(); } catch { /* non-fatal */ }
+  // Daily quests mount above .pf-prompts-list. Pass the element
+  // directly from the captured promptsSection rather than searching
+  // the whole document — avoids timing issues with DOM mounting.
+  try {
+    const pl = promptsSection.querySelector('.pf-prompts-list');
+    if (pl) initDailyQuest(pl);
+  } catch (e) {
+    console.warn('[pf] initDailyQuest:', e && e.message);
+  }
 }

@@ -28931,19 +28931,18 @@ Use this template for your response:
 
   /**
    * Initialize daily quests. Creates 3 sealed quest cards and
-   * injects them into the prompts section or near chat messages.
+   * injects them above the prompts list.
+   *
+   * @param {Element} [target] — the .pf-prompts-list element to mount
+   *   above. If omitted, falls back to document.querySelector (legacy).
+   *   Passing the element directly avoids timing issues where the DOM
+   *   tree exists but isn't yet queryable from document.
    */
-  function initDailyQuest() {
-    // Only mount when the profile's prompts section exists. At boot
-    // time this element doesn't exist (profile isn't open), so the
-    // call is a no-op. The profile overlay calls initDailyQuest()
-    // after building the prompts section, at which point
-    // .pf-prompts-list exists and mounting succeeds.
-    const promptsList = document.querySelector('.pf-prompts-list');
+  function initDailyQuest(target) {
+    const promptsList = target || (typeof document !== 'undefined' && document.querySelector('.pf-prompts-list'));
     if (!promptsList || !promptsList.parentElement) return;
 
-    // Skip if already mounted in THIS overlay instance (prevents
-    // double-mount if called twice during the same profile session).
+    // Skip if already mounted in THIS parent (prevents double-mount).
     if (promptsList.parentElement.querySelector('.pf-dq-container')) return;
 
     const dayKey = getCurrentDayKey();
@@ -40884,6 +40883,11 @@ Use this template for your response:
         const bodyWrap = promptsSection.querySelector('.pf-section-body');
         if (bodyWrap) {
           bodyWrap.replaceChildren(newBody);
+          // Re-mount daily quests into the freshly created prompts list.
+          try {
+            const pl = newBody.querySelector('.pf-prompts-list');
+            if (pl) initDailyQuest(pl);
+          } catch { /* non-fatal */ }
         }
       }
     }
@@ -41131,10 +41135,15 @@ Use this template for your response:
 
     overlay.show();
 
-    // Daily quests mount into .pf-prompts-list, which only exists after
-    // the overlay is in the DOM. The boot-time call in index.js is a
-    // no-op (target doesn't exist yet); this is the real mount point.
-    try { initDailyQuest(); } catch { /* non-fatal */ }
+    // Daily quests mount above .pf-prompts-list. Pass the element
+    // directly from the captured promptsSection rather than searching
+    // the whole document — avoids timing issues with DOM mounting.
+    try {
+      const pl = promptsSection.querySelector('.pf-prompts-list');
+      if (pl) initDailyQuest(pl);
+    } catch (e) {
+      console.warn('[pf] initDailyQuest:', e && e.message);
+    }
   }
 
   /* ──────────────────────────────────────────────────────────

@@ -284,19 +284,18 @@ function renderRevealed(card, questText, theme, dayKey, idx, animate) {
 
 /**
  * Initialize daily quests. Creates 3 sealed quest cards and
- * injects them into the prompts section or near chat messages.
+ * injects them above the prompts list.
+ *
+ * @param {Element} [target] — the .pf-prompts-list element to mount
+ *   above. If omitted, falls back to document.querySelector (legacy).
+ *   Passing the element directly avoids timing issues where the DOM
+ *   tree exists but isn't yet queryable from document.
  */
-export function initDailyQuest() {
-  // Only mount when the profile's prompts section exists. At boot
-  // time this element doesn't exist (profile isn't open), so the
-  // call is a no-op. The profile overlay calls initDailyQuest()
-  // after building the prompts section, at which point
-  // .pf-prompts-list exists and mounting succeeds.
-  const promptsList = document.querySelector('.pf-prompts-list');
+export function initDailyQuest(target) {
+  const promptsList = target || (typeof document !== 'undefined' && document.querySelector('.pf-prompts-list'));
   if (!promptsList || !promptsList.parentElement) return;
 
-  // Skip if already mounted in THIS overlay instance (prevents
-  // double-mount if called twice during the same profile session).
+  // Skip if already mounted in THIS parent (prevents double-mount).
   if (promptsList.parentElement.querySelector('.pf-dq-container')) return;
 
   const dayKey = getCurrentDayKey();
