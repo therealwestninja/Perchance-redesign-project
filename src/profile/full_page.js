@@ -35,7 +35,7 @@ import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completio
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
-import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars, paintAppAccent, resolveVellumVars, paintAppVellum, resolveSilverVars, paintAppSilver } from './flair.js';
+import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars, paintAppAccent, resolveVellumVars, paintAppVellum, resolveSilverVars, paintAppSilver, paintAllChannels } from './flair.js';
 import { checkAndUpdateBests } from './personal_bests.js';
 import { getPrimaryArchetype } from './archetypes.js';
 import { checkSummary } from './summary_notifications.js';
@@ -367,26 +367,11 @@ export async function openFullPage() {
     // createOverlay returns) — we just skip. applyAccent() below
     // handles the initial paint.
     if (overlay && overlay.style) {
+      // Re-paint all flair channels (accent, vellum, silver) on the
+      // overlay + :root. paintAllChannels handles the upstream cascade
+      // for accent (notification banner, links, thread highlight).
       try {
-        const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
-        overlay.style.setProperty('--pf-accent', accent.color);
-        overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
-        // Cascade the same accent into upstream Perchance's chrome —
-        // user picks a color in the profile, the whole app re-tints.
-        paintAppAccent(accent);
-      } catch { /* non-fatal */ }
-      // Vellum (text color) and Silver (meta text) — same pattern.
-      try {
-        const vellum = resolveVellumVars(freshSettings, stats, freshUnlocked);
-        overlay.style.setProperty('--pf-vellum', vellum.color);
-        overlay.style.setProperty('--pf-vellum-rgb', vellum.rgb);
-        paintAppVellum(vellum);
-      } catch { /* non-fatal */ }
-      try {
-        const silver = resolveSilverVars(freshSettings, stats, freshUnlocked);
-        overlay.style.setProperty('--pf-silver', silver.color);
-        overlay.style.setProperty('--pf-silver-rgb', silver.rgb);
-        paintAppSilver(silver);
+        paintAllChannels(freshSettings, stats, freshUnlocked, overlay);
       } catch { /* non-fatal */ }
     }
 
@@ -635,64 +620,20 @@ export async function openFullPage() {
     ],
   });
 
-  // Apply the user's chosen accent (or the default amber) as a CSS
-  // custom property on the overlay root. Consumers: splash title,
-  // level badge, pinned-badge borders, section focus rings. If the
-  // user changes their accent mid-session, refreshSplashFromSettings
-  // (wired to onSettingsChange) picks up the new value and calls
-  // applyAccent() again.
-  function applyAccent() {
+  // Apply the user's chosen flair colors (accent, text, meta) as CSS
+  // custom properties on both the overlay and :root. If the user
+  // changes any color mid-session, refreshSplashFromSettings (wired
+  // to onSettingsChange) re-calls this.
+  function applyAllFlair() {
     let freshSettings = settings;
     try { freshSettings = loadSettings(); } catch { /* keep stale */ }
     let freshUnlocked = unlockedIds;
     try {
       freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
     } catch { /* fall back */ }
-    // Set BOTH custom properties so rules using either the solid hex
-    // (var(--pf-accent)) or a shaded rgba (rgba(var(--pf-accent-rgb), <a>))
-    // pick up the chosen accent. The -rgb form is derived via hexToRgb
-    // so accents defined with any '#rrggbb' value get full shading support.
-    const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
-    overlay.style.setProperty('--pf-accent', accent.color);
-    overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
-    // Cascade to upstream Perchance chrome — notification banner,
-    // link color, selected-thread highlight all re-tint to match
-    // the user's pick. Boot-time paint is handled by profile/index.js
-    // start() so the theme persists even when the profile isn't open.
-    paintAppAccent(accent);
+    paintAllChannels(freshSettings, stats, freshUnlocked, overlay);
   }
-  applyAccent();
-
-  // Apply the user's vellum (text color) and silver (meta text color)
-  // picks. Same pattern as accent: resolve from settings → set CSS
-  // vars on both the overlay and :root → cascade to upstream chrome.
-  function applyVellum() {
-    let freshSettings = settings;
-    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
-    let freshUnlocked = unlockedIds;
-    try {
-      freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
-    } catch { /* fall back */ }
-    const vellum = resolveVellumVars(freshSettings, stats, freshUnlocked);
-    overlay.style.setProperty('--pf-vellum', vellum.color);
-    overlay.style.setProperty('--pf-vellum-rgb', vellum.rgb);
-    paintAppVellum(vellum);
-  }
-  applyVellum();
-
-  function applySilver() {
-    let freshSettings = settings;
-    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
-    let freshUnlocked = unlockedIds;
-    try {
-      freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
-    } catch { /* fall back */ }
-    const silver = resolveSilverVars(freshSettings, stats, freshUnlocked);
-    overlay.style.setProperty('--pf-silver', silver.color);
-    overlay.style.setProperty('--pf-silver-rgb', silver.rgb);
-    paintAppSilver(silver);
-  }
-  applySilver();
+  applyAllFlair();
 
   overlay.show();
 }

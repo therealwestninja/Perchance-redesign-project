@@ -27,7 +27,7 @@ import { loadSettings, onSettingsChange } from './settings_store.js';
 import { initSeenOnFirstRun, computePendingAchievements, computePendingEvents, recordUnlockDates } from './notifications.js';
 import { initPromptsOnFirstRun, hasNewWeekPending, hasNewDayPending } from '../prompts/completion.js';
 import { getActiveEventIds } from '../events/active.js';
-import { resolveAccentVars, paintAppAccent, resolveVellumVars, paintAppVellum, resolveSilverVars, paintAppSilver } from './flair.js';
+import { paintAllChannels } from './flair.js';
 import { parseShareUrl } from './share_code.js';
 
 const REFRESH_INTERVAL_MS = 30_000;
@@ -444,9 +444,7 @@ export async function start() {
       } catch { return {}; }
     })();
     const bootUnlocked = computeUnlockedIds(bootStats);
-    paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
-    paintAppVellum(resolveVellumVars(bootSettings, bootStats, bootUnlocked));
-    paintAppSilver(resolveSilverVars(bootSettings, bootStats, bootUnlocked));
+    paintAllChannels(bootSettings, bootStats, bootUnlocked);
   } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
   // ---- Theme colors (custom background gradient) ----

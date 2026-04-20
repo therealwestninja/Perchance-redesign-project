@@ -268,58 +268,11 @@ export function getAvailableTitles(unlockedIds) {
   return titles;
 }
 
-/**
- * Accents available to a user, annotated with whether each is
- * unlocked. The full list is always returned so a picker can show
- * locked accents greyed out with their unlock hint.
- *
- * @param {object} stats      - full stats bundle
- * @param {string[]} unlockedIds
- * @returns {Array<{id, label, color, description, isUnlocked}>}
- */
-export function getAccents(stats, unlockedIds) {
-  const ids = unlockedIds || [];
-  return ACCENTS.map(a => ({
-    id: a.id,
-    label: a.label,
-    color: a.color,
-    description: a.description,
-    isUnlocked: Boolean(a.criterion(stats || {}, ids)),
-  }));
-}
-
-/**
- * Resolve the ACTIVE accent. User's pick wins if valid+unlocked;
- * otherwise falls back to 'amber' (always unlocked).
- *
- * @param {object} settings
- * @param {object} stats
- * @param {string[]} unlockedIds
- * @returns {{ id: string, color: string }}
- */
-export function resolveActiveAccent(settings, stats, unlockedIds) {
-  const picked =
-    (settings && settings.profile && settings.profile.flair &&
-     settings.profile.flair.accent) || null;
-
-  if (picked) {
-    const accent = ACCENTS.find(a => a.id === picked);
-    if (accent && accent.criterion(stats || {}, unlockedIds || [])) {
-      return { id: accent.id, color: accent.color };
-    }
-    // Picked accent but no longer eligible (e.g., backup restored to
-    // a state where the unlock hadn't happened yet). Silent fallback
-    // to the default rather than showing a broken style.
-  }
-  // Default
-  return { id: 'amber', color: '#d8b36a' };
-}
+// hexToRgb is the shared utility used by all resolve*Vars paths.
+// Kept as a standalone export for tests and share_code.js.
 
 /**
  * Convert a '#rrggbb' hex color to a comma-separated 'r, g, b' string.
- * Used to derive --pf-accent-rgb from the chosen accent's hex, so
- * CSS rules can shade via rgba(var(--pf-accent-rgb), <alpha>).
- *
  * Tolerates shorthand '#rgb' and malformed input (falls back to
  * amber's RGB so a bad value doesn't blank every rgba-styled chip).
  *
@@ -336,68 +289,6 @@ export function hexToRgb(hex) {
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
   return `${r}, ${g}, ${b}`;
-}
-
-/**
- * Resolve the active accent AND its rgba-ready rgb triple in one call.
- * Used by applyAccent() in full_page.js to set both CSS custom
- * properties (--pf-accent and --pf-accent-rgb) so shaded rules
- * (rgba(var(--pf-accent-rgb), 0.X)) pick up the user's pick.
- *
- * @param {object} settings
- * @param {object} stats
- * @param {string[]} unlockedIds
- * @returns {{ id: string, color: string, rgb: string }}
- */
-export function resolveAccentVars(settings, stats, unlockedIds) {
-  const base = resolveActiveAccent(settings, stats, unlockedIds);
-  return { ...base, rgb: hexToRgb(base.color) };
-}
-
-/**
- * Cascade the user's accent beyond our own overlay into upstream
- * Perchance's chrome. Upstream defines its theme via CSS custom
- * properties on :root — we shadow the handful that carry brand /
- * highlight meaning so the whole app re-tints with the picker.
- *
- * Scouted-and-chosen upstream targets:
- *   --notification-bg-color          top banner background (accent)
- *   --link-color                     all <a> links throughout
- *   --selected-thread-border-color   active thread highlight ring
- *   --selected-thread-bg             active thread soft tint (~18%)
- *
- * Scope: only these four. Structural/neutral upstream vars
- * (--background, --text-color, --button-bg, --box-color, etc.) are
- * left alone so our accent-tint doesn't overpaint layout chrome the
- * user expects to stay neutral. Light/dark mode continues to work
- * because upstream resolves those vars per-color-scheme; we only
- * shadow the accent-y subset.
- *
- * Called at boot (profile/index.js start) so the theme applies even
- * before the user opens the profile, and from applyAccent() on any
- * subsequent pick.
- *
- * No-op if document or documentElement isn't available (server-side
- * safety or early-boot edge).
- *
- * @param {{ color: string, rgb: string }} accent  from resolveAccentVars
- */
-export function paintAppAccent(accent) {
-  if (typeof document === 'undefined' || !document.documentElement) return;
-  if (!accent || typeof accent.color !== 'string') return;
-  const root = document.documentElement;
-  try {
-    root.style.setProperty('--notification-bg-color', accent.color);
-    root.style.setProperty('--link-color', accent.color);
-    root.style.setProperty('--selected-thread-border-color', accent.color);
-    // The selected-thread BACKGROUND wants a soft tint rather than
-    // a solid fill — 18% alpha reads as "this one's picked" without
-    // overpowering the thread text.
-    root.style.setProperty(
-      '--selected-thread-bg',
-      `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
-    );
-  } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 }
 
 /**
@@ -453,13 +344,10 @@ function countTier(unlockedIds, tier) {
 // Vellum palette — primary text color
 // ================================================================
 //
-// Smaller palette than accents. Readability-critical, so options are
-// constrained to warm/cool neutrals that pass WCAG AA on dark
-// backgrounds. Unlocked via palette_vellum achievement (3 total
-// achievements).
-//
-// Row of 8 colors: first 2 always available (once picker unlocks),
-// rest gated at modest thresholds so new users see a progression.
+// Readability-critical, so options are constrained to warm/cool
+// neutrals that pass WCAG AA on dark backgrounds.
+// Culled: bone (≈ parchment), chalk (≈ cream ≈ ACCENT/pearl),
+// moonstone (≈ frost ≈ SILVER/quicksilver).
 
 export const VELLUMS = Object.freeze([
   {
@@ -467,13 +355,6 @@ export const VELLUMS = Object.freeze([
     label: 'Parchment',
     color: '#e8dcc4',
     description: 'The classic warm parchment. Always available.',
-    criterion: () => true,
-  },
-  {
-    id: 'bone',
-    label: 'Bone',
-    color: '#d9d0c1',
-    description: 'Muted ivory. Always available.',
     criterion: () => true,
   },
   {
@@ -489,20 +370,6 @@ export const VELLUMS = Object.freeze([
     color: '#e0d8cc',
     description: 'Warm neutral. Unlocked at 8 achievements.',
     criterion: (s) => (s._unlockedCount || 0) >= 8,
-  },
-  {
-    id: 'chalk',
-    label: 'Chalk',
-    color: '#ece8e0',
-    description: 'Near-white warm. Unlocked at 12 achievements.',
-    criterion: (s) => (s._unlockedCount || 0) >= 12,
-  },
-  {
-    id: 'moonstone',
-    label: 'Moonstone',
-    color: '#c8d0d8',
-    description: 'Cool silver-blue. Unlocked at 1 rare achievement.',
-    criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 1,
   },
   {
     id: 'cream',
@@ -525,8 +392,7 @@ export const VELLUMS = Object.freeze([
 // ================================================================
 //
 // Controls timestamps, labels, hint text, and stat annotations.
-// Like vellum, constrained to readable mid-tones on dark backgrounds.
-// Unlocked via palette_silver achievement (8 total achievements).
+// Culled: dusk (≈ ACCENT/ash, dist 1.9), quicksilver (≈ ACCENT/mist).
 
 export const SILVERS = Object.freeze([
   {
@@ -551,13 +417,6 @@ export const SILVERS = Object.freeze([
     criterion: (s) => (s._unlockedCount || 0) >= 10,
   },
   {
-    id: 'dusk',
-    label: 'Dusk',
-    color: '#9a8a7a',
-    description: 'Warm earth grey. Unlocked at 15 achievements.',
-    criterion: (s) => (s._unlockedCount || 0) >= 15,
-  },
-  {
     id: 'lavender',
     label: 'Lavender',
     color: '#9a8aaa',
@@ -578,106 +437,134 @@ export const SILVERS = Object.freeze([
     description: 'Warm light grey. Unlocked at 2 epic achievements.',
     criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 2,
   },
-  {
-    id: 'quicksilver',
-    label: 'Quicksilver',
-    color: '#b8c0c8',
-    description: 'Bright silver. Unlocked at 2 legendary achievements.',
-    criterion: (_s, unlocked) => countTier(unlocked, 'legendary') >= 2,
-  },
 ]);
 
 // ================================================================
-// Vellum resolve / paint — mirrors accent pipeline
+// Generic palette helpers — one implementation for all channels
 // ================================================================
+//
+// Accent, vellum, and silver follow the exact same resolve → vars →
+// paint pipeline. The generic helpers eliminate the per-channel
+// copy-paste; named exports below are thin wrappers for callers
+// that import by name.
 
-export function getVellums(stats, unlockedIds) {
+/**
+ * Annotate a palette with isUnlocked for the current user.
+ * @param {Array} palette  ACCENTS | VELLUMS | SILVERS
+ */
+function getPicks(palette, stats, unlockedIds) {
   const ids = unlockedIds || [];
-  return VELLUMS.map(v => ({
-    id: v.id,
-    label: v.label,
-    color: v.color,
-    description: v.description,
-    isUnlocked: Boolean(v.criterion(stats || {}, ids)),
+  return palette.map(a => ({
+    id: a.id,
+    label: a.label,
+    color: a.color,
+    description: a.description,
+    isUnlocked: Boolean(a.criterion(stats || {}, ids)),
   }));
 }
 
-export function resolveActiveVellum(settings, stats, unlockedIds) {
+/**
+ * Resolve the active pick for a channel. User's stored flair wins
+ * if valid + unlocked; otherwise falls back to palette[0].
+ *
+ * @param {string} channel   'accent' | 'vellum' | 'silver'
+ * @param {Array}  palette   ACCENTS | VELLUMS | SILVERS
+ */
+function resolveActive(channel, palette, settings, stats, unlockedIds) {
   const picked =
     (settings && settings.profile && settings.profile.flair &&
-     settings.profile.flair.vellum) || null;
-
+     settings.profile.flair[channel]) || null;
   if (picked) {
-    const v = VELLUMS.find(x => x.id === picked);
-    if (v && v.criterion(stats || {}, unlockedIds || [])) {
-      return { id: v.id, color: v.color };
+    const entry = palette.find(a => a.id === picked);
+    if (entry && entry.criterion(stats || {}, unlockedIds || [])) {
+      return { id: entry.id, color: entry.color };
     }
   }
-  return { id: 'parchment', color: '#e8dcc4' };
+  const def = palette[0];
+  return { id: def.id, color: def.color };
 }
 
-export function resolveVellumVars(settings, stats, unlockedIds) {
-  const base = resolveActiveVellum(settings, stats, unlockedIds);
+/** resolveActive + derive rgb triple. */
+function resolveVars(channel, palette, settings, stats, unlockedIds) {
+  const base = resolveActive(channel, palette, settings, stats, unlockedIds);
   return { ...base, rgb: hexToRgb(base.color) };
 }
 
 /**
- * Set --pf-vellum and --pf-vellum-rgb on :root so every component
- * using var(--pf-vellum, ...) picks up the user's text color choice.
+ * Set --pf-<cssVar> and --pf-<cssVar>-rgb on :root.
+ * @param {string} cssVar  CSS custom property stem (e.g. 'vellum')
  */
-export function paintAppVellum(vellum) {
+function paintRoot(cssVar, vars) {
   if (typeof document === 'undefined' || !document.documentElement) return;
-  if (!vellum || typeof vellum.color !== 'string') return;
-  const root = document.documentElement;
+  if (!vars || typeof vars.color !== 'string') return;
   try {
-    root.style.setProperty('--pf-vellum', vellum.color);
-    root.style.setProperty('--pf-vellum-rgb', vellum.rgb || hexToRgb(vellum.color));
+    const root = document.documentElement;
+    root.style.setProperty(`--pf-${cssVar}`, vars.color);
+    root.style.setProperty(`--pf-${cssVar}-rgb`, vars.rgb || hexToRgb(vars.color));
   } catch { /* non-fatal */ }
 }
 
-// ================================================================
-// Silver resolve / paint
-// ================================================================
+// ---- Named exports (thin wrappers) ----
 
-export function getSilvers(stats, unlockedIds) {
-  const ids = unlockedIds || [];
-  return SILVERS.map(v => ({
-    id: v.id,
-    label: v.label,
-    color: v.color,
-    description: v.description,
-    isUnlocked: Boolean(v.criterion(stats || {}, ids)),
-  }));
-}
+export const getAccents = (s, u) => getPicks(ACCENTS, s, u);
+export const getVellums = (s, u) => getPicks(VELLUMS, s, u);
+export const getSilvers = (s, u) => getPicks(SILVERS, s, u);
 
-export function resolveActiveSilver(settings, stats, unlockedIds) {
-  const picked =
-    (settings && settings.profile && settings.profile.flair &&
-     settings.profile.flair.silver) || null;
+export const resolveActiveAccent  = (se, st, u) => resolveActive('accent',  ACCENTS, se, st, u);
+export const resolveActiveVellum  = (se, st, u) => resolveActive('vellum',  VELLUMS, se, st, u);
+export const resolveActiveSilver  = (se, st, u) => resolveActive('silver',  SILVERS, se, st, u);
 
-  if (picked) {
-    const v = SILVERS.find(x => x.id === picked);
-    if (v && v.criterion(stats || {}, unlockedIds || [])) {
-      return { id: v.id, color: v.color };
-    }
-  }
-  return { id: 'pewter', color: '#8b95a3' };
-}
+export const resolveAccentVars = (se, st, u) => resolveVars('accent',  ACCENTS, se, st, u);
+export const resolveVellumVars = (se, st, u) => resolveVars('vellum',  VELLUMS, se, st, u);
+export const resolveSilverVars = (se, st, u) => resolveVars('silver',  SILVERS, se, st, u);
 
-export function resolveSilverVars(settings, stats, unlockedIds) {
-  const base = resolveActiveSilver(settings, stats, unlockedIds);
-  return { ...base, rgb: hexToRgb(base.color) };
+export function paintAppVellum(v) { paintRoot('vellum', v); }
+export function paintAppSilver(v) { paintRoot('silver', v); }
+
+/**
+ * paintAppAccent is special: besides setting --pf-accent and
+ * --pf-accent-rgb, it also cascades into upstream Perchance's
+ * chrome vars (notification, links, thread highlight).
+ */
+export function paintAppAccent(accent) {
+  paintRoot('accent', accent);
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  if (!accent || typeof accent.color !== 'string') return;
+  const root = document.documentElement;
+  try {
+    root.style.setProperty('--notification-bg-color', accent.color);
+    root.style.setProperty('--link-color', accent.color);
+    root.style.setProperty('--selected-thread-border-color', accent.color);
+    root.style.setProperty(
+      '--selected-thread-bg',
+      `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
+    );
+  } catch { /* non-fatal */ }
 }
 
 /**
- * Set --pf-silver and --pf-silver-rgb on :root.
+ * Convenience: paint all three channels in one call.
+ * Used by full_page.js to consolidate apply logic.
+ *
+ * @param {object} settings
+ * @param {object} stats
+ * @param {string[]} unlockedIds
+ * @param {HTMLElement} [overlay]  optional overlay element for scoped vars
  */
-export function paintAppSilver(silver) {
-  if (typeof document === 'undefined' || !document.documentElement) return;
-  if (!silver || typeof silver.color !== 'string') return;
-  const root = document.documentElement;
-  try {
-    root.style.setProperty('--pf-silver', silver.color);
-    root.style.setProperty('--pf-silver-rgb', silver.rgb || hexToRgb(silver.color));
-  } catch { /* non-fatal */ }
+export function paintAllChannels(settings, stats, unlockedIds, overlay) {
+  const channels = [
+    { channel: 'accent',  palette: ACCENTS, cssVar: 'accent',  paint: paintAppAccent },
+    { channel: 'vellum',  palette: VELLUMS, cssVar: 'vellum',  paint: paintAppVellum },
+    { channel: 'silver',  palette: SILVERS, cssVar: 'silver',  paint: paintAppSilver },
+  ];
+  for (const { channel, palette, cssVar, paint } of channels) {
+    const vars = resolveVars(channel, palette, settings, stats, unlockedIds);
+    paint(vars);
+    if (overlay && overlay.style) {
+      try {
+        overlay.style.setProperty(`--pf-${cssVar}`, vars.color);
+        overlay.style.setProperty(`--pf-${cssVar}-rgb`, vars.rgb);
+      } catch { /* non-fatal */ }
+    }
+  }
 }

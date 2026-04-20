@@ -29,7 +29,7 @@ function mockDocument() {
   return { doc, calls };
 }
 
-test('paintAppAccent: overrides the 4 upstream accent-variable targets', () => {
+test('paintAppAccent: overrides the 4 upstream accent-variable targets plus own --pf-accent pair', () => {
   const { doc, calls } = mockDocument();
   const prev = globalThis.document;
   globalThis.document = doc;
@@ -44,6 +44,8 @@ test('paintAppAccent: overrides the 4 upstream accent-variable targets', () => {
     [
       '--link-color',
       '--notification-bg-color',
+      '--pf-accent',
+      '--pf-accent-rgb',
       '--selected-thread-bg',
       '--selected-thread-border-color',
     ].sort(),
