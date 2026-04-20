@@ -440,7 +440,14 @@ export async function start() {
       } catch { return {}; }
     })();
     const bootUnlocked = computeUnlockedIds(bootStats);
-    paintAllChannels(bootSettings, bootStats, bootUnlocked);
+    // Two-pass: inject _unlockedCount so palette threshold achievements
+    // (palette_vellum, palette_silver, palette_deep) fire at boot.
+    // Without this, the user's chosen vellum/silver color would flash
+    // to default on page load until the profile overlay re-resolves.
+    bootStats._unlockedCount = bootUnlocked.length;
+    try { bootStats.counters = getCounters(); } catch { bootStats.counters = {}; }
+    const bootUnlockedFull = computeUnlockedIds(bootStats);
+    paintAllChannels(bootSettings, bootStats, bootUnlockedFull);
   } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
   // ---- Theme colors (custom background gradient) ----

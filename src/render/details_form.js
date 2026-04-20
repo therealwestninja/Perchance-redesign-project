@@ -9,7 +9,7 @@ import { getInitialFromName } from '../utils/format.js';
 import { updateField, loadSettings, AGE_RANGE_OPTIONS } from '../profile/settings_store.js';
 import { createGenderSquare } from './gender_square.js';
 import { checkImageFile, resizeImageToDataURL } from '../utils/image.js';
-import { getAvailableTitles, getAccents, getVellums, getSilvers } from '../profile/flair.js';
+import { getAvailableTitles } from '../profile/flair.js';
 import { ACHIEVEMENTS } from '../achievements/registry.js';
 
 /**
@@ -89,95 +89,78 @@ export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} }
   });
   titleInput.value = String(profile.titleOverride || '');
 
-  // ---- flair: achievement-gated color pickers ----
+  // ---- Color grid: 3×2 achievement-gated square color pickers ----
   //
-  // Three swatch rows — Accent, Text (vellum), Meta (silver) — each
-  // gated on a dedicated palette_* achievement. The picker for each
-  // row only appears once the user has earned the corresponding
-  // achievement; before that, a locked hint shows what's needed.
+  //   Row 1: Accent        Text (vellum)   Meta (silver)
+  //   Row 2: Secondary     Primary         [future]
+  //
+  // Each cell is an <input type="color"> with label, lock, and reset.
+  // Replaces the old swatch rows + separate Theme row.
   const flairUnlocks = getFlairUnlocks(unlockedIds);
+  const tc = (profile && profile.themeColors) || {};
 
-  // Shared glyph logic for all swatch rows.
-  function glyphFor(isUnlocked, isActive) {
-    if (!isUnlocked) return '🔒';
-    if (isActive)   return '✓';
-    return '●';
-  }
+  const COLOR_GRID = [
+    { label: 'Accent',    field: 'accent',    def: '#d8b36a', unlocked: flairUnlocks.accent, hint: 'Always available' },
+    { label: 'Text',      field: 'vellum',    def: '#e8dcc4', unlocked: flairUnlocks.vellum, hint: '3 achievements' },
+    { label: 'Meta',      field: 'silver',    def: '#8b95a3', unlocked: flairUnlocks.silver, hint: '8 achievements' },
+    { label: 'Secondary', field: 'secondary', def: '#161b22', unlocked: flairUnlocks.silver, hint: '8 achievements' },
+    { label: 'Primary',   field: 'primary',   def: '#0d1117', unlocked: flairUnlocks.deep,   hint: '15 achievements' },
+    { label: null,         field: null,        def: null,      unlocked: false,               hint: 'Coming soon' },
+  ];
 
-  /**
-   * Build a swatch row for a flair palette. Reused for accent, vellum,
-   * and silver — same markup, same click-to-toggle, same glyph logic.
-   *
-   * @param {Array} items        palette items from getAccents / getVellums / getSilvers
-   * @param {string} flairKey    settings path under profile.flair (e.g. 'accent')
-   * @param {string} defaultId   the default color id (e.g. 'amber', 'parchment', 'pewter')
-   */
-  function buildSwatchRow(items, flairKey, defaultId) {
-    const currentPick = currentFlair[flairKey] || null;
-    const container = h('div', { class: 'pf-accent-row' },
-      items.map(a => {
-        const isActive = currentPick === a.id || (!currentPick && a.id === defaultId);
-        const btn = h('button', {
-          type: 'button',
-          class: [
-            'pf-accent-swatch',
-            isActive ? 'pf-accent-swatch-active' : '',
-            a.isUnlocked ? '' : 'pf-accent-swatch-locked',
-          ].filter(Boolean).join(' '),
-          'aria-label': a.isUnlocked
-            ? `${a.label}${isActive ? ' (active)' : ''}`
-            : `Locked: ${a.description}`,
-          title: a.isUnlocked
-            ? `${a.label} — ${a.description}`
-            : `🔒 ${a.description}`,
-          disabled: !a.isUnlocked,
-          style: `--pf-accent-preview:${a.color};`,
-          onClick: () => {
-            if (!a.isUnlocked) return;
-            const nextVal = (currentPick === a.id) ? null : a.id;
-            updateField(`profile.flair.${flairKey}`, nextVal);
-            const updated = items.map(x => ({
-              ...x,
-              _active: nextVal === x.id || (!nextVal && x.id === defaultId),
-            }));
-            for (let i = 0; i < updated.length; i++) {
-              const swatch = container.children[i];
-              if (!swatch) continue;
-              swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
-              const innerSpan = swatch.firstChild;
-              if (innerSpan && innerSpan.tagName === 'SPAN') {
-                innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
-              }
-            }
-            currentFlair[flairKey] = nextVal;
-            try { btn.blur(); } catch { /* non-fatal */ }
-          },
-        }, [
-          h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
+  const colorGrid = h('div', { class: 'pf-color-grid' },
+    COLOR_GRID.map(cfg => {
+      if (!cfg.field) {
+        // Future slot — empty placeholder
+        return h('div', { class: 'pf-color-cell pf-color-cell-future' }, [
+          h('div', { class: 'pf-color-cell-empty' }),
+          h('span', { class: 'pf-theme-picker-label pf-theme-picker-locked' }, ['Coming soon']),
         ]);
-        return btn;
-      })
-    );
-    return container;
-  }
+      }
+      const wrapper = h('div', { class: 'pf-color-cell' });
 
-  // Build each row only if the corresponding achievement is unlocked;
-  // otherwise show a locked hint.
-  function lockedHint(text) {
-    return h('div', { class: 'pf-flair-locked-hint' }, [`🔒 ${text}`]);
-  }
+      const colorInput = h('input', {
+        type: 'color',
+        class: 'pf-theme-color-input',
+        value: tc[cfg.field] || cfg.def,
+        disabled: !cfg.unlocked,
+        title: cfg.unlocked
+          ? `${cfg.label} — click to change`
+          : `🔒 Unlock at ${cfg.hint}`,
+        onInput: (ev) => {
+          updateField(`profile.themeColors.${cfg.field}`, ev.target.value);
+          applyThemeColorsLive();
+        },
+      });
 
-  const accentRow = flairUnlocks.accent
-    ? buildSwatchRow(getAccents(stats, unlockedIds), 'accent', 'amber')
-    : lockedHint('Open your profile to unlock the accent palette.');
+      const labelEl = h('span', {
+        class: 'pf-theme-picker-label' + (cfg.unlocked ? '' : ' pf-theme-picker-locked'),
+      }, [cfg.label]);
 
-  const vellumRow = flairUnlocks.vellum
-    ? buildSwatchRow(getVellums(stats, unlockedIds), 'vellum', 'parchment')
-    : lockedHint('Earn 3 achievements to unlock the text color palette.');
+      const lockIcon = !cfg.unlocked
+        ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
+        : null;
 
-  const silverRow = flairUnlocks.silver
-    ? buildSwatchRow(getSilvers(stats, unlockedIds), 'silver', 'pewter')
-    : lockedHint('Earn 8 achievements to unlock the meta text palette.');
+      const resetBtn = cfg.unlocked
+        ? h('button', {
+            type: 'button',
+            class: 'pf-theme-picker-reset',
+            title: 'Reset to default',
+            onClick: () => {
+              colorInput.value = cfg.def;
+              updateField(`profile.themeColors.${cfg.field}`, null);
+              applyThemeColorsLive();
+            },
+          }, ['↺'])
+        : null;
+
+      wrapper.appendChild(colorInput);
+      wrapper.appendChild(labelEl);
+      if (lockIcon) wrapper.appendChild(lockIcon);
+      if (resetBtn) wrapper.appendChild(resetBtn);
+      return wrapper;
+    })
+  );
 
   // ---- age range ----
   const ageSelect = h('select', {
@@ -207,14 +190,7 @@ export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} }
     row('Username',     usernameInput),
     row('Title',        titleSelect),
     row('Custom title', titleInput),
-    // Multi-control rows below use groupRow (a <div role="group">) so
-    // the wrapping element doesn't implicitly associate with the first
-    // child control — which would propagate :hover to it from anywhere
-    // in the row.
-    groupRow('Accent',     accentRow),
-    groupRow('Text color', vellumRow),
-    groupRow('Meta color', silverRow),
-    createThemeColorRow(profile, unlockedIds),
+    groupRow('Colors',  colorGrid),
     row('Age range',    ageSelect),
     groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
       genderSquare,
@@ -393,92 +369,77 @@ function loadNameForMonogram() {
 }
 
 // ---------------------------------------------------------------------
-// Theme color pickers — primary + secondary background gradient stops
+// Color grid defaults — all user-selectable color channels
 // ---------------------------------------------------------------------
 
 const THEME_DEFAULTS = {
+  accent:    '#d8b36a',
+  vellum:    '#e8dcc4',
+  silver:    '#8b95a3',
   primary:   '#0d1117',
   secondary: '#161b22',
 };
 
 /**
- * Create the theme color picker row.
- * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
- * Each unlocks at a different flair achievement threshold.
- */
-function createThemeColorRow(profile, unlockedIds) {
-  const unlocks = getFlairUnlocks(unlockedIds);
-  const tc = (profile && profile.themeColors) || {};
-
-  function makeColorPicker(label, field, defaultColor, isUnlocked, unlockHint) {
-    const wrapper = h('div', { class: 'pf-theme-picker' }, []);
-
-    const colorInput = h('input', {
-      type: 'color',
-      class: 'pf-theme-color-input',
-      value: tc[field] || defaultColor,
-      disabled: !isUnlocked,
-      title: isUnlocked
-        ? `${label} — click to change`
-        : `🔒 Unlock at ${unlockHint}`,
-      onInput: (ev) => {
-        updateField(`profile.themeColors.${field}`, ev.target.value);
-        applyThemeColorsLive();
-      },
-    });
-
-    const labelEl = h('span', {
-      class: 'pf-theme-picker-label' + (isUnlocked ? '' : ' pf-theme-picker-locked'),
-    }, [label]);
-
-    const lockIcon = !isUnlocked
-      ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
-      : null;
-
-    const resetBtn = isUnlocked
-      ? h('button', {
-          type: 'button',
-          class: 'pf-theme-picker-reset',
-          title: 'Reset to default',
-          onClick: () => {
-            colorInput.value = defaultColor;
-            updateField(`profile.themeColors.${field}`, null);
-            applyThemeColorsLive();
-          },
-        }, ['↺'])
-      : null;
-
-    wrapper.appendChild(colorInput);
-    wrapper.appendChild(labelEl);
-    if (lockIcon) wrapper.appendChild(lockIcon);
-    if (resetBtn) wrapper.appendChild(resetBtn);
-    return wrapper;
-  }
-
-  const container = h('div', { class: 'pf-theme-pickers' }, [
-    makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.silver, '8 achievements'),
-    makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.deep,   '15 achievements'),
-  ]);
-
-  return groupRow('Theme', container);
-}
-
-/**
- * Apply theme colors to the page by setting CSS custom properties.
- * Called on change + at boot time from profile/index.js.
+ * Apply all user-selected colors to the page by setting CSS custom
+ * properties on :root. Called on every color picker change + at boot.
+ *
+ * Handles all 5 channels: accent, vellum, silver, primary, secondary.
+ * For accent, also cascades into upstream Perchance's chrome vars
+ * and derives the hi/deep/shadow companion tones.
  */
 function applyThemeColorsLive() {
   try {
     const settings = loadSettings();
     const tc = (settings && settings.profile && settings.profile.themeColors) || {};
+    const root = document.documentElement;
+
+    // Background gradient
     const primary   = tc.primary   || THEME_DEFAULTS.primary;
     const secondary = tc.secondary || THEME_DEFAULTS.secondary;
-    // Derive a lighter shade for button gradients
-    const secLight = lightenHex(secondary, 12);
-    document.documentElement.style.setProperty('--pf-theme-primary', primary);
-    document.documentElement.style.setProperty('--pf-theme-secondary', secondary);
-    document.documentElement.style.setProperty('--pf-theme-secondary-light', secLight);
+    const secLight  = lightenHex(secondary, 12);
+    root.style.setProperty('--pf-theme-primary', primary);
+    root.style.setProperty('--pf-theme-secondary', secondary);
+    root.style.setProperty('--pf-theme-secondary-light', secLight);
+
+    // Accent — also derives hi/deep/shadow and cascades to upstream
+    if (tc.accent) {
+      root.style.setProperty('--pf-accent', tc.accent);
+      root.style.setProperty('--pf-accent-rgb', hexToRgbLocal(tc.accent));
+      root.style.setProperty('--pf-accent-hi', lightenHex(tc.accent, 35));
+      root.style.setProperty('--pf-accent-hi-rgb', hexToRgbLocal(lightenHex(tc.accent, 35)));
+      root.style.setProperty('--pf-accent-deep', lightenHex(tc.accent, -50));
+      root.style.setProperty('--pf-accent-deep-rgb', hexToRgbLocal(lightenHex(tc.accent, -50)));
+      root.style.setProperty('--pf-accent-shadow', lightenHex(tc.accent, -70));
+      // Upstream cascade
+      root.style.setProperty('--notification-bg-color', tc.accent);
+      root.style.setProperty('--link-color', tc.accent);
+      root.style.setProperty('--selected-thread-border-color', tc.accent);
+      root.style.setProperty('--selected-thread-bg',
+        `rgba(${hexToRgbLocal(tc.accent)}, 0.18)`);
+    }
+
+    // Text color (vellum)
+    if (tc.vellum) {
+      root.style.setProperty('--pf-vellum', tc.vellum);
+      root.style.setProperty('--pf-vellum-rgb', hexToRgbLocal(tc.vellum));
+    }
+
+    // Meta text color (silver)
+    if (tc.silver) {
+      root.style.setProperty('--pf-silver', tc.silver);
+      root.style.setProperty('--pf-silver-rgb', hexToRgbLocal(tc.silver));
+    }
   } catch { /* non-fatal */ }
+}
+
+/** Local hex→rgb for inline use without importing flair.js. */
+function hexToRgbLocal(hex) {
+  const h = (hex || '').replace('#', '');
+  const r = parseInt(h.substring(0,2), 16) || 0;
+  const g = parseInt(h.substring(2,4), 16) || 0;
+  const b = parseInt(h.substring(4,6), 16) || 0;
+  return `${r}, ${g}, ${b}`;
 }
 
 function lightenHex(hex, amount) {

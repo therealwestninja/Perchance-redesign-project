@@ -16,7 +16,7 @@ import { updateField } from '../profile/settings_store.js';
  * }} opts
  * @returns {HTMLElement}
  */
-export function createSection({ id, title, children, initialState, onToggled }) {
+export function createSection({ id, title, children, initialState, onToggled, headerActions }) {
   let collapsed = !!(initialState && initialState.collapsed);
   let blurred   = !!(initialState && initialState.blurred);
 
@@ -46,11 +46,19 @@ export function createSection({ id, title, children, initialState, onToggled }) 
 
   const bodyWrap = h('div', { class: 'pf-section-body-wrap' }, [body, coverBtn]);
 
+  const headerChildren = [
+    h('h2', { class: 'pf-section-title' }, [title]),
+  ];
+  // Optional action buttons between title and collapse/blur controls
+  if (headerActions && headerActions.length) {
+    for (const action of headerActions) {
+      if (action) headerChildren.push(action);
+    }
+  }
+  headerChildren.push(h('div', { class: 'pf-section-ctrls' }, [eyeBtn, chevronBtn]));
+
   const root = h('section', { class: 'pf-section', 'data-section-id': id }, [
-    h('header', { class: 'pf-section-header' }, [
-      h('h2', { class: 'pf-section-title' }, [title]),
-      h('div', { class: 'pf-section-ctrls' }, [eyeBtn, chevronBtn]),
-    ]),
+    h('header', { class: 'pf-section-header' }, headerChildren),
     bodyWrap,
   ]);
 

@@ -34,11 +34,15 @@ export function defaultSettings() {
         title: null,   // null = auto pick rarest unlocked; else an achievement id
         accent: null,  // null = default amber; else an accent id from ACCENTS list
       },
-      // Theme colors — custom background gradient stops.
-      // Null = use defaults (#0d1117 / #161b22). Unlock via achievement %.
+      // Theme colors — all user-selectable colors in one place.
+      // Null = use defaults. Each unlocks via a palette_* achievement.
+      // Stored as raw '#rrggbb' hex strings.
       themeColors: {
-        primary:   null,  // darker gradient stop (default #0d1117), unlocks at 25%
-        secondary: null,  // lighter gradient stop (default #161b22), unlocks at 15%
+        accent:    null,  // main accent (default #d8b36a amber)
+        vellum:    null,  // primary text (default #e8dcc4 parchment)
+        silver:    null,  // secondary/meta text (default #8b95a3 pewter)
+        secondary: null,  // lighter bg gradient stop (default #161b22)
+        primary:   null,  // darker bg gradient stop (default #0d1117)
       },
     },
     display: {
@@ -99,6 +103,10 @@ export function defaultSettings() {
       // doesn't affect completion history — completions are always
       // bucketed by containing-week under the hood.
       cadence: 'weekly',
+      // User-edited daily quest themes. When non-null, overrides the
+      // built-in THEMES array in daily_quest.js. Each entry has
+      // { seed: string, icon: string, prompt: string }.
+      customQuestThemes: null,
     },
     memory: {
       // Per-thread pin map: { [threadId]: { [entryId]: { label, createdAt, policy } } }

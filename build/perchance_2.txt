@@ -15115,9 +15115,9 @@ Use this template for your response:
     {
       id: 'palette_unlocked',
       name: 'Palette Awakened',
-      description: 'Open your profile for the first time and discover the color palette.',
+      description: 'Discover the color palette.',
       tier: 'common',
-      criteria: (s) => cnt(s, 'profileOpens') >= 1,
+      criteria: () => true,
     },
     {
       id: 'palette_vellum',
@@ -23761,16 +23761,25 @@ Use this template for your response:
     text-align: center;
   }
 
-  /* ---- Theme color pickers ---- */
-  .pf-theme-pickers {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
+  /* ---- Color picker grid (3×2) ---- */
+  .pf-color-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
   }
-  .pf-theme-picker {
+  .pf-color-cell {
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  .pf-color-cell-future {
+    opacity: 0.3;
+  }
+  .pf-color-cell-empty {
+    width: 32px;
+    height: 32px;
+    border: 2px dashed rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    border-radius: 6px;
   }
   .pf-theme-color-input {
     width: 32px;
@@ -25117,6 +25126,67 @@ Use this template for your response:
     cursor: default;
   }
 
+  /* ---- Section header action button (Edit Prompts, etc.) ---- */
+  .pf-section-action {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    border-radius: 6px;
+    color: var(--pf-silver, #8b95a3);
+    font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .pf-section-action:hover {
+    color: var(--pf-vellum, #e8dcc4);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+  }
+  .pf-section-action:focus-visible {
+    outline: 2px solid var(--pf-accent, #d4a855);
+    outline-offset: 1px;
+  }
+
+  /* ---- Edit Prompts modal extras ---- */
+  .pf-dq-edit-status {
+    font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    margin: 6px 0 12px;
+    min-height: 16px;
+  }
+  .pf-dq-edit-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pf-dq-edit-btn {
+    padding: 7px 16px;
+    border-radius: 6px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent;
+    color: var(--pf-vellum, #e8dcc4);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-dq-edit-btn:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+  }
+  .pf-dq-edit-btn-primary {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    color: var(--pf-accent-hi, #e8c97a);
+    font-weight: 600;
+  }
+  .pf-dq-edit-btn-primary:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  }
+
   /* ---- Code syntax highlighting (Batch 3) ----
      Token colors for regex-based highlighting of code blocks.
      Designed for dark backgrounds matching upstream's code block style. */
@@ -25207,11 +25277,15 @@ Use this template for your response:
           title: null,   // null = auto pick rarest unlocked; else an achievement id
           accent: null,  // null = default amber; else an accent id from ACCENTS list
         },
-        // Theme colors — custom background gradient stops.
-        // Null = use defaults (#0d1117 / #161b22). Unlock via achievement %.
+        // Theme colors — all user-selectable colors in one place.
+        // Null = use defaults. Each unlocks via a palette_* achievement.
+        // Stored as raw '#rrggbb' hex strings.
         themeColors: {
-          primary:   null,  // darker gradient stop (default #0d1117), unlocks at 25%
-          secondary: null,  // lighter gradient stop (default #161b22), unlocks at 15%
+          accent:    null,  // main accent (default #d8b36a amber)
+          vellum:    null,  // primary text (default #e8dcc4 parchment)
+          silver:    null,  // secondary/meta text (default #8b95a3 pewter)
+          secondary: null,  // lighter bg gradient stop (default #161b22)
+          primary:   null,  // darker bg gradient stop (default #0d1117)
         },
       },
       display: {
@@ -25272,6 +25346,10 @@ Use this template for your response:
         // doesn't affect completion history — completions are always
         // bucketed by containing-week under the hood.
         cadence: 'weekly',
+        // User-edited daily quest themes. When non-null, overrides the
+        // built-in THEMES array in daily_quest.js. Each entry has
+        // { seed: string, icon: string, prompt: string }.
+        customQuestThemes: null,
       },
       memory: {
         // Per-thread pin map: { [threadId]: { [entryId]: { label, createdAt, policy } } }
@@ -26567,6 +26645,12 @@ Use this template for your response:
    * @param {Array}  palette   ACCENTS | VELLUMS | SILVERS
    */
   function resolveActive(channel, palette, settings, stats, unlockedIds) {
+    // Direct hex override from themeColors (square color picker)
+    const tc = settings && settings.profile && settings.profile.themeColors;
+    if (tc && tc[channel] && typeof tc[channel] === 'string') {
+      return { id: '_custom', color: tc[channel] };
+    }
+    // Fall back to palette-based flair pick (legacy swatch system)
     const picked =
       (settings && settings.profile && settings.profile.flair &&
        settings.profile.flair[channel]) || null;
@@ -27126,11 +27210,13 @@ Use this template for your response:
      ────────────────────────────────────────────────────────── */
   // profile/share_code.js
   //
-  // Binary-packed profile share codes (pf3 format).
+  // Compact binary-packed profile share codes (pf5 format).
   //
-  // Encodes profile data as numeric indices into existing registries
-  // (achievements, archetypes, accents). Only the display name is raw
-  // text. Produces ~36-char codes embedded in shareable URLs.
+  // Prefixless base64url encoding. First byte is the version (5).
+  // Uses LEB128 varints for numbers, flag-based color omission
+  // (default colors cost 0 bytes), and delta-encoded badge indices.
+  //
+  // Typical profile: ~30–45 chars. Minimal: ~18 chars.
   //
   // Flow: User clicks share → encodeShareCode() → buildShareUrl() →
   //       URL copied → recipient clicks → parseShareUrl() →
@@ -27138,8 +27224,20 @@ Use this template for your response:
 
 
 
-  const CODE_PREFIX = 'pf3';
-  const CURRENT_VERSION = 3;
+  const CODE_PREFIX = 'pf5';
+  const CURRENT_VERSION = 5;
+
+  // Default colors — when a color matches its default, the flag bit
+  // stays 0 and the 3 RGB bytes are omitted entirely.
+  const COLOR_DEFAULTS = {
+    accent:    'd8b36a',
+    vellum:    'e8dcc4',
+    silver:    '8b95a3',
+    secondary: '161b22',
+    primary:   '0d1117',
+    future:    '000000',
+  };
+  const COLOR_KEYS = ['accent','vellum','silver','secondary','primary','future'];
 
   const LIMITS = Object.freeze({
     displayName: 40,
@@ -27153,10 +27251,6 @@ Use this template for your response:
   // ---- Index tables for binary packing ----
 
   const ARCHETYPE_IDS = ['newcomer','storyteller','rp','daily','twice_weekly','casual'];
-  const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
-  const ACCENT_IDS = ['amber','sage','ash','clay','moss','mist','honey','rust',
-    'iron','copper','jade','slate','wine','ocean','plum','silver',
-    'pink','purple','sky','gold','ruby','teal','pearl','obsidian'];
 
   const ACH_ID_TO_IDX = {};
   const ACH_IDX_TO_OBJ = [];
@@ -27184,10 +27278,17 @@ Use this template for your response:
     archetype,
     level,
     accent,
+    vellum,
+    silver,
+    secondary,
+    primary,
     pinnedBadges,
     xpIntoLevel,
     xpForNextLevel,
     progress01,
+    wordsWritten,
+    threadCount,
+    daysActive,
   } = {}) {
     // Accept either the raw { label } object from profile/archetypes.js
     // OR an already-normalized string (e.g., when the caller chains
@@ -27216,194 +27317,282 @@ Use this template for your response:
       xpIntoLevel: Math.max(0, Math.floor(Number(xpIntoLevel) || 0)),
       xpForNextLevel: Math.max(1, Math.floor(Number(xpForNextLevel) || 1)),
       progress01: Math.max(0, Math.min(1, Number(progress01) || 0)),
+      vellum: normalizeAccent(vellum || 'e8dcc4'),
+      silver: normalizeAccent(silver || '8b95a3'),
+      secondary: normalizeAccent(secondary || '161b22'),
+      primary: normalizeAccent(primary || '0d1117'),
+      wordsWritten: Math.max(0, Math.floor(Number(wordsWritten) || 0)),
+      threadCount: Math.max(0, Math.floor(Number(threadCount) || 0)),
+      daysActive: Math.max(0, Math.floor(Number(daysActive) || 0)),
     };
   }
 
+  // ---- LEB128 varint helpers ----
+
+  /** Encode a non-negative integer as LEB128 varint bytes. */
+  function pushVarint(bytes, value) {
+    let v = value >>> 0; // clamp to uint32
+    do {
+      let b = v & 0x7F;
+      v >>>= 7;
+      if (v > 0) b |= 0x80;
+      bytes.push(b);
+    } while (v > 0);
+  }
+
+  /** Read a LEB128 varint from bytes at pos. Returns { value, pos }. */
+  function readVarint(bytes, pos) {
+    let value = 0, shift = 0;
+    while (pos < bytes.length) {
+      const b = bytes[pos++];
+      value |= (b & 0x7F) << shift;
+      if ((b & 0x80) === 0) break;
+      shift += 7;
+      if (shift > 28) break; // safety — max 32-bit
+    }
+    return { value: value >>> 0, pos };
+  }
+
+  /** Push 3 RGB bytes from a 6-char hex string. */
+  function pushRgb(bytes, hex) {
+    bytes.push(parseInt(hex.substring(0,2), 16) || 0);
+    bytes.push(parseInt(hex.substring(2,4), 16) || 0);
+    bytes.push(parseInt(hex.substring(4,6), 16) || 0);
+  }
+
+  /** Read 3 RGB bytes → 6-char hex string. */
+  function readRgb(bytes, pos) {
+    const hex = (bytes[pos] || 0).toString(16).padStart(2,'0')
+              + (bytes[pos+1] || 0).toString(16).padStart(2,'0')
+              + (bytes[pos+2] || 0).toString(16).padStart(2,'0');
+    return { hex, pos: pos + 3 };
+  }
+
   /**
-   * Encode a view-model into a share code string.
+   * Encode a view-model into a compact share code string.
    *
-   *   encodeShareCode(viewModel) => 'pf3:AwIEBBEA...'
+   * pf5 format — prefixless, varint-packed, flag-based color omission.
+   * ~30 chars for a typical profile (vs ~60 for pf4).
    *
-   * Safe against extraneous caller fields — the payload is built from
-   * the fixed schema below, so extras in the input are ignored.
-   *
-   * @param {object} viewModel  output of toShareViewModel
-   * @returns {string}
+   * Layout:
+   *   byte 0: version (5)
+   *   byte 1: flags
+   *     bit 0-5: color[i] is non-default (accent,vellum,silver,sec,pri,future)
+   *     bit 6: has custom title text
+   *     bit 7: has archetype
+   *   varint: level
+   *   varint: progress (0-100)
+   *   varint: xpIntoLevel
+   *   varint: xpForNextLevel
+   *   [if bit 7] 1 byte: archetype index
+   *   1 byte: title achievement index (255 = custom/Newcomer)
+   *   1 byte: badge count
+   *   [badges] varint deltas from previous (sorted ascending)
+   *   [for each set color flag] 3 bytes RGB
+   *   varint: wordsWritten
+   *   varint: threadCount
+   *   varint: daysActive
+   *   varint-length-prefixed: display name UTF-8
+   *   [if bit 6 AND title=255] varint-length-prefixed: title UTF-8
    */
   function encodeShareCode(viewModel) {
     const safe = toShareViewModel(viewModel || {});
-
-    // pf3: binary-packed format. Everything except the display name
-    // is encoded as numeric indices into existing registries.
     const bytes = [];
 
-    // Byte 0: version
+    // Version
     bytes.push(CURRENT_VERSION);
 
-    // Byte 1: level (clamped to 0-255)
-    bytes.push(Math.min(255, safe.level));
+    // ---- Build flags ----
+    let flags = 0;
+    const colors = {
+      accent:    normalizeAccent(safe.accent),
+      vellum:    normalizeAccent(safe.vellum),
+      silver:    normalizeAccent(safe.silver),
+      secondary: normalizeAccent(safe.secondary || ''),
+      primary:   normalizeAccent(safe.primary || ''),
+      future:    '000000',
+    };
+    for (let i = 0; i < COLOR_KEYS.length; i++) {
+      if (colors[COLOR_KEYS[i]] !== COLOR_DEFAULTS[COLOR_KEYS[i]]) {
+        flags |= (1 << i);
+      }
+    }
 
-    // Byte 2: archetype index (0-5, 255 = null/Newcomer)
-    const ARCHETYPE_LABELS = ['newcomer','storyteller','roleplayer','daily user','regular','casual'];
+    const titleAchIdx = findAchievementIndexByName(safe.title);
+    const hasCustomTitle = titleAchIdx === -1 && safe.title && safe.title !== 'Newcomer';
+    if (hasCustomTitle) flags |= (1 << 6);
+
+    const ARCH_LABELS_LOWER = ['newcomer','storyteller','roleplayer','daily user','regular','casual'];
     let archIdx = 255;
     if (safe.archetype) {
       const lower = safe.archetype.toLowerCase();
       archIdx = ARCHETYPE_IDS.indexOf(lower);
-      if (archIdx === -1) archIdx = ARCHETYPE_LABELS.indexOf(lower);
+      if (archIdx === -1) archIdx = ARCH_LABELS_LOWER.indexOf(lower);
       if (archIdx === -1) archIdx = 255;
     }
-    bytes.push(archIdx);
+    if (archIdx !== 255) flags |= (1 << 7);
 
-    // Byte 3: accent index (0-23, 255 = custom hex follows)
-    const accentId = findAccentId(safe.accent);
-    const accIdx = accentId ? ACCENT_IDS.indexOf(accentId) : -1;
-    bytes.push(accIdx >= 0 ? accIdx : 255);
-    // If not in palette, append 3 raw RGB bytes
-    const accNotInPalette = accIdx < 0;
-    if (accNotInPalette) {
-      const hex = normalizeAccent(safe.accent);
-      bytes.push(parseInt(hex.substring(0,2), 16) || 0);
-      bytes.push(parseInt(hex.substring(2,4), 16) || 0);
-      bytes.push(parseInt(hex.substring(4,6), 16) || 0);
-    }
+    bytes.push(flags);
 
-    // Byte 4: progress (0-100 integer)
-    bytes.push(Math.round(safe.progress01 * 100));
+    // ---- Varints: level, progress, xp ----
+    pushVarint(bytes, safe.level);
+    pushVarint(bytes, Math.round(safe.progress01 * 100));
+    pushVarint(bytes, safe.xpIntoLevel);
+    pushVarint(bytes, safe.xpForNextLevel);
 
-    // Bytes 5-6: xpIntoLevel (uint16 big-endian)
-    const xpI = Math.min(65535, safe.xpIntoLevel);
-    bytes.push((xpI >> 8) & 0xFF, xpI & 0xFF);
+    // ---- Archetype (if present) ----
+    if (archIdx !== 255) bytes.push(archIdx);
 
-    // Bytes 7-8: xpForNextLevel (uint16 big-endian)
-    const xpF = Math.min(65535, safe.xpForNextLevel);
-    bytes.push((xpF >> 8) & 0xFF, xpF & 0xFF);
-
-    // Byte 9: title type + value
-    // If title matches an achievement name, send the achievement index.
-    // Otherwise send 255 (= use display name as title, or "Newcomer").
-    const titleAchIdx = findAchievementIndexByName(safe.title);
+    // ---- Title ----
     bytes.push(titleAchIdx !== -1 ? titleAchIdx : 255);
 
-    // Byte 10: badge count
+    // ---- Badges: count + delta-encoded indices ----
     const badges = safe.pinnedBadges || [];
-    bytes.push(Math.min(LIMITS.maxBadges, badges.length));
-
-    // Bytes 11+: badge achievement indices
-    for (let i = 0; i < Math.min(LIMITS.maxBadges, badges.length); i++) {
-      const bIdx = findAchievementIndexByName(badges[i].name);
-      bytes.push(bIdx !== -1 ? bIdx : 255);
+    const badgeIndices = [];
+    for (const b of badges) {
+      const idx = findAchievementIndexByName(b.name);
+      if (idx !== -1) badgeIndices.push(idx);
+    }
+    badgeIndices.sort((a, b) => a - b);
+    bytes.push(badgeIndices.length);
+    let prevBadge = 0;
+    for (const idx of badgeIndices) {
+      pushVarint(bytes, idx - prevBadge);
+      prevBadge = idx;
     }
 
-    // Remaining: display name as UTF-8 (length-prefixed)
+    // ---- Colors (only non-defaults) ----
+    for (let i = 0; i < COLOR_KEYS.length; i++) {
+      if (flags & (1 << i)) {
+        pushRgb(bytes, colors[COLOR_KEYS[i]]);
+      }
+    }
+
+    // ---- Stats ----
+    pushVarint(bytes, safe.wordsWritten);
+    pushVarint(bytes, safe.threadCount);
+    pushVarint(bytes, safe.daysActive);
+
+    // ---- Display name ----
     const nameBytes = utf8Encode(safe.displayName.slice(0, LIMITS.displayName));
-    bytes.push(Math.min(255, nameBytes.length));
+    pushVarint(bytes, nameBytes.length);
     for (const b of nameBytes) bytes.push(b);
 
-    // If title was custom (idx 255), append the title text
-    if (titleAchIdx === -1 && safe.title && safe.title !== 'Newcomer') {
+    // ---- Custom title text ----
+    if (hasCustomTitle) {
       const titleBytes = utf8Encode(safe.title.slice(0, LIMITS.title));
-      bytes.push(Math.min(255, titleBytes.length));
+      pushVarint(bytes, titleBytes.length);
       for (const b of titleBytes) bytes.push(b);
     }
 
-    const packed = new Uint8Array(bytes);
-    return `${CODE_PREFIX}:${uint8ToBase64url(packed)}`;
+    return uint8ToBase64url(new Uint8Array(bytes));
   }
 
   /**
-   * Decode a pf3 share code back to a view-model.
-   * Returns null if malformed. Never throws.
+   * Decode a pf5 share code. Prefixless: pure base64url with version
+   * byte 5. Returns null if malformed. Never throws.
    */
   function decodeShareCode(code) {
     if (typeof code !== 'string') return null;
     const trimmed = code.trim();
-    const idx = trimmed.indexOf(':');
-    if (idx < 0) return null;
-    const prefix = trimmed.slice(0, idx);
-    const body   = trimmed.slice(idx + 1);
-
-    if (prefix !== 'pf3') return null;
-    try { return decodePf3(body); } catch { return null; }
+    if (!trimmed) return null;
+    try {
+      const bytes = base64urlToUint8(trimmed);
+      if (bytes && bytes.length >= 4 && bytes[0] === 5) {
+        return decodePf5(bytes);
+      }
+    } catch { /* malformed */ }
+    return null;
   }
 
-  /** Decode pf3 binary format. */
-  function decodePf3(b64body) {
-    const bytes = base64urlToUint8(b64body);
-    if (!bytes || bytes.length < 12) return null;
+  /** Decode pf5 compact format. */
+  function decodePf5(bytes) {
+    let pos = 1; // skip version byte (already checked)
+    const flags = bytes[pos++];
 
-    let pos = 0;
-    const version = bytes[pos++];
-    if (version !== 3) return null;
+    const ARCH_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
 
-    const level = bytes[pos++];
-    const archIdx = bytes[pos++];
-    const accIdx = bytes[pos++];
+    // Varints
+    let r;
+    r = readVarint(bytes, pos); const level = r.value; pos = r.pos;
+    r = readVarint(bytes, pos); const progress = r.value; pos = r.pos;
+    r = readVarint(bytes, pos); const xpInto = r.value; pos = r.pos;
+    r = readVarint(bytes, pos); const xpFor = r.value; pos = r.pos;
 
-    // If accent index is 255, next 3 bytes are raw RGB
-    let accentHex;
-    if (accIdx === 255) {
-      const r = bytes[pos++] || 0;
-      const g = bytes[pos++] || 0;
-      const b = bytes[pos++] || 0;
-      accentHex = r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
-    } else {
-      const accentId = accIdx < ACCENT_IDS.length ? ACCENT_IDS[accIdx] : 'amber';
-      accentHex = resolveAccentColor(accentId);
+    // Archetype
+    let archetype = null;
+    if (flags & (1 << 7)) {
+      const archIdx = bytes[pos++];
+      archetype = archIdx < ARCH_LABELS.length ? ARCH_LABELS[archIdx] : null;
     }
 
-    const progress = bytes[pos++];
-    const xpInto = (bytes[pos++] << 8) | bytes[pos++];
-    const xpFor = (bytes[pos++] << 8) | bytes[pos++];
+    // Title
     const titleIdx = bytes[pos++];
-    const badgeCount = Math.min(LIMITS.maxBadges, bytes[pos++]);
-
-    const badges = [];
-    for (let i = 0; i < badgeCount && pos < bytes.length; i++) {
-      const bIdx = bytes[pos++];
-      const ach = ACH_IDX_TO_OBJ[bIdx];
-      if (ach) {
-        badges.push({ name: ach.name, icon: badgeIconForTier(ach.tier) });
-      } else {
-        badges.push({ name: `Achievement #${bIdx}`, icon: '◆' });
-      }
-    }
-
-    // Display name
-    const nameLen = pos < bytes.length ? bytes[pos++] : 0;
-    const nameBytes = bytes.slice(pos, pos + nameLen);
-    pos += nameLen;
-    const displayName = utf8Decode(nameBytes) || 'Chronicler';
-
-    // Title: from achievement index or custom text
     let title = 'Newcomer';
     if (titleIdx !== 255) {
       const ach = ACH_IDX_TO_OBJ[titleIdx];
       if (ach) title = ach.name;
-    } else if (pos < bytes.length) {
-      const titleLen = bytes[pos++];
-      const titleBytes = bytes.slice(pos, pos + titleLen);
-      pos += titleLen;
-      const custom = utf8Decode(titleBytes);
-      if (custom) title = custom;
     }
 
-    // Archetype
-    const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
-    const archetype = archIdx < ARCHETYPE_LABELS.length
-      ? ARCHETYPE_LABELS[archIdx]
-      : null;
+    // Badges (delta-decoded)
+    const badgeCount = bytes[pos++];
+    const badges = [];
+    let prevIdx = 0;
+    for (let i = 0; i < badgeCount; i++) {
+      r = readVarint(bytes, pos); pos = r.pos;
+      prevIdx += r.value;
+      const ach = ACH_IDX_TO_OBJ[prevIdx];
+      badges.push(ach
+        ? { name: ach.name, icon: badgeIconForTier(ach.tier) }
+        : { name: `#${prevIdx}`, icon: '◆' });
+    }
+
+    // Colors (only non-defaults present)
+    const colors = {};
+    for (let i = 0; i < COLOR_KEYS.length; i++) {
+      if (flags & (1 << i)) {
+        r = readRgb(bytes, pos); pos = r.pos;
+        colors[COLOR_KEYS[i]] = r.hex;
+      } else {
+        colors[COLOR_KEYS[i]] = COLOR_DEFAULTS[COLOR_KEYS[i]];
+      }
+    }
+
+    // Stats
+    r = readVarint(bytes, pos); const wordsWritten = r.value; pos = r.pos;
+    r = readVarint(bytes, pos); const threadCount = r.value; pos = r.pos;
+    r = readVarint(bytes, pos); const daysActive = r.value; pos = r.pos;
+
+    // Display name
+    r = readVarint(bytes, pos); const nameLen = r.value; pos = r.pos;
+    const displayName = utf8Decode(bytes.slice(pos, pos + nameLen)) || 'Chronicler';
+    pos += nameLen;
+
+    // Custom title
+    if ((flags & (1 << 6)) && titleIdx === 255 && pos < bytes.length) {
+      r = readVarint(bytes, pos); const tLen = r.value; pos = r.pos;
+      const custom = utf8Decode(bytes.slice(pos, pos + tLen));
+      if (custom) title = custom;
+    }
 
     return {
       source: 'shareCode',
       displayName: displayName.slice(0, LIMITS.displayName),
       title: title.slice(0, LIMITS.title),
-      archetype: archIdx === 255 ? null : archetype,
+      archetype,
       level: Math.max(1, level),
-      accent: accentHex,
+      accent: colors.accent,
+      vellum: colors.vellum,
+      silver: colors.silver,
+      secondary: colors.secondary,
+      primary: colors.primary,
       pinnedBadges: badges,
       xpIntoLevel: xpInto,
       xpForNextLevel: Math.max(1, xpFor),
       progress01: Math.max(0, Math.min(1, progress / 100)),
+      wordsWritten,
+      threadCount,
+      daysActive,
     };
   }
 
@@ -27414,20 +27603,6 @@ Use this template for your response:
     return /^[0-9a-f]{6}$/.test(raw) ? raw : 'd8b36a';
   }
 
-  /** Find accent ID from hex color (reverse lookup). Returns null if not in palette. */
-  function findAccentId(hex) {
-    const normalized = (hex || '').replace('#', '').toLowerCase();
-    const map = {
-      'd8b36a':'amber', '7a9a6a':'sage', '8a8a8a':'ash', 'b08a6a':'clay',
-      '5a7a4e':'moss', '7a8a9a':'mist', 'c4a03a':'honey', 'a05a3a':'rust',
-      '6a6a7a':'iron', 'b87333':'copper', '4a9a6a':'jade', '6a7a8a':'slate',
-      '8a3a5a':'wine', '3a7a9a':'ocean', '7a4a8a':'plum', '9aaaba':'silver',
-      'c07a8a':'pink', '8a5aaa':'purple', '5a8aca':'sky', 'c4a832':'gold',
-      'aa3a3a':'ruby', '3a8a8a':'teal', 'cac8c0':'pearl', '2a2a3a':'obsidian',
-    };
-    return map[normalized] || null;
-  }
-
   /** Find achievement index by name (case-insensitive). */
   function findAchievementIndexByName(name) {
     if (!name) return -1;
@@ -27436,20 +27611,6 @@ Use this template for your response:
       if (ACHIEVEMENTS[i].name.toLowerCase() === lower) return i;
     }
     return -1;
-  }
-
-  /** Resolve accent ID → hex color. Simple lookup table. */
-  function resolveAccentColor(accentId) {
-    // Hardcoded subset matching flair.js ACCENTS palette.
-    const map = {
-      amber:'d8b36a', sage:'7a9a6a', ash:'8a8a8a', clay:'b08a6a',
-      moss:'5a7a4e', mist:'7a8a9a', honey:'c4a03a', rust:'a05a3a',
-      iron:'6a6a7a', copper:'b87333', jade:'4a9a6a', slate:'6a7a8a',
-      wine:'8a3a5a', ocean:'3a7a9a', plum:'7a4a8a', silver:'9aaaba',
-      pink:'c07a8a', purple:'8a5aaa', sky:'5a8aca', gold:'c4a832',
-      ruby:'aa3a3a', teal:'3a8a8a', pearl:'cac8c0', obsidian:'2a2a3a',
-    };
-    return map[accentId] || 'd8b36a';
   }
 
   /** UTF-8 encode string → Uint8Array. */
@@ -27512,7 +27673,7 @@ Use this template for your response:
    * internal query params like `__generatorLastEditTime`. We strip
    * all of that and build a clean canonical URL:
    *
-   *   https://perchance.org/<generator-slug>?h=pf3:...
+   *   https://perchance.org/<generator-slug>?h=<base64url>
    *
    * @param {string} shareCode  output of encodeShareCode
    * @returns {string}
@@ -28351,7 +28512,8 @@ Use this template for your response:
 
 
 
-  // 30 quest themes — 3 are picked per day via date hash.
+
+  // 30 built-in quest themes — 3 are picked per day via date hash.
   const THEMES = [
     { seed: 'stranger',    icon: '👤', prompt: 'a scene where your character meets a complete stranger who changes their perspective' },
     { seed: 'secret',      icon: '🤫', prompt: 'your character discovering a secret about someone they trust' },
@@ -28397,16 +28559,32 @@ Use this template for your response:
     return Math.abs(h);
   }
 
+  /**
+   * Return the active theme pool — user's custom themes if they've
+   * edited them, otherwise the built-in THEMES.
+   */
+  function getEffectiveThemes() {
+    try {
+      const s = loadSettings();
+      const custom = s && s.prompts && s.prompts.customQuestThemes;
+      if (Array.isArray(custom) && custom.length >= QUESTS_PER_DAY) {
+        return custom;
+      }
+    } catch { /* fall back */ }
+    return THEMES;
+  }
+
   /** Pick N themes for today (deterministic, no repeats). */
   function getTodayThemes(dayKey, count) {
+    const pool = getEffectiveThemes();
     // Seeded shuffle of indices
-    const indices = Array.from({ length: THEMES.length }, (_, i) => i);
+    const indices = Array.from({ length: pool.length }, (_, i) => i);
     const seed = hashStr(dayKey);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = (hashStr(`${seed}:${i}`) % (i + 1));
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
-    return indices.slice(0, count).map(i => THEMES[i]);
+    return indices.slice(0, count).map(i => pool[i]);
   }
 
   /** Load cached quest result, or null. */
@@ -28637,6 +28815,165 @@ Use this template for your response:
     }
 
     promptsList.parentElement.insertBefore(container, promptsList);
+  }
+
+  // ================================================================
+  // Edit Prompts modal — lets users customize the daily quest themes
+  // ================================================================
+  //
+  // Format: one theme per line, as "icon seed = prompt description".
+  // Uses the same glossary-modal CSS for visual consistency.
+
+  /**
+   * Serialize the effective theme pool to editable text.
+   * Format: "🔥 hunger = your character craving something they can't have"
+   */
+  function themesToText(themes) {
+    return themes.map(t => `${t.icon} ${t.seed} = ${t.prompt}`).join('\n');
+  }
+
+  /**
+   * Parse editable text back into theme objects.
+   * Skips blank lines and lines without "=". Tolerates missing icons.
+   */
+  function textToThemes(text) {
+    const themes = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line || !line.includes('=')) continue;
+
+      const eqIdx = line.indexOf('=');
+      const left = line.slice(0, eqIdx).trim();
+      const prompt = line.slice(eqIdx + 1).trim();
+      if (!prompt) continue;
+
+      // Left side: optional emoji + seed word
+      // Try to split "🔥 hunger" → icon + seed
+      const parts = left.split(/\s+/);
+      let icon = '✦';
+      let seed = '';
+      if (parts.length >= 2) {
+        // First token might be emoji or text
+        const first = parts[0];
+        // Simple emoji detection: single char or surrogate pair
+        if (first.length <= 2 || /^\p{Emoji}/u.test(first)) {
+          icon = first;
+          seed = parts.slice(1).join(' ');
+        } else {
+          seed = left;
+        }
+      } else {
+        seed = left;
+      }
+
+      if (!seed) seed = prompt.slice(0, 20).replace(/\s+/g, '-').toLowerCase();
+
+      themes.push({ seed, icon, prompt });
+    }
+    return themes;
+  }
+
+  /**
+   * Open the Edit Prompts modal. Shows current themes as editable text,
+   * with Save / Reset / Cancel actions.
+   */
+  function openEditPrompts() {
+    // ---- Overlay + modal shell (reuses glossary-modal styles) ----
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-glossary-overlay';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'pf-glossary-modal';
+
+    const title = document.createElement('h3');
+    title.className = 'pf-glossary-title';
+    title.textContent = 'Edit Quest Themes';
+
+    const hint = document.createElement('div');
+    hint.className = 'pf-glossary-hint';
+    hint.textContent = 'One theme per line:  icon seed = prompt description';
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'pf-glossary-textarea';
+    textarea.rows = 16;
+    textarea.spellcheck = false;
+
+    // Load current themes
+    const current = getEffectiveThemes();
+    textarea.value = themesToText(current);
+
+    // ---- Status line ----
+    const status = document.createElement('div');
+    status.className = 'pf-dq-edit-status';
+
+    function updateStatus() {
+      const parsed = textToThemes(textarea.value);
+      const n = parsed.length;
+      if (n < QUESTS_PER_DAY) {
+        status.textContent = `${n} theme${n !== 1 ? 's' : ''} — need at least ${QUESTS_PER_DAY}`;
+        status.style.color = 'var(--pf-palette-danger, #e06060)';
+      } else {
+        status.textContent = `${n} theme${n !== 1 ? 's' : ''}`;
+        status.style.color = 'var(--pf-silver, #8b95a3)';
+      }
+    }
+    textarea.addEventListener('input', updateStatus);
+    updateStatus();
+
+    // ---- Button row ----
+    const btnRow = document.createElement('div');
+    btnRow.className = 'pf-dq-edit-buttons';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'pf-dq-edit-btn pf-dq-edit-btn-primary';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', () => {
+      const parsed = textToThemes(textarea.value);
+      if (parsed.length < QUESTS_PER_DAY) {
+        status.textContent = `Need at least ${QUESTS_PER_DAY} themes to save.`;
+        status.style.color = 'var(--pf-palette-danger, #e06060)';
+        return;
+      }
+      updateField('prompts.customQuestThemes', parsed);
+      try { bumpCounter('questThemeEdits'); } catch {}
+      close();
+    });
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'pf-dq-edit-btn';
+    resetBtn.textContent = 'Reset to defaults';
+    resetBtn.addEventListener('click', () => {
+      textarea.value = themesToText(THEMES);
+      updateField('prompts.customQuestThemes', null);
+      updateStatus();
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'pf-dq-edit-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', close);
+
+    btnRow.appendChild(saveBtn);
+    btnRow.appendChild(resetBtn);
+    btnRow.appendChild(cancelBtn);
+
+    modal.appendChild(title);
+    modal.appendChild(hint);
+    modal.appendChild(textarea);
+    modal.appendChild(status);
+    modal.appendChild(btnRow);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    overlay.hidden = false;
+    textarea.focus();
+
+    function close() {
+      overlay.remove();
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -28885,7 +29222,12 @@ Use this template for your response:
   function openShareViewer(vm) {
     if (!vm) return { overlay: null };
 
-    const accent = vm.accent ? `#${vm.accent}` : '#d8b36a';
+    const accent    = vm.accent    ? `#${vm.accent}`    : '#d8b36a';
+    const vellum    = vm.vellum    ? `#${vm.vellum}`    : '#e8dcc4';
+    const silver    = vm.silver    ? `#${vm.silver}`    : '#8b95a3';
+    const secondary = vm.secondary ? `#${vm.secondary}` : '#161b22';
+    const primary   = vm.primary   ? `#${vm.primary}`   : '#0d1117';
+
     const progress = Math.max(0, Math.min(1, vm.progress01 || 0));
     const progressPct = Math.round(progress * 100);
     const displayName = vm.displayName || 'Chronicler';
@@ -28895,6 +29237,9 @@ Use this template for your response:
     const xpInto = vm.xpIntoLevel || 0;
     const xpFor = vm.xpForNextLevel || 1;
     const badges = vm.pinnedBadges || [];
+    const wordsWritten = vm.wordsWritten || 0;
+    const threadCount = vm.threadCount || 0;
+    const daysActive = vm.daysActive || 0;
 
     function adj(hex, amt) {
       const h2 = (hex || '').replace('#', '');
@@ -28903,6 +29248,30 @@ Use this template for your response:
       const b = Math.max(0, Math.min(255, (parseInt(h2.substring(4,6),16)||0) + amt));
       return `rgb(${r},${g},${b})`;
     }
+
+    function hexToRgb(hex) {
+      const h2 = (hex || '').replace('#', '');
+      return `${parseInt(h2.substring(0,2),16)||0}, ${parseInt(h2.substring(2,4),16)||0}, ${parseInt(h2.substring(4,6),16)||0}`;
+    }
+
+    function fmtNum(n) {
+      return n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n);
+    }
+
+    // Scope all CSS vars to the card so child rules using var(--pf-*)
+    // render the SHARED profile's colors, not the current user's.
+    const scopedVars = [
+      `--pf-accent:${accent}`,
+      `--pf-accent-rgb:${hexToRgb(accent)}`,
+      `--pf-accent-hi:${adj(accent, 35)}`,
+      `--pf-accent-deep:${adj(accent, -50)}`,
+      `--pf-vellum:${vellum}`,
+      `--pf-vellum-rgb:${hexToRgb(vellum)}`,
+      `--pf-silver:${silver}`,
+      `--pf-silver-rgb:${hexToRgb(silver)}`,
+      `--pf-theme-primary:${primary}`,
+      `--pf-theme-secondary:${secondary}`,
+    ].join(';');
 
     // Level circle
     const levelCircle = h('div', {
@@ -28929,12 +29298,14 @@ Use this template for your response:
       archetype ? h('span', { class: 'pf-sv2-tag pf-sv2-tag-arch' }, [archetype]) : null,
     ].filter(Boolean));
 
-    // Stats row
-    const statsRow = h('div', { class: 'pf-sv2-stats' }, [
-      mkStat('Level', String(level), accent),
+    // Stats row — show activity stats from the share code
+    const statItems = [
+      mkStat('Words', fmtNum(wordsWritten), accent),
+      mkStat('Stories', String(threadCount), accent),
+      mkStat('Days', String(daysActive), accent),
       mkStat('Badges', String(badges.length), accent),
-      mkStat('Progress', `${progressPct}%`, accent),
-    ]);
+    ];
+    const statsRow = h('div', { class: 'pf-sv2-stats' }, statItems);
 
     // Badges
     const badgeSection = badges.length > 0
@@ -28964,7 +29335,7 @@ Use this template for your response:
         h('span', { class: 'pf-sv2-xp-pct' }, [`${progressPct}%`]),
       ]),
       h('div', { class: 'pf-sv2-xp-detail' }, [
-        `${xpInto} / ${xpFor} XP to next level`,
+        `${xpInto.toLocaleString()} / ${xpFor.toLocaleString()} XP to next level`,
       ]),
     ]);
 
@@ -28985,10 +29356,11 @@ Use this template for your response:
       },
     }, ['Close']);
 
-    // Card
+    // Card — scoped CSS vars override :root so all var(--pf-*)
+    // references inside this subtree use the shared profile's colors.
     const card = h('div', {
       class: 'pf-sv2-card',
-      style: `border-color:${accent}33;`,
+      style: `border-color:${accent}33;${scopedVars}`,
     }, [
       h('div', {
         class: 'pf-sv2-stripe',
@@ -37183,7 +37555,7 @@ Use this template for your response:
    * }} opts
    * @returns {HTMLElement}
    */
-  function createSection({ id, title, children, initialState, onToggled }) {
+  function createSection({ id, title, children, initialState, onToggled, headerActions }) {
     let collapsed = !!(initialState && initialState.collapsed);
     let blurred   = !!(initialState && initialState.blurred);
 
@@ -37213,11 +37585,19 @@ Use this template for your response:
 
     const bodyWrap = h('div', { class: 'pf-section-body-wrap' }, [body, coverBtn]);
 
+    const headerChildren = [
+      h('h2', { class: 'pf-section-title' }, [title]),
+    ];
+    // Optional action buttons between title and collapse/blur controls
+    if (headerActions && headerActions.length) {
+      for (const action of headerActions) {
+        if (action) headerChildren.push(action);
+      }
+    }
+    headerChildren.push(h('div', { class: 'pf-section-ctrls' }, [eyeBtn, chevronBtn]));
+
     const root = h('section', { class: 'pf-section', 'data-section-id': id }, [
-      h('header', { class: 'pf-section-header' }, [
-        h('h2', { class: 'pf-section-title' }, [title]),
-        h('div', { class: 'pf-section-ctrls' }, [eyeBtn, chevronBtn]),
-      ]),
+      h('header', { class: 'pf-section-header' }, headerChildren),
       bodyWrap,
     ]);
 
@@ -37673,95 +38053,78 @@ Use this template for your response:
     });
     titleInput.value = String(profile.titleOverride || '');
 
-    // ---- flair: achievement-gated color pickers ----
+    // ---- Color grid: 3×2 achievement-gated square color pickers ----
     //
-    // Three swatch rows — Accent, Text (vellum), Meta (silver) — each
-    // gated on a dedicated palette_* achievement. The picker for each
-    // row only appears once the user has earned the corresponding
-    // achievement; before that, a locked hint shows what's needed.
+    //   Row 1: Accent        Text (vellum)   Meta (silver)
+    //   Row 2: Secondary     Primary         [future]
+    //
+    // Each cell is an <input type="color"> with label, lock, and reset.
+    // Replaces the old swatch rows + separate Theme row.
     const flairUnlocks = getFlairUnlocks(unlockedIds);
+    const tc = (profile && profile.themeColors) || {};
 
-    // Shared glyph logic for all swatch rows.
-    function glyphFor(isUnlocked, isActive) {
-      if (!isUnlocked) return '🔒';
-      if (isActive)   return '✓';
-      return '●';
-    }
+    const COLOR_GRID = [
+      { label: 'Accent',    field: 'accent',    def: '#d8b36a', unlocked: flairUnlocks.accent, hint: 'Always available' },
+      { label: 'Text',      field: 'vellum',    def: '#e8dcc4', unlocked: flairUnlocks.vellum, hint: '3 achievements' },
+      { label: 'Meta',      field: 'silver',    def: '#8b95a3', unlocked: flairUnlocks.silver, hint: '8 achievements' },
+      { label: 'Secondary', field: 'secondary', def: '#161b22', unlocked: flairUnlocks.silver, hint: '8 achievements' },
+      { label: 'Primary',   field: 'primary',   def: '#0d1117', unlocked: flairUnlocks.deep,   hint: '15 achievements' },
+      { label: null,         field: null,        def: null,      unlocked: false,               hint: 'Coming soon' },
+    ];
 
-    /**
-     * Build a swatch row for a flair palette. Reused for accent, vellum,
-     * and silver — same markup, same click-to-toggle, same glyph logic.
-     *
-     * @param {Array} items        palette items from getAccents / getVellums / getSilvers
-     * @param {string} flairKey    settings path under profile.flair (e.g. 'accent')
-     * @param {string} defaultId   the default color id (e.g. 'amber', 'parchment', 'pewter')
-     */
-    function buildSwatchRow(items, flairKey, defaultId) {
-      const currentPick = currentFlair[flairKey] || null;
-      const container = h('div', { class: 'pf-accent-row' },
-        items.map(a => {
-          const isActive = currentPick === a.id || (!currentPick && a.id === defaultId);
-          const btn = h('button', {
-            type: 'button',
-            class: [
-              'pf-accent-swatch',
-              isActive ? 'pf-accent-swatch-active' : '',
-              a.isUnlocked ? '' : 'pf-accent-swatch-locked',
-            ].filter(Boolean).join(' '),
-            'aria-label': a.isUnlocked
-              ? `${a.label}${isActive ? ' (active)' : ''}`
-              : `Locked: ${a.description}`,
-            title: a.isUnlocked
-              ? `${a.label} — ${a.description}`
-              : `🔒 ${a.description}`,
-            disabled: !a.isUnlocked,
-            style: `--pf-accent-preview:${a.color};`,
-            onClick: () => {
-              if (!a.isUnlocked) return;
-              const nextVal = (currentPick === a.id) ? null : a.id;
-              updateField(`profile.flair.${flairKey}`, nextVal);
-              const updated = items.map(x => ({
-                ...x,
-                _active: nextVal === x.id || (!nextVal && x.id === defaultId),
-              }));
-              for (let i = 0; i < updated.length; i++) {
-                const swatch = container.children[i];
-                if (!swatch) continue;
-                swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
-                const innerSpan = swatch.firstChild;
-                if (innerSpan && innerSpan.tagName === 'SPAN') {
-                  innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
-                }
-              }
-              currentFlair[flairKey] = nextVal;
-              try { btn.blur(); } catch { /* non-fatal */ }
-            },
-          }, [
-            h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
+    const colorGrid = h('div', { class: 'pf-color-grid' },
+      COLOR_GRID.map(cfg => {
+        if (!cfg.field) {
+          // Future slot — empty placeholder
+          return h('div', { class: 'pf-color-cell pf-color-cell-future' }, [
+            h('div', { class: 'pf-color-cell-empty' }),
+            h('span', { class: 'pf-theme-picker-label pf-theme-picker-locked' }, ['Coming soon']),
           ]);
-          return btn;
-        })
-      );
-      return container;
-    }
+        }
+        const wrapper = h('div', { class: 'pf-color-cell' });
 
-    // Build each row only if the corresponding achievement is unlocked;
-    // otherwise show a locked hint.
-    function lockedHint(text) {
-      return h('div', { class: 'pf-flair-locked-hint' }, [`🔒 ${text}`]);
-    }
+        const colorInput = h('input', {
+          type: 'color',
+          class: 'pf-theme-color-input',
+          value: tc[cfg.field] || cfg.def,
+          disabled: !cfg.unlocked,
+          title: cfg.unlocked
+            ? `${cfg.label} — click to change`
+            : `🔒 Unlock at ${cfg.hint}`,
+          onInput: (ev) => {
+            updateField(`profile.themeColors.${cfg.field}`, ev.target.value);
+            applyThemeColorsLive();
+          },
+        });
 
-    const accentRow = flairUnlocks.accent
-      ? buildSwatchRow(getAccents(stats, unlockedIds), 'accent', 'amber')
-      : lockedHint('Open your profile to unlock the accent palette.');
+        const labelEl = h('span', {
+          class: 'pf-theme-picker-label' + (cfg.unlocked ? '' : ' pf-theme-picker-locked'),
+        }, [cfg.label]);
 
-    const vellumRow = flairUnlocks.vellum
-      ? buildSwatchRow(getVellums(stats, unlockedIds), 'vellum', 'parchment')
-      : lockedHint('Earn 3 achievements to unlock the text color palette.');
+        const lockIcon = !cfg.unlocked
+          ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
+          : null;
 
-    const silverRow = flairUnlocks.silver
-      ? buildSwatchRow(getSilvers(stats, unlockedIds), 'silver', 'pewter')
-      : lockedHint('Earn 8 achievements to unlock the meta text palette.');
+        const resetBtn = cfg.unlocked
+          ? h('button', {
+              type: 'button',
+              class: 'pf-theme-picker-reset',
+              title: 'Reset to default',
+              onClick: () => {
+                colorInput.value = cfg.def;
+                updateField(`profile.themeColors.${cfg.field}`, null);
+                applyThemeColorsLive();
+              },
+            }, ['↺'])
+          : null;
+
+        wrapper.appendChild(colorInput);
+        wrapper.appendChild(labelEl);
+        if (lockIcon) wrapper.appendChild(lockIcon);
+        if (resetBtn) wrapper.appendChild(resetBtn);
+        return wrapper;
+      })
+    );
 
     // ---- age range ----
     const ageSelect = h('select', {
@@ -37791,14 +38154,7 @@ Use this template for your response:
       row('Username',     usernameInput),
       row('Title',        titleSelect),
       row('Custom title', titleInput),
-      // Multi-control rows below use groupRow (a <div role="group">) so
-      // the wrapping element doesn't implicitly associate with the first
-      // child control — which would propagate :hover to it from anywhere
-      // in the row.
-      groupRow('Accent',     accentRow),
-      groupRow('Text color', vellumRow),
-      groupRow('Meta color', silverRow),
-      createThemeColorRow(profile, unlockedIds),
+      groupRow('Colors',  colorGrid),
       row('Age range',    ageSelect),
       groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
         genderSquare,
@@ -37977,92 +38333,77 @@ Use this template for your response:
   }
 
   // ---------------------------------------------------------------------
-  // Theme color pickers — primary + secondary background gradient stops
+  // Color grid defaults — all user-selectable color channels
   // ---------------------------------------------------------------------
 
   const THEME_DEFAULTS = {
+    accent:    '#d8b36a',
+    vellum:    '#e8dcc4',
+    silver:    '#8b95a3',
     primary:   '#0d1117',
     secondary: '#161b22',
   };
 
   /**
-   * Create the theme color picker row.
-   * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
-   * Each unlocks at a different flair achievement threshold.
-   */
-  function createThemeColorRow(profile, unlockedIds) {
-    const unlocks = getFlairUnlocks(unlockedIds);
-    const tc = (profile && profile.themeColors) || {};
-
-    function makeColorPicker(label, field, defaultColor, isUnlocked, unlockHint) {
-      const wrapper = h('div', { class: 'pf-theme-picker' }, []);
-
-      const colorInput = h('input', {
-        type: 'color',
-        class: 'pf-theme-color-input',
-        value: tc[field] || defaultColor,
-        disabled: !isUnlocked,
-        title: isUnlocked
-          ? `${label} — click to change`
-          : `🔒 Unlock at ${unlockHint}`,
-        onInput: (ev) => {
-          updateField(`profile.themeColors.${field}`, ev.target.value);
-          applyThemeColorsLive();
-        },
-      });
-
-      const labelEl = h('span', {
-        class: 'pf-theme-picker-label' + (isUnlocked ? '' : ' pf-theme-picker-locked'),
-      }, [label]);
-
-      const lockIcon = !isUnlocked
-        ? h('span', { class: 'pf-theme-picker-lock' }, ['🔒'])
-        : null;
-
-      const resetBtn = isUnlocked
-        ? h('button', {
-            type: 'button',
-            class: 'pf-theme-picker-reset',
-            title: 'Reset to default',
-            onClick: () => {
-              colorInput.value = defaultColor;
-              updateField(`profile.themeColors.${field}`, null);
-              applyThemeColorsLive();
-            },
-          }, ['↺'])
-        : null;
-
-      wrapper.appendChild(colorInput);
-      wrapper.appendChild(labelEl);
-      if (lockIcon) wrapper.appendChild(lockIcon);
-      if (resetBtn) wrapper.appendChild(resetBtn);
-      return wrapper;
-    }
-
-    const container = h('div', { class: 'pf-theme-pickers' }, [
-      makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.silver, '8 achievements'),
-      makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.deep,   '15 achievements'),
-    ]);
-
-    return groupRow('Theme', container);
-  }
-
-  /**
-   * Apply theme colors to the page by setting CSS custom properties.
-   * Called on change + at boot time from profile/index.js.
+   * Apply all user-selected colors to the page by setting CSS custom
+   * properties on :root. Called on every color picker change + at boot.
+   *
+   * Handles all 5 channels: accent, vellum, silver, primary, secondary.
+   * For accent, also cascades into upstream Perchance's chrome vars
+   * and derives the hi/deep/shadow companion tones.
    */
   function applyThemeColorsLive() {
     try {
       const settings = loadSettings();
       const tc = (settings && settings.profile && settings.profile.themeColors) || {};
+      const root = document.documentElement;
+
+      // Background gradient
       const primary   = tc.primary   || THEME_DEFAULTS.primary;
       const secondary = tc.secondary || THEME_DEFAULTS.secondary;
-      // Derive a lighter shade for button gradients
-      const secLight = lightenHex(secondary, 12);
-      document.documentElement.style.setProperty('--pf-theme-primary', primary);
-      document.documentElement.style.setProperty('--pf-theme-secondary', secondary);
-      document.documentElement.style.setProperty('--pf-theme-secondary-light', secLight);
+      const secLight  = lightenHex(secondary, 12);
+      root.style.setProperty('--pf-theme-primary', primary);
+      root.style.setProperty('--pf-theme-secondary', secondary);
+      root.style.setProperty('--pf-theme-secondary-light', secLight);
+
+      // Accent — also derives hi/deep/shadow and cascades to upstream
+      if (tc.accent) {
+        root.style.setProperty('--pf-accent', tc.accent);
+        root.style.setProperty('--pf-accent-rgb', hexToRgbLocal(tc.accent));
+        root.style.setProperty('--pf-accent-hi', lightenHex(tc.accent, 35));
+        root.style.setProperty('--pf-accent-hi-rgb', hexToRgbLocal(lightenHex(tc.accent, 35)));
+        root.style.setProperty('--pf-accent-deep', lightenHex(tc.accent, -50));
+        root.style.setProperty('--pf-accent-deep-rgb', hexToRgbLocal(lightenHex(tc.accent, -50)));
+        root.style.setProperty('--pf-accent-shadow', lightenHex(tc.accent, -70));
+        // Upstream cascade
+        root.style.setProperty('--notification-bg-color', tc.accent);
+        root.style.setProperty('--link-color', tc.accent);
+        root.style.setProperty('--selected-thread-border-color', tc.accent);
+        root.style.setProperty('--selected-thread-bg',
+          `rgba(${hexToRgbLocal(tc.accent)}, 0.18)`);
+      }
+
+      // Text color (vellum)
+      if (tc.vellum) {
+        root.style.setProperty('--pf-vellum', tc.vellum);
+        root.style.setProperty('--pf-vellum-rgb', hexToRgbLocal(tc.vellum));
+      }
+
+      // Meta text color (silver)
+      if (tc.silver) {
+        root.style.setProperty('--pf-silver', tc.silver);
+        root.style.setProperty('--pf-silver-rgb', hexToRgbLocal(tc.silver));
+      }
     } catch { /* non-fatal */ }
+  }
+
+  /** Local hex→rgb for inline use without importing flair.js. */
+  function hexToRgbLocal(hex) {
+    const h = (hex || '').replace('#', '');
+    const r = parseInt(h.substring(0,2), 16) || 0;
+    const g = parseInt(h.substring(2,4), 16) || 0;
+    const b = parseInt(h.substring(4,6), 16) || 0;
+    return `${r}, ${g}, ${b}`;
   }
 
   function lightenHex(hex, amount) {
@@ -40249,6 +40590,7 @@ Use this template for your response:
         } catch { /* fall back */ }
         const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
         const p = (freshSettings && freshSettings.profile) || {};
+        const tc = (p && p.themeColors) || {};
         try {
           const shareVm = toShareViewModel({
             displayName: p.displayName || p.username || 'Chronicler',
@@ -40256,10 +40598,17 @@ Use this template for your response:
             archetype: freshArchetype,
             level: lvl.level,
             accent: accent.color,
+            vellum: tc.vellum || '#e8dcc4',
+            silver: tc.silver || '#8b95a3',
+            secondary: tc.secondary || '#161b22',
+            primary: tc.primary || '#0d1117',
             pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
             xpIntoLevel: lvl.xpIntoLevel,
             xpForNextLevel: lvl.xpForNextLevel,
             progress01: lvl.progress01,
+            wordsWritten: stats.wordsWritten || 0,
+            threadCount: stats.threadCount || 0,
+            daysActive: stats.daysActive || 0,
           });
           const code = encodeShareCode(shareVm);
           const shareUrl = buildShareUrl(code);
@@ -40409,6 +40758,16 @@ Use this template for your response:
       initialState: displayState.details,
     });
 
+    // "Edit Prompts" button — opens the quest theme editor modal.
+    // openEditPrompts is in the same IIFE scope (daily_quest.js).
+    const editPromptsBtn = h('button', {
+      type: 'button',
+      class: 'pf-section-action',
+      onClick: () => {
+        try { openEditPrompts(); } catch { /* non-fatal if daily_quest not loaded */ }
+      },
+    }, ['Edit Prompts']);
+
     const promptsSection = createSection({
       id: 'prompts',
       title: 'Prompts',
@@ -40420,6 +40779,7 @@ Use this template for your response:
         cadence,
       }),
       initialState: displayState.prompts,
+      headerActions: [editPromptsBtn],
     });
 
     const archiveSection = createSection({
@@ -41051,7 +41411,14 @@ Use this template for your response:
         } catch { return {}; }
       })();
       const bootUnlocked = computeUnlockedIds(bootStats);
-      paintAllChannels(bootSettings, bootStats, bootUnlocked);
+      // Two-pass: inject _unlockedCount so palette threshold achievements
+      // (palette_vellum, palette_silver, palette_deep) fire at boot.
+      // Without this, the user's chosen vellum/silver color would flash
+      // to default on page load until the profile overlay re-resolves.
+      bootStats._unlockedCount = bootUnlocked.length;
+      try { bootStats.counters = getCounters(); } catch { bootStats.counters = {}; }
+      const bootUnlockedFull = computeUnlockedIds(bootStats);
+      paintAllChannels(bootSettings, bootStats, bootUnlockedFull);
     } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
     // ---- Theme colors (custom background gradient) ----

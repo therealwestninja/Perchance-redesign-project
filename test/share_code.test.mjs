@@ -1,6 +1,6 @@
 // test/share_code.test.mjs
 //
-// Tests for src/profile/share_code.js (pf3 binary format).
+// Tests for src/profile/share_code.js (pf5 compact binary format).
 // Covers: toShareViewModel whitelist, encode/decode round-trip,
 // malformed input rejection, buildShareUrl, parseShareUrl.
 
@@ -109,10 +109,12 @@ test('toShareViewModel: level floor at 1', () => {
 
 // ---- encode / format ----
 
-test('encodeShareCode: returns prefixed string', () => {
+test('encodeShareCode: returns a base64url string (no prefix)', () => {
   const code = encodeShareCode({ displayName: 'West' });
-  assert.ok(code.startsWith(`${__shareCodeTest.CODE_PREFIX}:`), `expected prefix, got ${code.slice(0, 10)}`);
+  // pf5 is prefixless — pure base64url, no colon
+  assert.ok(!code.includes(':'), 'no colon in pf5');
   assert.ok(code.length > 4);
+  assert.ok(/^[A-Za-z0-9_-]+$/.test(code), 'valid base64url chars');
 });
 
 test('encodeShareCode: same input always produces same code (deterministic)', () => {
@@ -128,7 +130,8 @@ test('encodeShareCode: ignores fields not in the schema (no leakage)', () => {
 
 test('encodeShareCode: tolerates no input', () => {
   const code = encodeShareCode();
-  assert.ok(code.startsWith('pf3:'), 'should start with pf3:');
+  // pf5: prefixless — no colon, pure base64url. First byte = version 5.
+  assert.ok(!code.includes(':'), 'pf5 should be prefixless');
   const vm = decodeShareCode(code);
   assert.equal(vm.displayName, 'Chronicler');
   assert.equal(vm.title, 'Newcomer');
@@ -160,7 +163,7 @@ test('round-trip: fields survive encode → decode', () => {
   assert.equal(decoded.accent, 'abcdef');
   assert.equal(decoded.pinnedBadges.length, 2);
   assert.equal(decoded.pinnedBadges[0].name, 'Scribe');
-  // pf3: icons are derived from achievement tier, not stored verbatim
+  // pf5: icons are derived from achievement tier, not stored verbatim
   assert.ok(decoded.pinnedBadges[0].icon, 'badge should have an icon');
   assert.equal(decoded.xpIntoLevel, 30);
   assert.equal(decoded.xpForNextLevel, 100);
@@ -193,43 +196,40 @@ test('decodeShareCode: returns null for non-string input', () => {
   assert.equal(decodeShareCode({}), null);
 });
 
-test('decodeShareCode: rejects codes without a colon', () => {
+test('decodeShareCode: rejects garbage strings', () => {
   assert.equal(decodeShareCode('pf3noseparator'), null);
   assert.equal(decodeShareCode(''), null);
+  assert.equal(decodeShareCode('randomgarbage'), null);
 });
 
 test('decodeShareCode: rejects obviously-non-share-code prefixes', () => {
-  // Any "pf" + digit prefix is accepted during the development
-  // stub period, so test the rejection behavior on prefixes that
-  // don't match the family marker at all.
-  const realCode = encodeShareCode({ displayName: 'X' });
-  const body = realCode.split(':')[1];
-  assert.equal(decodeShareCode(`xx:${body}`), null, 'non-pf prefix rejected');
-  assert.equal(decodeShareCode(`url:${body}`), null, 'url prefix rejected');
-  assert.equal(decodeShareCode(`::${body}`), null, 'empty prefix rejected');
+  assert.equal(decodeShareCode('xx:AQID'), null, 'non-pf prefix rejected');
+  assert.equal(decodeShareCode('url:AQID'), null, 'url prefix rejected');
+  assert.equal(decodeShareCode('::AQID'), null, 'empty prefix rejected');
 });
 
-test('decodeShareCode: rejects non-pf3 prefixes', () => {
-  const realCode = encodeShareCode({ displayName: 'X', level: 5 });
-  const body = realCode.split(':')[1];
-  // pf3 works
-  const ok = decodeShareCode(`pf3:${body}`);
-  assert.ok(ok, 'pf3 prefix accepted');
+test('decodeShareCode: only accepts pf5 format (prefixless, version 5)', () => {
+  const code = encodeShareCode({ displayName: 'X', level: 5 });
+  // pf5 is prefixless — no colon
+  assert.ok(!code.includes(':'), 'pf5 has no colon');
+  const ok = decodeShareCode(code);
+  assert.ok(ok, 'pf5 accepted');
   assert.equal(ok.level, 5);
-  // pf1, pf2 rejected
-  assert.equal(decodeShareCode(`pf1:${body}`), null, 'pf1 rejected');
-  assert.equal(decodeShareCode(`pf2:${body}`), null, 'pf2 rejected');
-  assert.equal(decodeShareCode(`pf9:${body}`), null, 'pf9 rejected');
+  // Prefixed strings are rejected (no backward compat)
+  assert.equal(decodeShareCode(`pf3:${code}`), null, 'pf3 prefix rejected');
+  assert.equal(decodeShareCode(`pf4:${code}`), null, 'pf4 prefix rejected');
 });
 
-test('decodeShareCode: rejects malformed base64', () => {
+test('decodeShareCode: rejects malformed input', () => {
   assert.equal(decodeShareCode('pf3:@@@@@'), null);
-  assert.equal(decodeShareCode('pf3:not-base64-at-all!!!'), null);
+  assert.equal(decodeShareCode('@@@not-base64!!!'), null);
+  assert.equal(decodeShareCode('pf3noseparator'), null);
 });
 
 test('decodeShareCode: rejects truncated binary payload', () => {
-  // Too short to be a valid pf3 payload
-  assert.equal(decodeShareCode('pf3:AQID'), null);
+  // 3 bytes base64url that start with version 5 but too short
+  assert.equal(decodeShareCode('BQID'), null);
+  assert.equal(decodeShareCode('BQ'), null);
 });
 
 // ---- buildShareUrl + parseShareUrl (#share-links) ----
@@ -243,7 +243,8 @@ test('buildShareUrl: produces a URL with ?h= parameter', () => {
     const code = encodeShareCode(toShareViewModel({ displayName: 'Test' }));
     const url = buildShareUrl(code);
     assert.ok(url.startsWith('https://perchance.org/ai-character-hero-chat?h='), `URL should start with base + ?h=, got: ${url}`);
-    assert.ok(url.includes('pf3%3A') || url.includes('pf3:'), `URL should contain the share code, got: ${url}`);
+    // pf5 is prefixless — the code is pure base64url, no pf4: prefix
+    assert.ok(!url.includes('pf4'), `URL should NOT contain pf4 prefix, got: ${url}`);
   } finally {
     globalThis.window = origWindow;
   }

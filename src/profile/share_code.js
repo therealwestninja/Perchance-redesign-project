@@ -1,10 +1,12 @@
 // profile/share_code.js
 //
-// Binary-packed profile share codes (pf3 format).
+// Compact binary-packed profile share codes (pf5 format).
 //
-// Encodes profile data as numeric indices into existing registries
-// (achievements, archetypes, accents). Only the display name is raw
-// text. Produces ~36-char codes embedded in shareable URLs.
+// Prefixless base64url encoding. First byte is the version (5).
+// Uses LEB128 varints for numbers, flag-based color omission
+// (default colors cost 0 bytes), and delta-encoded badge indices.
+//
+// Typical profile: ~30–45 chars. Minimal: ~18 chars.
 //
 // Flow: User clicks share → encodeShareCode() → buildShareUrl() →
 //       URL copied → recipient clicks → parseShareUrl() →
@@ -12,8 +14,20 @@
 
 import { ACHIEVEMENTS } from '../achievements/registry.js';
 
-const CODE_PREFIX = 'pf3';
-const CURRENT_VERSION = 3;
+const CODE_PREFIX = 'pf5';
+const CURRENT_VERSION = 5;
+
+// Default colors — when a color matches its default, the flag bit
+// stays 0 and the 3 RGB bytes are omitted entirely.
+const COLOR_DEFAULTS = {
+  accent:    'd8b36a',
+  vellum:    'e8dcc4',
+  silver:    '8b95a3',
+  secondary: '161b22',
+  primary:   '0d1117',
+  future:    '000000',
+};
+const COLOR_KEYS = ['accent','vellum','silver','secondary','primary','future'];
 
 const LIMITS = Object.freeze({
   displayName: 40,
@@ -27,10 +41,6 @@ const LIMITS = Object.freeze({
 // ---- Index tables for binary packing ----
 
 const ARCHETYPE_IDS = ['newcomer','storyteller','rp','daily','twice_weekly','casual'];
-const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
-const ACCENT_IDS = ['amber','sage','ash','clay','moss','mist','honey','rust',
-  'iron','copper','jade','slate','wine','ocean','plum','silver',
-  'pink','purple','sky','gold','ruby','teal','pearl','obsidian'];
 
 const ACH_ID_TO_IDX = {};
 const ACH_IDX_TO_OBJ = [];
@@ -58,10 +68,17 @@ export function toShareViewModel({
   archetype,
   level,
   accent,
+  vellum,
+  silver,
+  secondary,
+  primary,
   pinnedBadges,
   xpIntoLevel,
   xpForNextLevel,
   progress01,
+  wordsWritten,
+  threadCount,
+  daysActive,
 } = {}) {
   // Accept either the raw { label } object from profile/archetypes.js
   // OR an already-normalized string (e.g., when the caller chains
@@ -90,194 +107,282 @@ export function toShareViewModel({
     xpIntoLevel: Math.max(0, Math.floor(Number(xpIntoLevel) || 0)),
     xpForNextLevel: Math.max(1, Math.floor(Number(xpForNextLevel) || 1)),
     progress01: Math.max(0, Math.min(1, Number(progress01) || 0)),
+    vellum: normalizeAccent(vellum || 'e8dcc4'),
+    silver: normalizeAccent(silver || '8b95a3'),
+    secondary: normalizeAccent(secondary || '161b22'),
+    primary: normalizeAccent(primary || '0d1117'),
+    wordsWritten: Math.max(0, Math.floor(Number(wordsWritten) || 0)),
+    threadCount: Math.max(0, Math.floor(Number(threadCount) || 0)),
+    daysActive: Math.max(0, Math.floor(Number(daysActive) || 0)),
   };
 }
 
+// ---- LEB128 varint helpers ----
+
+/** Encode a non-negative integer as LEB128 varint bytes. */
+function pushVarint(bytes, value) {
+  let v = value >>> 0; // clamp to uint32
+  do {
+    let b = v & 0x7F;
+    v >>>= 7;
+    if (v > 0) b |= 0x80;
+    bytes.push(b);
+  } while (v > 0);
+}
+
+/** Read a LEB128 varint from bytes at pos. Returns { value, pos }. */
+function readVarint(bytes, pos) {
+  let value = 0, shift = 0;
+  while (pos < bytes.length) {
+    const b = bytes[pos++];
+    value |= (b & 0x7F) << shift;
+    if ((b & 0x80) === 0) break;
+    shift += 7;
+    if (shift > 28) break; // safety — max 32-bit
+  }
+  return { value: value >>> 0, pos };
+}
+
+/** Push 3 RGB bytes from a 6-char hex string. */
+function pushRgb(bytes, hex) {
+  bytes.push(parseInt(hex.substring(0,2), 16) || 0);
+  bytes.push(parseInt(hex.substring(2,4), 16) || 0);
+  bytes.push(parseInt(hex.substring(4,6), 16) || 0);
+}
+
+/** Read 3 RGB bytes → 6-char hex string. */
+function readRgb(bytes, pos) {
+  const hex = (bytes[pos] || 0).toString(16).padStart(2,'0')
+            + (bytes[pos+1] || 0).toString(16).padStart(2,'0')
+            + (bytes[pos+2] || 0).toString(16).padStart(2,'0');
+  return { hex, pos: pos + 3 };
+}
+
 /**
- * Encode a view-model into a share code string.
+ * Encode a view-model into a compact share code string.
  *
- *   encodeShareCode(viewModel) => 'pf3:AwIEBBEA...'
+ * pf5 format — prefixless, varint-packed, flag-based color omission.
+ * ~30 chars for a typical profile (vs ~60 for pf4).
  *
- * Safe against extraneous caller fields — the payload is built from
- * the fixed schema below, so extras in the input are ignored.
- *
- * @param {object} viewModel  output of toShareViewModel
- * @returns {string}
+ * Layout:
+ *   byte 0: version (5)
+ *   byte 1: flags
+ *     bit 0-5: color[i] is non-default (accent,vellum,silver,sec,pri,future)
+ *     bit 6: has custom title text
+ *     bit 7: has archetype
+ *   varint: level
+ *   varint: progress (0-100)
+ *   varint: xpIntoLevel
+ *   varint: xpForNextLevel
+ *   [if bit 7] 1 byte: archetype index
+ *   1 byte: title achievement index (255 = custom/Newcomer)
+ *   1 byte: badge count
+ *   [badges] varint deltas from previous (sorted ascending)
+ *   [for each set color flag] 3 bytes RGB
+ *   varint: wordsWritten
+ *   varint: threadCount
+ *   varint: daysActive
+ *   varint-length-prefixed: display name UTF-8
+ *   [if bit 6 AND title=255] varint-length-prefixed: title UTF-8
  */
 export function encodeShareCode(viewModel) {
   const safe = toShareViewModel(viewModel || {});
-
-  // pf3: binary-packed format. Everything except the display name
-  // is encoded as numeric indices into existing registries.
   const bytes = [];
 
-  // Byte 0: version
+  // Version
   bytes.push(CURRENT_VERSION);
 
-  // Byte 1: level (clamped to 0-255)
-  bytes.push(Math.min(255, safe.level));
+  // ---- Build flags ----
+  let flags = 0;
+  const colors = {
+    accent:    normalizeAccent(safe.accent),
+    vellum:    normalizeAccent(safe.vellum),
+    silver:    normalizeAccent(safe.silver),
+    secondary: normalizeAccent(safe.secondary || ''),
+    primary:   normalizeAccent(safe.primary || ''),
+    future:    '000000',
+  };
+  for (let i = 0; i < COLOR_KEYS.length; i++) {
+    if (colors[COLOR_KEYS[i]] !== COLOR_DEFAULTS[COLOR_KEYS[i]]) {
+      flags |= (1 << i);
+    }
+  }
 
-  // Byte 2: archetype index (0-5, 255 = null/Newcomer)
-  const ARCHETYPE_LABELS = ['newcomer','storyteller','roleplayer','daily user','regular','casual'];
+  const titleAchIdx = findAchievementIndexByName(safe.title);
+  const hasCustomTitle = titleAchIdx === -1 && safe.title && safe.title !== 'Newcomer';
+  if (hasCustomTitle) flags |= (1 << 6);
+
+  const ARCH_LABELS_LOWER = ['newcomer','storyteller','roleplayer','daily user','regular','casual'];
   let archIdx = 255;
   if (safe.archetype) {
     const lower = safe.archetype.toLowerCase();
     archIdx = ARCHETYPE_IDS.indexOf(lower);
-    if (archIdx === -1) archIdx = ARCHETYPE_LABELS.indexOf(lower);
+    if (archIdx === -1) archIdx = ARCH_LABELS_LOWER.indexOf(lower);
     if (archIdx === -1) archIdx = 255;
   }
-  bytes.push(archIdx);
+  if (archIdx !== 255) flags |= (1 << 7);
 
-  // Byte 3: accent index (0-23, 255 = custom hex follows)
-  const accentId = findAccentId(safe.accent);
-  const accIdx = accentId ? ACCENT_IDS.indexOf(accentId) : -1;
-  bytes.push(accIdx >= 0 ? accIdx : 255);
-  // If not in palette, append 3 raw RGB bytes
-  const accNotInPalette = accIdx < 0;
-  if (accNotInPalette) {
-    const hex = normalizeAccent(safe.accent);
-    bytes.push(parseInt(hex.substring(0,2), 16) || 0);
-    bytes.push(parseInt(hex.substring(2,4), 16) || 0);
-    bytes.push(parseInt(hex.substring(4,6), 16) || 0);
-  }
+  bytes.push(flags);
 
-  // Byte 4: progress (0-100 integer)
-  bytes.push(Math.round(safe.progress01 * 100));
+  // ---- Varints: level, progress, xp ----
+  pushVarint(bytes, safe.level);
+  pushVarint(bytes, Math.round(safe.progress01 * 100));
+  pushVarint(bytes, safe.xpIntoLevel);
+  pushVarint(bytes, safe.xpForNextLevel);
 
-  // Bytes 5-6: xpIntoLevel (uint16 big-endian)
-  const xpI = Math.min(65535, safe.xpIntoLevel);
-  bytes.push((xpI >> 8) & 0xFF, xpI & 0xFF);
+  // ---- Archetype (if present) ----
+  if (archIdx !== 255) bytes.push(archIdx);
 
-  // Bytes 7-8: xpForNextLevel (uint16 big-endian)
-  const xpF = Math.min(65535, safe.xpForNextLevel);
-  bytes.push((xpF >> 8) & 0xFF, xpF & 0xFF);
-
-  // Byte 9: title type + value
-  // If title matches an achievement name, send the achievement index.
-  // Otherwise send 255 (= use display name as title, or "Newcomer").
-  const titleAchIdx = findAchievementIndexByName(safe.title);
+  // ---- Title ----
   bytes.push(titleAchIdx !== -1 ? titleAchIdx : 255);
 
-  // Byte 10: badge count
+  // ---- Badges: count + delta-encoded indices ----
   const badges = safe.pinnedBadges || [];
-  bytes.push(Math.min(LIMITS.maxBadges, badges.length));
-
-  // Bytes 11+: badge achievement indices
-  for (let i = 0; i < Math.min(LIMITS.maxBadges, badges.length); i++) {
-    const bIdx = findAchievementIndexByName(badges[i].name);
-    bytes.push(bIdx !== -1 ? bIdx : 255);
+  const badgeIndices = [];
+  for (const b of badges) {
+    const idx = findAchievementIndexByName(b.name);
+    if (idx !== -1) badgeIndices.push(idx);
+  }
+  badgeIndices.sort((a, b) => a - b);
+  bytes.push(badgeIndices.length);
+  let prevBadge = 0;
+  for (const idx of badgeIndices) {
+    pushVarint(bytes, idx - prevBadge);
+    prevBadge = idx;
   }
 
-  // Remaining: display name as UTF-8 (length-prefixed)
+  // ---- Colors (only non-defaults) ----
+  for (let i = 0; i < COLOR_KEYS.length; i++) {
+    if (flags & (1 << i)) {
+      pushRgb(bytes, colors[COLOR_KEYS[i]]);
+    }
+  }
+
+  // ---- Stats ----
+  pushVarint(bytes, safe.wordsWritten);
+  pushVarint(bytes, safe.threadCount);
+  pushVarint(bytes, safe.daysActive);
+
+  // ---- Display name ----
   const nameBytes = utf8Encode(safe.displayName.slice(0, LIMITS.displayName));
-  bytes.push(Math.min(255, nameBytes.length));
+  pushVarint(bytes, nameBytes.length);
   for (const b of nameBytes) bytes.push(b);
 
-  // If title was custom (idx 255), append the title text
-  if (titleAchIdx === -1 && safe.title && safe.title !== 'Newcomer') {
+  // ---- Custom title text ----
+  if (hasCustomTitle) {
     const titleBytes = utf8Encode(safe.title.slice(0, LIMITS.title));
-    bytes.push(Math.min(255, titleBytes.length));
+    pushVarint(bytes, titleBytes.length);
     for (const b of titleBytes) bytes.push(b);
   }
 
-  const packed = new Uint8Array(bytes);
-  return `${CODE_PREFIX}:${uint8ToBase64url(packed)}`;
+  return uint8ToBase64url(new Uint8Array(bytes));
 }
 
 /**
- * Decode a pf3 share code back to a view-model.
- * Returns null if malformed. Never throws.
+ * Decode a pf5 share code. Prefixless: pure base64url with version
+ * byte 5. Returns null if malformed. Never throws.
  */
 export function decodeShareCode(code) {
   if (typeof code !== 'string') return null;
   const trimmed = code.trim();
-  const idx = trimmed.indexOf(':');
-  if (idx < 0) return null;
-  const prefix = trimmed.slice(0, idx);
-  const body   = trimmed.slice(idx + 1);
-
-  if (prefix !== 'pf3') return null;
-  try { return decodePf3(body); } catch { return null; }
+  if (!trimmed) return null;
+  try {
+    const bytes = base64urlToUint8(trimmed);
+    if (bytes && bytes.length >= 4 && bytes[0] === 5) {
+      return decodePf5(bytes);
+    }
+  } catch { /* malformed */ }
+  return null;
 }
 
-/** Decode pf3 binary format. */
-function decodePf3(b64body) {
-  const bytes = base64urlToUint8(b64body);
-  if (!bytes || bytes.length < 12) return null;
+/** Decode pf5 compact format. */
+function decodePf5(bytes) {
+  let pos = 1; // skip version byte (already checked)
+  const flags = bytes[pos++];
 
-  let pos = 0;
-  const version = bytes[pos++];
-  if (version !== 3) return null;
+  const ARCH_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
 
-  const level = bytes[pos++];
-  const archIdx = bytes[pos++];
-  const accIdx = bytes[pos++];
+  // Varints
+  let r;
+  r = readVarint(bytes, pos); const level = r.value; pos = r.pos;
+  r = readVarint(bytes, pos); const progress = r.value; pos = r.pos;
+  r = readVarint(bytes, pos); const xpInto = r.value; pos = r.pos;
+  r = readVarint(bytes, pos); const xpFor = r.value; pos = r.pos;
 
-  // If accent index is 255, next 3 bytes are raw RGB
-  let accentHex;
-  if (accIdx === 255) {
-    const r = bytes[pos++] || 0;
-    const g = bytes[pos++] || 0;
-    const b = bytes[pos++] || 0;
-    accentHex = r.toString(16).padStart(2,'0') + g.toString(16).padStart(2,'0') + b.toString(16).padStart(2,'0');
-  } else {
-    const accentId = accIdx < ACCENT_IDS.length ? ACCENT_IDS[accIdx] : 'amber';
-    accentHex = resolveAccentColor(accentId);
+  // Archetype
+  let archetype = null;
+  if (flags & (1 << 7)) {
+    const archIdx = bytes[pos++];
+    archetype = archIdx < ARCH_LABELS.length ? ARCH_LABELS[archIdx] : null;
   }
 
-  const progress = bytes[pos++];
-  const xpInto = (bytes[pos++] << 8) | bytes[pos++];
-  const xpFor = (bytes[pos++] << 8) | bytes[pos++];
+  // Title
   const titleIdx = bytes[pos++];
-  const badgeCount = Math.min(LIMITS.maxBadges, bytes[pos++]);
-
-  const badges = [];
-  for (let i = 0; i < badgeCount && pos < bytes.length; i++) {
-    const bIdx = bytes[pos++];
-    const ach = ACH_IDX_TO_OBJ[bIdx];
-    if (ach) {
-      badges.push({ name: ach.name, icon: badgeIconForTier(ach.tier) });
-    } else {
-      badges.push({ name: `Achievement #${bIdx}`, icon: '◆' });
-    }
-  }
-
-  // Display name
-  const nameLen = pos < bytes.length ? bytes[pos++] : 0;
-  const nameBytes = bytes.slice(pos, pos + nameLen);
-  pos += nameLen;
-  const displayName = utf8Decode(nameBytes) || 'Chronicler';
-
-  // Title: from achievement index or custom text
   let title = 'Newcomer';
   if (titleIdx !== 255) {
     const ach = ACH_IDX_TO_OBJ[titleIdx];
     if (ach) title = ach.name;
-  } else if (pos < bytes.length) {
-    const titleLen = bytes[pos++];
-    const titleBytes = bytes.slice(pos, pos + titleLen);
-    pos += titleLen;
-    const custom = utf8Decode(titleBytes);
-    if (custom) title = custom;
   }
 
-  // Archetype
-  const ARCHETYPE_LABELS = ['Newcomer','Storyteller','Roleplayer','Daily User','Regular','Casual'];
-  const archetype = archIdx < ARCHETYPE_LABELS.length
-    ? ARCHETYPE_LABELS[archIdx]
-    : null;
+  // Badges (delta-decoded)
+  const badgeCount = bytes[pos++];
+  const badges = [];
+  let prevIdx = 0;
+  for (let i = 0; i < badgeCount; i++) {
+    r = readVarint(bytes, pos); pos = r.pos;
+    prevIdx += r.value;
+    const ach = ACH_IDX_TO_OBJ[prevIdx];
+    badges.push(ach
+      ? { name: ach.name, icon: badgeIconForTier(ach.tier) }
+      : { name: `#${prevIdx}`, icon: '◆' });
+  }
+
+  // Colors (only non-defaults present)
+  const colors = {};
+  for (let i = 0; i < COLOR_KEYS.length; i++) {
+    if (flags & (1 << i)) {
+      r = readRgb(bytes, pos); pos = r.pos;
+      colors[COLOR_KEYS[i]] = r.hex;
+    } else {
+      colors[COLOR_KEYS[i]] = COLOR_DEFAULTS[COLOR_KEYS[i]];
+    }
+  }
+
+  // Stats
+  r = readVarint(bytes, pos); const wordsWritten = r.value; pos = r.pos;
+  r = readVarint(bytes, pos); const threadCount = r.value; pos = r.pos;
+  r = readVarint(bytes, pos); const daysActive = r.value; pos = r.pos;
+
+  // Display name
+  r = readVarint(bytes, pos); const nameLen = r.value; pos = r.pos;
+  const displayName = utf8Decode(bytes.slice(pos, pos + nameLen)) || 'Chronicler';
+  pos += nameLen;
+
+  // Custom title
+  if ((flags & (1 << 6)) && titleIdx === 255 && pos < bytes.length) {
+    r = readVarint(bytes, pos); const tLen = r.value; pos = r.pos;
+    const custom = utf8Decode(bytes.slice(pos, pos + tLen));
+    if (custom) title = custom;
+  }
 
   return {
     source: 'shareCode',
     displayName: displayName.slice(0, LIMITS.displayName),
     title: title.slice(0, LIMITS.title),
-    archetype: archIdx === 255 ? null : archetype,
+    archetype,
     level: Math.max(1, level),
-    accent: accentHex,
+    accent: colors.accent,
+    vellum: colors.vellum,
+    silver: colors.silver,
+    secondary: colors.secondary,
+    primary: colors.primary,
     pinnedBadges: badges,
     xpIntoLevel: xpInto,
     xpForNextLevel: Math.max(1, xpFor),
     progress01: Math.max(0, Math.min(1, progress / 100)),
+    wordsWritten,
+    threadCount,
+    daysActive,
   };
 }
 
@@ -288,20 +393,6 @@ function normalizeAccent(accent) {
   return /^[0-9a-f]{6}$/.test(raw) ? raw : 'd8b36a';
 }
 
-/** Find accent ID from hex color (reverse lookup). Returns null if not in palette. */
-function findAccentId(hex) {
-  const normalized = (hex || '').replace('#', '').toLowerCase();
-  const map = {
-    'd8b36a':'amber', '7a9a6a':'sage', '8a8a8a':'ash', 'b08a6a':'clay',
-    '5a7a4e':'moss', '7a8a9a':'mist', 'c4a03a':'honey', 'a05a3a':'rust',
-    '6a6a7a':'iron', 'b87333':'copper', '4a9a6a':'jade', '6a7a8a':'slate',
-    '8a3a5a':'wine', '3a7a9a':'ocean', '7a4a8a':'plum', '9aaaba':'silver',
-    'c07a8a':'pink', '8a5aaa':'purple', '5a8aca':'sky', 'c4a832':'gold',
-    'aa3a3a':'ruby', '3a8a8a':'teal', 'cac8c0':'pearl', '2a2a3a':'obsidian',
-  };
-  return map[normalized] || null;
-}
-
 /** Find achievement index by name (case-insensitive). */
 function findAchievementIndexByName(name) {
   if (!name) return -1;
@@ -310,20 +401,6 @@ function findAchievementIndexByName(name) {
     if (ACHIEVEMENTS[i].name.toLowerCase() === lower) return i;
   }
   return -1;
-}
-
-/** Resolve accent ID → hex color. Simple lookup table. */
-function resolveAccentColor(accentId) {
-  // Hardcoded subset matching flair.js ACCENTS palette.
-  const map = {
-    amber:'d8b36a', sage:'7a9a6a', ash:'8a8a8a', clay:'b08a6a',
-    moss:'5a7a4e', mist:'7a8a9a', honey:'c4a03a', rust:'a05a3a',
-    iron:'6a6a7a', copper:'b87333', jade:'4a9a6a', slate:'6a7a8a',
-    wine:'8a3a5a', ocean:'3a7a9a', plum:'7a4a8a', silver:'9aaaba',
-    pink:'c07a8a', purple:'8a5aaa', sky:'5a8aca', gold:'c4a832',
-    ruby:'aa3a3a', teal:'3a8a8a', pearl:'cac8c0', obsidian:'2a2a3a',
-  };
-  return map[accentId] || 'd8b36a';
 }
 
 /** UTF-8 encode string → Uint8Array. */
@@ -386,7 +463,7 @@ export const __shareCodeTest = { LIMITS, CODE_PREFIX, CURRENT_VERSION };
  * internal query params like `__generatorLastEditTime`. We strip
  * all of that and build a clean canonical URL:
  *
- *   https://perchance.org/<generator-slug>?h=pf3:...
+ *   https://perchance.org/<generator-slug>?h=<base64url>
  *
  * @param {string} shareCode  output of encodeShareCode
  * @returns {string}

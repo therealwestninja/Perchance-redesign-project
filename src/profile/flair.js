@@ -471,6 +471,12 @@ function getPicks(palette, stats, unlockedIds) {
  * @param {Array}  palette   ACCENTS | VELLUMS | SILVERS
  */
 function resolveActive(channel, palette, settings, stats, unlockedIds) {
+  // Direct hex override from themeColors (square color picker)
+  const tc = settings && settings.profile && settings.profile.themeColors;
+  if (tc && tc[channel] && typeof tc[channel] === 'string') {
+    return { id: '_custom', color: tc[channel] };
+  }
+  // Fall back to palette-based flair pick (legacy swatch system)
   const picked =
     (settings && settings.profile && settings.profile.flair &&
      settings.profile.flair[channel]) || null;

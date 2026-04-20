@@ -95,8 +95,14 @@ test('getAchievementById returns entry or null', () => {
 
 // ---------- unlocks ----------
 
-test('computeUnlockedIds returns empty for empty stats', () => {
-  assert.deepEqual(computeUnlockedIds(emptyStats()), []);
+test('computeUnlockedIds: always-true achievements fire even for empty stats', () => {
+  // palette_unlocked has criteria () => true — always unlocked.
+  const result = computeUnlockedIds(emptyStats());
+  assert.ok(result.includes('palette_unlocked'));
+  // But other achievements should NOT fire for empty stats.
+  assert.ok(!result.includes('first_word'));
+  assert.ok(!result.includes('first_character'));
+  // null stats short-circuits → empty array (no criteria run at all).
   assert.deepEqual(computeUnlockedIds(null), []);
 });
 

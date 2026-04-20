@@ -651,9 +651,9 @@ export const ACHIEVEMENTS = Object.freeze([
   {
     id: 'palette_unlocked',
     name: 'Palette Awakened',
-    description: 'Open your profile for the first time and discover the color palette.',
+    description: 'Discover the color palette.',
     tier: 'common',
-    criteria: (s) => cnt(s, 'profileOpens') >= 1,
+    criteria: () => true,
   },
   {
     id: 'palette_vellum',

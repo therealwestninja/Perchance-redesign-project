@@ -3395,16 +3395,25 @@ export const CSS = `
   text-align: center;
 }
 
-/* ---- Theme color pickers ---- */
-.pf-theme-pickers {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+/* ---- Color picker grid (3×2) ---- */
+.pf-color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
-.pf-theme-picker {
+.pf-color-cell {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+.pf-color-cell-future {
+  opacity: 0.3;
+}
+.pf-color-cell-empty {
+  width: 32px;
+  height: 32px;
+  border: 2px dashed rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  border-radius: 6px;
 }
 .pf-theme-color-input {
   width: 32px;
@@ -4749,6 +4758,67 @@ body.pf-light-theme .pf-glossary-textarea {
   border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
   background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
   cursor: default;
+}
+
+/* ---- Section header action button (Edit Prompts, etc.) ---- */
+.pf-section-action {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  border-radius: 6px;
+  color: var(--pf-silver, #8b95a3);
+  font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.pf-section-action:hover {
+  color: var(--pf-vellum, #e8dcc4);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+}
+.pf-section-action:focus-visible {
+  outline: 2px solid var(--pf-accent, #d4a855);
+  outline-offset: 1px;
+}
+
+/* ---- Edit Prompts modal extras ---- */
+.pf-dq-edit-status {
+  font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  margin: 6px 0 12px;
+  min-height: 16px;
+}
+.pf-dq-edit-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pf-dq-edit-btn {
+  padding: 7px 16px;
+  border-radius: 6px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent;
+  color: var(--pf-vellum, #e8dcc4);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-dq-edit-btn:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+}
+.pf-dq-edit-btn-primary {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+  color: var(--pf-accent-hi, #e8c97a);
+  font-weight: 600;
+}
+.pf-dq-edit-btn-primary:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
 }
 
 /* ---- Code syntax highlighting (Batch 3) ----

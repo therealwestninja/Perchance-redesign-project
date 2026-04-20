@@ -280,6 +280,7 @@ export async function openFullPage() {
       } catch { /* fall back */ }
       const accent = resolveActiveAccent(freshSettings, stats, freshUnlocked);
       const p = (freshSettings && freshSettings.profile) || {};
+      const tc = (p && p.themeColors) || {};
       try {
         const shareVm = toShareViewModel({
           displayName: p.displayName || p.username || 'Chronicler',
@@ -287,10 +288,17 @@ export async function openFullPage() {
           archetype: freshArchetype,
           level: lvl.level,
           accent: accent.color,
+          vellum: tc.vellum || '#e8dcc4',
+          silver: tc.silver || '#8b95a3',
+          secondary: tc.secondary || '#161b22',
+          primary: tc.primary || '#0d1117',
           pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
           xpIntoLevel: lvl.xpIntoLevel,
           xpForNextLevel: lvl.xpForNextLevel,
           progress01: lvl.progress01,
+          wordsWritten: stats.wordsWritten || 0,
+          threadCount: stats.threadCount || 0,
+          daysActive: stats.daysActive || 0,
         });
         const code = encodeShareCode(shareVm);
         const shareUrl = buildShareUrl(code);
@@ -440,6 +448,16 @@ export async function openFullPage() {
     initialState: displayState.details,
   });
 
+  // "Edit Prompts" button — opens the quest theme editor modal.
+  // openEditPrompts is in the same IIFE scope (daily_quest.js).
+  const editPromptsBtn = h('button', {
+    type: 'button',
+    class: 'pf-section-action',
+    onClick: () => {
+      try { openEditPrompts(); } catch { /* non-fatal if daily_quest not loaded */ }
+    },
+  }, ['Edit Prompts']);
+
   const promptsSection = createSection({
     id: 'prompts',
     title: 'Prompts',
@@ -451,6 +469,7 @@ export async function openFullPage() {
       cadence,
     }),
     initialState: displayState.prompts,
+    headerActions: [editPromptsBtn],
   });
 
   const archiveSection = createSection({

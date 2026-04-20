@@ -14,8 +14,9 @@
 // a loading spinner.
 
 import { getCurrentDayKey } from './scheduler.js';
+import { loadSettings, updateField } from '../profile/settings_store.js';
 
-// 30 quest themes — 3 are picked per day via date hash.
+// 30 built-in quest themes — 3 are picked per day via date hash.
 const THEMES = [
   { seed: 'stranger',    icon: '👤', prompt: 'a scene where your character meets a complete stranger who changes their perspective' },
   { seed: 'secret',      icon: '🤫', prompt: 'your character discovering a secret about someone they trust' },
@@ -61,16 +62,32 @@ function hashStr(str) {
   return Math.abs(h);
 }
 
+/**
+ * Return the active theme pool — user's custom themes if they've
+ * edited them, otherwise the built-in THEMES.
+ */
+function getEffectiveThemes() {
+  try {
+    const s = loadSettings();
+    const custom = s && s.prompts && s.prompts.customQuestThemes;
+    if (Array.isArray(custom) && custom.length >= QUESTS_PER_DAY) {
+      return custom;
+    }
+  } catch { /* fall back */ }
+  return THEMES;
+}
+
 /** Pick N themes for today (deterministic, no repeats). */
 function getTodayThemes(dayKey, count) {
+  const pool = getEffectiveThemes();
   // Seeded shuffle of indices
-  const indices = Array.from({ length: THEMES.length }, (_, i) => i);
+  const indices = Array.from({ length: pool.length }, (_, i) => i);
   const seed = hashStr(dayKey);
   for (let i = indices.length - 1; i > 0; i--) {
     const j = (hashStr(`${seed}:${i}`) % (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
-  return indices.slice(0, count).map(i => THEMES[i]);
+  return indices.slice(0, count).map(i => pool[i]);
 }
 
 /** Load cached quest result, or null. */
@@ -301,4 +318,163 @@ export function initDailyQuest() {
   }
 
   promptsList.parentElement.insertBefore(container, promptsList);
+}
+
+// ================================================================
+// Edit Prompts modal — lets users customize the daily quest themes
+// ================================================================
+//
+// Format: one theme per line, as "icon seed = prompt description".
+// Uses the same glossary-modal CSS for visual consistency.
+
+/**
+ * Serialize the effective theme pool to editable text.
+ * Format: "🔥 hunger = your character craving something they can't have"
+ */
+function themesToText(themes) {
+  return themes.map(t => `${t.icon} ${t.seed} = ${t.prompt}`).join('\n');
+}
+
+/**
+ * Parse editable text back into theme objects.
+ * Skips blank lines and lines without "=". Tolerates missing icons.
+ */
+function textToThemes(text) {
+  const themes = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || !line.includes('=')) continue;
+
+    const eqIdx = line.indexOf('=');
+    const left = line.slice(0, eqIdx).trim();
+    const prompt = line.slice(eqIdx + 1).trim();
+    if (!prompt) continue;
+
+    // Left side: optional emoji + seed word
+    // Try to split "🔥 hunger" → icon + seed
+    const parts = left.split(/\s+/);
+    let icon = '✦';
+    let seed = '';
+    if (parts.length >= 2) {
+      // First token might be emoji or text
+      const first = parts[0];
+      // Simple emoji detection: single char or surrogate pair
+      if (first.length <= 2 || /^\p{Emoji}/u.test(first)) {
+        icon = first;
+        seed = parts.slice(1).join(' ');
+      } else {
+        seed = left;
+      }
+    } else {
+      seed = left;
+    }
+
+    if (!seed) seed = prompt.slice(0, 20).replace(/\s+/g, '-').toLowerCase();
+
+    themes.push({ seed, icon, prompt });
+  }
+  return themes;
+}
+
+/**
+ * Open the Edit Prompts modal. Shows current themes as editable text,
+ * with Save / Reset / Cancel actions.
+ */
+export function openEditPrompts() {
+  // ---- Overlay + modal shell (reuses glossary-modal styles) ----
+  const overlay = document.createElement('div');
+  overlay.className = 'pf-glossary-overlay';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const modal = document.createElement('div');
+  modal.className = 'pf-glossary-modal';
+
+  const title = document.createElement('h3');
+  title.className = 'pf-glossary-title';
+  title.textContent = 'Edit Quest Themes';
+
+  const hint = document.createElement('div');
+  hint.className = 'pf-glossary-hint';
+  hint.textContent = 'One theme per line:  icon seed = prompt description';
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'pf-glossary-textarea';
+  textarea.rows = 16;
+  textarea.spellcheck = false;
+
+  // Load current themes
+  const current = getEffectiveThemes();
+  textarea.value = themesToText(current);
+
+  // ---- Status line ----
+  const status = document.createElement('div');
+  status.className = 'pf-dq-edit-status';
+
+  function updateStatus() {
+    const parsed = textToThemes(textarea.value);
+    const n = parsed.length;
+    if (n < QUESTS_PER_DAY) {
+      status.textContent = `${n} theme${n !== 1 ? 's' : ''} — need at least ${QUESTS_PER_DAY}`;
+      status.style.color = 'var(--pf-palette-danger, #e06060)';
+    } else {
+      status.textContent = `${n} theme${n !== 1 ? 's' : ''}`;
+      status.style.color = 'var(--pf-silver, #8b95a3)';
+    }
+  }
+  textarea.addEventListener('input', updateStatus);
+  updateStatus();
+
+  // ---- Button row ----
+  const btnRow = document.createElement('div');
+  btnRow.className = 'pf-dq-edit-buttons';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'pf-dq-edit-btn pf-dq-edit-btn-primary';
+  saveBtn.textContent = 'Save';
+  saveBtn.addEventListener('click', () => {
+    const parsed = textToThemes(textarea.value);
+    if (parsed.length < QUESTS_PER_DAY) {
+      status.textContent = `Need at least ${QUESTS_PER_DAY} themes to save.`;
+      status.style.color = 'var(--pf-palette-danger, #e06060)';
+      return;
+    }
+    updateField('prompts.customQuestThemes', parsed);
+    try { bumpCounter('questThemeEdits'); } catch {}
+    close();
+  });
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.className = 'pf-dq-edit-btn';
+  resetBtn.textContent = 'Reset to defaults';
+  resetBtn.addEventListener('click', () => {
+    textarea.value = themesToText(THEMES);
+    updateField('prompts.customQuestThemes', null);
+    updateStatus();
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'pf-dq-edit-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', close);
+
+  btnRow.appendChild(saveBtn);
+  btnRow.appendChild(resetBtn);
+  btnRow.appendChild(cancelBtn);
+
+  modal.appendChild(title);
+  modal.appendChild(hint);
+  modal.appendChild(textarea);
+  modal.appendChild(status);
+  modal.appendChild(btnRow);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.hidden = false;
+  textarea.focus();
+
+  function close() {
+    overlay.remove();
+  }
 }
