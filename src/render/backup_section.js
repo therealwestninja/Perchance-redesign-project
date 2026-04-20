@@ -6,8 +6,9 @@
 
 import { h, replaceContents } from '../utils/dom.js';
 import {
+  exportSettingsCompact,
   exportSettingsAsJson,
-  importSettingsFromJson,
+  importSettingsFromText,
   copyToClipboard,
 } from '../profile/backup.js';
 import { clearCompletionHistory } from '../prompts/gc.js';
@@ -64,24 +65,35 @@ export function createBackupBody() {
   }
 
   function renderExportPanel() {
-    const json = exportSettingsAsJson();
-
     const textarea = h('textarea', {
       class: 'pf-backup-textarea',
       readonly: true,
-      rows: 10,
+      rows: 4,
       spellcheck: 'false',
-      'aria-label': 'Profile backup as JSON',
+      'aria-label': 'Profile backup',
     });
-    textarea.value = json;
+    textarea.value = 'Compressing…';
 
     const status = h('span', { class: 'pf-backup-status' });
+
+    // Generate compact export (async — deflate is async in browsers)
+    let exportedText = '';
+    exportSettingsCompact().then(text => {
+      exportedText = text;
+      textarea.value = text;
+      showStatus(status, `${text.length} chars — ${Math.round(text.length / 10) / 100}KB`, 'ok');
+    }).catch(() => {
+      // Fallback to JSON if compression fails
+      exportedText = exportSettingsAsJson();
+      textarea.value = exportedText;
+    });
 
     const copyBtn = h('button', {
       class: 'pf-backup-action',
       type: 'button',
       onClick: async () => {
-        const ok = await copyToClipboard(json);
+        if (!exportedText) return;
+        const ok = await copyToClipboard(exportedText);
         if (ok) {
           showStatus(status, 'Copied to clipboard ✓', 'ok');
         } else {
@@ -92,12 +104,23 @@ export function createBackupBody() {
       },
     }, ['Copy']);
 
+    const jsonBtn = h('button', {
+      class: 'pf-backup-action',
+      type: 'button',
+      onClick: () => {
+        exportedText = exportSettingsAsJson();
+        textarea.value = exportedText;
+        textarea.rows = 10;
+        showStatus(status, `Raw JSON — ${exportedText.length} chars`, 'ok');
+      },
+    }, ['Show as JSON']);
+
     replaceContents(exportPanel, [
       h('p', { class: 'pf-backup-hint' }, [
-        'Your full profile as JSON — avatar, bio, section states, prompt completions, everything. Save this text somewhere safe.',
+        'Compressed profile backup. Save this text somewhere safe.',
       ]),
       textarea,
-      h('div', { class: 'pf-backup-actionbar' }, [copyBtn, status]),
+      h('div', { class: 'pf-backup-actionbar' }, [copyBtn, jsonBtn, status]),
     ]);
   }
 
@@ -146,31 +169,29 @@ export function createBackupBody() {
     }, ['Restore from backup']);
 
     function doApply(text) {
-      const result = importSettingsFromJson(text);
-      confirmRow.hidden = true;
-      if (result.success) {
-        showStatus(
-          status,
-          'Restored. Reloading profile…',
-          'ok'
-        );
-        // Capture the overlay reference NOW rather than via
-        // document.querySelector inside the setTimeout. See doClear
-        // for the full rationale — same concern here.
-        const overlay = importPanel.closest('.pf-overlay');
-        setTimeout(() => {
-          if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
-            overlay.hide();
-          }
-        }, 800);
-      } else {
-        showStatus(status, result.error || 'Could not restore backup.', 'err');
-      }
+      // importSettingsFromText is async (deflate), wrap in promise
+      importSettingsFromText(text).then(result => {
+        confirmRow.hidden = true;
+        if (result.success) {
+          showStatus(status, 'Restored. Reloading profile…', 'ok');
+          const overlay = importPanel.closest('.pf-overlay');
+          setTimeout(() => {
+            if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+              overlay.hide();
+            }
+          }, 800);
+        } else {
+          showStatus(status, result.error || 'Could not restore backup.', 'err');
+        }
+      }).catch(err => {
+        confirmRow.hidden = true;
+        showStatus(status, (err && err.message) || 'Could not restore backup.', 'err');
+      });
     }
 
     replaceContents(importPanel, [
       h('p', { class: 'pf-backup-hint' }, [
-        'Paste a previously exported backup to restore. This will overwrite your current profile.',
+        'Paste a backup to restore (compact or JSON). This will overwrite your current profile.',
       ]),
       textarea,
       h('div', { class: 'pf-backup-actionbar' }, [applyBtn, status]),
@@ -258,9 +279,10 @@ export function createBackupBody() {
   ]);
 }
 
-/** Transient status with color-coded variant, auto-clears after 4s for success/warn. */
+/** Transient status with symbol prefix + color-coded variant, auto-clears after 4s. */
 function showStatus(el, text, kind) {
-  el.textContent = text;
+  const prefix = kind === 'ok' ? '✓ ' : kind === 'warn' ? '⚠ ' : kind === 'err' ? '✗ ' : '';
+  el.textContent = prefix + text;
   el.className = 'pf-backup-status pf-backup-status-' + (kind || 'info');
   if (kind !== 'err') {
     clearTimeout(el._timer);

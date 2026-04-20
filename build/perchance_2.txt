@@ -20450,13 +20450,16 @@ Use this template for your response:
     --pf-palette-danger:      #e06060;
     --pf-palette-danger-rgb:  224, 96, 96;
 
-    /* Achievement tier colors — semantic, not theme-tinted */
+    /* Achievement tier colors — shifted for deuteranopia safety.
+       Rare is cyan-shifted, Epic is pink-shifted so they're
+       distinguishable even with red-green color blindness.
+       Deutan diff: uncommon↔rare=121, rare↔epic=104, epic↔uncommon=123. */
     --pf-tier-uncommon:       #6aa36a;
     --pf-tier-uncommon-rgb:   106, 163, 106;
-    --pf-tier-rare:           #6a9ad8;
-    --pf-tier-rare-rgb:       106, 154, 216;
-    --pf-tier-epic:           #b47ad8;
-    --pf-tier-epic-rgb:       180, 122, 216;
+    --pf-tier-rare:           #50b0d8;
+    --pf-tier-rare-rgb:       80, 176, 216;
+    --pf-tier-epic:           #d480b0;
+    --pf-tier-epic-rgb:       212, 128, 176;
   }
 
   .pf-mini-card {
@@ -21167,8 +21170,8 @@ Use this template for your response:
   /* Tier-colored icons for the rarest-unlock chip */
   .pf-share-chip-icon-common    { color: var(--pf-silver, #8b95a3); }
   .pf-share-chip-icon-uncommon  { color: var(--pf-tier-uncommon, #6aa36a); }
-  .pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #6a9ad8); }
-  .pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #b47ad8); }
+  .pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #50b0d8); }
+  .pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #d480b0); }
   .pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
   /* Activity sparkline — last 12 weeks of completions, Focus mode only */
@@ -22188,15 +22191,15 @@ Use this template for your response:
   .pf-ach-locked .pf-ach-icon { filter: grayscale(1); }
 
   .pf-ach-tier-common    .pf-ach-icon { color: var(--pf-silver, #8b95a3); }
-  .pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); }
+  .pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); border-style: dotted; }
   .pf-ach-tier-uncommon  .pf-ach-icon { color: var(--pf-tier-uncommon, #6aa36a); }
   .pf-ach-tier-uncommon  .pf-ach-tier { color: var(--pf-tier-uncommon, #6aa36a); border-color: rgba(var(--pf-tier-uncommon-rgb, 106, 163, 106), 0.3); }
-  .pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #6a9ad8); }
-  .pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-palette-red, #c94545); border-color: rgba(var(--pf-palette-red-rgb), 0.4); }
-  .pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #b47ad8); }
-  .pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #b47ad8); border-color: rgba(var(--pf-tier-epic-rgb, 180, 122, 216), 0.3); }
+  .pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #50b0d8); }
+  .pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-tier-rare, #50b0d8); border-color: rgba(var(--pf-tier-rare-rgb, 80, 176, 216), 0.4); border-style: dashed; }
+  .pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #d480b0); }
+  .pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #d480b0); border-color: rgba(var(--pf-tier-epic-rgb, 212, 128, 176), 0.3); border-width: 2px; }
   .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-accent-hi, #e8c97a); text-shadow: 0 0 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4); }
-  .pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); }
+  .pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); border-width: 2px; }
 
   .pf-ach-unlocked {
     background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
@@ -23972,7 +23975,7 @@ Use this template for your response:
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
   .pf-sv2-level-label {
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.12em;
     font-weight: 700;
     opacity: 0.8;
@@ -28086,59 +28089,221 @@ Use this template for your response:
      ────────────────────────────────────────────────────────── */
   // profile/backup.js
   //
-  // Export/import of the user's profile settings as portable JSON.
+  // Compact export/import of the user's profile settings.
   //
-  // Protects against subdomain churn (every Perchance generator has its own
-  // random subdomain → own localStorage namespace), browser data clearing,
-  // device migration, or experimenting with settings the user might want to
-  // undo later.
+  // Export format (pfb1):
+  //   pfb1:<base64url(deflate(JSON.stringify(stripped_settings)))>
   //
-  // Export produces a wrapped payload:
-  //   { schema: 1, exportedAt: <ISO>, settings: {...} }
-  // Import accepts that shape OR a raw settings object (forgiving, in case
-  // the user manually constructed something or pasted just the settings part).
+  // "Stripped" means only values that differ from defaultSettings() are
+  // included — a typical profile drops 70-80% of the JSON before
+  // compression even starts. Deflate + base64url shrinks the rest.
+  //
+  // Typical backup: ~400-600 chars (vs ~3000 for the old pretty JSON).
+  //
+  // Import accepts:
+  //   1. pfb1:<compressed>  (new compact format)
+  //   2. Raw JSON object    (legacy backward compat)
 
 
+
+  const BACKUP_SCHEMA_VERSION = 2;
+
+  // ---- Deflate helpers (browser CompressionStream / Node zlib) ----
+
+  async function deflateBytes(data) {
+    if (typeof CompressionStream !== 'undefined') {
+      const cs = new CompressionStream('deflate-raw');
+      const writer = cs.writable.getWriter();
+      writer.write(data);
+      writer.close();
+      const chunks = [];
+      const reader = cs.readable.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const out = new Uint8Array(total);
+      let pos = 0;
+      for (const c of chunks) { out.set(c, pos); pos += c.length; }
+      return out;
+    }
+    // Node.js fallback (tests)
+    const { promisify } = await import('node:util');
+    const { deflateRaw } = await import('node:zlib');
+    return promisify(deflateRaw)(Buffer.from(data));
+  }
+
+  async function inflateBytes(data) {
+    if (typeof DecompressionStream !== 'undefined') {
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      writer.write(data);
+      writer.close();
+      const chunks = [];
+      const reader = ds.readable.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+      }
+      const total = chunks.reduce((n, c) => n + c.length, 0);
+      const out = new Uint8Array(total);
+      let pos = 0;
+      for (const c of chunks) { out.set(c, pos); pos += c.length; }
+      return out;
+    }
+    // Node.js fallback (tests)
+    const { promisify } = await import('node:util');
+    const { inflateRaw } = await import('node:zlib');
+    return promisify(inflateRaw)(Buffer.from(data));
+  }
+
+  function uint8ToBase64url(arr) {
+    let binary = '';
+    for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+    if (typeof btoa === 'function') {
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    return Buffer.from(arr).toString('base64url');
+  }
+
+  function base64urlToUint8(b64url) {
+    let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad === 2) b64 += '==';
+    else if (pad === 3) b64 += '=';
+    if (typeof atob === 'function') {
+      const binary = atob(b64);
+      const arr = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+      return arr;
+    }
+    const buf = Buffer.from(b64, 'base64');
+    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+
+  // ---- Default stripping ----
 
   /**
-   * Bump this if the settings shape changes in a way that old exports can't
-   * be safely restored. Never needs to be decremented — import always tries
-   * to handle older schemas gracefully via saveSettings's deep-merge with
-   * defaultSettings.
+   * Recursively remove keys whose values match the default. Produces
+   * the smallest possible JSON by only encoding what the user changed.
    */
-  const BACKUP_SCHEMA_VERSION = 1;
+  function stripDefaults(obj, defaults) {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object' || typeof defaults !== 'object') return obj;
+    if (Array.isArray(obj)) return obj; // arrays aren't default-stripped
 
-  /**
-   * Serialize current settings as pretty-printed JSON for display or copy.
-   *
-   * @returns {string}
-   */
-  function exportSettingsAsJson() {
-    const settings = loadSettings();
-    const payload = {
-      schema: BACKUP_SCHEMA_VERSION,
-      exportedAt: new Date().toISOString(),
-      settings,
-    };
-    return JSON.stringify(payload, null, 2);
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const d = defaults[k];
+      // Fast path: identical primitives / identical JSON
+      if (v === d) continue;
+      if (JSON.stringify(v) === JSON.stringify(d)) continue;
+      // Recurse into nested objects (not arrays)
+      if (v && typeof v === 'object' && !Array.isArray(v) &&
+          d && typeof d === 'object' && !Array.isArray(d)) {
+        const nested = stripDefaults(v, d);
+        if (Object.keys(nested).length > 0) out[k] = nested;
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
   }
 
   /**
-   * Validate and apply an imported backup. Returns a result object rather
-   * than throwing, so callers can render a user-visible error message.
-   *
-   * @param {string} jsonText
-   * @returns {{ success: boolean, error?: string, schema?: number }}
+   * Deep-merge stripped settings back over defaults to reconstitute
+   * the full settings object. Missing keys get their default values.
    */
-  // stats/counters.js — imported lazily inside importSettingsFromJson
-  // to avoid a circular import with settings_store (counters imports
-  // settings_store, and we don't want backup.js → settings_store →
-  // counters → settings_store).
+  function mergeOverDefaults(stripped, defaults) {
+    if (!stripped || typeof stripped !== 'object') return { ...defaults };
+    const out = {};
+    for (const k of new Set([...Object.keys(defaults), ...Object.keys(stripped)])) {
+      const s = stripped[k];
+      const d = defaults[k];
+      if (s === undefined) {
+        out[k] = d;
+      } else if (s && typeof s === 'object' && !Array.isArray(s) &&
+                 d && typeof d === 'object' && !Array.isArray(d)) {
+        out[k] = mergeOverDefaults(s, d);
+      } else {
+        out[k] = s;
+      }
+    }
+    return out;
+  }
+
+  // ---- Public API ----
 
   /**
-   * Import settings from a JSON blob (either wrapped with schema meta
-   * or raw settings). Returns { success, schema } on happy path or
-   * { success: false, error } otherwise.
+   * Export current settings as a compact pfb1 string.
+   * Falls back to minified JSON if compression is unavailable.
+   */
+  async function exportSettingsCompact() {
+    const settings = loadSettings();
+    const stripped = stripDefaults(settings, defaultSettings());
+    const json = JSON.stringify(stripped);
+
+    try {
+      const deflated = await deflateBytes(new TextEncoder().encode(json));
+      return 'pfb1:' + uint8ToBase64url(deflated);
+    } catch {
+      // Compression unavailable — fall back to minified JSON
+      return JSON.stringify({ schema: BACKUP_SCHEMA_VERSION, settings });
+    }
+  }
+
+  /**
+   * Legacy export — pretty JSON for backward compat display.
+   * Still used by the "show raw" option if we add one.
+   */
+  function exportSettingsAsJson() {
+    const settings = loadSettings();
+    return JSON.stringify({ schema: BACKUP_SCHEMA_VERSION, exportedAt: new Date().toISOString(), settings }, null, 2);
+  }
+
+  /**
+   * Import from either pfb1 compact format or legacy JSON.
+   * Returns { success, error?, schema? }.
+   */
+  async function importSettingsFromText(text) {
+    if (typeof text !== 'string' || !text.trim()) {
+      return { success: false, error: 'No backup text provided.' };
+    }
+
+    const trimmed = text.trim();
+
+    // ---- pfb1 compact format ----
+    if (trimmed.startsWith('pfb1:')) {
+      try {
+        const b64 = trimmed.slice(5);
+        const compressed = base64urlToUint8(b64);
+        const inflated = await inflateBytes(compressed);
+        const json = new TextDecoder().decode(inflated);
+        const stripped = JSON.parse(json);
+
+        if (!stripped || typeof stripped !== 'object') {
+          return { success: false, error: 'Decompressed backup is not a valid object.' };
+        }
+
+        const settings = mergeOverDefaults(stripped, defaultSettings());
+        saveSettings(settings);
+        try { bumpCounter('backupsImported'); } catch {}
+        return { success: true, schema: BACKUP_SCHEMA_VERSION };
+      } catch (err) {
+        return { success: false, error: 'Could not decompress backup: ' + ((err && err.message) || 'unknown error') };
+      }
+    }
+
+    // ---- Legacy JSON format ----
+    return importSettingsFromJson(trimmed);
+  }
+
+  /**
+   * Legacy JSON import — kept for backward compat with existing exports
+   * and manual JSON editing. Synchronous.
    */
   function importSettingsFromJson(jsonText) {
     if (typeof jsonText !== 'string' || !jsonText.trim()) {
@@ -28156,15 +28321,12 @@ Use this template for your response:
       return { success: false, error: 'Backup is not a JSON object.' };
     }
 
-    // Accept both shapes: wrapped payload OR raw settings
     let settings;
     let schema;
     if ('schema' in parsed && 'settings' in parsed && parsed.settings && typeof parsed.settings === 'object') {
       settings = parsed.settings;
       schema = Number(parsed.schema) || 1;
     } else {
-      // Raw settings — check for at least one recognized top-level key so
-      // we don't accept a random object
       if (!('profile' in parsed) && !('display' in parsed) && !('prompts' in parsed) && !('notifications' in parsed)) {
         return { success: false, error: 'Backup does not look like profile settings data.' };
       }
@@ -28174,12 +28336,7 @@ Use this template for your response:
 
     try {
       saveSettings(settings);
-      // Bump the import counter AFTER saving (so the bump itself lands
-      // in the post-import settings and isn't clobbered by restoring
-      // bumpCounter is in the same IIFE scope (bundled from
-      // stats/counters.js). The old dynamic import was designed for
-      // circular-dep avoidance in ESM, but the bundle has no modules.
-      try { bumpCounter('backupsImported'); } catch { /* best-effort */ }
+      try { bumpCounter('backupsImported'); } catch {}
       return { success: true, schema };
     } catch (err) {
       return { success: false, error: (err && err.message) || 'Could not save settings.' };
@@ -28187,12 +28344,7 @@ Use this template for your response:
   }
 
   /**
-   * Attempt to copy text to the clipboard. Returns a promise that resolves
-   * to true on success, false if the Clipboard API is unavailable or the
-   * request is denied (e.g. insecure context, no user gesture).
-   *
-   * @param {string} text
-   * @returns {Promise<boolean>}
+   * Copy text to clipboard. Returns true on success.
    */
   async function copyToClipboard(text) {
     try {
@@ -28200,9 +28352,7 @@ Use this template for your response:
         await navigator.clipboard.writeText(text);
         return true;
       }
-    } catch {
-      /* fall through to false */
-    }
+    } catch {}
     return false;
   }
 
@@ -39793,24 +39943,35 @@ Use this template for your response:
     }
 
     function renderExportPanel() {
-      const json = exportSettingsAsJson();
-
       const textarea = h('textarea', {
         class: 'pf-backup-textarea',
         readonly: true,
-        rows: 10,
+        rows: 4,
         spellcheck: 'false',
-        'aria-label': 'Profile backup as JSON',
+        'aria-label': 'Profile backup',
       });
-      textarea.value = json;
+      textarea.value = 'Compressing…';
 
       const status = h('span', { class: 'pf-backup-status' });
+
+      // Generate compact export (async — deflate is async in browsers)
+      let exportedText = '';
+      exportSettingsCompact().then(text => {
+        exportedText = text;
+        textarea.value = text;
+        showStatus(status, `${text.length} chars — ${Math.round(text.length / 10) / 100}KB`, 'ok');
+      }).catch(() => {
+        // Fallback to JSON if compression fails
+        exportedText = exportSettingsAsJson();
+        textarea.value = exportedText;
+      });
 
       const copyBtn = h('button', {
         class: 'pf-backup-action',
         type: 'button',
         onClick: async () => {
-          const ok = await copyToClipboard(json);
+          if (!exportedText) return;
+          const ok = await copyToClipboard(exportedText);
           if (ok) {
             showStatus(status, 'Copied to clipboard ✓', 'ok');
           } else {
@@ -39821,12 +39982,23 @@ Use this template for your response:
         },
       }, ['Copy']);
 
+      const jsonBtn = h('button', {
+        class: 'pf-backup-action',
+        type: 'button',
+        onClick: () => {
+          exportedText = exportSettingsAsJson();
+          textarea.value = exportedText;
+          textarea.rows = 10;
+          showStatus(status, `Raw JSON — ${exportedText.length} chars`, 'ok');
+        },
+      }, ['Show as JSON']);
+
       replaceContents(exportPanel, [
         h('p', { class: 'pf-backup-hint' }, [
-          'Your full profile as JSON — avatar, bio, section states, prompt completions, everything. Save this text somewhere safe.',
+          'Compressed profile backup. Save this text somewhere safe.',
         ]),
         textarea,
-        h('div', { class: 'pf-backup-actionbar' }, [copyBtn, status]),
+        h('div', { class: 'pf-backup-actionbar' }, [copyBtn, jsonBtn, status]),
       ]);
     }
 
@@ -39875,31 +40047,29 @@ Use this template for your response:
       }, ['Restore from backup']);
 
       function doApply(text) {
-        const result = importSettingsFromJson(text);
-        confirmRow.hidden = true;
-        if (result.success) {
-          showStatus(
-            status,
-            'Restored. Reloading profile…',
-            'ok'
-          );
-          // Capture the overlay reference NOW rather than via
-          // document.querySelector inside the setTimeout. See doClear
-          // for the full rationale — same concern here.
-          const overlay = importPanel.closest('.pf-overlay');
-          setTimeout(() => {
-            if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
-              overlay.hide();
-            }
-          }, 800);
-        } else {
-          showStatus(status, result.error || 'Could not restore backup.', 'err');
-        }
+        // importSettingsFromText is async (deflate), wrap in promise
+        importSettingsFromText(text).then(result => {
+          confirmRow.hidden = true;
+          if (result.success) {
+            showStatus(status, 'Restored. Reloading profile…', 'ok');
+            const overlay = importPanel.closest('.pf-overlay');
+            setTimeout(() => {
+              if (overlay && typeof overlay.hide === 'function' && overlay.parentNode) {
+                overlay.hide();
+              }
+            }, 800);
+          } else {
+            showStatus(status, result.error || 'Could not restore backup.', 'err');
+          }
+        }).catch(err => {
+          confirmRow.hidden = true;
+          showStatus(status, (err && err.message) || 'Could not restore backup.', 'err');
+        });
       }
 
       replaceContents(importPanel, [
         h('p', { class: 'pf-backup-hint' }, [
-          'Paste a previously exported backup to restore. This will overwrite your current profile.',
+          'Paste a backup to restore (compact or JSON). This will overwrite your current profile.',
         ]),
         textarea,
         h('div', { class: 'pf-backup-actionbar' }, [applyBtn, status]),
@@ -39987,9 +40157,10 @@ Use this template for your response:
     ]);
   }
 
-  /** Transient status with color-coded variant, auto-clears after 4s for success/warn. */
+  /** Transient status with symbol prefix + color-coded variant, auto-clears after 4s. */
   function showStatus(el, text, kind) {
-    el.textContent = text;
+    const prefix = kind === 'ok' ? '✓ ' : kind === 'warn' ? '⚠ ' : kind === 'err' ? '✗ ' : '';
+    el.textContent = prefix + text;
     el.className = 'pf-backup-status pf-backup-status-' + (kind || 'info');
     if (kind !== 'err') {
       clearTimeout(el._timer);

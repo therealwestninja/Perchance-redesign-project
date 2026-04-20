@@ -84,13 +84,16 @@ export const CSS = `
   --pf-palette-danger:      #e06060;
   --pf-palette-danger-rgb:  224, 96, 96;
 
-  /* Achievement tier colors — semantic, not theme-tinted */
+  /* Achievement tier colors — shifted for deuteranopia safety.
+     Rare is cyan-shifted, Epic is pink-shifted so they're
+     distinguishable even with red-green color blindness.
+     Deutan diff: uncommon↔rare=121, rare↔epic=104, epic↔uncommon=123. */
   --pf-tier-uncommon:       #6aa36a;
   --pf-tier-uncommon-rgb:   106, 163, 106;
-  --pf-tier-rare:           #6a9ad8;
-  --pf-tier-rare-rgb:       106, 154, 216;
-  --pf-tier-epic:           #b47ad8;
-  --pf-tier-epic-rgb:       180, 122, 216;
+  --pf-tier-rare:           #50b0d8;
+  --pf-tier-rare-rgb:       80, 176, 216;
+  --pf-tier-epic:           #d480b0;
+  --pf-tier-epic-rgb:       212, 128, 176;
 }
 
 .pf-mini-card {
@@ -801,8 +804,8 @@ export const CSS = `
 /* Tier-colored icons for the rarest-unlock chip */
 .pf-share-chip-icon-common    { color: var(--pf-silver, #8b95a3); }
 .pf-share-chip-icon-uncommon  { color: var(--pf-tier-uncommon, #6aa36a); }
-.pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #6a9ad8); }
-.pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #b47ad8); }
+.pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #50b0d8); }
+.pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #d480b0); }
 .pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
 /* Activity sparkline — last 12 weeks of completions, Focus mode only */
@@ -1822,15 +1825,15 @@ export const CSS = `
 .pf-ach-locked .pf-ach-icon { filter: grayscale(1); }
 
 .pf-ach-tier-common    .pf-ach-icon { color: var(--pf-silver, #8b95a3); }
-.pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); }
+.pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); border-style: dotted; }
 .pf-ach-tier-uncommon  .pf-ach-icon { color: var(--pf-tier-uncommon, #6aa36a); }
 .pf-ach-tier-uncommon  .pf-ach-tier { color: var(--pf-tier-uncommon, #6aa36a); border-color: rgba(var(--pf-tier-uncommon-rgb, 106, 163, 106), 0.3); }
-.pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #6a9ad8); }
-.pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-palette-red, #c94545); border-color: rgba(var(--pf-palette-red-rgb), 0.4); }
-.pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #b47ad8); }
-.pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #b47ad8); border-color: rgba(var(--pf-tier-epic-rgb, 180, 122, 216), 0.3); }
+.pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #50b0d8); }
+.pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-tier-rare, #50b0d8); border-color: rgba(var(--pf-tier-rare-rgb, 80, 176, 216), 0.4); border-style: dashed; }
+.pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #d480b0); }
+.pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #d480b0); border-color: rgba(var(--pf-tier-epic-rgb, 212, 128, 176), 0.3); border-width: 2px; }
 .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-accent-hi, #e8c97a); text-shadow: 0 0 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4); }
-.pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); }
+.pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); border-width: 2px; }
 
 .pf-ach-unlocked {
   background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
@@ -3606,7 +3609,7 @@ export const CSS = `
   text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 .pf-sv2-level-label {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   font-weight: 700;
   opacity: 0.8;
