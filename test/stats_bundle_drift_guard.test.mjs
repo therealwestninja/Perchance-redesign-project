@@ -59,6 +59,10 @@ const KNOWN_SOURCES = new Set([
   'counters',
   'streaks',
   'eventsResponded',
+  // Two-pass unlock count — injected by openFullPage after the first
+  // computeUnlockedIds pass so palette_vellum / palette_silver /
+  // palette_deep criteria can gate on total achievements earned.
+  '_unlockedCount',
 ]);
 
 /**

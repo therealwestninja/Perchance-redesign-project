@@ -637,6 +637,45 @@ export const ACHIEVEMENTS = Object.freeze([
     tier: 'epic',
     criteria: (s) => cnt(s, 'questsCompleted') >= 100,
   },
+
+  // --- Flair: color palette unlocks ---
+  //
+  // The palette_unlocked achievement is deliberately the easiest in
+  // the entire system — it fires on the very first profile open.
+  // This gates the accent swatch picker so the user discovers it
+  // immediately and has a reason to explore the profile further.
+  //
+  // Progressive pickers (vellum text color, silver meta-text color)
+  // unlock at modest total-achievement thresholds so new users get a
+  // steady drip of customization options as they earn other badges.
+  {
+    id: 'palette_unlocked',
+    name: 'Palette Awakened',
+    description: 'Open your profile for the first time and discover the color palette.',
+    tier: 'common',
+    criteria: (s) => cnt(s, 'profileOpens') >= 1,
+  },
+  {
+    id: 'palette_vellum',
+    name: 'Ink & Parchment',
+    description: 'Earn 3 achievements to unlock the text color picker.',
+    tier: 'common',
+    criteria: (s) => (s._unlockedCount || 0) >= 3,
+  },
+  {
+    id: 'palette_silver',
+    name: 'Silver Tongue',
+    description: 'Earn 8 achievements to unlock the secondary text color picker.',
+    tier: 'uncommon',
+    criteria: (s) => (s._unlockedCount || 0) >= 8,
+  },
+  {
+    id: 'palette_deep',
+    name: 'Deep Chromatics',
+    description: 'Earn 15 achievements to unlock the accent highlight and shadow pickers.',
+    tier: 'rare',
+    criteria: (s) => (s._unlockedCount || 0) >= 15,
+  },
 ]);
 
 /**

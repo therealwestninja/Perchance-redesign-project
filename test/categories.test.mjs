@@ -23,7 +23,7 @@ test('CATEGORIES: expected ids present', () => {
   const ids = CATEGORIES.map(c => c.id);
   assert.deepEqual(ids, [
     'writing', 'stories', 'prompts', 'consistency',
-    'curation', 'preservation', 'creation', 'events', 'tools',
+    'curation', 'preservation', 'creation', 'events', 'tools', 'flair',
   ]);
 });
 
@@ -48,6 +48,10 @@ test('getCategoryFor: known ids map to expected buckets', () => {
   assert.equal(getCategoryFor('archivist_silver'), 'preservation');
   assert.equal(getCategoryFor('demiurge_bronze'), 'creation');
   assert.equal(getCategoryFor('celebrant_silver'), 'events');
+  assert.equal(getCategoryFor('palette_unlocked'), 'flair');
+  assert.equal(getCategoryFor('palette_vellum'), 'flair');
+  assert.equal(getCategoryFor('palette_silver'), 'flair');
+  assert.equal(getCategoryFor('palette_deep'), 'flair');
 });
 
 test('getCategoryFor: unknown ids fall back to "other"', () => {

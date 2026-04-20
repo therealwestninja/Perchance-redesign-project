@@ -9,21 +9,22 @@ import { getInitialFromName } from '../utils/format.js';
 import { updateField, loadSettings, AGE_RANGE_OPTIONS } from '../profile/settings_store.js';
 import { createGenderSquare } from './gender_square.js';
 import { checkImageFile, resizeImageToDataURL } from '../utils/image.js';
-import { getAvailableTitles, getAccents } from '../profile/flair.js';
+import { getAvailableTitles, getAccents, getVellums, getSilvers } from '../profile/flair.js';
 import { ACHIEVEMENTS } from '../achievements/registry.js';
 
 /**
- * Compute unlock thresholds for theme color pickers.
- * Returns { accent, secondary, primary } booleans.
+ * Check whether specific flair picker achievements are unlocked.
+ * Each picker gates on a dedicated achievement rather than a
+ * percentage-of-total, so the thresholds are explicit and the
+ * achievement grid shows the user exactly what they need.
  */
-function getThemeUnlocks(unlockedIds) {
-  const total = ACHIEVEMENTS.length;
-  const count = (unlockedIds || []).length;
-  const pct = total > 0 ? count / total : 0;
+function getFlairUnlocks(unlockedIds) {
+  const set = new Set(unlockedIds || []);
   return {
-    accent:    pct >= 0.10,  // 10% — ~4 achievements
-    secondary: pct >= 0.15,  // 15% — ~5 achievements
-    primary:   pct >= 0.25,  // 25% — ~9 achievements
+    accent:  set.has('palette_unlocked'),  // first profile open
+    vellum:  set.has('palette_vellum'),     // 3 achievements
+    silver:  set.has('palette_silver'),     // 8 achievements
+    deep:    set.has('palette_deep'),       // 15 achievements
   };
 }
 
@@ -88,91 +89,95 @@ export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} }
   });
   titleInput.value = String(profile.titleOverride || '');
 
-  // ---- accent: themed color unlocked by achievement tiers ----
+  // ---- flair: achievement-gated color pickers ----
   //
-  // Rendered as a row of swatches. Locked accents appear greyed with
-  // their unlock hint in the title attribute. Click an unlocked one
-  // to set it; click the active one again to clear back to auto.
-  const accents = getAccents(stats, unlockedIds);
+  // Three swatch rows — Accent, Text (vellum), Meta (silver) — each
+  // gated on a dedicated palette_* achievement. The picker for each
+  // row only appears once the user has earned the corresponding
+  // achievement; before that, a locked hint shows what's needed.
+  const flairUnlocks = getFlairUnlocks(unlockedIds);
 
-  // Pick the inner glyph for a swatch based on its state.
-  //   locked         → 🔒
-  //   active (picked)→ ✓   ('this is what you currently have')
-  //   unlocked       → ●   ('this is available')
-  // Three distinct glyphs make the "active vs hover" question
-  // unambiguous. Previously all unlocked swatches showed ● and
-  // active state was conveyed only by a thicker white ring —
-  // that ring read too similarly to the hover ring, which made
-  // it look like hovering one swatch animated another (the
-  // permanently-active one).
+  // Shared glyph logic for all swatch rows.
   function glyphFor(isUnlocked, isActive) {
     if (!isUnlocked) return '🔒';
     if (isActive)   return '✓';
     return '●';
   }
 
-  const accentSwatches = h('div', { class: 'pf-accent-row' },
-    accents.map(a => {
-      const isActive = currentFlair.accent === a.id ||
-        (!currentFlair.accent && a.id === 'amber');
-      const btn = h('button', {
-        type: 'button',
-        class: [
-          'pf-accent-swatch',
-          isActive ? 'pf-accent-swatch-active' : '',
-          a.isUnlocked ? '' : 'pf-accent-swatch-locked',
-        ].filter(Boolean).join(' '),
-        'aria-label': a.isUnlocked
-          ? `Accent: ${a.label}${isActive ? ' (active)' : ''}`
-          : `Locked: ${a.description}`,
-        title: a.isUnlocked
-          ? `${a.label} — ${a.description}`
-          : `🔒 ${a.description}`,
-        disabled: !a.isUnlocked,
-        style: `--pf-accent-preview:${a.color};`,
-        onClick: () => {
-          if (!a.isUnlocked) return;
-          // Toggle: if clicked accent is already active, clear back to
-          // amber (null). Otherwise activate it.
-          const nextVal = (currentFlair.accent === a.id) ? null : a.id;
-          updateField('profile.flair.accent', nextVal);
-          // Re-render swatches in place to update active state. Quick
-          // rebuild rather than full form re-render so input focus
-          // isn't stolen from neighboring fields.
-          const updated = accents.map(x => ({
-            ...x,
-            _active: nextVal === x.id || (!nextVal && x.id === 'amber'),
-          }));
-          for (let i = 0; i < updated.length; i++) {
-            const swatch = accentSwatches.children[i];
-            if (!swatch) continue;
-            swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
-            // Re-glyph too, otherwise the previously-active swatch keeps
-            // its ✓ and the newly-active one keeps its ● — class swap
-            // would be the only signal, which is exactly what we're
-            // moving away from.
-            const innerSpan = swatch.firstChild;
-            if (innerSpan && innerSpan.tagName === 'SPAN') {
-              innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+  /**
+   * Build a swatch row for a flair palette. Reused for accent, vellum,
+   * and silver — same markup, same click-to-toggle, same glyph logic.
+   *
+   * @param {Array} items        palette items from getAccents / getVellums / getSilvers
+   * @param {string} flairKey    settings path under profile.flair (e.g. 'accent')
+   * @param {string} defaultId   the default color id (e.g. 'amber', 'parchment', 'pewter')
+   */
+  function buildSwatchRow(items, flairKey, defaultId) {
+    const currentPick = currentFlair[flairKey] || null;
+    const container = h('div', { class: 'pf-accent-row' },
+      items.map(a => {
+        const isActive = currentPick === a.id || (!currentPick && a.id === defaultId);
+        const btn = h('button', {
+          type: 'button',
+          class: [
+            'pf-accent-swatch',
+            isActive ? 'pf-accent-swatch-active' : '',
+            a.isUnlocked ? '' : 'pf-accent-swatch-locked',
+          ].filter(Boolean).join(' '),
+          'aria-label': a.isUnlocked
+            ? `${a.label}${isActive ? ' (active)' : ''}`
+            : `Locked: ${a.description}`,
+          title: a.isUnlocked
+            ? `${a.label} — ${a.description}`
+            : `🔒 ${a.description}`,
+          disabled: !a.isUnlocked,
+          style: `--pf-accent-preview:${a.color};`,
+          onClick: () => {
+            if (!a.isUnlocked) return;
+            const nextVal = (currentPick === a.id) ? null : a.id;
+            updateField(`profile.flair.${flairKey}`, nextVal);
+            const updated = items.map(x => ({
+              ...x,
+              _active: nextVal === x.id || (!nextVal && x.id === defaultId),
+            }));
+            for (let i = 0; i < updated.length; i++) {
+              const swatch = container.children[i];
+              if (!swatch) continue;
+              swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
+              const innerSpan = swatch.firstChild;
+              if (innerSpan && innerSpan.tagName === 'SPAN') {
+                innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+              }
             }
-          }
-          currentFlair.accent = nextVal;
-          // Blur the clicked button. Even with our explicit
-          // outline:none + :focus-visible-only ring, some browsers
-          // briefly paint a click-focus indicator before the next
-          // mousemove / click clears it. Calling blur() puts the
-          // page back to a no-focus state immediately, so the user
-          // never sees a stale ring on the swatch they just picked.
-          // Keyboard activation still focuses it correctly because
-          // Enter/Space-on-button keeps focus before invoking onClick.
-          try { btn.blur(); } catch { /* non-fatal */ }
-        },
-      }, [
-        h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
-      ]);
-      return btn;
-    })
-  );
+            currentFlair[flairKey] = nextVal;
+            try { btn.blur(); } catch { /* non-fatal */ }
+          },
+        }, [
+          h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
+        ]);
+        return btn;
+      })
+    );
+    return container;
+  }
+
+  // Build each row only if the corresponding achievement is unlocked;
+  // otherwise show a locked hint.
+  function lockedHint(text) {
+    return h('div', { class: 'pf-flair-locked-hint' }, [`🔒 ${text}`]);
+  }
+
+  const accentRow = flairUnlocks.accent
+    ? buildSwatchRow(getAccents(stats, unlockedIds), 'accent', 'amber')
+    : lockedHint('Open your profile to unlock the accent palette.');
+
+  const vellumRow = flairUnlocks.vellum
+    ? buildSwatchRow(getVellums(stats, unlockedIds), 'vellum', 'parchment')
+    : lockedHint('Earn 3 achievements to unlock the text color palette.');
+
+  const silverRow = flairUnlocks.silver
+    ? buildSwatchRow(getSilvers(stats, unlockedIds), 'silver', 'pewter')
+    : lockedHint('Earn 8 achievements to unlock the meta text palette.');
 
   // ---- age range ----
   const ageSelect = h('select', {
@@ -206,7 +211,9 @@ export function createDetailsBody({ profile = {}, unlockedIds = [], stats = {} }
     // the wrapping element doesn't implicitly associate with the first
     // child control — which would propagate :hover to it from anywhere
     // in the row.
-    groupRow('Accent',  accentSwatches),
+    groupRow('Accent',     accentRow),
+    groupRow('Text color', vellumRow),
+    groupRow('Meta color', silverRow),
     createThemeColorRow(profile, unlockedIds),
     row('Age range',    ageSelect),
     groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
@@ -402,10 +409,10 @@ const THEME_DEFAULTS = {
  * accent threshold from getThemeUnlocks() gates the swatches, not these.
  */
 function createThemeColorRow(profile, unlockedIds) {
-  const unlocks = getThemeUnlocks(unlockedIds);
+  const unlocks = getFlairUnlocks(unlockedIds);
   const tc = (profile && profile.themeColors) || {};
 
-  function makeColorPicker(label, field, defaultColor, isUnlocked, unlockPct) {
+  function makeColorPicker(label, field, defaultColor, isUnlocked, unlockHint) {
     const wrapper = h('div', { class: 'pf-theme-picker' }, []);
 
     const colorInput = h('input', {
@@ -415,7 +422,7 @@ function createThemeColorRow(profile, unlockedIds) {
       disabled: !isUnlocked,
       title: isUnlocked
         ? `${label} — click to change`
-        : `🔒 Unlock at ${unlockPct}% achievements`,
+        : `🔒 Unlock at ${unlockHint}`,
       onInput: (ev) => {
         updateField(`profile.themeColors.${field}`, ev.target.value);
         applyThemeColorsLive();
@@ -451,8 +458,8 @@ function createThemeColorRow(profile, unlockedIds) {
   }
 
   const container = h('div', { class: 'pf-theme-pickers' }, [
-    makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.secondary, 15),
-    makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.primary,   25),
+    makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.silver, '8 achievements'),
+    makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.deep,   '15 achievements'),
   ]);
 
   return groupRow('Theme', container);

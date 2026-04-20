@@ -35,7 +35,7 @@ import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completio
 import { getActiveEvents, getActiveEventIds } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
 import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
-import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars, paintAppAccent } from './flair.js';
+import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars, paintAppAccent, resolveVellumVars, paintAppVellum, resolveSilverVars, paintAppSilver } from './flair.js';
 import { checkAndUpdateBests } from './personal_bests.js';
 import { getPrimaryArchetype } from './archetypes.js';
 import { checkSummary } from './summary_notifications.js';
@@ -85,6 +85,12 @@ export async function openFullPage() {
   // even if stats loading fails, the user's streak is still credited.
   // Idempotent within a day — repeated opens don't inflate.
   try { recordActivityForStreak(); } catch { /* non-fatal */ }
+
+  // Bump the profileOpens counter BEFORE stats are read. The flair
+  // palette unlock gates on this so the picker appears on the very
+  // first profile visit — placing it before computeStats ensures
+  // computeUnlockedIds sees the bumped value.
+  try { bumpCounter('profileOpens'); } catch { /* non-fatal */ }
 
   // Declare `overlay` as `let` initialized to null up-front so
   // refreshSplashFromSettings() — which is called synchronously
@@ -150,6 +156,10 @@ export async function openFullPage() {
     // by an achievement criterion (or by getPrimaryArchetype) should
     // be re-read from its source right here; otherwise refresh sites
     // pick up whatever stale value was in `stats` at openFullPage time.
+    // Two-pass _unlockedCount for palette threshold achievements.
+    try {
+      fresh._unlockedCount = computeUnlockedIds(fresh).length;
+    } catch { fresh._unlockedCount = stats._unlockedCount || 0; }
     return fresh;
   }
 
@@ -174,6 +184,8 @@ export async function openFullPage() {
     // instead. The TYPICAL sync-path caller (accent / title repaint
     // on a flair change) doesn't mutate events, so stale is safe.
     fresh.eventsResponded = stats.eventsResponded || 0;
+    // Carry forward _unlockedCount for palette threshold criteria.
+    fresh._unlockedCount = stats._unlockedCount || 0;
     return fresh;
   }
 
@@ -182,6 +194,14 @@ export async function openFullPage() {
   } catch {
     unlockedIds = [];
   }
+  // Two-pass unlock: palette_vellum / palette_silver / palette_deep
+  // gate on _unlockedCount (total achievements earned). The first
+  // pass above didn't have _unlockedCount, so inject it and re-run
+  // to pick up any palette thresholds that just crossed.
+  stats._unlockedCount = unlockedIds.length;
+  try {
+    unlockedIds = computeUnlockedIds(stats);
+  } catch { /* keep first-pass result */ }
 
   // Opening the profile counts as acknowledgment of any pending notifications.
   // This fires the settings-changed event, which causes the mini-card to
@@ -354,6 +374,19 @@ export async function openFullPage() {
         // Cascade the same accent into upstream Perchance's chrome —
         // user picks a color in the profile, the whole app re-tints.
         paintAppAccent(accent);
+      } catch { /* non-fatal */ }
+      // Vellum (text color) and Silver (meta text) — same pattern.
+      try {
+        const vellum = resolveVellumVars(freshSettings, stats, freshUnlocked);
+        overlay.style.setProperty('--pf-vellum', vellum.color);
+        overlay.style.setProperty('--pf-vellum-rgb', vellum.rgb);
+        paintAppVellum(vellum);
+      } catch { /* non-fatal */ }
+      try {
+        const silver = resolveSilverVars(freshSettings, stats, freshUnlocked);
+        overlay.style.setProperty('--pf-silver', silver.color);
+        overlay.style.setProperty('--pf-silver-rgb', silver.rgb);
+        paintAppSilver(silver);
       } catch { /* non-fatal */ }
     }
 
@@ -629,6 +662,37 @@ export async function openFullPage() {
     paintAppAccent(accent);
   }
   applyAccent();
+
+  // Apply the user's vellum (text color) and silver (meta text color)
+  // picks. Same pattern as accent: resolve from settings → set CSS
+  // vars on both the overlay and :root → cascade to upstream chrome.
+  function applyVellum() {
+    let freshSettings = settings;
+    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+    let freshUnlocked = unlockedIds;
+    try {
+      freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
+    } catch { /* fall back */ }
+    const vellum = resolveVellumVars(freshSettings, stats, freshUnlocked);
+    overlay.style.setProperty('--pf-vellum', vellum.color);
+    overlay.style.setProperty('--pf-vellum-rgb', vellum.rgb);
+    paintAppVellum(vellum);
+  }
+  applyVellum();
+
+  function applySilver() {
+    let freshSettings = settings;
+    try { freshSettings = loadSettings(); } catch { /* keep stale */ }
+    let freshUnlocked = unlockedIds;
+    try {
+      freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
+    } catch { /* fall back */ }
+    const silver = resolveSilverVars(freshSettings, stats, freshUnlocked);
+    overlay.style.setProperty('--pf-silver', silver.color);
+    overlay.style.setProperty('--pf-silver-rgb', silver.rgb);
+    paintAppSilver(silver);
+  }
+  applySilver();
 
   overlay.show();
 }

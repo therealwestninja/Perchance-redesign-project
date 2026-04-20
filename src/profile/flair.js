@@ -448,3 +448,236 @@ function countTier(unlockedIds, tier) {
   }
   return n;
 }
+
+// ================================================================
+// Vellum palette — primary text color
+// ================================================================
+//
+// Smaller palette than accents. Readability-critical, so options are
+// constrained to warm/cool neutrals that pass WCAG AA on dark
+// backgrounds. Unlocked via palette_vellum achievement (3 total
+// achievements).
+//
+// Row of 8 colors: first 2 always available (once picker unlocks),
+// rest gated at modest thresholds so new users see a progression.
+
+export const VELLUMS = Object.freeze([
+  {
+    id: 'parchment',
+    label: 'Parchment',
+    color: '#e8dcc4',
+    description: 'The classic warm parchment. Always available.',
+    criterion: () => true,
+  },
+  {
+    id: 'bone',
+    label: 'Bone',
+    color: '#d9d0c1',
+    description: 'Muted ivory. Always available.',
+    criterion: () => true,
+  },
+  {
+    id: 'frost',
+    label: 'Frost',
+    color: '#d4dce4',
+    description: 'Cool blue-white. Unlocked at 5 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 5,
+  },
+  {
+    id: 'linen',
+    label: 'Linen',
+    color: '#e0d8cc',
+    description: 'Warm neutral. Unlocked at 8 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 8,
+  },
+  {
+    id: 'chalk',
+    label: 'Chalk',
+    color: '#ece8e0',
+    description: 'Near-white warm. Unlocked at 12 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 12,
+  },
+  {
+    id: 'moonstone',
+    label: 'Moonstone',
+    color: '#c8d0d8',
+    description: 'Cool silver-blue. Unlocked at 1 rare achievement.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 1,
+  },
+  {
+    id: 'cream',
+    label: 'Cream',
+    color: '#f0e8d8',
+    description: 'Bright warm. Unlocked at 1 epic achievement.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 1,
+  },
+  {
+    id: 'starlight',
+    label: 'Starlight',
+    color: '#f4f0ec',
+    description: 'Near-white. Unlocked at 1 legendary achievement.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'legendary') >= 1,
+  },
+]);
+
+// ================================================================
+// Silver palette — secondary / meta text color
+// ================================================================
+//
+// Controls timestamps, labels, hint text, and stat annotations.
+// Like vellum, constrained to readable mid-tones on dark backgrounds.
+// Unlocked via palette_silver achievement (8 total achievements).
+
+export const SILVERS = Object.freeze([
+  {
+    id: 'pewter',
+    label: 'Pewter',
+    color: '#8b95a3',
+    description: 'The default cool grey. Always available.',
+    criterion: () => true,
+  },
+  {
+    id: 'smoke',
+    label: 'Smoke',
+    color: '#9a9a9a',
+    description: 'Neutral mid-grey. Always available.',
+    criterion: () => true,
+  },
+  {
+    id: 'steel',
+    label: 'Steel',
+    color: '#7a8a98',
+    description: 'Blue-tinted grey. Unlocked at 10 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 10,
+  },
+  {
+    id: 'dusk',
+    label: 'Dusk',
+    color: '#9a8a7a',
+    description: 'Warm earth grey. Unlocked at 15 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 15,
+  },
+  {
+    id: 'lavender',
+    label: 'Lavender',
+    color: '#9a8aaa',
+    description: 'Soft purple-grey. Unlocked at 20 achievements.',
+    criterion: (s) => (s._unlockedCount || 0) >= 20,
+  },
+  {
+    id: 'patina',
+    label: 'Patina',
+    color: '#7a9a8a',
+    description: 'Green-tinted grey. Unlocked at 1 rare achievement.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 1,
+  },
+  {
+    id: 'dawn',
+    label: 'Dawn',
+    color: '#b0a898',
+    description: 'Warm light grey. Unlocked at 2 epic achievements.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 2,
+  },
+  {
+    id: 'quicksilver',
+    label: 'Quicksilver',
+    color: '#b8c0c8',
+    description: 'Bright silver. Unlocked at 2 legendary achievements.',
+    criterion: (_s, unlocked) => countTier(unlocked, 'legendary') >= 2,
+  },
+]);
+
+// ================================================================
+// Vellum resolve / paint — mirrors accent pipeline
+// ================================================================
+
+export function getVellums(stats, unlockedIds) {
+  const ids = unlockedIds || [];
+  return VELLUMS.map(v => ({
+    id: v.id,
+    label: v.label,
+    color: v.color,
+    description: v.description,
+    isUnlocked: Boolean(v.criterion(stats || {}, ids)),
+  }));
+}
+
+export function resolveActiveVellum(settings, stats, unlockedIds) {
+  const picked =
+    (settings && settings.profile && settings.profile.flair &&
+     settings.profile.flair.vellum) || null;
+
+  if (picked) {
+    const v = VELLUMS.find(x => x.id === picked);
+    if (v && v.criterion(stats || {}, unlockedIds || [])) {
+      return { id: v.id, color: v.color };
+    }
+  }
+  return { id: 'parchment', color: '#e8dcc4' };
+}
+
+export function resolveVellumVars(settings, stats, unlockedIds) {
+  const base = resolveActiveVellum(settings, stats, unlockedIds);
+  return { ...base, rgb: hexToRgb(base.color) };
+}
+
+/**
+ * Set --pf-vellum and --pf-vellum-rgb on :root so every component
+ * using var(--pf-vellum, ...) picks up the user's text color choice.
+ */
+export function paintAppVellum(vellum) {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  if (!vellum || typeof vellum.color !== 'string') return;
+  const root = document.documentElement;
+  try {
+    root.style.setProperty('--pf-vellum', vellum.color);
+    root.style.setProperty('--pf-vellum-rgb', vellum.rgb || hexToRgb(vellum.color));
+  } catch { /* non-fatal */ }
+}
+
+// ================================================================
+// Silver resolve / paint
+// ================================================================
+
+export function getSilvers(stats, unlockedIds) {
+  const ids = unlockedIds || [];
+  return SILVERS.map(v => ({
+    id: v.id,
+    label: v.label,
+    color: v.color,
+    description: v.description,
+    isUnlocked: Boolean(v.criterion(stats || {}, ids)),
+  }));
+}
+
+export function resolveActiveSilver(settings, stats, unlockedIds) {
+  const picked =
+    (settings && settings.profile && settings.profile.flair &&
+     settings.profile.flair.silver) || null;
+
+  if (picked) {
+    const v = SILVERS.find(x => x.id === picked);
+    if (v && v.criterion(stats || {}, unlockedIds || [])) {
+      return { id: v.id, color: v.color };
+    }
+  }
+  return { id: 'pewter', color: '#8b95a3' };
+}
+
+export function resolveSilverVars(settings, stats, unlockedIds) {
+  const base = resolveActiveSilver(settings, stats, unlockedIds);
+  return { ...base, rgb: hexToRgb(base.color) };
+}
+
+/**
+ * Set --pf-silver and --pf-silver-rgb on :root.
+ */
+export function paintAppSilver(silver) {
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  if (!silver || typeof silver.color !== 'string') return;
+  const root = document.documentElement;
+  try {
+    root.style.setProperty('--pf-silver', silver.color);
+    root.style.setProperty('--pf-silver-rgb', silver.rgb || hexToRgb(silver.color));
+  } catch { /* non-fatal */ }
+}

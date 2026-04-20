@@ -72,6 +72,12 @@ export const CATEGORIES = Object.freeze([
     icon: '🔧',
     description: 'Chat tool usage: glossary, dice, voice, bookmarks, and more.',
   },
+  {
+    id: 'flair',
+    label: 'Flair',
+    icon: '🎨',
+    description: 'Color palette unlocks and visual customization.',
+  },
 ]);
 
 // Rules for sorting each achievement into exactly one category. Order
@@ -118,6 +124,7 @@ const RULES = [
      'hundred_threads', 'tool_explorer', 'tool_master',
      'quest_seeker', 'quest_completer', 'quest_devotee', 'quest_legend'].includes(id)
   )},
+  { cat: 'flair',        match: id => id.startsWith('palette_') },
 ];
 
 /**
