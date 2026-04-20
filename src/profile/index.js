@@ -239,9 +239,6 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
-  // Glossary editor — now handled by Context Editor (📝 tabbed modal)
-  // initGlossaryEditor() standalone button removed to avoid duplicates.
-
   // Chat export (Batch 5) — ⬇ button in chat header
   try { initChatExport(); } catch { /* non-fatal */ }
 
@@ -336,8 +333,8 @@ export async function start() {
   // Document analysis (Batch 6) — 📎 upload text files
   try { initDocAnalysis(); } catch { /* non-fatal */ }
 
-  // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
-  // Anti-repetition — now handled by Context Editor
+  // Anti-repetition — UI superseded by Context Editor banlist tab;
+  // buildAntiRepetitionBlock() still contributes to the injection pipeline.
 
   // Dice roller (Batch 8) — 🎲 button + /roll command
   try { initDiceRoller(); } catch { /* non-fatal */ }
@@ -360,8 +357,8 @@ export async function start() {
     }
   } catch { /* non-fatal */ }
 
-  // User persona editor (Batch 9) — 👤 in header
-  // User persona — now handled by Context Editor
+  // User persona — UI superseded by Context Editor persona tab;
+  // buildPersonaBlock() still contributes to the injection pipeline.
 
   // Character card import/export (Batch 9) — 🃏 in header
   try {
@@ -403,8 +400,7 @@ export async function start() {
   // Context dashboard (shows what's injected into AI prompt)
   try { initContextDashboard(); } catch { /* non-fatal */ }
 
-  // Recap — "Previously on..." narrative summary
-  // Recap — now handled by AI Writer
+  // Recap — superseded by AI Writer's 📜 Recap mode.
 
   // Message bookmarks — star important messages
   try {

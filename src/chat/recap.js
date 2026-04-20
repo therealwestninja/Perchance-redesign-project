@@ -10,7 +10,9 @@
 //
 // Adds a 📜 button to the tools area.
 //
-// Bootstrap: call initRecap() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — recap is now a mode inside the AI Writer
+// (ai_writer.js). This standalone module is no longer bundled or
+// called from start().
 
 export function initRecap() {
   if (initRecap._done) return;

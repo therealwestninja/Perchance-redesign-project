@@ -523,8 +523,10 @@ export function paintAppSilver(v) { paintRoot('silver', v); }
 
 /**
  * paintAppAccent is special: besides setting --pf-accent and
- * --pf-accent-rgb, it also cascades into upstream Perchance's
- * chrome vars (notification, links, thread highlight).
+ * --pf-accent-rgb, it also derives --pf-accent-hi, --pf-accent-deep,
+ * and --pf-accent-shadow from the chosen color, then cascades into
+ * upstream Perchance's chrome vars (notification, links, thread
+ * highlight).
  */
 export function paintAppAccent(accent) {
   paintRoot('accent', accent);
@@ -532,6 +534,17 @@ export function paintAppAccent(accent) {
   if (!accent || typeof accent.color !== 'string') return;
   const root = document.documentElement;
   try {
+    // Derive companion tones from the picked accent
+    const hi     = shiftHex(accent.color,  35);
+    const deep   = shiftHex(accent.color, -50);
+    const shadow = shiftHex(accent.color, -70);
+    root.style.setProperty('--pf-accent-hi',     hi);
+    root.style.setProperty('--pf-accent-hi-rgb',  hexToRgb(hi));
+    root.style.setProperty('--pf-accent-deep',   deep);
+    root.style.setProperty('--pf-accent-deep-rgb', hexToRgb(deep));
+    root.style.setProperty('--pf-accent-shadow', shadow);
+
+    // Cascade into upstream Perchance chrome
     root.style.setProperty('--notification-bg-color', accent.color);
     root.style.setProperty('--link-color', accent.color);
     root.style.setProperty('--selected-thread-border-color', accent.color);
@@ -540,6 +553,21 @@ export function paintAppAccent(accent) {
       `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
     );
   } catch { /* non-fatal */ }
+}
+
+/**
+ * Shift a hex color lighter (positive) or darker (negative) by a
+ * fixed amount per channel. Clamped to [0, 255].
+ */
+function shiftHex(hex, amount) {
+  if (typeof hex !== 'string') return hex;
+  let h = hex.trim().replace(/^#/, '');
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return hex;
+  const r = Math.max(0, Math.min(255, parseInt(h.slice(0,2),16) + amount));
+  const g = Math.max(0, Math.min(255, parseInt(h.slice(2,4),16) + amount));
+  const b = Math.max(0, Math.min(255, parseInt(h.slice(4,6),16) + amount));
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
 /**

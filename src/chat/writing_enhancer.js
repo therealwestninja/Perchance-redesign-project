@@ -11,7 +11,9 @@
 //
 // Adapted from FurAI's enhanceText concept (MIT).
 //
-// Bootstrap: call initWritingEnhancer() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — enhance is now a mode inside the AI Writer
+// (ai_writer.js). This standalone module is no longer bundled or
+// called from start().
 
 /**
  * Initialize the writing enhancer. Adds a ✨ button near the

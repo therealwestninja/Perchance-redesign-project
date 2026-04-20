@@ -7,7 +7,9 @@
 //
 // Reads/writes via window.db.characters (upstream Dexie DB).
 //
-// Bootstrap: call initQuickReminder() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — reminder editing is now handled by the
+// Context Editor (context_editor.js) reminder tab. This standalone
+// module is no longer bundled or called from start().
 
 export function initQuickReminder() {
   if (initQuickReminder._done) return;

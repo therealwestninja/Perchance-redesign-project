@@ -12,7 +12,9 @@
 //
 // Adapted from URV-AI's generateNarration concept (MIT).
 //
-// Bootstrap: call initNarration() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — narration is now a mode inside the
+// AI Writer (ai_writer.js). This standalone module is no longer
+// bundled or called from start().
 
 /**
  * Initialize narration. Adds a 🎬 button near the chat input.

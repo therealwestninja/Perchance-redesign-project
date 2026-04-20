@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 118 };
+  NS.__meta = { modules: 111 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -15101,6 +15101,45 @@ Use this template for your response:
       tier: 'epic',
       criteria: (s) => cnt(s, 'questsCompleted') >= 100,
     },
+
+    // --- Flair: color palette unlocks ---
+    //
+    // The palette_unlocked achievement is deliberately the easiest in
+    // the entire system — it fires on the very first profile open.
+    // This gates the accent swatch picker so the user discovers it
+    // immediately and has a reason to explore the profile further.
+    //
+    // Progressive pickers (vellum text color, silver meta-text color)
+    // unlock at modest total-achievement thresholds so new users get a
+    // steady drip of customization options as they earn other badges.
+    {
+      id: 'palette_unlocked',
+      name: 'Palette Awakened',
+      description: 'Open your profile for the first time and discover the color palette.',
+      tier: 'common',
+      criteria: (s) => cnt(s, 'profileOpens') >= 1,
+    },
+    {
+      id: 'palette_vellum',
+      name: 'Ink & Parchment',
+      description: 'Earn 3 achievements to unlock the text color picker.',
+      tier: 'common',
+      criteria: (s) => (s._unlockedCount || 0) >= 3,
+    },
+    {
+      id: 'palette_silver',
+      name: 'Silver Tongue',
+      description: 'Earn 8 achievements to unlock the secondary text color picker.',
+      tier: 'uncommon',
+      criteria: (s) => (s._unlockedCount || 0) >= 8,
+    },
+    {
+      id: 'palette_deep',
+      name: 'Deep Chromatics',
+      description: 'Earn 15 achievements to unlock the accent highlight and shadow pickers.',
+      tier: 'rare',
+      criteria: (s) => (s._unlockedCount || 0) >= 15,
+    },
   ]);
 
   /**
@@ -15264,6 +15303,12 @@ Use this template for your response:
       icon: '🔧',
       description: 'Chat tool usage: glossary, dice, voice, bookmarks, and more.',
     },
+    {
+      id: 'flair',
+      label: 'Flair',
+      icon: '🎨',
+      description: 'Color palette unlocks and visual customization.',
+    },
   ]);
 
   // Rules for sorting each achievement into exactly one category. Order
@@ -15310,6 +15355,7 @@ Use this template for your response:
        'hundred_threads', 'tool_explorer', 'tool_master',
        'quest_seeker', 'quest_completer', 'quest_devotee', 'quest_legend'].includes(id)
     )},
+    { cat: 'flair',        match: id => id.startsWith('palette_') },
   ];
 
   /**
@@ -15653,275 +15699,6 @@ Use this template for your response:
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(rand() * (i + 1));
       const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: prompts/daily_quest.js
-     ────────────────────────────────────────────────────────── */
-  // prompts/daily_quest.js
-  //
-  // AI-generated daily quest with a "click to reveal" sealed-card mechanic.
-  //
-  // How it works:
-  //   1. A sealed quest card appears in the Prompts section each day
-  //   2. User clicks "Reveal today's quest" → seal-break animation plays
-  //   3. While animating, aiTextPlugin generates a quest from a date-seeded theme
-  //   4. Quest text streams in as the seal opens
-  //   5. Result is cached in localStorage so re-opening shows the same quest
-  //
-  // Date seeding:
-  //   The date determines a THEME from a fixed list (deterministic hash).
-  //   The AI then generates a specific quest within that theme. The AI
-  //   output may vary per-user, but the theme is consistent globally.
-  //
-  // Quest completion:
-  //   Completing a quest bumps the 'questsCompleted' counter and is
-  //   tracked in the prompts completion system under the day key.
-
-
-
-  // 30 quest themes — the date hash picks one per day.
-  const THEMES = [
-    { seed: 'stranger',    prompt: 'Write a scene where your character meets a complete stranger who changes their perspective.' },
-    { seed: 'secret',      prompt: 'Your character discovers a secret about someone they trust. Write their reaction.' },
-    { seed: 'storm',       prompt: 'A sudden storm forces your character to take shelter somewhere unexpected.' },
-    { seed: 'memory',      prompt: 'Your character finds an object that triggers a powerful memory. Write the scene.' },
-    { seed: 'rival',       prompt: 'Your character encounters a rival. Write the confrontation — it doesn\'t have to be hostile.' },
-    { seed: 'silence',     prompt: 'Write a scene where the most important thing is what ISN\'T said.' },
-    { seed: 'gift',        prompt: 'Someone gives your character an unexpected gift. What is it, and what does it mean?' },
-    { seed: 'crossroads',  prompt: 'Your character reaches a literal or metaphorical crossroads. Which path do they take?' },
-    { seed: 'wound',       prompt: 'Your character tends to a wound — physical or emotional. Write the quiet aftermath.' },
-    { seed: 'festival',    prompt: 'Your character attends a celebration they weren\'t invited to.' },
-    { seed: 'midnight',    prompt: 'Something happens at midnight that only your character witnesses.' },
-    { seed: 'letter',      prompt: 'Your character writes or receives a letter that changes everything.' },
-    { seed: 'threshold',   prompt: 'Your character stands at a door they\'re afraid to open. What\'s on the other side?' },
-    { seed: 'mask',        prompt: 'Your character puts on a mask — literal or figurative. Who do they become?' },
-    { seed: 'bargain',     prompt: 'Your character makes a deal they might regret. Write the negotiation.' },
-    { seed: 'echo',        prompt: 'Your character hears something from the past — a voice, a song, a phrase. Write what it stirs.' },
-    { seed: 'compass',     prompt: 'Your character is lost. Not geographically — in a deeper way. Who or what guides them back?' },
-    { seed: 'forge',       prompt: 'Your character creates something — an object, a plan, a promise. Write the act of making.' },
-    { seed: 'trespass',    prompt: 'Your character enters a place where they don\'t belong. What do they find?' },
-    { seed: 'debt',        prompt: 'Someone calls in an old debt. Your character must repay it — but not with money.' },
-    { seed: 'mirror',      prompt: 'Your character sees their reflection and doesn\'t recognize who\'s looking back.' },
-    { seed: 'hunger',      prompt: 'Your character craves something they can\'t have. Write the wanting.' },
-    { seed: 'bridge',      prompt: 'Two people who have been apart meet again on a bridge. Write the reunion.' },
-    { seed: 'omen',        prompt: 'Your character notices an omen — a sign that something is about to change.' },
-    { seed: 'trade',       prompt: 'Your character must give up one thing to gain another. What do they choose?' },
-    { seed: 'sanctuary',   prompt: 'Your character finds a place of absolute safety. What makes it sacred to them?' },
-    { seed: 'shadow',      prompt: 'Your character confronts their shadow self — the version of them they try to hide.' },
-    { seed: 'lantern',     prompt: 'In complete darkness, your character finds a single light. Write toward it.' },
-    { seed: 'oath',        prompt: 'Your character swears an oath they intend to keep. Write the moment.' },
-    { seed: 'tide',        prompt: 'Something returns that your character thought was gone forever.' },
-  ];
-
-  const CACHE_KEY = 'pf:daily-quest';
-
-  /** Hash a string to a number (deterministic). */
-  function hashStr(str) {
-    let h = 0;
-    for (let i = 0; i < str.length; i++) {
-      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-    }
-    return Math.abs(h);
-  }
-
-  /** Get today's theme (deterministic from date). */
-  function getTodayTheme(dayKey) {
-    const idx = hashStr(dayKey) % THEMES.length;
-    return THEMES[idx];
-  }
-
-  /** Load cached quest for today, or null. */
-  function loadCachedQuest(dayKey) {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      const cached = JSON.parse(raw);
-      if (cached && cached.day === dayKey && cached.text) return cached;
-      return null;
-    } catch { return null; }
-  }
-
-  /** Cache quest result. */
-  function cacheQuest(dayKey, text, theme) {
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ day: dayKey, text, theme, ts: Date.now() }));
-    } catch {}
-  }
-
-  /**
-   * Create the daily quest card element.
-   * Returns a DOM element to be inserted into the prompts section.
-   */
-  function createDailyQuestCard() {
-    const dayKey = getCurrentDayKey();
-    const theme = getTodayTheme(dayKey);
-    const cached = loadCachedQuest(dayKey);
-
-    // ---- Outer card ----
-    const card = document.createElement('div');
-    card.className = 'pf-dq-card';
-
-    // ---- Header ----
-    const header = document.createElement('div');
-    header.className = 'pf-dq-header';
-
-    const icon = document.createElement('span');
-    icon.className = 'pf-dq-icon';
-    icon.textContent = '✦';
-
-    const title = document.createElement('span');
-    title.className = 'pf-dq-title';
-    title.textContent = 'DAILY QUEST';
-
-    const date = document.createElement('span');
-    date.className = 'pf-dq-date';
-    date.textContent = dayKey;
-
-    header.appendChild(icon);
-    header.appendChild(title);
-    header.appendChild(date);
-    card.appendChild(header);
-
-    if (cached) {
-      // Already revealed — show the quest
-      renderRevealed(card, cached.text, theme, dayKey);
-    } else {
-      // Sealed — show the reveal button
-      renderSealed(card, theme, dayKey);
-    }
-
-    return card;
-  }
-
-  function renderSealed(card, theme, dayKey) {
-    const seal = document.createElement('div');
-    seal.className = 'pf-dq-seal';
-
-    const sealIcon = document.createElement('div');
-    sealIcon.className = 'pf-dq-seal-icon';
-    sealIcon.textContent = '?';
-
-    const sealLabel = document.createElement('div');
-    sealLabel.className = 'pf-dq-seal-label';
-    sealLabel.textContent = 'Click to reveal today\'s quest';
-
-    const sealHint = document.createElement('div');
-    sealHint.className = 'pf-dq-seal-hint';
-    sealHint.textContent = `Theme: ${theme.seed}`;
-
-    seal.appendChild(sealIcon);
-    seal.appendChild(sealLabel);
-    seal.appendChild(sealHint);
-    card.appendChild(seal);
-
-    seal.addEventListener('click', async () => {
-      // Start break animation
-      seal.classList.add('pf-dq-seal-breaking');
-      sealIcon.textContent = '✦';
-      sealLabel.textContent = 'Generating your quest...';
-
-      // Generate quest via AI
-      let questText = theme.prompt; // fallback if AI unavailable
-      try {
-        if (window.root && typeof window.root.aiTextPlugin === 'function') {
-          const result = await window.root.aiTextPlugin({
-            instruction: [
-              `Today's theme: "${theme.seed}".`,
-              'Generate a creative writing quest for a roleplay chat user.',
-              'The quest should be a specific, actionable challenge they can do in their next chat.',
-              'Write it as a single paragraph, under 60 words.',
-              'Make it evocative and inspiring. Start with a verb.',
-              'Reply with ONLY the quest text, nothing else.',
-              '',
-              `Base prompt: ${theme.prompt}`,
-            ].join('\n'),
-            stopSequences: ['\n\n'],
-          });
-          if (result && result.text) {
-            questText = result.text.trim();
-          }
-        }
-      } catch (e) {
-        console.warn('[pf] daily quest generation failed:', e && e.message);
-      }
-
-      // Cache the result
-      cacheQuest(dayKey, questText, theme.seed);
-      try { bumpCounter('questsRevealed'); } catch {}
-
-      // Remove seal, show quest with reveal animation
-      setTimeout(() => {
-        seal.remove();
-        renderRevealed(card, questText, theme, dayKey);
-      }, 600); // matches CSS animation duration
-    }, { once: true });
-  }
-
-  function renderRevealed(card, questText, theme, dayKey) {
-    const body = document.createElement('div');
-    body.className = 'pf-dq-body pf-dq-body-reveal';
-
-    const themeLabel = document.createElement('div');
-    themeLabel.className = 'pf-dq-theme';
-    themeLabel.textContent = `✦ ${theme.seed.toUpperCase()}`;
-
-    const text = document.createElement('div');
-    text.className = 'pf-dq-text';
-    text.textContent = questText;
-
-    const completeBtn = document.createElement('button');
-    completeBtn.type = 'button';
-    completeBtn.className = 'pf-dq-complete';
-
-    // Check if already completed today
-    const completedKey = `pf:dq-done:${dayKey}`;
-    const isDone = localStorage.getItem(completedKey) === '1';
-
-    if (isDone) {
-      completeBtn.textContent = '✓ Completed';
-      completeBtn.disabled = true;
-      completeBtn.classList.add('pf-dq-done');
-    } else {
-      completeBtn.textContent = 'Mark as complete';
-      completeBtn.addEventListener('click', () => {
-        localStorage.setItem(completedKey, '1');
-        completeBtn.textContent = '✓ Completed';
-        completeBtn.disabled = true;
-        completeBtn.classList.add('pf-dq-done');
-        try { bumpCounter('questsCompleted'); } catch {}
-      }, { once: true });
-    }
-
-    body.appendChild(themeLabel);
-    body.appendChild(text);
-    body.appendChild(completeBtn);
-    card.appendChild(body);
-  }
-
-  /**
-   * Initialize daily quest — injects the card into the prompts section
-   * or near the chat input if prompts section isn't visible.
-   */
-  function initDailyQuest() {
-    if (initDailyQuest._done) return;
-    initDailyQuest._done = true;
-
-    const card = createDailyQuestCard();
-
-    // Try to insert into the prompts section
-    const promptsList = document.querySelector('.pf-prompts-list');
-    if (promptsList) {
-      promptsList.parentElement.insertBefore(card, promptsList);
-      return;
-    }
-
-    // Fallback: insert near the chat messages
-    const chatEl = document.getElementById('chatMessagesEl');
-    if (chatEl && chatEl.parentElement) {
-      chatEl.parentElement.insertBefore(card, chatEl);
-      return;
     }
   }
 
@@ -20631,6 +20408,55 @@ Use this template for your response:
     /* Commonly-used neutral overlays */
     --pf-overlay-dark-18:     rgba(0, 0, 0, 0.18);
     --pf-overlay-dark-25:     rgba(0, 0, 0, 0.25);
+
+    /*
+     * Vellum — primary text color, user-selectable via profile flair.
+     * Defaults to the warm parchment tone from the design-truth doc.
+     * Overridden at runtime by paintAllChannels() when the user picks a
+     * text color from the flair picker.
+     */
+    --pf-vellum:              #e8dcc4;
+    --pf-vellum-rgb:          232, 220, 196;
+
+    /*
+     * Silver — secondary / meta text (timestamps, labels, hints).
+     * User-selectable via profile flair. Overridden by paintAllChannels().
+     */
+    --pf-silver:              #8b95a3;
+    --pf-silver-rgb:          139, 149, 163;
+
+    /*
+     * Accent-hi — the lighter partner to --pf-accent, used for
+     * gradient endpoints and emphasized text. Derived from the accent
+     * picker at runtime by lightening the chosen accent ~20%.
+     */
+    --pf-accent-hi:           #e8c97a;
+    --pf-accent-hi-rgb:       232, 201, 122;
+
+    /*
+     * Accent-deep — the darker partner to --pf-accent, used for
+     * conic-gradient shadows and pressed-state tints.
+     */
+    --pf-accent-deep:         #8a6a2c;
+    --pf-accent-deep-rgb:     138, 106, 44;
+
+    /*
+     * Accent-shadow — deepest accent tone, used for CTA button
+     * box-shadow depth effect. Derived at runtime from accent-deep.
+     */
+    --pf-accent-shadow:       #6b5220;
+
+    /* Danger — destructive actions, error states, near-limit warnings */
+    --pf-palette-danger:      #e06060;
+    --pf-palette-danger-rgb:  224, 96, 96;
+
+    /* Achievement tier colors — semantic, not theme-tinted */
+    --pf-tier-uncommon:       #6aa36a;
+    --pf-tier-uncommon-rgb:   106, 163, 106;
+    --pf-tier-rare:           #6a9ad8;
+    --pf-tier-rare-rgb:       106, 154, 216;
+    --pf-tier-epic:           #b47ad8;
+    --pf-tier-epic-rgb:       180, 122, 216;
   }
 
   .pf-mini-card {
@@ -20641,9 +20467,9 @@ Use this template for your response:
     margin-bottom: 0.5rem;
     background:
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 10px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
@@ -20652,8 +20478,8 @@ Use this template for your response:
     box-shadow: 0 4px 12px -4px rgba(0,0,0,0.5);
   }
   .pf-mini-card:hover {
-    border-color: rgba(212,168,85,0.4);
-    background: linear-gradient(180deg, #1a2028 0%, #10151c 100%);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
   }
   .pf-mini-card:active {
     transform: translateY(1px);
@@ -20671,9 +20497,9 @@ Use this template for your response:
     padding: 6px 10px;
     margin-bottom: 0.5rem;
     background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     user-select: none;
     font-family: inherit;
@@ -20683,7 +20509,7 @@ Use this template for your response:
     box-shadow: 0 2px 8px -2px rgba(0,0,0,0.4);
   }
   .pf-memory-button:hover {
-    border-color: rgba(212,168,85,0.35);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
   }
   .pf-memory-button:active {
     transform: translateY(1px);
@@ -20707,7 +20533,7 @@ Use this template for your response:
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
     border: 2px solid var(--pf-theme-primary, #0d1117);
     display: flex;
     align-items: center;
@@ -20728,9 +20554,9 @@ Use this template for your response:
     border-radius: 50%;
     background: conic-gradient(from 140deg,
       var(--pf-accent, #d4a855) 0deg,
-      #e8c97a 90deg,
+      var(--pf-accent-hi, #e8c97a) 90deg,
       var(--pf-accent, #d4a855) 180deg,
-      #8a6a2c 260deg,
+      var(--pf-accent-deep, #8a6a2c) 260deg,
       var(--pf-accent, #d4a855) 360deg);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
             mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
@@ -20738,7 +20564,7 @@ Use this template for your response:
   }
   .pf-mini-avatar-text {
     color: var(--pf-accent-hi, #e8c97a);
-    text-shadow: 0 1px 4px rgba(212,168,85,0.3);
+    text-shadow: 0 1px 4px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     font-family: Georgia, 'Times New Roman', serif;
   }
 
@@ -20766,7 +20592,7 @@ Use this template for your response:
     text-overflow: ellipsis;
     min-width: 0;
     font-family: Georgia, 'Times New Roman', serif;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
 
   .pf-mini-level {
@@ -20780,21 +20606,21 @@ Use this template for your response:
 
   .pf-mini-meta {
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
   .pf-mini-bar {
     height: 3px;
-    background: rgba(212,168,85,0.1);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
     border-radius: 2px;
     overflow: hidden;
     margin-top: 2px;
   }
   .pf-mini-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--pf-accent, #d4a855) 0%, #e8c97a 100%);
-    box-shadow: 0 0 4px rgba(212,168,85,0.4);
+    background: linear-gradient(90deg, var(--pf-accent, #d4a855) 0%, var(--pf-accent-hi, #e8c97a) 100%);
+    box-shadow: 0 0 4px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
     border-radius: 2px;
     transition: width 0.35s ease;
   }
@@ -20910,7 +20736,7 @@ Use this template for your response:
     z-index: 10000;
     background: rgba(5, 8, 12, 0.85);
     background-image: radial-gradient(ellipse at top, rgba(26,20,16,0.5) 0%, transparent 55%);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
   }
@@ -20940,9 +20766,9 @@ Use this template for your response:
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     font-size: 28px;
     line-height: 1;
     cursor: pointer;
@@ -20967,7 +20793,7 @@ Use this template for your response:
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 14px;
     padding: 22px 22px 20px;
     display: flex;
@@ -20984,7 +20810,7 @@ Use this template for your response:
     content: "";
     position: absolute;
     top: 0; left: 0; right: 0; height: 120px;
-    background: radial-gradient(ellipse at 50% 0%, rgba(212,168,85,0.10) 0%, transparent 60%);
+    background: radial-gradient(ellipse at 50% 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.10) 0%, transparent 60%);
     pointer-events: none;
   }
 
@@ -21003,7 +20829,7 @@ Use this template for your response:
     width: 92px;
     height: 92px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -21025,7 +20851,7 @@ Use this template for your response:
       var(--pf-accent, #d4a855) 0deg,
       var(--pf-accent-hi, #e8c97a) 90deg,
       var(--pf-accent, #d4a855) 180deg,
-      #8a6a2c 260deg,
+      var(--pf-accent-deep, #8a6a2c) 260deg,
       var(--pf-accent, #d4a855) 360deg);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
             mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
@@ -21036,7 +20862,7 @@ Use this template for your response:
     font-weight: 600;
     line-height: 1;
     color: var(--pf-accent-hi, #e8c97a);
-    text-shadow: 0 2px 8px rgba(212,168,85,0.4);
+    text-shadow: 0 2px 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
     font-family: Georgia, 'Times New Roman', serif;
   }
 
@@ -21050,7 +20876,7 @@ Use this template for your response:
     font-weight: 600;
     line-height: 1.1;
     margin: 0 0 4px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     letter-spacing: 0.02em;
     font-family: Georgia, 'Times New Roman', serif;
   }
@@ -21075,7 +20901,7 @@ Use this template for your response:
     border-radius: 3px;
     background: transparent;
     color: var(--pf-accent, #d4a855);
-    border: 1px solid rgba(212,168,85,0.35);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
@@ -21088,8 +20914,8 @@ Use this template for your response:
   .pf-splash-level {
     flex-shrink: 0;
     padding: 4px 10px;
-    background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
-    border: 1px solid rgba(212,168,85,0.55);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.05) 100%);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     border-radius: 999px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
@@ -21098,27 +20924,27 @@ Use this template for your response:
     color: var(--pf-accent-hi, #e8c97a);
   }
   .pf-splash-level-word { opacity: 0.7; }
-  .pf-splash-level strong { color: #e8dcc4; font-weight: 500; }
+  .pf-splash-level strong { color: var(--pf-vellum, #e8dcc4); font-weight: 500; }
 
   .pf-splash-xpbar {
     flex: 1;
     height: 6px;
-    background: rgba(212,168,85,0.1);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
     border-radius: 3px;
     overflow: hidden;
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
   }
   .pf-splash-xpbar-fill {
     height: 100%;
     background: linear-gradient(90deg, var(--pf-accent, #d4a855) 0%, var(--pf-accent-hi, #e8c97a) 100%);
-    box-shadow: 0 0 8px rgba(212,168,85,0.5);
+    box-shadow: 0 0 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
     transition: width 0.4s ease;
   }
   .pf-splash-xp-label {
     flex-shrink: 0;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     letter-spacing: 0.02em;
   }
 
@@ -21134,8 +20960,8 @@ Use this template for your response:
     flex: 0 0 auto;
     width: 38px;
     height: 42px;
-    background: linear-gradient(180deg, #2a1f0e 0%, #0f0a04 100%);
-    border: 1px solid rgba(212,168,85,0.55);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.02) 100%);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
     display: flex;
     align-items: center;
@@ -21148,7 +20974,7 @@ Use this template for your response:
   .pf-splash-badge:hover { transform: translateY(-2px); }
   .pf-splash-badge-locked {
     opacity: 0.25;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     background: transparent;
     border-color: rgba(139,149,163,0.3);
   }
@@ -21163,8 +20989,8 @@ Use this template for your response:
     padding: 0;
     border-radius: 50%;
     background: transparent;
-    border: 1px solid rgba(212,168,85,0.25);
-    color: #e8dcc4;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     font-family: inherit;
     font-size: 14px;
@@ -21177,11 +21003,11 @@ Use this template for your response:
   }
   .pf-splash-share:hover {
     opacity: 1;
-    border-color: rgba(212,168,85,0.55);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     transform: scale(1.05);
   }
   .pf-splash-share:focus-visible {
-    outline: 2px solid rgba(212,168,85,0.55);
+    outline: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     outline-offset: 1px;
     opacity: 1;
   }
@@ -21339,10 +21165,10 @@ Use this template for your response:
   }
 
   /* Tier-colored icons for the rarest-unlock chip */
-  .pf-share-chip-icon-common    { color: #9aa0a6; }
-  .pf-share-chip-icon-uncommon  { color: #6aa66a; }
-  .pf-share-chip-icon-rare      { color: #6aa0d8; }
-  .pf-share-chip-icon-epic      { color: #b67ad8; }
+  .pf-share-chip-icon-common    { color: var(--pf-silver, #8b95a3); }
+  .pf-share-chip-icon-uncommon  { color: var(--pf-tier-uncommon, #6aa36a); }
+  .pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #6a9ad8); }
+  .pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #b47ad8); }
   .pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
   /* Activity sparkline — last 12 weeks of completions, Focus mode only */
@@ -21396,7 +21222,7 @@ Use this template for your response:
   .pf-section {
     background:
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
     padding: 20px 22px;
     box-shadow: 0 4px 12px -4px rgba(0,0,0,0.4);
@@ -21407,7 +21233,7 @@ Use this template for your response:
     align-items: center;
     gap: 10px;
     margin-bottom: 14px;
-    border-bottom: 1px solid rgba(212,168,85,0.1);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
     padding-bottom: 10px;
   }
   .pf-section-title {
@@ -21430,9 +21256,9 @@ Use this template for your response:
     height: 28px;
     padding: 0;
     background: transparent;
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 6px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
@@ -21440,15 +21266,15 @@ Use this template for your response:
     transition: opacity 0.15s, background 0.15s;
     font-family: inherit;
   }
-  .pf-section-ctrl:hover { opacity: 1; background: rgba(212,168,85,0.08); }
+  .pf-section-ctrl:hover { opacity: 1; background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
   .pf-section-ctrl:focus-visible {
     outline: 2px solid var(--pf-accent, #d4a855);
     outline-offset: 1px;
   }
   .pf-section-eye[aria-pressed="true"] {
     opacity: 1;
-    background: rgba(212,168,85,0.12);
-    border-color: rgba(212,168,85,0.45);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
   }
 
   .pf-section-body-wrap {
@@ -21541,7 +21367,7 @@ Use this template for your response:
     font-size: 10px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     padding-top: 10px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
@@ -21549,15 +21375,15 @@ Use this template for your response:
     width: 100%;
     padding: 8px 10px;
     background: rgba(232,220,196,0.03);
-    color: #e8dcc4;
-    border: 1px solid rgba(212,168,85,0.15);
+    color: var(--pf-vellum, #e8dcc4);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 6px;
     font-family: inherit;
     font-size: 13px;
   }
   .pf-field-input:focus {
     outline: none;
-    border-color: rgba(212,168,85,0.55);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     background: rgba(232,220,196,0.05);
   }
   .pf-field-stack { display: flex; flex-direction: column; gap: 10px; }
@@ -22319,14 +22145,14 @@ Use this template for your response:
     gap: 4px;
     padding: 10px 6px;
     background: rgba(232,220,196,0.02);
-    border: 1px solid rgba(212,168,85,0.12);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
     border-radius: 8px;
     text-align: center;
     cursor: default;
     transition: border-color 0.15s, background 0.15s;
   }
   .pf-ach-card:hover {
-    border-color: rgba(212,168,85,0.3);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     background: rgba(232,220,196,0.04);
   }
   .pf-ach-card:focus-visible {
@@ -22334,7 +22160,7 @@ Use this template for your response:
     outline-offset: 1px;
   }
   .pf-ach-icon { font-size: 22px; line-height: 1; }
-  .pf-ach-name { font-size: 11px; font-weight: 600; font-family: Georgia, 'Times New Roman', serif; color: #e8dcc4; }
+  .pf-ach-name { font-size: 11px; font-weight: 600; font-family: Georgia, 'Times New Roman', serif; color: var(--pf-vellum, #e8dcc4); }
   .pf-ach-tier {
     font-size: 9px;
     letter-spacing: 0.12em;
@@ -22342,7 +22168,7 @@ Use this template for your response:
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     padding: 2px 6px;
     border-radius: 3px;
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     color: var(--pf-accent, #d4a855);
   }
   /* Unlock-date line — small, low-emphasis timestamp showing when
@@ -22361,20 +22187,20 @@ Use this template for your response:
   }
   .pf-ach-locked .pf-ach-icon { filter: grayscale(1); }
 
-  .pf-ach-tier-common    .pf-ach-icon { color: #8b95a3; }
-  .pf-ach-tier-common    .pf-ach-tier { color: #8b95a3; border-color: rgba(139,149,163,0.3); }
-  .pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
-  .pf-ach-tier-uncommon  .pf-ach-tier { color: #6aa36a; border-color: rgba(106,163,106,0.3); }
-  .pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
-  .pf-ach-tier-rare      .pf-ach-tier { color: #c94545; border-color: rgba(201,69,69,0.4); }
-  .pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
-  .pf-ach-tier-epic      .pf-ach-tier { color: #b47ad8; border-color: rgba(180,122,216,0.3); }
-  .pf-ach-tier-legendary .pf-ach-icon { color: #e8c97a; text-shadow: 0 0 8px rgba(212,168,85,0.4); }
-  .pf-ach-tier-legendary .pf-ach-tier { color: #e8c97a; border-color: rgba(212,168,85,0.5); }
+  .pf-ach-tier-common    .pf-ach-icon { color: var(--pf-silver, #8b95a3); }
+  .pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); }
+  .pf-ach-tier-uncommon  .pf-ach-icon { color: var(--pf-tier-uncommon, #6aa36a); }
+  .pf-ach-tier-uncommon  .pf-ach-tier { color: var(--pf-tier-uncommon, #6aa36a); border-color: rgba(var(--pf-tier-uncommon-rgb, 106, 163, 106), 0.3); }
+  .pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #6a9ad8); }
+  .pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-palette-red, #c94545); border-color: rgba(var(--pf-palette-red-rgb), 0.4); }
+  .pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #b47ad8); }
+  .pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #b47ad8); border-color: rgba(var(--pf-tier-epic-rgb, 180, 122, 216), 0.3); }
+  .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-accent-hi, #e8c97a); text-shadow: 0 0 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4); }
+  .pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); }
 
   .pf-ach-unlocked {
-    background: rgba(212,168,85,0.04);
-    border-color: rgba(212,168,85,0.2);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
   }
 
   /* ---- Description line on cards (new in categorized view) ---- */
@@ -22603,7 +22429,7 @@ Use this template for your response:
     align-items: baseline;
     gap: 12px;
     flex-wrap: wrap;
-    border-bottom: 1px solid rgba(212,168,85,0.15);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     padding-bottom: 12px;
   }
 
@@ -22612,7 +22438,7 @@ Use this template for your response:
     font-size: 22px;
     font-weight: 600;
     font-family: Georgia, 'Times New Roman', serif;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     letter-spacing: 0.02em;
   }
 
@@ -22620,8 +22446,8 @@ Use this template for your response:
     font-size: 10px;
     padding: 3px 10px;
     border-radius: 3px;
-    background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
-    border: 1px solid rgba(212,168,85,0.35);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.05) 100%);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
     color: var(--pf-accent, #d4a855);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     letter-spacing: 0.08em;
@@ -22652,7 +22478,7 @@ Use this template for your response:
     min-height: 280px;
     background:
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 8px 24px -8px rgba(0,0,0,0.5);
@@ -22663,8 +22489,8 @@ Use this template for your response:
     align-items: baseline;
     gap: 8px;
     padding: 10px 14px;
-    border-bottom: 1px solid rgba(212,168,85,0.15);
-    background: rgba(212,168,85,0.04);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
   }
 
   .pf-mem-col-title {
@@ -22674,7 +22500,7 @@ Use this template for your response:
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
 
   .pf-mem-col-title-danger { color: var(--pf-palette-red); }
@@ -22697,11 +22523,11 @@ Use this template for your response:
   .pf-mem-col-drop-over {
     outline: 2px dashed var(--pf-accent, #d4a855);
     outline-offset: -6px;
-    background: rgba(212,168,85,0.04);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
   }
 
   .pf-mem-col-delete.pf-mem-col-drop-over {
-    outline-color: #a83232;
+    outline-color: var(--pf-palette-red, #a83232);
     background: rgba(168,50,50,0.06);
   }
 
@@ -22721,7 +22547,7 @@ Use this template for your response:
     align-items: flex-start;
     gap: 10px;
     padding: 10px 12px;
-    border: 1px solid rgba(212,168,85,0.12);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
     border-radius: 8px;
     background: rgba(232,220,196,0.02);
     cursor: grab;
@@ -22729,7 +22555,7 @@ Use this template for your response:
     transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
   }
   .pf-mem-card:hover {
-    border-color: rgba(212,168,85,0.3);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     background: rgba(232,220,196,0.04);
   }
 
@@ -23252,17 +23078,17 @@ Use this template for your response:
     font-family: inherit;
     font-size: 12px;
     padding: 8px 16px;
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 6px;
     cursor: pointer;
     background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     letter-spacing: 0.04em;
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
   .pf-mem-btn:hover:not(:disabled) {
-    background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
-    border-color: rgba(212,168,85,0.4);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
   }
   .pf-mem-btn:active:not(:disabled) { transform: translateY(1px); }
   .pf-mem-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -23272,20 +23098,20 @@ Use this template for your response:
   }
 
   .pf-mem-btn-primary {
-    background: linear-gradient(180deg, #e8c97a 0%, #d4a855 100%);
-    border-color: #8a6a2c;
-    color: #0d1117;
+    background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
+    border-color: var(--pf-accent-deep, #8a6a2c);
+    color: var(--pf-theme-primary, #0d1117);
     font-weight: 600;
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: 0.08em;
-    box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 0 var(--pf-accent-shadow, #6b5220), 0 4px 8px rgba(0,0,0,0.3);
   }
   .pf-mem-btn-primary:hover:not(:disabled) {
-    background: linear-gradient(180deg, #f0d590 0%, #d4a855 100%);
+    background: linear-gradient(180deg, var(--pf-accent-hi, #f0d590) 0%, var(--pf-accent, #d4a855) 100%);
   }
   .pf-mem-btn-primary:active:not(:disabled) {
     transform: translateY(2px);
-    box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 0 0 var(--pf-accent-shadow, #6b5220), 0 2px 4px rgba(0,0,0,0.3);
   }
 
   /* ---- export dialog ---- */
@@ -23923,6 +23749,18 @@ Use this template for your response:
   }
   .pf-accent-swatch-locked:hover { transform: none; }
 
+  /* ---- Flair locked hint — shown when a picker row is achievement-gated ---- */
+  .pf-flair-locked-hint {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--pf-silver, #8b95a3);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
+    border: 1px dashed rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    border-radius: 8px;
+    text-align: center;
+  }
+
   /* ---- Theme color pickers ---- */
   .pf-theme-pickers {
     display: flex;
@@ -23938,14 +23776,14 @@ Use this template for your response:
     width: 32px;
     height: 32px;
     padding: 0;
-    border: 2px solid rgba(212,168,85,0.3);
+    border: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     border-radius: 6px;
     background: transparent;
     cursor: pointer;
     transition: border-color 0.15s;
   }
   .pf-theme-color-input:hover:not(:disabled) {
-    border-color: rgba(212,168,85,0.6);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.6);
   }
   .pf-theme-color-input:disabled {
     opacity: 0.3;
@@ -23956,24 +23794,24 @@ Use this template for your response:
   .pf-theme-color-input::-moz-color-swatch { border: none; border-radius: 3px; }
   .pf-theme-picker-label {
     font-size: 11px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     letter-spacing: 0.04em;
   }
-  .pf-theme-picker-locked { color: #8b95a3; opacity: 0.5; }
+  .pf-theme-picker-locked { color: var(--pf-silver, #8b95a3); opacity: 0.5; }
   .pf-theme-picker-lock { font-size: 11px; }
   .pf-theme-picker-reset {
     background: none;
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 4px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     cursor: pointer;
     font-size: 12px;
     padding: 1px 5px;
     line-height: 1;
     transition: color 0.15s, border-color 0.15s;
   }
-  .pf-theme-picker-reset:hover { color: #e8dcc4; border-color: rgba(212,168,85,0.4); }
+  .pf-theme-picker-reset:hover { color: var(--pf-vellum, #e8dcc4); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4); }
 
   /* --- accent color consumers --- */
   /* The overlay gets --pf-accent set via inline style by full_page.js.
@@ -24077,7 +23915,7 @@ Use this template for your response:
   .pf-sv2-heading {
     font-size: 9px;
     letter-spacing: 0.2em;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-weight: 600;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     text-transform: uppercase;
@@ -24086,7 +23924,7 @@ Use this template for your response:
     width: 100%;
     padding: 28px 24px 20px;
     border-radius: 14px;
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
@@ -24098,7 +23936,7 @@ Use this template for your response:
     position: relative;
     overflow: hidden;
     box-shadow: 0 24px 50px -20px rgba(0,0,0,0.8);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-sv2-stripe {
     position: absolute;
@@ -24150,21 +23988,21 @@ Use this template for your response:
     font-size: 12px;
     padding: 3px 12px;
     border-radius: 20px;
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     font-weight: 500;
   }
   .pf-sv2-tag-arch {
     opacity: 0.6;
     font-style: italic;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     border-color: rgba(139,149,163,0.3);
   }
   .pf-sv2-stats {
     display: flex;
     gap: 24px;
     padding: 12px 0;
-    border-top: 1px solid rgba(212,168,85,0.1);
-    border-bottom: 1px solid rgba(212,168,85,0.1);
+    border-top: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
     width: 100%;
     justify-content: center;
   }
@@ -24181,7 +24019,7 @@ Use this template for your response:
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     margin-top: 2px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
@@ -24209,7 +24047,7 @@ Use this template for your response:
     padding: 6px 10px;
     border-radius: 8px;
     background: rgba(232,220,196,0.02);
-    border: 1px solid rgba(212,168,85,0.12);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
   }
   .pf-sv2-badge-icon {
     font-size: 16px;
@@ -24221,7 +24059,7 @@ Use this template for your response:
     font-size: 13px;
     font-weight: 500;
     font-family: Georgia, 'Times New Roman', serif;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-sv2-xp-row {
     display: flex;
@@ -24232,8 +24070,8 @@ Use this template for your response:
     flex: 1;
     height: 6px;
     border-radius: 3px;
-    background: rgba(212,168,85,0.1);
-    border: 1px solid rgba(212,168,85,0.15);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     overflow: hidden;
   }
   .pf-sv2-xp-fill {
@@ -24246,12 +24084,12 @@ Use this template for your response:
     font-weight: 500;
     min-width: 36px;
     text-align: right;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
   .pf-sv2-xp-detail {
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     margin-top: 4px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
@@ -24259,9 +24097,9 @@ Use this template for your response:
     margin-top: 4px;
     padding: 8px 28px;
     border-radius: 6px;
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
@@ -24269,8 +24107,8 @@ Use this template for your response:
     transition: background 0.15s, border-color 0.15s;
   }
   .pf-sv2-close:hover {
-    border-color: rgba(212,168,85,0.4);
-    background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
   }
 
   /* ---- Message controls (Batch 1) ----
@@ -24359,7 +24197,7 @@ Use this template for your response:
   .pf-stop-gen-btn {
     background: rgba(220, 60, 60, 0.15);
     border: 1px solid rgba(220, 60, 60, 0.4);
-    color: #e06060;
+    color: var(--pf-palette-danger, #e06060);
     cursor: pointer;
     font-size: 13px;
     font-family: inherit;
@@ -24398,7 +24236,7 @@ Use this template for your response:
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 14px;
     padding: 22px;
     width: 90%;
@@ -24408,7 +24246,7 @@ Use this template for your response:
     flex-direction: column;
     gap: 12px;
     box-shadow: 0 24px 50px -20px rgba(0,0,0,0.8);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-glossary-title {
     margin: 0;
@@ -24422,7 +24260,7 @@ Use this template for your response:
   .pf-glossary-hint {
     margin: 0;
     font-size: 12px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     line-height: 1.4;
     font-style: italic;
     font-family: Georgia, 'Times New Roman', serif;
@@ -24431,9 +24269,9 @@ Use this template for your response:
     flex: 1;
     min-height: 160px;
     background: rgba(232,220,196,0.03);
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 6px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     padding: 10px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 13px;
@@ -24442,7 +24280,7 @@ Use this template for your response:
   }
   .pf-glossary-textarea:focus {
     outline: none;
-    border-color: rgba(212,168,85,0.55);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
     background: rgba(232,220,196,0.05);
   }
   .pf-glossary-actions {
@@ -24453,7 +24291,7 @@ Use this template for your response:
   .pf-glossary-save, .pf-glossary-cancel {
     padding: 8px 18px;
     border-radius: 6px;
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
@@ -24462,26 +24300,26 @@ Use this template for your response:
   }
   .pf-glossary-cancel {
     background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-glossary-cancel:hover {
-    border-color: rgba(212,168,85,0.4);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
   }
   .pf-glossary-save {
-    background: linear-gradient(180deg, #e8c97a 0%, #d4a855 100%);
-    color: #0d1117;
-    border-color: #8a6a2c;
+    background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
+    color: var(--pf-theme-primary, #0d1117);
+    border-color: var(--pf-accent-deep, #8a6a2c);
     font-weight: 600;
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: 0.08em;
-    box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 0 var(--pf-accent-shadow, #6b5220), 0 4px 8px rgba(0,0,0,0.3);
   }
   .pf-glossary-save:hover {
-    background: linear-gradient(180deg, #f0d590 0%, #d4a855 100%);
+    background: linear-gradient(180deg, var(--pf-accent-hi, #f0d590) 0%, var(--pf-accent, #d4a855) 100%);
   }
   .pf-glossary-save:active {
     transform: translateY(2px);
-    box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: 0 0 0 var(--pf-accent-shadow, #6b5220), 0 2px 4px rgba(0,0,0,0.3);
   }
   .pf-glossary-trigger {
     background: none;
@@ -24643,7 +24481,7 @@ Use this template for your response:
     margin-left: 8px;
     cursor: pointer;
   }
-  .pf-preset-del:hover { opacity: 1; color: #e06060; }
+  .pf-preset-del:hover { opacity: 1; color: var(--pf-palette-danger, #e06060); }
 
   /* ---- Bulk thread operations ---- */
   .pf-bulk-toggle {
@@ -24682,7 +24520,7 @@ Use this template for your response:
     font-family: inherit;
   }
   .pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
-  .pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
+  .pf-bulk-del:hover { border-color: var(--pf-palette-danger, #e06060); color: var(--pf-palette-danger, #e06060); }
 
   /* ---- Image gen container ---- */
   .pf-gen-img-container {
@@ -24803,9 +24641,9 @@ Use this template for your response:
     gap: 4px;
     padding: 5px 10px;
     background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
-    border: 1px solid rgba(212,168,85,0.3);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     border-radius: 8px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11px;
@@ -24813,11 +24651,11 @@ Use this template for your response:
     transition: border-color 0.15s, background 0.15s;
   }
   .pf-tools-trigger:hover {
-    border-color: rgba(212,168,85,0.55);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   }
   .pf-tools-trigger-open {
-    border-color: rgba(212,168,85,0.55);
-    background: linear-gradient(180deg, rgba(212,168,85,0.12) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, var(--pf-theme-secondary, #161b22) 100%);
   }
   .pf-tools-trigger-icon {
     font-size: 14px;
@@ -24835,7 +24673,7 @@ Use this template for your response:
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.25);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 12px;
     box-shadow: 0 12px 32px -8px rgba(0,0,0,0.7);
     padding: 10px;
@@ -24863,7 +24701,7 @@ Use this template for your response:
     font-size: 9px;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     margin-bottom: 4px;
     padding: 0 2px;
@@ -24889,17 +24727,17 @@ Use this template for your response:
     justify-content: center;
     font-size: 18px;
     background: rgba(232,220,196,0.03);
-    border: 1px solid rgba(212,168,85,0.12);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
     border-radius: 8px;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
   .pf-tools-cell .pf-presets-btn:hover,
   .pf-tools-cell .pf-export-btn:hover,
   .pf-tools-cell .pf-tools-item:hover {
-    background: rgba(212,168,85,0.08);
-    border-color: rgba(212,168,85,0.35);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
     transform: scale(1.08);
   }
   /* Presets containers inside the grid need special sizing */
@@ -24917,7 +24755,7 @@ Use this template for your response:
     padding: 8px 10px;
     margin-bottom: 6px;
     background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.15);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 8px;
     font-size: 11px;
   }
@@ -24947,18 +24785,18 @@ Use this template for your response:
   }
   .pf-ctx-row-active {
     opacity: 1;
-    background: rgba(212,168,85,0.04);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
   }
   .pf-ctx-icon { font-size: 12px; width: 18px; text-align: center; flex-shrink: 0; }
   .pf-ctx-label {
     font-weight: 500;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     min-width: 55px;
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 10px;
   }
   .pf-ctx-detail {
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     font-size: 10px;
   }
@@ -24978,8 +24816,8 @@ Use this template for your response:
     position: relative;
     padding: 14px 16px;
     margin: 8px 0;
-    background: linear-gradient(180deg, rgba(212,168,85,0.06) 0%, rgba(212,168,85,0.02) 100%);
-    border: 1px solid rgba(212,168,85,0.2);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.02) 100%);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 10px;
     border-left: 3px solid var(--pf-accent, #d4a855);
   }
@@ -24995,7 +24833,7 @@ Use this template for your response:
   .pf-recap-content {
     font-size: 13px;
     line-height: 1.5;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     font-style: italic;
     font-family: Georgia, 'Times New Roman', serif;
   }
@@ -25005,7 +24843,7 @@ Use this template for your response:
     right: 8px;
     background: none;
     border: none;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     cursor: pointer;
     font-size: 14px;
     opacity: 0.5;
@@ -25019,7 +24857,7 @@ Use this template for your response:
     border: none;
     cursor: pointer;
     font-size: 14px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     opacity: 0.3;
     transition: opacity 0.15s, color 0.15s;
     padding: 2px 4px;
@@ -25037,7 +24875,7 @@ Use this template for your response:
   }
   @keyframes pf-bookmark-pulse {
     0%, 100% { background: transparent; }
-    50% { background: rgba(212,168,85,0.08); }
+    50% { background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
   }
 
   /* ---- AI Writer dropdown ---- */
@@ -25066,11 +24904,11 @@ Use this template for your response:
   .pf-aiw-mode-label {
     font-size: 13px;
     font-weight: 500;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-aiw-mode-desc {
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
   }
 
   /* ---- Context Editor tabs ---- */
@@ -25078,28 +24916,28 @@ Use this template for your response:
     display: flex;
     gap: 2px;
     margin-bottom: 12px;
-    border-bottom: 1px solid rgba(212,168,85,0.15);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     padding-bottom: 8px;
   }
   .pf-cxe-tab {
     flex: 1;
     padding: 6px 8px;
     background: transparent;
-    border: 1px solid rgba(212,168,85,0.12);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
     border-radius: 6px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     cursor: pointer;
     font-size: 16px;
     text-align: center;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
   .pf-cxe-tab:hover {
-    background: rgba(212,168,85,0.06);
-    color: #e8dcc4;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+    color: var(--pf-vellum, #e8dcc4);
   }
   .pf-cxe-tab-active {
-    background: rgba(212,168,85,0.1);
-    border-color: rgba(212,168,85,0.4);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
     color: var(--pf-accent, #d4a855);
   }
   .pf-cxe-content {
@@ -25112,22 +24950,35 @@ Use this template for your response:
     gap: 4px;
   }
 
-  /* ---- Daily quest card ---- */
+  /* ---- Daily quest cards ---- */
+  .pf-dq-container {
+    margin-bottom: 16px;
+  }
+  .pf-dq-section-header {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding: 0 2px;
+  }
   .pf-dq-card {
     background:
-      linear-gradient(180deg, rgba(212,168,85,0.04) 0%, transparent 40%),
+      linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04) 0%, transparent 40%),
       linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
-    border: 1px solid rgba(212,168,85,0.2);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 10px;
     overflow: hidden;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
   .pf-dq-header {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    border-bottom: 1px solid rgba(212,168,85,0.1);
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
   }
   .pf-dq-icon {
     font-size: 14px;
@@ -25144,7 +24995,7 @@ Use this template for your response:
   }
   .pf-dq-date {
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
 
@@ -25153,57 +25004,67 @@ Use this template for your response:
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 28px 16px;
+    gap: 6px;
+    padding: 20px 16px;
     cursor: pointer;
     transition: background 0.2s;
   }
   .pf-dq-seal:hover {
-    background: rgba(212,168,85,0.04);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
   }
   .pf-dq-seal-icon {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(212,168,85,0.15), rgba(212,168,85,0.05));
-    border: 2px solid rgba(212,168,85,0.3);
+    background: linear-gradient(135deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15), rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.05));
+    border: 2px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 20px;
     color: var(--pf-accent, #d4a855);
     font-family: Georgia, 'Times New Roman', serif;
     font-weight: 600;
     transition: transform 0.3s, border-color 0.3s;
   }
   .pf-dq-seal:hover .pf-dq-seal-icon {
-    transform: scale(1.05);
-    border-color: rgba(212,168,85,0.6);
+    transform: scale(1.08);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.6);
   }
   .pf-dq-seal-label {
-    font-size: 13px;
-    color: #e8dcc4;
+    font-size: 12px;
+    color: var(--pf-vellum, #e8dcc4);
     font-weight: 500;
   }
   .pf-dq-seal-hint {
     font-size: 10px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
     letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
-  /* Breaking animation */
+  /* Breaking animation — 1.2s to cover AI response time */
   .pf-dq-seal-breaking {
     pointer-events: none;
   }
   .pf-dq-seal-breaking .pf-dq-seal-icon {
-    animation: pf-dq-break 0.6s ease-out forwards;
+    animation: pf-dq-break 1.2s ease-out forwards;
+  }
+  .pf-dq-seal-breaking .pf-dq-seal-label {
+    animation: pf-dq-shimmer 0.8s ease-in-out infinite;
   }
   @keyframes pf-dq-break {
-    0% { transform: scale(1); border-color: rgba(212,168,85,0.3); }
-    30% { transform: scale(1.15); border-color: rgba(212,168,85,0.8); }
-    60% { transform: scale(1.1) rotate(5deg); }
+    0% { transform: scale(1); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3); }
+    20% { transform: scale(1.2); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.8); }
+    40% { transform: scale(1.15) rotate(3deg); }
+    60% { transform: scale(1.1) rotate(-3deg); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 1); }
+    80% { transform: scale(1.3); opacity: 0.6; }
     100% { transform: scale(0); opacity: 0; }
+  }
+  @keyframes pf-dq-shimmer {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 
   /* Revealed state */
@@ -25229,7 +25090,7 @@ Use this template for your response:
   .pf-dq-text {
     font-size: 14px;
     line-height: 1.6;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     font-family: Georgia, 'Times New Roman', serif;
     font-style: italic;
     margin-bottom: 12px;
@@ -25237,22 +25098,22 @@ Use this template for your response:
   .pf-dq-complete {
     padding: 6px 16px;
     border-radius: 6px;
-    border: 1px solid rgba(212,168,85,0.3);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     background: transparent;
-    color: #e8dcc4;
+    color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     font-size: 12px;
     font-family: inherit;
     transition: background 0.15s, border-color 0.15s;
   }
   .pf-dq-complete:hover:not(:disabled) {
-    background: rgba(212,168,85,0.08);
-    border-color: rgba(212,168,85,0.5);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
   }
   .pf-dq-done {
     color: var(--pf-accent, #d4a855);
-    border-color: rgba(212,168,85,0.4);
-    background: rgba(212,168,85,0.06);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
     cursor: default;
   }
 
@@ -25292,7 +25153,7 @@ Use this template for your response:
     text-align: center;
     padding: 20px 16px 12px;
     font-size: 11px;
-    color: #8b95a3;
+    color: var(--pf-silver, #8b95a3);
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: 0.02em;
   }
@@ -26503,58 +26364,11 @@ Use this template for your response:
     return titles;
   }
 
-  /**
-   * Accents available to a user, annotated with whether each is
-   * unlocked. The full list is always returned so a picker can show
-   * locked accents greyed out with their unlock hint.
-   *
-   * @param {object} stats      - full stats bundle
-   * @param {string[]} unlockedIds
-   * @returns {Array<{id, label, color, description, isUnlocked}>}
-   */
-  function getAccents(stats, unlockedIds) {
-    const ids = unlockedIds || [];
-    return ACCENTS.map(a => ({
-      id: a.id,
-      label: a.label,
-      color: a.color,
-      description: a.description,
-      isUnlocked: Boolean(a.criterion(stats || {}, ids)),
-    }));
-  }
-
-  /**
-   * Resolve the ACTIVE accent. User's pick wins if valid+unlocked;
-   * otherwise falls back to 'amber' (always unlocked).
-   *
-   * @param {object} settings
-   * @param {object} stats
-   * @param {string[]} unlockedIds
-   * @returns {{ id: string, color: string }}
-   */
-  function resolveActiveAccent(settings, stats, unlockedIds) {
-    const picked =
-      (settings && settings.profile && settings.profile.flair &&
-       settings.profile.flair.accent) || null;
-
-    if (picked) {
-      const accent = ACCENTS.find(a => a.id === picked);
-      if (accent && accent.criterion(stats || {}, unlockedIds || [])) {
-        return { id: accent.id, color: accent.color };
-      }
-      // Picked accent but no longer eligible (e.g., backup restored to
-      // a state where the unlock hadn't happened yet). Silent fallback
-      // to the default rather than showing a broken style.
-    }
-    // Default
-    return { id: 'amber', color: '#d8b36a' };
-  }
+  // hexToRgb is the shared utility used by all resolve*Vars paths.
+  // Kept as a standalone export for tests and share_code.js.
 
   /**
    * Convert a '#rrggbb' hex color to a comma-separated 'r, g, b' string.
-   * Used to derive --pf-accent-rgb from the chosen accent's hex, so
-   * CSS rules can shade via rgba(var(--pf-accent-rgb), <alpha>).
-   *
    * Tolerates shorthand '#rgb' and malformed input (falls back to
    * amber's RGB so a bad value doesn't blank every rgba-styled chip).
    *
@@ -26571,68 +26385,6 @@ Use this template for your response:
     const g = parseInt(h.slice(2, 4), 16);
     const b = parseInt(h.slice(4, 6), 16);
     return `${r}, ${g}, ${b}`;
-  }
-
-  /**
-   * Resolve the active accent AND its rgba-ready rgb triple in one call.
-   * Used by applyAccent() in full_page.js to set both CSS custom
-   * properties (--pf-accent and --pf-accent-rgb) so shaded rules
-   * (rgba(var(--pf-accent-rgb), 0.X)) pick up the user's pick.
-   *
-   * @param {object} settings
-   * @param {object} stats
-   * @param {string[]} unlockedIds
-   * @returns {{ id: string, color: string, rgb: string }}
-   */
-  function resolveAccentVars(settings, stats, unlockedIds) {
-    const base = resolveActiveAccent(settings, stats, unlockedIds);
-    return { ...base, rgb: hexToRgb(base.color) };
-  }
-
-  /**
-   * Cascade the user's accent beyond our own overlay into upstream
-   * Perchance's chrome. Upstream defines its theme via CSS custom
-   * properties on :root — we shadow the handful that carry brand /
-   * highlight meaning so the whole app re-tints with the picker.
-   *
-   * Scouted-and-chosen upstream targets:
-   *   --notification-bg-color          top banner background (accent)
-   *   --link-color                     all <a> links throughout
-   *   --selected-thread-border-color   active thread highlight ring
-   *   --selected-thread-bg             active thread soft tint (~18%)
-   *
-   * Scope: only these four. Structural/neutral upstream vars
-   * (--background, --text-color, --button-bg, --box-color, etc.) are
-   * left alone so our accent-tint doesn't overpaint layout chrome the
-   * user expects to stay neutral. Light/dark mode continues to work
-   * because upstream resolves those vars per-color-scheme; we only
-   * shadow the accent-y subset.
-   *
-   * Called at boot (profile/index.js start) so the theme applies even
-   * before the user opens the profile, and from applyAccent() on any
-   * subsequent pick.
-   *
-   * No-op if document or documentElement isn't available (server-side
-   * safety or early-boot edge).
-   *
-   * @param {{ color: string, rgb: string }} accent  from resolveAccentVars
-   */
-  function paintAppAccent(accent) {
-    if (typeof document === 'undefined' || !document.documentElement) return;
-    if (!accent || typeof accent.color !== 'string') return;
-    const root = document.documentElement;
-    try {
-      root.style.setProperty('--notification-bg-color', accent.color);
-      root.style.setProperty('--link-color', accent.color);
-      root.style.setProperty('--selected-thread-border-color', accent.color);
-      // The selected-thread BACKGROUND wants a soft tint rather than
-      // a solid fill — 18% alpha reads as "this one's picked" without
-      // overpowering the thread text.
-      root.style.setProperty(
-        '--selected-thread-bg',
-        `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
-      );
-    } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
   }
 
   /**
@@ -26682,6 +26434,263 @@ Use this template for your response:
       if (a.tier === tier && unlocked.has(a.id)) n++;
     }
     return n;
+  }
+
+  // ================================================================
+  // Vellum palette — primary text color
+  // ================================================================
+  //
+  // Readability-critical, so options are constrained to warm/cool
+  // neutrals that pass WCAG AA on dark backgrounds.
+  // Culled: bone (≈ parchment), chalk (≈ cream ≈ ACCENT/pearl),
+  // moonstone (≈ frost ≈ SILVER/quicksilver).
+
+  const VELLUMS = Object.freeze([
+    {
+      id: 'parchment',
+      label: 'Parchment',
+      color: '#e8dcc4',
+      description: 'The classic warm parchment. Always available.',
+      criterion: () => true,
+    },
+    {
+      id: 'frost',
+      label: 'Frost',
+      color: '#d4dce4',
+      description: 'Cool blue-white. Unlocked at 5 achievements.',
+      criterion: (s) => (s._unlockedCount || 0) >= 5,
+    },
+    {
+      id: 'linen',
+      label: 'Linen',
+      color: '#e0d8cc',
+      description: 'Warm neutral. Unlocked at 8 achievements.',
+      criterion: (s) => (s._unlockedCount || 0) >= 8,
+    },
+    {
+      id: 'cream',
+      label: 'Cream',
+      color: '#f0e8d8',
+      description: 'Bright warm. Unlocked at 1 epic achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 1,
+    },
+    {
+      id: 'starlight',
+      label: 'Starlight',
+      color: '#f4f0ec',
+      description: 'Near-white. Unlocked at 1 legendary achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'legendary') >= 1,
+    },
+  ]);
+
+  // ================================================================
+  // Silver palette — secondary / meta text color
+  // ================================================================
+  //
+  // Controls timestamps, labels, hint text, and stat annotations.
+  // Culled: dusk (≈ ACCENT/ash, dist 1.9), quicksilver (≈ ACCENT/mist).
+
+  const SILVERS = Object.freeze([
+    {
+      id: 'pewter',
+      label: 'Pewter',
+      color: '#8b95a3',
+      description: 'The default cool grey. Always available.',
+      criterion: () => true,
+    },
+    {
+      id: 'smoke',
+      label: 'Smoke',
+      color: '#9a9a9a',
+      description: 'Neutral mid-grey. Always available.',
+      criterion: () => true,
+    },
+    {
+      id: 'steel',
+      label: 'Steel',
+      color: '#7a8a98',
+      description: 'Blue-tinted grey. Unlocked at 10 achievements.',
+      criterion: (s) => (s._unlockedCount || 0) >= 10,
+    },
+    {
+      id: 'lavender',
+      label: 'Lavender',
+      color: '#9a8aaa',
+      description: 'Soft purple-grey. Unlocked at 20 achievements.',
+      criterion: (s) => (s._unlockedCount || 0) >= 20,
+    },
+    {
+      id: 'patina',
+      label: 'Patina',
+      color: '#7a9a8a',
+      description: 'Green-tinted grey. Unlocked at 1 rare achievement.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'rare') >= 1,
+    },
+    {
+      id: 'dawn',
+      label: 'Dawn',
+      color: '#b0a898',
+      description: 'Warm light grey. Unlocked at 2 epic achievements.',
+      criterion: (_s, unlocked) => countTier(unlocked, 'epic') >= 2,
+    },
+  ]);
+
+  // ================================================================
+  // Generic palette helpers — one implementation for all channels
+  // ================================================================
+  //
+  // Accent, vellum, and silver follow the exact same resolve → vars →
+  // paint pipeline. The generic helpers eliminate the per-channel
+  // copy-paste; named exports below are thin wrappers for callers
+  // that import by name.
+
+  /**
+   * Annotate a palette with isUnlocked for the current user.
+   * @param {Array} palette  ACCENTS | VELLUMS | SILVERS
+   */
+  function getPicks(palette, stats, unlockedIds) {
+    const ids = unlockedIds || [];
+    return palette.map(a => ({
+      id: a.id,
+      label: a.label,
+      color: a.color,
+      description: a.description,
+      isUnlocked: Boolean(a.criterion(stats || {}, ids)),
+    }));
+  }
+
+  /**
+   * Resolve the active pick for a channel. User's stored flair wins
+   * if valid + unlocked; otherwise falls back to palette[0].
+   *
+   * @param {string} channel   'accent' | 'vellum' | 'silver'
+   * @param {Array}  palette   ACCENTS | VELLUMS | SILVERS
+   */
+  function resolveActive(channel, palette, settings, stats, unlockedIds) {
+    const picked =
+      (settings && settings.profile && settings.profile.flair &&
+       settings.profile.flair[channel]) || null;
+    if (picked) {
+      const entry = palette.find(a => a.id === picked);
+      if (entry && entry.criterion(stats || {}, unlockedIds || [])) {
+        return { id: entry.id, color: entry.color };
+      }
+    }
+    const def = palette[0];
+    return { id: def.id, color: def.color };
+  }
+
+  /** resolveActive + derive rgb triple. */
+  function resolveVars(channel, palette, settings, stats, unlockedIds) {
+    const base = resolveActive(channel, palette, settings, stats, unlockedIds);
+    return { ...base, rgb: hexToRgb(base.color) };
+  }
+
+  /**
+   * Set --pf-<cssVar> and --pf-<cssVar>-rgb on :root.
+   * @param {string} cssVar  CSS custom property stem (e.g. 'vellum')
+   */
+  function paintRoot(cssVar, vars) {
+    if (typeof document === 'undefined' || !document.documentElement) return;
+    if (!vars || typeof vars.color !== 'string') return;
+    try {
+      const root = document.documentElement;
+      root.style.setProperty(`--pf-${cssVar}`, vars.color);
+      root.style.setProperty(`--pf-${cssVar}-rgb`, vars.rgb || hexToRgb(vars.color));
+    } catch { /* non-fatal */ }
+  }
+
+  // ---- Named exports (thin wrappers) ----
+
+  const getAccents = (s, u) => getPicks(ACCENTS, s, u);
+  const getVellums = (s, u) => getPicks(VELLUMS, s, u);
+  const getSilvers = (s, u) => getPicks(SILVERS, s, u);
+
+  const resolveActiveAccent  = (se, st, u) => resolveActive('accent',  ACCENTS, se, st, u);
+  const resolveActiveVellum  = (se, st, u) => resolveActive('vellum',  VELLUMS, se, st, u);
+  const resolveActiveSilver  = (se, st, u) => resolveActive('silver',  SILVERS, se, st, u);
+
+  const resolveAccentVars = (se, st, u) => resolveVars('accent',  ACCENTS, se, st, u);
+  const resolveVellumVars = (se, st, u) => resolveVars('vellum',  VELLUMS, se, st, u);
+  const resolveSilverVars = (se, st, u) => resolveVars('silver',  SILVERS, se, st, u);
+
+  function paintAppVellum(v) { paintRoot('vellum', v); }
+  function paintAppSilver(v) { paintRoot('silver', v); }
+
+  /**
+   * paintAppAccent is special: besides setting --pf-accent and
+   * --pf-accent-rgb, it also derives --pf-accent-hi, --pf-accent-deep,
+   * and --pf-accent-shadow from the chosen color, then cascades into
+   * upstream Perchance's chrome vars (notification, links, thread
+   * highlight).
+   */
+  function paintAppAccent(accent) {
+    paintRoot('accent', accent);
+    if (typeof document === 'undefined' || !document.documentElement) return;
+    if (!accent || typeof accent.color !== 'string') return;
+    const root = document.documentElement;
+    try {
+      // Derive companion tones from the picked accent
+      const hi     = shiftHex(accent.color,  35);
+      const deep   = shiftHex(accent.color, -50);
+      const shadow = shiftHex(accent.color, -70);
+      root.style.setProperty('--pf-accent-hi',     hi);
+      root.style.setProperty('--pf-accent-hi-rgb',  hexToRgb(hi));
+      root.style.setProperty('--pf-accent-deep',   deep);
+      root.style.setProperty('--pf-accent-deep-rgb', hexToRgb(deep));
+      root.style.setProperty('--pf-accent-shadow', shadow);
+
+      // Cascade into upstream Perchance chrome
+      root.style.setProperty('--notification-bg-color', accent.color);
+      root.style.setProperty('--link-color', accent.color);
+      root.style.setProperty('--selected-thread-border-color', accent.color);
+      root.style.setProperty(
+        '--selected-thread-bg',
+        `rgba(${accent.rgb || hexToRgb(accent.color)}, 0.18)`,
+      );
+    } catch { /* non-fatal */ }
+  }
+
+  /**
+   * Shift a hex color lighter (positive) or darker (negative) by a
+   * fixed amount per channel. Clamped to [0, 255].
+   */
+  function shiftHex(hex, amount) {
+    if (typeof hex !== 'string') return hex;
+    let h = hex.trim().replace(/^#/, '');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return hex;
+    const r = Math.max(0, Math.min(255, parseInt(h.slice(0,2),16) + amount));
+    const g = Math.max(0, Math.min(255, parseInt(h.slice(2,4),16) + amount));
+    const b = Math.max(0, Math.min(255, parseInt(h.slice(4,6),16) + amount));
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  }
+
+  /**
+   * Convenience: paint all three channels in one call.
+   * Used by full_page.js to consolidate apply logic.
+   *
+   * @param {object} settings
+   * @param {object} stats
+   * @param {string[]} unlockedIds
+   * @param {HTMLElement} [overlay]  optional overlay element for scoped vars
+   */
+  function paintAllChannels(settings, stats, unlockedIds, overlay) {
+    const channels = [
+      { channel: 'accent',  palette: ACCENTS, cssVar: 'accent',  paint: paintAppAccent },
+      { channel: 'vellum',  palette: VELLUMS, cssVar: 'vellum',  paint: paintAppVellum },
+      { channel: 'silver',  palette: SILVERS, cssVar: 'silver',  paint: paintAppSilver },
+    ];
+    for (const { channel, palette, cssVar, paint } of channels) {
+      const vars = resolveVars(channel, palette, settings, stats, unlockedIds);
+      paint(vars);
+      if (overlay && overlay.style) {
+        try {
+          overlay.style.setProperty(`--pf-${cssVar}`, vars.color);
+          overlay.style.setProperty(`--pf-${cssVar}-rgb`, vars.rgb);
+        } catch { /* non-fatal */ }
+      }
+    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -28323,6 +28332,314 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: prompts/daily_quest.js
+     ────────────────────────────────────────────────────────── */
+  // prompts/daily_quest.js
+  //
+  // AI-generated daily quests with sealed-card "prize" reveal mechanic.
+  //
+  // Shows 3 sealed quest cards per day. Each card:
+  //   1. Displays a sealed "?" with a theme hint
+  //   2. On click → seal-break animation (1.2s) plays
+  //   3. During animation → AI generates a unique quest
+  //   4. After seal breaks → quest text types in character-by-character
+  //   5. Result cached so re-visits show the same quest
+  //
+  // The animation is deliberately long enough to cover the AI response
+  // time, so the user experiences a smooth "unwrapping" rather than
+  // a loading spinner.
+
+
+
+  // 30 quest themes — 3 are picked per day via date hash.
+  const THEMES = [
+    { seed: 'stranger',    icon: '👤', prompt: 'a scene where your character meets a complete stranger who changes their perspective' },
+    { seed: 'secret',      icon: '🤫', prompt: 'your character discovering a secret about someone they trust' },
+    { seed: 'storm',       icon: '⛈',  prompt: 'a sudden storm forcing your character to take shelter somewhere unexpected' },
+    { seed: 'memory',      icon: '💭', prompt: 'your character finding an object that triggers a powerful memory' },
+    { seed: 'rival',       icon: '⚔',  prompt: 'your character encountering a rival — the confrontation doesn\'t have to be hostile' },
+    { seed: 'silence',     icon: '🤐', prompt: 'a scene where the most important thing is what ISN\'T said' },
+    { seed: 'gift',        icon: '🎁', prompt: 'someone giving your character an unexpected gift' },
+    { seed: 'crossroads',  icon: '🔀', prompt: 'your character reaching a literal or metaphorical crossroads' },
+    { seed: 'wound',       icon: '🩹', prompt: 'your character tending to a wound — physical or emotional' },
+    { seed: 'festival',    icon: '🎭', prompt: 'your character attending a celebration they weren\'t invited to' },
+    { seed: 'midnight',    icon: '🌙', prompt: 'something happening at midnight that only your character witnesses' },
+    { seed: 'letter',      icon: '✉',  prompt: 'your character writing or receiving a letter that changes everything' },
+    { seed: 'threshold',   icon: '🚪', prompt: 'your character standing at a door they\'re afraid to open' },
+    { seed: 'mask',        icon: '🎭', prompt: 'your character putting on a mask — literal or figurative' },
+    { seed: 'bargain',     icon: '🤝', prompt: 'your character making a deal they might regret' },
+    { seed: 'echo',        icon: '🔔', prompt: 'your character hearing something from the past — a voice, a song, a phrase' },
+    { seed: 'compass',     icon: '🧭', prompt: 'your character being lost — not geographically, but in a deeper way' },
+    { seed: 'forge',       icon: '🔨', prompt: 'your character creating something — an object, a plan, a promise' },
+    { seed: 'trespass',    icon: '⚠',  prompt: 'your character entering a place where they don\'t belong' },
+    { seed: 'debt',        icon: '📜', prompt: 'someone calling in an old debt — not repayable with money' },
+    { seed: 'mirror',      icon: '🪞', prompt: 'your character seeing their reflection and not recognizing who\'s looking back' },
+    { seed: 'hunger',      icon: '🔥', prompt: 'your character craving something they can\'t have' },
+    { seed: 'bridge',      icon: '🌉', prompt: 'two people who have been apart meeting again' },
+    { seed: 'omen',        icon: '✨', prompt: 'your character noticing a sign that something is about to change' },
+    { seed: 'trade',       icon: '⚖',  prompt: 'your character giving up one thing to gain another' },
+    { seed: 'sanctuary',   icon: '🏠', prompt: 'your character finding a place of absolute safety' },
+    { seed: 'shadow',      icon: '👥', prompt: 'your character confronting the version of themselves they try to hide' },
+    { seed: 'lantern',     icon: '🏮', prompt: 'your character finding a single light in complete darkness' },
+    { seed: 'oath',        icon: '🤞', prompt: 'your character swearing an oath they intend to keep' },
+    { seed: 'tide',        icon: '🌊', prompt: 'something returning that your character thought was gone forever' },
+  ];
+
+  const QUESTS_PER_DAY = 3;
+  const CACHE_PREFIX = 'pf:dq:';
+
+  /** Deterministic hash. */
+  function hashStr(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h);
+  }
+
+  /** Pick N themes for today (deterministic, no repeats). */
+  function getTodayThemes(dayKey, count) {
+    // Seeded shuffle of indices
+    const indices = Array.from({ length: THEMES.length }, (_, i) => i);
+    const seed = hashStr(dayKey);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = (hashStr(`${seed}:${i}`) % (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices.slice(0, count).map(i => THEMES[i]);
+  }
+
+  /** Load cached quest result, or null. */
+  function loadCached(dayKey, idx) {
+    try {
+      const raw = localStorage.getItem(`${CACHE_PREFIX}${dayKey}:${idx}`);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
+  }
+
+  /** Cache quest result. */
+  function saveCache(dayKey, idx, text, theme) {
+    try {
+      localStorage.setItem(`${CACHE_PREFIX}${dayKey}:${idx}`,
+        JSON.stringify({ text, theme, ts: Date.now() }));
+    } catch {}
+  }
+
+  /** Typewriter effect — reveals text character by character. */
+  function typewrite(el, text, speed = 20) {
+    el.textContent = '';
+    let i = 0;
+    const tick = () => {
+      if (i < text.length) {
+        el.textContent += text[i++];
+        setTimeout(tick, speed);
+      }
+    };
+    tick();
+  }
+
+  /** Generate quest text via AI, with fallback. */
+  async function generateQuest(theme) {
+    try {
+      if (window.root && typeof window.root.aiTextPlugin === 'function') {
+        const result = await window.root.aiTextPlugin({
+          instruction: [
+            `Theme: "${theme.seed}" — ${theme.prompt}.`,
+            '',
+            'Write a single creative writing quest for a roleplay chat user.',
+            'It should be a specific, actionable challenge they can do in their next conversation.',
+            'Be evocative and specific. Start with an action verb. Under 50 words.',
+            'Reply with ONLY the quest text.',
+          ].join('\n'),
+          stopSequences: ['\n\n'],
+        });
+        const text = result && (result.text || (typeof result === 'string' ? result : ''));
+        if (text && text.trim().length > 10) return text.trim();
+      }
+    } catch (e) {
+      console.warn('[pf] quest AI generation failed:', e && e.message);
+    }
+
+    // AI unavailable — generate a themed fallback locally
+    const verbs = ['Write', 'Describe', 'Create', 'Explore', 'Imagine', 'Craft', 'Develop', 'Show us'];
+    const verb = verbs[hashStr(theme.seed) % verbs.length];
+    return `${verb} ${theme.prompt}. Make it personal to your character — what would they feel, do, or say?`;
+  }
+
+  /**
+   * Build a single sealed quest card.
+   */
+  function createQuestCard(theme, dayKey, idx) {
+    const cached = loadCached(dayKey, idx);
+
+    const card = document.createElement('div');
+    card.className = 'pf-dq-card';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'pf-dq-header';
+
+    const headerIcon = document.createElement('span');
+    headerIcon.className = 'pf-dq-icon';
+    headerIcon.textContent = theme.icon;
+
+    const headerTitle = document.createElement('span');
+    headerTitle.className = 'pf-dq-title';
+    headerTitle.textContent = `QUEST ${idx + 1}`;
+
+    const headerDate = document.createElement('span');
+    headerDate.className = 'pf-dq-date';
+    headerDate.textContent = dayKey;
+
+    header.appendChild(headerIcon);
+    header.appendChild(headerTitle);
+    header.appendChild(headerDate);
+    card.appendChild(header);
+
+    if (cached && cached.text) {
+      renderRevealed(card, cached.text, theme, dayKey, idx, false);
+    } else {
+      renderSealed(card, theme, dayKey, idx);
+    }
+
+    return card;
+  }
+
+  /** Render the sealed "?" state. */
+  function renderSealed(card, theme, dayKey, idx) {
+    const seal = document.createElement('div');
+    seal.className = 'pf-dq-seal';
+
+    const sealIcon = document.createElement('div');
+    sealIcon.className = 'pf-dq-seal-icon';
+    sealIcon.textContent = '?';
+
+    const sealLabel = document.createElement('div');
+    sealLabel.className = 'pf-dq-seal-label';
+    sealLabel.textContent = 'Click to reveal';
+
+    const sealHint = document.createElement('div');
+    sealHint.className = 'pf-dq-seal-hint';
+    sealHint.textContent = theme.seed;
+
+    seal.appendChild(sealIcon);
+    seal.appendChild(sealLabel);
+    seal.appendChild(sealHint);
+    card.appendChild(seal);
+
+    let clicked = false;
+    seal.addEventListener('click', async () => {
+      if (clicked) return;
+      clicked = true;
+
+      // Phase 1: seal-break animation (1.2s)
+      seal.classList.add('pf-dq-seal-breaking');
+      sealIcon.textContent = theme.icon;
+      sealLabel.textContent = '...';
+      sealHint.textContent = '';
+
+      // Phase 2: AI generates quest during animation
+      const questText = await generateQuest(theme);
+
+      // Cache result
+      saveCache(dayKey, idx, questText, theme.seed);
+      try { bumpCounter('questsRevealed'); } catch {}
+
+      // Phase 3: remove seal after animation, typewrite the quest
+      setTimeout(() => {
+        seal.remove();
+        renderRevealed(card, questText, theme, dayKey, idx, true);
+      }, 1200);
+    });
+  }
+
+  /** Render the revealed quest. */
+  function renderRevealed(card, questText, theme, dayKey, idx, animate) {
+    const body = document.createElement('div');
+    body.className = 'pf-dq-body' + (animate ? ' pf-dq-body-reveal' : '');
+
+    const themeLabel = document.createElement('div');
+    themeLabel.className = 'pf-dq-theme';
+    themeLabel.textContent = `${theme.icon} ${theme.seed.toUpperCase()}`;
+
+    const text = document.createElement('div');
+    text.className = 'pf-dq-text';
+
+    const completeBtn = document.createElement('button');
+    completeBtn.type = 'button';
+    completeBtn.className = 'pf-dq-complete';
+
+    const completedKey = `pf:dq-done:${dayKey}:${idx}`;
+    const isDone = localStorage.getItem(completedKey) === '1';
+
+    if (isDone) {
+      completeBtn.textContent = '✓ Done';
+      completeBtn.disabled = true;
+      completeBtn.classList.add('pf-dq-done');
+    } else {
+      completeBtn.textContent = 'Complete';
+      completeBtn.addEventListener('click', () => {
+        localStorage.setItem(completedKey, '1');
+        completeBtn.textContent = '✓ Done';
+        completeBtn.disabled = true;
+        completeBtn.classList.add('pf-dq-done');
+        try { bumpCounter('questsCompleted'); } catch {}
+      }, { once: true });
+    }
+
+    body.appendChild(themeLabel);
+    body.appendChild(text);
+    body.appendChild(completeBtn);
+    card.appendChild(body);
+
+    // Typewrite effect on reveal, instant on cached
+    if (animate) {
+      typewrite(text, questText, 18);
+    } else {
+      text.textContent = questText;
+    }
+  }
+
+  /**
+   * Initialize daily quests. Creates 3 sealed quest cards and
+   * injects them into the prompts section or near chat messages.
+   */
+  function initDailyQuest() {
+    // Only mount when the profile's prompts section exists. At boot
+    // time this element doesn't exist (profile isn't open), so the
+    // call is a no-op. The profile overlay calls initDailyQuest()
+    // after building the prompts section, at which point
+    // .pf-prompts-list exists and mounting succeeds.
+    const promptsList = document.querySelector('.pf-prompts-list');
+    if (!promptsList || !promptsList.parentElement) return;
+
+    // Skip if already mounted in THIS overlay instance (prevents
+    // double-mount if called twice during the same profile session).
+    if (promptsList.parentElement.querySelector('.pf-dq-container')) return;
+
+    const dayKey = getCurrentDayKey();
+    const themes = getTodayThemes(dayKey, QUESTS_PER_DAY);
+
+    // Container for all quest cards
+    const container = document.createElement('div');
+    container.className = 'pf-dq-container';
+
+    // Section header
+    const sectionHeader = document.createElement('div');
+    sectionHeader.className = 'pf-dq-section-header';
+    sectionHeader.textContent = 'DAILY QUESTS';
+    container.appendChild(sectionHeader);
+
+    // Create quest cards
+    for (let i = 0; i < themes.length; i++) {
+      container.appendChild(createQuestCard(themes[i], dayKey, i));
+    }
+
+    promptsList.parentElement.insertBefore(container, promptsList);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: render/overlay.js
      ────────────────────────────────────────────────────────── */
   // render/overlay.js
@@ -29187,122 +29504,6 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
-     module: chat/glossary_editor.js
-     ────────────────────────────────────────────────────────── */
-  // chat/glossary_editor.js
-  //
-  // User-facing editor for the dynamic glossary. Opens a simple
-  // textarea modal where the user can add/edit keyword→definition
-  // entries for the current thread. Entries use the format:
-  //   keyword, alias = definition
-  //
-  // Injected as a small 📖 button near the chat input area.
-  //
-  // Bootstrap: call initGlossaryEditor() from start(). Idempotent.
-
-
-
-  /**
-   * Initialize the glossary editor. Injects a button and builds
-   * the modal overlay. Idempotent.
-   */
-  function initGlossaryEditor() {
-    if (initGlossaryEditor._done) return;
-    initGlossaryEditor._done = true;
-
-    // ---- Build the modal ----
-    const overlay = document.createElement('div');
-    overlay.className = 'pf-glossary-overlay';
-    overlay.hidden = true;
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close();
-    });
-
-    const modal = document.createElement('div');
-    modal.className = 'pf-glossary-modal';
-
-    const title = document.createElement('h3');
-    title.className = 'pf-glossary-title';
-    title.textContent = 'Dynamic Glossary';
-
-    const hint = document.createElement('p');
-    hint.className = 'pf-glossary-hint';
-    hint.textContent = 'One entry per line: keyword, alias = definition. '
-      + 'Only entries whose keywords appear in recent messages are injected.';
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'pf-glossary-textarea';
-    textarea.rows = 12;
-    textarea.placeholder = 'dragon, wyrm = A fearsome fire-breathing beast\n'
-      + 'Elara = The protagonist, a wandering healer\n'
-      + 'moonstone = A glowing gem that grants night-vision';
-    textarea.spellcheck = false;
-
-    const actions = document.createElement('div');
-    actions.className = 'pf-glossary-actions';
-
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.textContent = 'Save';
-    saveBtn.className = 'pf-glossary-save';
-    saveBtn.addEventListener('click', () => {
-      const threadId = window.currentChatId;
-      if (threadId != null) {
-        saveGlossary(threadId, textarea.value);
-        try { bumpCounter("glossaryEdits"); } catch {}
-      }
-      close();
-    });
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'pf-glossary-cancel';
-    cancelBtn.addEventListener('click', close);
-
-    actions.appendChild(cancelBtn);
-    actions.appendChild(saveBtn);
-    modal.appendChild(title);
-    modal.appendChild(hint);
-    modal.appendChild(textarea);
-    modal.appendChild(actions);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    // ---- Open/close ----
-    function open() {
-      const threadId = window.currentChatId;
-      textarea.value = threadId != null ? loadGlossary(threadId) : '';
-      overlay.hidden = false;
-      textarea.focus();
-    }
-
-    function close() {
-      overlay.hidden = true;
-    }
-
-    // ---- Trigger button ----
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-glossary-trigger';
-    btn.textContent = '📖';
-    btn.title = 'Edit glossary for this chat';
-    btn.addEventListener('click', open);
-
-    // Inject near the chat input
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      const parent = inputArea.parentElement || inputArea;
-      parent.appendChild(btn);
-    } else {
-      document.body.appendChild(btn);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
      module: chat/chat_export.js
      ────────────────────────────────────────────────────────── */
   // chat/chat_export.js
@@ -29547,323 +29748,6 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
-     module: chat/impersonation.js
-     ────────────────────────────────────────────────────────── */
-  // chat/impersonation.js
-  //
-  // "Write for me" — AI generates a message as the user character.
-  // Useful in RP when the user doesn't know what to say next or
-  // wants to skip ahead. The generated text is placed in the input
-  // box for review before sending (not auto-sent).
-  //
-  // Uses the existing aiTextPlugin (via window.root.aiTextPlugin)
-  // to generate text with a system instruction that says "write
-  // the next message as the user."
-  //
-  // Adapted from URV-AI's generateUserImpersonation concept (MIT).
-  //
-  // Bootstrap: call initImpersonation() from start(). Idempotent.
-
-  /**
-   * Initialize impersonation. Adds a "Write for me" button near
-   * the chat input. Idempotent.
-   */
-  function initImpersonation() {
-    if (initImpersonation._done) return;
-
-    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
-
-    initImpersonation._done = true;
-
-    // ---- Button ----
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-impersonate-btn';
-    btn.textContent = '✍';
-    btn.title = 'Write for me (AI writes as you)';
-    let isGenerating = false;
-
-    btn.addEventListener('click', async () => {
-      if (isGenerating) return;
-
-      // Find the chat input textarea
-      const inputEl = document.querySelector('#messageInputEl') ||
-                      document.querySelector('.chat-input textarea') ||
-                      document.querySelector('textarea[placeholder]');
-      if (!inputEl) return;
-
-      // Build context from recent messages
-      const chatEl = document.getElementById('chatMessagesEl');
-      if (!chatEl) return;
-
-      const messages = Array.from(chatEl.querySelectorAll('.message'))
-        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message')
-        .slice(-8);
-
-      const context = messages.map(m => {
-        const isUser = m.classList.contains('user');
-        const nameEl = m.querySelector('.chat-username');
-        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
-        const text = (m.querySelector('.content') || {}).innerText || '';
-        return `[${name}]: ${text}`;
-      }).join('\n\n');
-
-      // Generate
-      isGenerating = true;
-      btn.textContent = '⏳';
-      btn.disabled = true;
-
-      try {
-        const result = await window.root.aiTextPlugin({
-          instruction: [
-            'You are ghostwriting the next message for the USER character in this roleplay.',
-            'Write a short, in-character reply as the user would. Stay consistent with their personality and the scene.',
-            'Reply with ONLY the message text — no quotation marks, no "User:" prefix, no meta-commentary.',
-            '',
-            'Recent conversation:',
-            context,
-          ].join('\n'),
-          stopSequences: ['\n\n'],
-        });
-
-        const text = (result && result.text) ? result.text.trim() : '';
-        if (text) {
-          // Place in input for review (don't auto-send)
-          inputEl.value = text;
-          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-          inputEl.focus();
-        }
-      } catch (e) {
-        console.warn('[pf] impersonation failed:', e && e.message);
-      } finally {
-        isGenerating = false;
-        btn.textContent = '✍';
-        btn.disabled = false;
-      }
-    });
-
-    // Inject near chat input
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      const parent = inputArea.parentElement || inputArea;
-      parent.appendChild(btn);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: chat/writing_enhancer.js
-     ────────────────────────────────────────────────────────── */
-  // chat/writing_enhancer.js
-  //
-  // "Magic Wand" writing enhancer — rewrites/polishes the user's
-  // draft text in the input box before they send it. The user types
-  // a rough draft, clicks the wand ✨, and gets a more descriptive,
-  // in-character version placed back in the input for review.
-  //
-  // Uses aiTextPlugin to rewrite. The enhancement instruction asks
-  // the AI to expand the text into vivid RP prose while preserving
-  // the original intent.
-  //
-  // Adapted from FurAI's enhanceText concept (MIT).
-  //
-  // Bootstrap: call initWritingEnhancer() from start(). Idempotent.
-
-  /**
-   * Initialize the writing enhancer. Adds a ✨ button near the
-   * chat input. Idempotent.
-   */
-  function initWritingEnhancer() {
-    if (initWritingEnhancer._done) return;
-
-    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
-
-    initWritingEnhancer._done = true;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-enhance-btn';
-    btn.textContent = '✨';
-    btn.title = 'Enhance your message (rewrite with more detail)';
-    let isEnhancing = false;
-
-    btn.addEventListener('click', async () => {
-      if (isEnhancing) return;
-
-      // Find the chat input
-      const inputEl = document.querySelector('#messageInputEl') ||
-                      document.querySelector('.chat-input textarea') ||
-                      document.querySelector('textarea[placeholder]');
-      if (!inputEl) return;
-
-      const draft = (inputEl.value || '').trim();
-      if (!draft) return; // nothing to enhance
-
-      isEnhancing = true;
-      btn.textContent = '⏳';
-      btn.disabled = true;
-
-      try {
-        const result = await window.root.aiTextPlugin({
-          instruction: [
-            'You are a writing enhancer for a roleplay chat.',
-            'The user has written a rough draft of their message.',
-            'Rewrite it to be more vivid, descriptive, and in-character.',
-            'Keep the same intent, actions, and dialogue, but add:',
-            '  - Sensory details (what they see, hear, feel)',
-            '  - Body language and subtle expressions',
-            '  - Atmospheric descriptions',
-            'Keep it concise — enhance, don\'t pad. Match the tone.',
-            'Reply with ONLY the enhanced message, nothing else.',
-            '',
-            'Draft to enhance:',
-            draft,
-          ].join('\n'),
-          stopSequences: ['\n\n\n'],
-        });
-
-        const enhanced = (result && result.text) ? result.text.trim() : '';
-        if (enhanced && enhanced !== draft) {
-          inputEl.value = enhanced;
-          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-          inputEl.focus();
-        }
-      } catch (e) {
-        console.warn('[pf] enhance failed:', e && e.message);
-      } finally {
-        isEnhancing = false;
-        btn.textContent = '✨';
-        btn.disabled = false;
-      }
-    });
-
-    // Inject near chat input
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      const parent = inputArea.parentElement || inputArea;
-      parent.appendChild(btn);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: chat/narration.js
-     ────────────────────────────────────────────────────────── */
-  // chat/narration.js
-  //
-  // Generate scene narration on demand. Adds a "Narrate" button
-  // that generates a third-person scene description based on the
-  // current conversation context. The narration is inserted as a
-  // system-style message visible to both the user and the AI.
-  //
-  // Useful for:
-  //   - Setting the scene between RP exchanges
-  //   - Transitioning between locations or time skips
-  //   - Adding atmospheric descriptions
-  //
-  // Adapted from URV-AI's generateNarration concept (MIT).
-  //
-  // Bootstrap: call initNarration() from start(). Idempotent.
-
-  /**
-   * Initialize narration. Adds a 🎬 button near the chat input.
-   * Idempotent.
-   */
-  function initNarration() {
-    if (initNarration._done) return;
-
-    if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
-
-    initNarration._done = true;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-narrate-btn';
-    btn.textContent = '🎬';
-    btn.title = 'Generate scene narration';
-    let isNarrating = false;
-
-    btn.addEventListener('click', async () => {
-      if (isNarrating) return;
-
-      const chatEl = document.getElementById('chatMessagesEl');
-      if (!chatEl) return;
-
-      // Build context from recent messages
-      const messages = Array.from(chatEl.querySelectorAll('.message'))
-        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message')
-        .slice(-6);
-
-      const context = messages.map(m => {
-        const isUser = m.classList.contains('user');
-        const nameEl = m.querySelector('.chat-username');
-        const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
-        const text = (m.querySelector('.content') || {}).innerText || '';
-        return `[${name}]: ${text}`;
-      }).join('\n\n');
-
-      isNarrating = true;
-      btn.textContent = '⏳';
-      btn.disabled = true;
-
-      try {
-        const result = await window.root.aiTextPlugin({
-          instruction: [
-            'You are the narrator of a roleplay scene.',
-            'Based on the recent conversation, write a brief third-person',
-            'scene narration that describes:',
-            '  - The current atmosphere and setting',
-            '  - What just happened (summarize the recent exchange)',
-            '  - Set up what might happen next',
-            'Write 2-3 vivid sentences. Use present tense.',
-            'Reply with ONLY the narration, nothing else.',
-            '',
-            'Recent conversation:',
-            context,
-          ].join('\n'),
-          stopSequences: ['\n\n\n'],
-        });
-
-        const narration = (result && result.text) ? result.text.trim() : '';
-        if (narration && typeof window.sendMessage === 'function') {
-          // Send as a system/narrator message by creating a message
-          // with the narrator format. The upstream supports this via
-          // oc.thread.messages API but we use sendMessage for simplicity.
-          // Place narration in input and let user review.
-          const inputEl = document.querySelector('#messageInputEl') ||
-                          document.querySelector('.chat-input textarea') ||
-                          document.querySelector('textarea[placeholder]');
-          if (inputEl) {
-            inputEl.value = `*${narration}*`;
-            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-            inputEl.focus();
-          }
-        }
-      } catch (e) {
-        console.warn('[pf] narration failed:', e && e.message);
-      } finally {
-        isNarrating = false;
-        btn.textContent = '🎬';
-        btn.disabled = false;
-      }
-    });
-
-    // Inject near chat input
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      const parent = inputArea.parentElement || inputArea;
-      parent.appendChild(btn);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
      module: chat/keyboard_shortcuts.js
      ────────────────────────────────────────────────────────── */
   // chat/keyboard_shortcuts.js
@@ -30077,115 +29961,6 @@ Use this template for your response:
     document.addEventListener('click', (e) => {
       if (!container.contains(e.target)) dropdown.hidden = true;
     });
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: chat/quick_reminder.js
-     ────────────────────────────────────────────────────────── */
-  // chat/quick_reminder.js
-  //
-  // Quick reminder editor — edit the current character's
-  // reminderMessage from a small modal without opening the
-  // full character editor. The reminder is the text that's
-  // always injected right before the AI's response.
-  //
-  // Reads/writes via window.db.characters (upstream Dexie DB).
-  //
-  // Bootstrap: call initQuickReminder() from start(). Idempotent.
-
-  function initQuickReminder() {
-    if (initQuickReminder._done) return;
-    initQuickReminder._done = true;
-
-    // ---- Modal ----
-    const overlay = document.createElement('div');
-    overlay.className = 'pf-glossary-overlay'; // reuse glossary overlay style
-    overlay.hidden = true;
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-    const modal = document.createElement('div');
-    modal.className = 'pf-glossary-modal'; // reuse glossary modal style
-
-    const title = document.createElement('h3');
-    title.className = 'pf-glossary-title';
-    title.textContent = 'Quick Reminder';
-
-    const hint = document.createElement('p');
-    hint.className = 'pf-glossary-hint';
-    hint.textContent = 'This text is injected before every AI response. Use it to reinforce character behavior.';
-
-    const textarea = document.createElement('textarea');
-    textarea.className = 'pf-glossary-textarea';
-    textarea.rows = 8;
-    textarea.placeholder = 'e.g. Stay in character. Use vivid descriptions.';
-
-    const actions = document.createElement('div');
-    actions.className = 'pf-glossary-actions';
-
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.textContent = 'Save';
-    saveBtn.className = 'pf-glossary-save';
-    saveBtn.addEventListener('click', async () => {
-      await saveReminder(textarea.value);
-      close();
-    });
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.className = 'pf-glossary-cancel';
-    cancelBtn.addEventListener('click', close);
-
-    actions.appendChild(cancelBtn);
-    actions.appendChild(saveBtn);
-    modal.appendChild(title);
-    modal.appendChild(hint);
-    modal.appendChild(textarea);
-    modal.appendChild(actions);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    async function loadReminder() {
-      try {
-        const charId = window.currentCharacterId || window.currentChatId;
-        if (!charId || !window.db || !window.db.characters) return '';
-        const char = await window.db.characters.get(charId);
-        return (char && char.reminderMessage) || '';
-      } catch { return ''; }
-    }
-
-    async function saveReminder(text) {
-      try {
-        const charId = window.currentCharacterId || window.currentChatId;
-        if (!charId || !window.db || !window.db.characters) return;
-        await window.db.characters.update(charId, { reminderMessage: text });
-      } catch (e) { console.warn('[pf] save reminder failed:', e && e.message); }
-    }
-
-    async function open() {
-      textarea.value = await loadReminder();
-      overlay.hidden = false;
-      textarea.focus();
-    }
-
-    function close() { overlay.hidden = true; }
-
-    // ---- Trigger button ----
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-presets-btn'; // reuse preset button style
-    btn.textContent = '📌';
-    btn.title = 'Edit quick reminder';
-    btn.addEventListener('click', open);
-
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      (inputArea.parentElement || inputArea).appendChild(btn);
-    }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -32954,130 +32729,6 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
-     module: chat/recap.js
-     ────────────────────────────────────────────────────────── */
-  // chat/recap.js
-  //
-  // "Previously on..." — generates a narrative recap of the current
-  // conversation. Unlike auto-summary (which injects silently into
-  // AI context), this shows the recap to the USER as a visible
-  // message so they can re-orient after returning to a long chat.
-  //
-  // Uses the same aiTextPlugin to generate the recap, but displays
-  // it as a system message rather than injecting it.
-  //
-  // Adds a 📜 button to the tools area.
-  //
-  // Bootstrap: call initRecap() from start(). Idempotent.
-
-  function initRecap() {
-    if (initRecap._done) return;
-    initRecap._done = true;
-
-    let isGenerating = false;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'pf-presets-btn';
-    btn.textContent = '📜';
-    btn.title = '"Previously on..." — get a recap of this conversation';
-
-    btn.addEventListener('click', async () => {
-      if (isGenerating) return;
-      if (!window.root || typeof window.root.aiTextPlugin !== 'function') return;
-
-      const chatEl = document.getElementById('chatMessagesEl');
-      if (!chatEl) return;
-
-      const messages = Array.from(chatEl.querySelectorAll('.message'))
-        .filter(m => !m.id.startsWith('typing-') && m.id !== 'personality-selector-message');
-
-      if (messages.length < 4) {
-        insertRecapMessage('Not enough conversation to recap yet. Keep chatting!');
-        return;
-      }
-
-      isGenerating = true;
-      btn.textContent = '⏳';
-      btn.disabled = true;
-
-      try {
-        // Take up to 20 recent messages for context
-        const recent = messages.slice(-20);
-        const context = recent.map(m => {
-          const isUser = m.classList.contains('user');
-          const nameEl = m.querySelector('.chat-username');
-          const name = nameEl ? nameEl.textContent.trim() : (isUser ? 'User' : 'AI');
-          const text = (m.querySelector('.content') || {}).innerText || '';
-          return `[${name}]: ${text}`;
-        }).join('\n\n');
-
-        const result = await window.root.aiTextPlugin({
-          instruction: [
-            'Write a brief "Previously on..." recap of this conversation.',
-            'Summarize the key events, character actions, emotional beats, and current situation.',
-            'Write in third person, present tense, like a TV show recap.',
-            'Keep it under 100 words. Start with "Previously on..."',
-            'Reply with ONLY the recap text.',
-            '',
-            'Conversation:',
-            context,
-          ].join('\n'),
-          stopSequences: ['\n\n\n'],
-        });
-
-        const recap = (result && result.text) ? result.text.trim() : '';
-        if (recap) {
-          try { bumpCounter("recapUses"); } catch {}
-          insertRecapMessage(recap);
-        }
-      } catch (e) {
-        console.warn('[pf] recap failed:', e && e.message);
-      } finally {
-        isGenerating = false;
-        btn.textContent = '📜';
-        btn.disabled = false;
-      }
-    });
-
-    function insertRecapMessage(text) {
-      const chatEl = document.getElementById('chatMessagesEl');
-      if (!chatEl) return;
-
-      const msg = document.createElement('div');
-      msg.className = 'message pf-recap-message';
-
-      const label = document.createElement('div');
-      label.className = 'pf-recap-label';
-      label.textContent = '📜 PREVIOUSLY ON...';
-
-      const content = document.createElement('div');
-      content.className = 'pf-recap-content';
-      content.textContent = text;
-
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.className = 'pf-recap-dismiss';
-      dismiss.textContent = '✕';
-      dismiss.addEventListener('click', () => msg.remove());
-
-      msg.appendChild(dismiss);
-      msg.appendChild(label);
-      msg.appendChild(content);
-      chatEl.appendChild(msg);
-      msg.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    if (inputArea) {
-      (inputArea.parentElement || inputArea).appendChild(btn);
-    }
-  }
-
-  /* ──────────────────────────────────────────────────────────
      module: chat/bookmarks.js
      ────────────────────────────────────────────────────────── */
   // chat/bookmarks.js
@@ -33227,57 +32878,6 @@ Use this template for your response:
     if (inputArea) {
       (inputArea.parentElement || inputArea).appendChild(viewBtn);
     }
-  }
-
-  /* ──────────────────────────────────────────────────────────
-     module: chat/dom_utils.js
-     ────────────────────────────────────────────────────────── */
-  // chat/dom_utils.js
-  //
-  // Common DOM lookup utilities for chat modules. Extracts the
-  // repeated querySelector patterns that appear 100+ times across
-  // the codebase into single-call helpers.
-  //
-  // These are lazy — they query the DOM each time, so they work
-  // even if the DOM isn't ready at module load time.
-
-  /**
-   * Find the chat input area's parent container.
-   * This is where tool buttons are typically appended.
-   */
-  function getChatInputParent() {
-    const inputArea = document.getElementById('chatInputEl') ||
-                      document.getElementById('inputBarEl') ||
-                      document.querySelector('.chat-input-container') ||
-                      document.querySelector('.input-bar');
-    return inputArea ? (inputArea.parentElement || inputArea) : null;
-  }
-
-  /**
-   * Find the chat header (right side preferred).
-   * This is where header buttons are typically appended.
-   */
-  function getChatHeader() {
-    return document.querySelector('.chat-header-right') ||
-           document.querySelector('.chat-header') ||
-           null;
-  }
-
-  /**
-   * Find the chat messages container.
-   */
-  function getChatMessages() {
-    return document.getElementById('chatMessagesEl') || null;
-  }
-
-  /**
-   * Find the chat text input element.
-   */
-  function getChatInput() {
-    return document.querySelector('#messageInputEl') ||
-           document.querySelector('.chat-input textarea') ||
-           document.querySelector('textarea[placeholder]') ||
-           null;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -33853,9 +33453,9 @@ Use this template for your response:
       display.textContent = `~${formatTokens(used)} / ${formatTokens(maxTokens)} tokens`;
       // Tint the display based on usage level
       if (pct > 85) {
-        display.style.color = '#e06060'; // red — near limit
+        display.style.color = 'var(--pf-palette-danger, #e06060)';
       } else if (pct > 65) {
-        display.style.color = '#d8a040'; // amber — getting warm
+        display.style.color = 'var(--pf-accent, #d8a040)';
       } else {
         display.style.color = ''; // default muted
       }
@@ -37997,17 +37597,18 @@ Use this template for your response:
 
 
   /**
-   * Compute unlock thresholds for theme color pickers.
-   * Returns { accent, secondary, primary } booleans.
+   * Check whether specific flair picker achievements are unlocked.
+   * Each picker gates on a dedicated achievement rather than a
+   * percentage-of-total, so the thresholds are explicit and the
+   * achievement grid shows the user exactly what they need.
    */
-  function getThemeUnlocks(unlockedIds) {
-    const total = ACHIEVEMENTS.length;
-    const count = (unlockedIds || []).length;
-    const pct = total > 0 ? count / total : 0;
+  function getFlairUnlocks(unlockedIds) {
+    const set = new Set(unlockedIds || []);
     return {
-      accent:    pct >= 0.10,  // 10% — ~4 achievements
-      secondary: pct >= 0.15,  // 15% — ~5 achievements
-      primary:   pct >= 0.25,  // 25% — ~9 achievements
+      accent:  set.has('palette_unlocked'),  // first profile open
+      vellum:  set.has('palette_vellum'),     // 3 achievements
+      silver:  set.has('palette_silver'),     // 8 achievements
+      deep:    set.has('palette_deep'),       // 15 achievements
     };
   }
 
@@ -38072,91 +37673,95 @@ Use this template for your response:
     });
     titleInput.value = String(profile.titleOverride || '');
 
-    // ---- accent: themed color unlocked by achievement tiers ----
+    // ---- flair: achievement-gated color pickers ----
     //
-    // Rendered as a row of swatches. Locked accents appear greyed with
-    // their unlock hint in the title attribute. Click an unlocked one
-    // to set it; click the active one again to clear back to auto.
-    const accents = getAccents(stats, unlockedIds);
+    // Three swatch rows — Accent, Text (vellum), Meta (silver) — each
+    // gated on a dedicated palette_* achievement. The picker for each
+    // row only appears once the user has earned the corresponding
+    // achievement; before that, a locked hint shows what's needed.
+    const flairUnlocks = getFlairUnlocks(unlockedIds);
 
-    // Pick the inner glyph for a swatch based on its state.
-    //   locked         → 🔒
-    //   active (picked)→ ✓   ('this is what you currently have')
-    //   unlocked       → ●   ('this is available')
-    // Three distinct glyphs make the "active vs hover" question
-    // unambiguous. Previously all unlocked swatches showed ● and
-    // active state was conveyed only by a thicker white ring —
-    // that ring read too similarly to the hover ring, which made
-    // it look like hovering one swatch animated another (the
-    // permanently-active one).
+    // Shared glyph logic for all swatch rows.
     function glyphFor(isUnlocked, isActive) {
       if (!isUnlocked) return '🔒';
       if (isActive)   return '✓';
       return '●';
     }
 
-    const accentSwatches = h('div', { class: 'pf-accent-row' },
-      accents.map(a => {
-        const isActive = currentFlair.accent === a.id ||
-          (!currentFlair.accent && a.id === 'amber');
-        const btn = h('button', {
-          type: 'button',
-          class: [
-            'pf-accent-swatch',
-            isActive ? 'pf-accent-swatch-active' : '',
-            a.isUnlocked ? '' : 'pf-accent-swatch-locked',
-          ].filter(Boolean).join(' '),
-          'aria-label': a.isUnlocked
-            ? `Accent: ${a.label}${isActive ? ' (active)' : ''}`
-            : `Locked: ${a.description}`,
-          title: a.isUnlocked
-            ? `${a.label} — ${a.description}`
-            : `🔒 ${a.description}`,
-          disabled: !a.isUnlocked,
-          style: `--pf-accent-preview:${a.color};`,
-          onClick: () => {
-            if (!a.isUnlocked) return;
-            // Toggle: if clicked accent is already active, clear back to
-            // amber (null). Otherwise activate it.
-            const nextVal = (currentFlair.accent === a.id) ? null : a.id;
-            updateField('profile.flair.accent', nextVal);
-            // Re-render swatches in place to update active state. Quick
-            // rebuild rather than full form re-render so input focus
-            // isn't stolen from neighboring fields.
-            const updated = accents.map(x => ({
-              ...x,
-              _active: nextVal === x.id || (!nextVal && x.id === 'amber'),
-            }));
-            for (let i = 0; i < updated.length; i++) {
-              const swatch = accentSwatches.children[i];
-              if (!swatch) continue;
-              swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
-              // Re-glyph too, otherwise the previously-active swatch keeps
-              // its ✓ and the newly-active one keeps its ● — class swap
-              // would be the only signal, which is exactly what we're
-              // moving away from.
-              const innerSpan = swatch.firstChild;
-              if (innerSpan && innerSpan.tagName === 'SPAN') {
-                innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+    /**
+     * Build a swatch row for a flair palette. Reused for accent, vellum,
+     * and silver — same markup, same click-to-toggle, same glyph logic.
+     *
+     * @param {Array} items        palette items from getAccents / getVellums / getSilvers
+     * @param {string} flairKey    settings path under profile.flair (e.g. 'accent')
+     * @param {string} defaultId   the default color id (e.g. 'amber', 'parchment', 'pewter')
+     */
+    function buildSwatchRow(items, flairKey, defaultId) {
+      const currentPick = currentFlair[flairKey] || null;
+      const container = h('div', { class: 'pf-accent-row' },
+        items.map(a => {
+          const isActive = currentPick === a.id || (!currentPick && a.id === defaultId);
+          const btn = h('button', {
+            type: 'button',
+            class: [
+              'pf-accent-swatch',
+              isActive ? 'pf-accent-swatch-active' : '',
+              a.isUnlocked ? '' : 'pf-accent-swatch-locked',
+            ].filter(Boolean).join(' '),
+            'aria-label': a.isUnlocked
+              ? `${a.label}${isActive ? ' (active)' : ''}`
+              : `Locked: ${a.description}`,
+            title: a.isUnlocked
+              ? `${a.label} — ${a.description}`
+              : `🔒 ${a.description}`,
+            disabled: !a.isUnlocked,
+            style: `--pf-accent-preview:${a.color};`,
+            onClick: () => {
+              if (!a.isUnlocked) return;
+              const nextVal = (currentPick === a.id) ? null : a.id;
+              updateField(`profile.flair.${flairKey}`, nextVal);
+              const updated = items.map(x => ({
+                ...x,
+                _active: nextVal === x.id || (!nextVal && x.id === defaultId),
+              }));
+              for (let i = 0; i < updated.length; i++) {
+                const swatch = container.children[i];
+                if (!swatch) continue;
+                swatch.classList.toggle('pf-accent-swatch-active', updated[i]._active);
+                const innerSpan = swatch.firstChild;
+                if (innerSpan && innerSpan.tagName === 'SPAN') {
+                  innerSpan.textContent = glyphFor(updated[i].isUnlocked, updated[i]._active);
+                }
               }
-            }
-            currentFlair.accent = nextVal;
-            // Blur the clicked button. Even with our explicit
-            // outline:none + :focus-visible-only ring, some browsers
-            // briefly paint a click-focus indicator before the next
-            // mousemove / click clears it. Calling blur() puts the
-            // page back to a no-focus state immediately, so the user
-            // never sees a stale ring on the swatch they just picked.
-            // Keyboard activation still focuses it correctly because
-            // Enter/Space-on-button keeps focus before invoking onClick.
-            try { btn.blur(); } catch { /* non-fatal */ }
-          },
-        }, [
-          h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
-        ]);
-        return btn;
-      })
-    );
+              currentFlair[flairKey] = nextVal;
+              try { btn.blur(); } catch { /* non-fatal */ }
+            },
+          }, [
+            h('span', { 'aria-hidden': 'true' }, [glyphFor(a.isUnlocked, isActive)]),
+          ]);
+          return btn;
+        })
+      );
+      return container;
+    }
+
+    // Build each row only if the corresponding achievement is unlocked;
+    // otherwise show a locked hint.
+    function lockedHint(text) {
+      return h('div', { class: 'pf-flair-locked-hint' }, [`🔒 ${text}`]);
+    }
+
+    const accentRow = flairUnlocks.accent
+      ? buildSwatchRow(getAccents(stats, unlockedIds), 'accent', 'amber')
+      : lockedHint('Open your profile to unlock the accent palette.');
+
+    const vellumRow = flairUnlocks.vellum
+      ? buildSwatchRow(getVellums(stats, unlockedIds), 'vellum', 'parchment')
+      : lockedHint('Earn 3 achievements to unlock the text color palette.');
+
+    const silverRow = flairUnlocks.silver
+      ? buildSwatchRow(getSilvers(stats, unlockedIds), 'silver', 'pewter')
+      : lockedHint('Earn 8 achievements to unlock the meta text palette.');
 
     // ---- age range ----
     const ageSelect = h('select', {
@@ -38190,7 +37795,9 @@ Use this template for your response:
       // the wrapping element doesn't implicitly associate with the first
       // child control — which would propagate :hover to it from anywhere
       // in the row.
-      groupRow('Accent',  accentSwatches),
+      groupRow('Accent',     accentRow),
+      groupRow('Text color', vellumRow),
+      groupRow('Meta color', silverRow),
       createThemeColorRow(profile, unlockedIds),
       row('Age range',    ageSelect),
       groupRow('Gender',  h('div', { class: 'pf-field-stack' }, [
@@ -38381,15 +37988,13 @@ Use this template for your response:
   /**
    * Create the theme color picker row.
    * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
-   * Each unlocks at a different achievement threshold.
-   * An Accent picker is already handled by the swatches above, so the
-   * accent threshold from getThemeUnlocks() gates the swatches, not these.
+   * Each unlocks at a different flair achievement threshold.
    */
   function createThemeColorRow(profile, unlockedIds) {
-    const unlocks = getThemeUnlocks(unlockedIds);
+    const unlocks = getFlairUnlocks(unlockedIds);
     const tc = (profile && profile.themeColors) || {};
 
-    function makeColorPicker(label, field, defaultColor, isUnlocked, unlockPct) {
+    function makeColorPicker(label, field, defaultColor, isUnlocked, unlockHint) {
       const wrapper = h('div', { class: 'pf-theme-picker' }, []);
 
       const colorInput = h('input', {
@@ -38399,7 +38004,7 @@ Use this template for your response:
         disabled: !isUnlocked,
         title: isUnlocked
           ? `${label} — click to change`
-          : `🔒 Unlock at ${unlockPct}% achievements`,
+          : `🔒 Unlock at ${unlockHint}`,
         onInput: (ev) => {
           updateField(`profile.themeColors.${field}`, ev.target.value);
           applyThemeColorsLive();
@@ -38435,8 +38040,8 @@ Use this template for your response:
     }
 
     const container = h('div', { class: 'pf-theme-pickers' }, [
-      makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.secondary, 15),
-      makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.primary,   25),
+      makeColorPicker('Secondary', 'secondary', THEME_DEFAULTS.secondary, unlocks.silver, '8 achievements'),
+      makeColorPicker('Primary',   'primary',   THEME_DEFAULTS.primary,   unlocks.deep,   '15 achievements'),
     ]);
 
     return groupRow('Theme', container);
@@ -40403,10 +40008,6 @@ Use this template for your response:
 
 
 
-  // showToast import removed — profile-open no longer surfaces personal-
-  // best or weekly-summary toasts. The mini-card pulse + in-splash
-  // reveal handle that signal now. toast.js stays in-tree for future
-  // callers (save failures, destructive-op undo, etc.).
 
   /**
    * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -40449,6 +40050,12 @@ Use this template for your response:
     // even if stats loading fails, the user's streak is still credited.
     // Idempotent within a day — repeated opens don't inflate.
     try { recordActivityForStreak(); } catch { /* non-fatal */ }
+
+    // Bump the profileOpens counter BEFORE stats are read. The flair
+    // palette unlock gates on this so the picker appears on the very
+    // first profile visit — placing it before computeStats ensures
+    // computeUnlockedIds sees the bumped value.
+    try { bumpCounter('profileOpens'); } catch { /* non-fatal */ }
 
     // Declare `overlay` as `let` initialized to null up-front so
     // refreshSplashFromSettings() — which is called synchronously
@@ -40514,6 +40121,10 @@ Use this template for your response:
       // by an achievement criterion (or by getPrimaryArchetype) should
       // be re-read from its source right here; otherwise refresh sites
       // pick up whatever stale value was in `stats` at openFullPage time.
+      // Two-pass _unlockedCount for palette threshold achievements.
+      try {
+        fresh._unlockedCount = computeUnlockedIds(fresh).length;
+      } catch { fresh._unlockedCount = stats._unlockedCount || 0; }
       return fresh;
     }
 
@@ -40538,6 +40149,8 @@ Use this template for your response:
       // instead. The TYPICAL sync-path caller (accent / title repaint
       // on a flair change) doesn't mutate events, so stale is safe.
       fresh.eventsResponded = stats.eventsResponded || 0;
+      // Carry forward _unlockedCount for palette threshold criteria.
+      fresh._unlockedCount = stats._unlockedCount || 0;
       return fresh;
     }
 
@@ -40546,6 +40159,14 @@ Use this template for your response:
     } catch {
       unlockedIds = [];
     }
+    // Two-pass unlock: palette_vellum / palette_silver / palette_deep
+    // gate on _unlockedCount (total achievements earned). The first
+    // pass above didn't have _unlockedCount, so inject it and re-run
+    // to pick up any palette thresholds that just crossed.
+    stats._unlockedCount = unlockedIds.length;
+    try {
+      unlockedIds = computeUnlockedIds(stats);
+    } catch { /* keep first-pass result */ }
 
     // Opening the profile counts as acknowledgment of any pending notifications.
     // This fires the settings-changed event, which causes the mini-card to
@@ -40703,21 +40324,17 @@ Use this template for your response:
         pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
       });
 
-      // Re-apply the user's accent — they may have just picked a new
-      // one in the Details form. resolveActiveAccent falls back to
-      // amber if the picked id isn't currently unlocked. overlay is
-      // declared up-front as `let overlay = null`, so a truthiness
-      // check is safe on the first synchronous call (before
-      // createOverlay returns) — we just skip. applyAccent() below
-      // handles the initial paint.
+      // Re-apply flair colors — the user may have just picked a new
+      // accent, text color, or meta color in the Details form. overlay
+      // is declared up-front as `let overlay = null`, so the truthiness
+      // check is safe on the first synchronous call (before createOverlay
+      // returns) — we just skip. applyAllFlair() below handles initial paint.
       if (overlay && overlay.style) {
+        // Re-paint all flair channels (accent, vellum, silver) on the
+        // overlay + :root. paintAllChannels handles the upstream cascade
+        // for accent (notification banner, links, thread highlight).
         try {
-          const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
-          overlay.style.setProperty('--pf-accent', accent.color);
-          overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
-          // Cascade the same accent into upstream Perchance's chrome —
-          // user picks a color in the profile, the whole app re-tints.
-          paintAppAccent(accent);
+          paintAllChannels(freshSettings, stats, freshUnlocked, overlay);
         } catch { /* non-fatal */ }
       }
 
@@ -40966,35 +40583,27 @@ Use this template for your response:
       ],
     });
 
-    // Apply the user's chosen accent (or the default amber) as a CSS
-    // custom property on the overlay root. Consumers: splash title,
-    // level badge, pinned-badge borders, section focus rings. If the
-    // user changes their accent mid-session, refreshSplashFromSettings
-    // (wired to onSettingsChange) picks up the new value and calls
-    // applyAccent() again.
-    function applyAccent() {
+    // Apply the user's chosen flair colors (accent, text, meta) as CSS
+    // custom properties on both the overlay and :root. If the user
+    // changes any color mid-session, refreshSplashFromSettings (wired
+    // to onSettingsChange) re-calls this.
+    function applyAllFlair() {
       let freshSettings = settings;
       try { freshSettings = loadSettings(); } catch { /* keep stale */ }
       let freshUnlocked = unlockedIds;
       try {
         freshUnlocked = computeUnlockedIds(buildFreshStatsSync());
       } catch { /* fall back */ }
-      // Set BOTH custom properties so rules using either the solid hex
-      // (var(--pf-accent)) or a shaded rgba (rgba(var(--pf-accent-rgb), <a>))
-      // pick up the chosen accent. The -rgb form is derived via hexToRgb
-      // so accents defined with any '#rrggbb' value get full shading support.
-      const accent = resolveAccentVars(freshSettings, stats, freshUnlocked);
-      overlay.style.setProperty('--pf-accent', accent.color);
-      overlay.style.setProperty('--pf-accent-rgb', accent.rgb);
-      // Cascade to upstream Perchance chrome — notification banner,
-      // link color, selected-thread highlight all re-tint to match
-      // the user's pick. Boot-time paint is handled by profile/index.js
-      // start() so the theme persists even when the profile isn't open.
-      paintAppAccent(accent);
+      paintAllChannels(freshSettings, stats, freshUnlocked, overlay);
     }
-    applyAccent();
+    applyAllFlair();
 
     overlay.show();
+
+    // Daily quests mount into .pf-prompts-list, which only exists after
+    // the overlay is in the DOM. The boot-time call in index.js is a
+    // no-op (target doesn't exist yet); this is the real mount point.
+    try { initDailyQuest(); } catch { /* non-fatal */ }
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -41241,9 +40850,6 @@ Use this template for your response:
       }
     } catch { /* non-fatal */ }
 
-    // Glossary editor — now handled by Context Editor (📝 tabbed modal)
-    // initGlossaryEditor() standalone button removed to avoid duplicates.
-
     // Chat export (Batch 5) — ⬇ button in chat header
     try { initChatExport(); } catch { /* non-fatal */ }
 
@@ -41338,8 +40944,8 @@ Use this template for your response:
     // Document analysis (Batch 6) — 📎 upload text files
     try { initDocAnalysis(); } catch { /* non-fatal */ }
 
-    // Anti-repetition (Batch 8) — 🚫 banlist + auto-detect
-    // Anti-repetition — now handled by Context Editor
+    // Anti-repetition — UI superseded by Context Editor banlist tab;
+    // buildAntiRepetitionBlock() still contributes to the injection pipeline.
 
     // Dice roller (Batch 8) — 🎲 button + /roll command
     try { initDiceRoller(); } catch { /* non-fatal */ }
@@ -41362,8 +40968,8 @@ Use this template for your response:
       }
     } catch { /* non-fatal */ }
 
-    // User persona editor (Batch 9) — 👤 in header
-    // User persona — now handled by Context Editor
+    // User persona — UI superseded by Context Editor persona tab;
+    // buildPersonaBlock() still contributes to the injection pipeline.
 
     // Character card import/export (Batch 9) — 🃏 in header
     try {
@@ -41405,8 +41011,7 @@ Use this template for your response:
     // Context dashboard (shows what's injected into AI prompt)
     try { initContextDashboard(); } catch { /* non-fatal */ }
 
-    // Recap — "Previously on..." narrative summary
-    // Recap — now handled by AI Writer
+    // Recap — superseded by AI Writer's 📜 Recap mode.
 
     // Message bookmarks — star important messages
     try {
@@ -41446,7 +41051,7 @@ Use this template for your response:
         } catch { return {}; }
       })();
       const bootUnlocked = computeUnlockedIds(bootStats);
-      paintAppAccent(resolveAccentVars(bootSettings, bootStats, bootUnlocked));
+      paintAllChannels(bootSettings, bootStats, bootUnlocked);
     } catch { /* non-fatal — upstream theming is a nicety, not a promise */ }
 
     // ---- Theme colors (custom background gradient) ----

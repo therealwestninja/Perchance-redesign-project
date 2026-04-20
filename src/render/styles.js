@@ -46,7 +46,7 @@ export const CSS = `
   /*
    * Vellum — primary text color, user-selectable via profile flair.
    * Defaults to the warm parchment tone from the design-truth doc.
-   * Overridden at runtime by applyVellum() when the user picks a
+   * Overridden at runtime by paintAllChannels() when the user picks a
    * text color from the flair picker.
    */
   --pf-vellum:              #e8dcc4;
@@ -54,7 +54,7 @@ export const CSS = `
 
   /*
    * Silver — secondary / meta text (timestamps, labels, hints).
-   * User-selectable via profile flair. Overridden by applySilver().
+   * User-selectable via profile flair. Overridden by paintAllChannels().
    */
   --pf-silver:              #8b95a3;
   --pf-silver-rgb:          139, 149, 163;
@@ -73,6 +73,24 @@ export const CSS = `
    */
   --pf-accent-deep:         #8a6a2c;
   --pf-accent-deep-rgb:     138, 106, 44;
+
+  /*
+   * Accent-shadow — deepest accent tone, used for CTA button
+   * box-shadow depth effect. Derived at runtime from accent-deep.
+   */
+  --pf-accent-shadow:       #6b5220;
+
+  /* Danger — destructive actions, error states, near-limit warnings */
+  --pf-palette-danger:      #e06060;
+  --pf-palette-danger-rgb:  224, 96, 96;
+
+  /* Achievement tier colors — semantic, not theme-tinted */
+  --pf-tier-uncommon:       #6aa36a;
+  --pf-tier-uncommon-rgb:   106, 163, 106;
+  --pf-tier-rare:           #6a9ad8;
+  --pf-tier-rare-rgb:       106, 154, 216;
+  --pf-tier-epic:           #b47ad8;
+  --pf-tier-epic-rgb:       180, 122, 216;
 }
 
 .pf-mini-card {
@@ -95,7 +113,7 @@ export const CSS = `
 }
 .pf-mini-card:hover {
   border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
-  background: linear-gradient(180deg, #1a2028 0%, #10151c 100%);
+  background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
 }
 .pf-mini-card:active {
   transform: translateY(1px);
@@ -149,7 +167,7 @@ export const CSS = `
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+  background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
   border: 2px solid var(--pf-theme-primary, #0d1117);
   display: flex;
   align-items: center;
@@ -445,7 +463,7 @@ export const CSS = `
   width: 92px;
   height: 92px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #2d3a4d 0%, #0e1420 85%);
+  background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -530,7 +548,7 @@ export const CSS = `
 .pf-splash-level {
   flex-shrink: 0;
   padding: 4px 10px;
-  background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
+  background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.05) 100%);
   border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   border-radius: 999px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -576,7 +594,7 @@ export const CSS = `
   flex: 0 0 auto;
   width: 38px;
   height: 42px;
-  background: linear-gradient(180deg, #2a1f0e 0%, #0f0a04 100%);
+  background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.02) 100%);
   border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
   display: flex;
@@ -781,10 +799,10 @@ export const CSS = `
 }
 
 /* Tier-colored icons for the rarest-unlock chip */
-.pf-share-chip-icon-common    { color: #9aa0a6; }
-.pf-share-chip-icon-uncommon  { color: #6aa66a; }
-.pf-share-chip-icon-rare      { color: #6aa0d8; }
-.pf-share-chip-icon-epic      { color: #b67ad8; }
+.pf-share-chip-icon-common    { color: var(--pf-silver, #8b95a3); }
+.pf-share-chip-icon-uncommon  { color: var(--pf-tier-uncommon, #6aa36a); }
+.pf-share-chip-icon-rare      { color: var(--pf-tier-rare, #6a9ad8); }
+.pf-share-chip-icon-epic      { color: var(--pf-tier-epic, #b47ad8); }
 .pf-share-chip-icon-legendary { color: var(--pf-palette-amber); }
 
 /* Activity sparkline — last 12 weeks of completions, Focus mode only */
@@ -1805,12 +1823,12 @@ export const CSS = `
 
 .pf-ach-tier-common    .pf-ach-icon { color: var(--pf-silver, #8b95a3); }
 .pf-ach-tier-common    .pf-ach-tier { color: var(--pf-silver, #8b95a3); border-color: rgba(139,149,163,0.3); }
-.pf-ach-tier-uncommon  .pf-ach-icon { color: #6aa36a; }
-.pf-ach-tier-uncommon  .pf-ach-tier { color: #6aa36a; border-color: rgba(106,163,106,0.3); }
-.pf-ach-tier-rare      .pf-ach-icon { color: #6a9ad8; }
+.pf-ach-tier-uncommon  .pf-ach-icon { color: var(--pf-tier-uncommon, #6aa36a); }
+.pf-ach-tier-uncommon  .pf-ach-tier { color: var(--pf-tier-uncommon, #6aa36a); border-color: rgba(var(--pf-tier-uncommon-rgb, 106, 163, 106), 0.3); }
+.pf-ach-tier-rare      .pf-ach-icon { color: var(--pf-tier-rare, #6a9ad8); }
 .pf-ach-tier-rare      .pf-ach-tier { color: var(--pf-palette-red, #c94545); border-color: rgba(var(--pf-palette-red-rgb), 0.4); }
-.pf-ach-tier-epic      .pf-ach-icon { color: #b47ad8; }
-.pf-ach-tier-epic      .pf-ach-tier { color: #b47ad8; border-color: rgba(180,122,216,0.3); }
+.pf-ach-tier-epic      .pf-ach-icon { color: var(--pf-tier-epic, #b47ad8); }
+.pf-ach-tier-epic      .pf-ach-tier { color: var(--pf-tier-epic, #b47ad8); border-color: rgba(var(--pf-tier-epic-rgb, 180, 122, 216), 0.3); }
 .pf-ach-tier-legendary .pf-ach-icon { color: var(--pf-accent-hi, #e8c97a); text-shadow: 0 0 8px rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4); }
 .pf-ach-tier-legendary .pf-ach-tier { color: var(--pf-accent-hi, #e8c97a); border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5); }
 
@@ -2062,7 +2080,7 @@ export const CSS = `
   font-size: 10px;
   padding: 3px 10px;
   border-radius: 3px;
-  background: linear-gradient(180deg, #2a1f0e 0%, #1a1508 100%);
+  background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.05) 100%);
   border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.35);
   color: var(--pf-accent, #d4a855);
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -2143,7 +2161,7 @@ export const CSS = `
 }
 
 .pf-mem-col-delete.pf-mem-col-drop-over {
-  outline-color: #a83232;
+  outline-color: var(--pf-palette-red, #a83232);
   background: rgba(168,50,50,0.06);
 }
 
@@ -2703,7 +2721,7 @@ export const CSS = `
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
 .pf-mem-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
+  background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
   border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
 }
 .pf-mem-btn:active:not(:disabled) { transform: translateY(1px); }
@@ -2716,18 +2734,18 @@ export const CSS = `
 .pf-mem-btn-primary {
   background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
   border-color: var(--pf-accent-deep, #8a6a2c);
-  color: #0d1117;
+  color: var(--pf-theme-primary, #0d1117);
   font-weight: 600;
   font-family: Georgia, 'Times New Roman', serif;
   letter-spacing: 0.08em;
-  box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 0 var(--pf-accent-shadow, #6b5220), 0 4px 8px rgba(0,0,0,0.3);
 }
 .pf-mem-btn-primary:hover:not(:disabled) {
   background: linear-gradient(180deg, var(--pf-accent-hi, #f0d590) 0%, var(--pf-accent, #d4a855) 100%);
 }
 .pf-mem-btn-primary:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 0 0 var(--pf-accent-shadow, #6b5220), 0 2px 4px rgba(0,0,0,0.3);
 }
 
 /* ---- export dialog ---- */
@@ -3724,7 +3742,7 @@ export const CSS = `
 }
 .pf-sv2-close:hover {
   border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
-  background: linear-gradient(180deg, #262e38 0%, #1a2028 100%);
+  background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
 }
 
 /* ---- Message controls (Batch 1) ----
@@ -3813,7 +3831,7 @@ export const CSS = `
 .pf-stop-gen-btn {
   background: rgba(220, 60, 60, 0.15);
   border: 1px solid rgba(220, 60, 60, 0.4);
-  color: #e06060;
+  color: var(--pf-palette-danger, #e06060);
   cursor: pointer;
   font-size: 13px;
   font-family: inherit;
@@ -3923,19 +3941,19 @@ export const CSS = `
 }
 .pf-glossary-save {
   background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
-  color: #0d1117;
+  color: var(--pf-theme-primary, #0d1117);
   border-color: var(--pf-accent-deep, #8a6a2c);
   font-weight: 600;
   font-family: Georgia, 'Times New Roman', serif;
   letter-spacing: 0.08em;
-  box-shadow: 0 2px 0 #6b5220, 0 4px 8px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 0 var(--pf-accent-shadow, #6b5220), 0 4px 8px rgba(0,0,0,0.3);
 }
 .pf-glossary-save:hover {
   background: linear-gradient(180deg, var(--pf-accent-hi, #f0d590) 0%, var(--pf-accent, #d4a855) 100%);
 }
 .pf-glossary-save:active {
   transform: translateY(2px);
-  box-shadow: 0 0 0 #6b5220, 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: 0 0 0 var(--pf-accent-shadow, #6b5220), 0 2px 4px rgba(0,0,0,0.3);
 }
 .pf-glossary-trigger {
   background: none;
@@ -4097,7 +4115,7 @@ export const CSS = `
   margin-left: 8px;
   cursor: pointer;
 }
-.pf-preset-del:hover { opacity: 1; color: #e06060; }
+.pf-preset-del:hover { opacity: 1; color: var(--pf-palette-danger, #e06060); }
 
 /* ---- Bulk thread operations ---- */
 .pf-bulk-toggle {
@@ -4136,7 +4154,7 @@ export const CSS = `
   font-family: inherit;
 }
 .pf-bulk-action:hover { background: rgba(255,255,255,0.08); }
-.pf-bulk-del:hover { border-color: #e06060; color: #e06060; }
+.pf-bulk-del:hover { border-color: var(--pf-palette-danger, #e06060); color: var(--pf-palette-danger, #e06060); }
 
 /* ---- Image gen container ---- */
 .pf-gen-img-container {

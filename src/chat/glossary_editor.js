@@ -7,7 +7,9 @@
 //
 // Injected as a small 📖 button near the chat input area.
 //
-// Bootstrap: call initGlossaryEditor() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — glossary editing is now handled by the
+// Context Editor (context_editor.js) glossary tab. This standalone
+// module is no longer bundled or called from start().
 
 import { loadGlossary, saveGlossary } from './glossary.js';
 

@@ -11,7 +11,9 @@
 //
 // Adapted from URV-AI's generateUserImpersonation concept (MIT).
 //
-// Bootstrap: call initImpersonation() from start(). Idempotent.
+// Bootstrap: SUPERSEDED — impersonation is now a mode inside the
+// AI Writer (ai_writer.js). This standalone module is no longer
+// bundled or called from start().
 
 /**
  * Initialize impersonation. Adds a "Write for me" button near

@@ -404,9 +404,7 @@ const THEME_DEFAULTS = {
 /**
  * Create the theme color picker row.
  * Two <input type="color"> pickers: Secondary (lighter) and Primary (darker).
- * Each unlocks at a different achievement threshold.
- * An Accent picker is already handled by the swatches above, so the
- * accent threshold from getThemeUnlocks() gates the swatches, not these.
+ * Each unlocks at a different flair achievement threshold.
  */
 function createThemeColorRow(profile, unlockedIds) {
   const unlocks = getFlairUnlocks(unlockedIds);

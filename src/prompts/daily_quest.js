@@ -270,8 +270,17 @@ function renderRevealed(card, questText, theme, dayKey, idx, animate) {
  * injects them into the prompts section or near chat messages.
  */
 export function initDailyQuest() {
-  if (initDailyQuest._done) return;
-  initDailyQuest._done = true;
+  // Only mount when the profile's prompts section exists. At boot
+  // time this element doesn't exist (profile isn't open), so the
+  // call is a no-op. The profile overlay calls initDailyQuest()
+  // after building the prompts section, at which point
+  // .pf-prompts-list exists and mounting succeeds.
+  const promptsList = document.querySelector('.pf-prompts-list');
+  if (!promptsList || !promptsList.parentElement) return;
+
+  // Skip if already mounted in THIS overlay instance (prevents
+  // double-mount if called twice during the same profile session).
+  if (promptsList.parentElement.querySelector('.pf-dq-container')) return;
 
   const dayKey = getCurrentDayKey();
   const themes = getTodayThemes(dayKey, QUESTS_PER_DAY);
@@ -291,19 +300,5 @@ export function initDailyQuest() {
     container.appendChild(createQuestCard(themes[i], dayKey, i));
   }
 
-  // Insert into the page
-  const promptsList = document.querySelector('.pf-prompts-list');
-  if (promptsList && promptsList.parentElement) {
-    promptsList.parentElement.insertBefore(container, promptsList);
-    return;
-  }
-
-  const chatEl = document.getElementById('chatMessagesEl');
-  if (chatEl && chatEl.parentElement) {
-    chatEl.parentElement.insertBefore(container, chatEl);
-    return;
-  }
-
-  // Last resort: append to body
-  document.body.appendChild(container);
+  promptsList.parentElement.insertBefore(container, promptsList);
 }

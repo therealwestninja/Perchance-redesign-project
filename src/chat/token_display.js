@@ -69,9 +69,9 @@ export function initTokenDisplay() {
     display.textContent = `~${formatTokens(used)} / ${formatTokens(maxTokens)} tokens`;
     // Tint the display based on usage level
     if (pct > 85) {
-      display.style.color = '#e06060'; // red — near limit
+      display.style.color = 'var(--pf-palette-danger, #e06060)';
     } else if (pct > 65) {
-      display.style.color = '#d8a040'; // amber — getting warm
+      display.style.color = 'var(--pf-accent, #d8a040)';
     } else {
       display.style.color = ''; // default muted
     }

@@ -32,17 +32,13 @@ import { TIER_ICON } from '../render/achievements_grid.js';
 import { loadSettings, onSettingsChange } from './settings_store.js';
 import { getCurrentWeekKey, getCurrentDayKey, getWeekPrompts, getDayPrompt } from '../prompts/scheduler.js';
 import { getCompletedIds, markWeekSeen, markDaySeen } from '../prompts/completion.js';
-import { getActiveEvents, getActiveEventIds } from '../events/active.js';
+import { getActiveEvents } from '../events/active.js';
 import { markAchievementsSeen, markEventsSeen, recordUnlockDates, getUnlockDates } from './notifications.js';
-import { findRarestUnlocked, tierRank } from '../render/share_chips.js';
-import { resolveActiveTitle, resolveActiveAccent, resolveAccentVars, paintAppAccent, resolveVellumVars, paintAppVellum, resolveSilverVars, paintAppSilver, paintAllChannels } from './flair.js';
+import { tierRank } from '../render/share_chips.js';
+import { resolveActiveTitle, resolveActiveAccent, paintAllChannels } from './flair.js';
 import { checkAndUpdateBests } from './personal_bests.js';
 import { getPrimaryArchetype } from './archetypes.js';
 import { checkSummary } from './summary_notifications.js';
-// showToast import removed — profile-open no longer surfaces personal-
-// best or weekly-summary toasts. The mini-card pulse + in-splash
-// reveal handle that signal now. toast.js stays in-tree for future
-// callers (save failures, destructive-op undo, etc.).
 
 /**
  * Given unlocked achievement IDs, pick up to N to show as pinned badges
@@ -359,13 +355,11 @@ export async function openFullPage() {
       pinnedBadges: pickPinnedBadges(freshUnlocked, 6),
     });
 
-    // Re-apply the user's accent — they may have just picked a new
-    // one in the Details form. resolveActiveAccent falls back to
-    // amber if the picked id isn't currently unlocked. overlay is
-    // declared up-front as `let overlay = null`, so a truthiness
-    // check is safe on the first synchronous call (before
-    // createOverlay returns) — we just skip. applyAccent() below
-    // handles the initial paint.
+    // Re-apply flair colors — the user may have just picked a new
+    // accent, text color, or meta color in the Details form. overlay
+    // is declared up-front as `let overlay = null`, so the truthiness
+    // check is safe on the first synchronous call (before createOverlay
+    // returns) — we just skip. applyAllFlair() below handles initial paint.
     if (overlay && overlay.style) {
       // Re-paint all flair channels (accent, vellum, silver) on the
       // overlay + :root. paintAllChannels handles the upstream cascade
@@ -636,4 +630,9 @@ export async function openFullPage() {
   applyAllFlair();
 
   overlay.show();
+
+  // Daily quests mount into .pf-prompts-list, which only exists after
+  // the overlay is in the DOM. The boot-time call in index.js is a
+  // no-op (target doesn't exist yet); this is the real mount point.
+  try { initDailyQuest(); } catch { /* non-fatal */ }
 }
