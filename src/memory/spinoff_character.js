@@ -261,3 +261,64 @@ async function createCharacterWithLore({ name, sourceLabel, entries }) {
 
   return { character: characterObj, loreCount };
 }
+
+// ---- Backfill helper ----
+//
+// Characters created by the spin-off flow in earlier builds may be
+// missing fields that upstream's character schema expects. This
+// function scans all characters with a `pfSpawnedFrom` marker and
+// fills in any absent fields with safe defaults.
+//
+// Only touches characters that have the pfSpawnedFrom marker —
+// regular characters are left untouched. Preserves any existing
+// values (only fills undefined/missing). Idempotent.
+
+const BACKFILL_DEFAULTS = {
+  folderPath: '',
+  uuid: null,
+  customData: {},
+  userCharacter: {},
+  systemCharacter: { avatar: {} },
+  scene: { background: {}, music: {} },
+  streamingResponse: true,
+  roleInstruction: '',
+  autoGenerateMemories: 'none',
+  maxTokensPerMessage: null,
+};
+
+/**
+ * Backfill missing fields on spawned characters.
+ * Safe to call at boot — no-ops if nothing needs healing.
+ */
+export async function backfillSpawnedCharacterFields() {
+  try {
+    const db = (typeof window !== 'undefined' && window.db) ? window.db : null;
+    if (!db || !db.characters) return;
+
+    const allChars = await db.characters.toArray();
+
+    for (const char of allChars) {
+      // Only touch characters we spawned
+      if (!char.pfSpawnedFrom) continue;
+
+      const patch = {};
+      let needsPatch = false;
+
+      for (const [key, defaultVal] of Object.entries(BACKFILL_DEFAULTS)) {
+        if (char[key] === undefined) {
+          // Deep-clone default to avoid shared references across characters
+          patch[key] = typeof defaultVal === 'object' && defaultVal !== null
+            ? JSON.parse(JSON.stringify(defaultVal))
+            : defaultVal;
+          needsPatch = true;
+        }
+      }
+
+      if (needsPatch) {
+        await db.characters.update(char.id, patch);
+      }
+    }
+  } catch (err) {
+    console.warn('[pf] backfill spawned characters failed:', err && err.message);
+  }
+}

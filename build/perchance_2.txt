@@ -13628,7 +13628,7 @@ Use this template for your response:
 <script>
 (function (NS) {
   'use strict';
-  NS.__meta = { modules: 111 };
+  NS.__meta = { modules: 130 };
 
   /* ──────────────────────────────────────────────────────────
      module: utils/dom.js
@@ -25239,7 +25239,4267 @@ Use this template for your response:
     opacity: 0.75;
     text-decoration: underline;
   }
+
+  /* ================================================================
+     Haptic subsystem — chat header chip, slider, pause button
+     ================================================================ */
+
+  .pf-haptic-chip-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+  }
+
+  .pf-haptic-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
+    color: var(--pf-silver, #8b95a3);
+    font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .pf-haptic-chip:hover {
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  }
+
+  /* Status dot — state colors */
+  .pf-haptic-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .pf-haptic-dot-grey       { background: #555; }
+  .pf-haptic-dot-connecting { background: #888; animation: pf-haptic-pulse 1s ease-in-out infinite; }
+  .pf-haptic-dot-connected  { background: #4caf50; }
+  .pf-haptic-dot-active     { background: #4caf50; animation: pf-haptic-pulse 0.8s ease-in-out infinite; }
+  .pf-haptic-dot-paused     { background: var(--pf-accent, #d4a855); }
+  .pf-haptic-dot-error      { background: var(--pf-palette-danger, #e06060); }
+
+  @keyframes pf-haptic-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .pf-haptic-label {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Pause button */
+  .pf-haptic-pause {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 6px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent;
+    color: var(--pf-vellum, #e8dcc4);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pf-haptic-pause:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+  }
+
+  /* Intensity slider */
+  .pf-haptic-slider {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .pf-haptic-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--pf-accent, #d4a855);
+    border: 2px solid rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+  .pf-haptic-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--pf-accent, #d4a855);
+    border: 2px solid rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+
+  /* Settings gear button */
+  .pf-haptic-settings-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: transparent;
+    color: var(--pf-silver, #8b95a3);
+    font-size: 13px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .pf-haptic-settings-btn:hover {
+    color: var(--pf-vellum, #e8dcc4);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+  }
+
+  /* Settings overlay */
+  .pf-haptic-settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99990;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+  .pf-haptic-settings-wrapper {
+    width: 340px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: 40px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    background: var(--pf-theme-primary, #0d1117);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .pf-haptic-settings-close {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--pf-silver, #8b95a3);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .pf-haptic-settings-close:hover { color: var(--pf-vellum, #e8dcc4); }
+
+  /* ---- Haptic inline glyphs ---- */
+  .pf-hg-glyph {
+    display: inline-block;
+    padding: 1px 4px;
+    margin: 0 2px;
+    border-radius: 4px;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    color: var(--pf-accent, #d4a855);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    vertical-align: baseline;
+    line-height: 1.2;
+  }
+  .pf-hg-glyph:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
+  }
+  .pf-hg-annotated {
+    border-color: rgba(230, 200, 120, 0.5);
+    background: rgba(230, 200, 120, 0.08);
+  }
+  .pf-hg-glyph-stop {
+    color: var(--pf-silver, #8b95a3);
+    border-color: rgba(139, 149, 163, 0.3);
+    background: rgba(139, 149, 163, 0.06);
+  }
+
+  /* ---- Glyph context menu ---- */
+  .pf-hg-menu {
+    min-width: 200px;
+    max-width: 280px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: var(--pf-theme-secondary, #161b22);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    font-size: 12px;
+    color: var(--pf-vellum, #e8dcc4);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-hg-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  }
+  .pf-hg-menu-type {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--pf-accent, #d4a855);
+  }
+  .pf-hg-menu-name {
+    color: var(--pf-silver, #8b95a3);
+    font-style: italic;
+  }
+  .pf-hg-menu-params {
+    margin-bottom: 6px;
+    line-height: 1.6;
+    color: var(--pf-silver, #8b95a3);
+  }
+  .pf-hg-menu-annotations {
+    margin-bottom: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: rgba(230, 200, 120, 0.06);
+    border: 1px solid rgba(230, 200, 120, 0.15);
+  }
+  .pf-hg-menu-annot {
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(230, 200, 120, 0.9);
+  }
+  .pf-hg-menu-annot-error {
+    color: var(--pf-palette-danger, #e06060);
+  }
+  .pf-hg-menu-raw {
+    margin-bottom: 8px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.3);
+    font-size: 10px;
+    color: var(--pf-silver, #8b95a3);
+    word-break: break-all;
+  }
+  .pf-hg-menu-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pf-hg-action {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent;
+    color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .pf-hg-action:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+  }
+  .pf-hg-action-danger {
+    border-color: rgba(var(--pf-palette-danger-rgb, 224, 96, 96), 0.3);
+    color: var(--pf-palette-danger, #e06060);
+  }
+  .pf-hg-action-danger:hover {
+    background: rgba(var(--pf-palette-danger-rgb, 224, 96, 96), 0.1);
+  }
+
+  /* ---- Haptic cues chip (per-message summary) ---- */
+  .pf-hg-cues {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    font-size: 10px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    color: var(--pf-silver, #8b95a3);
+    letter-spacing: 0.03em;
+  }
+  .pf-hg-cues-icon {
+    color: var(--pf-accent, #d4a855);
+    font-size: 11px;
+  }
+
+  /* ---- Haptic settings panel ---- */
+  .pf-haptic-settings {
+    padding: 12px;
+  }
+  .pf-hs-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+  }
+  .pf-hs-header-icon { color: var(--pf-accent, #d4a855); font-size: 16px; }
+  .pf-hs-header-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .pf-hs-section { margin-bottom: 14px; }
+  .pf-hs-section-header {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--pf-silver, #8b95a3);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid rgba(139,149,163,0.15);
+  }
+  .pf-hs-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px; font-size: 11px;
+    color: var(--pf-vellum, #e8dcc4);
+  }
+  .pf-hs-label { flex-shrink: 0; min-width: 130px; color: var(--pf-silver, #8b95a3); font-size: 11px; }
+  .pf-hs-val { font-size: 11px; color: var(--pf-accent, #d4a855); min-width: 40px; text-align: right;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+  .pf-hs-slider-row { display: flex; align-items: center; gap: 6px; flex: 1; }
+  .pf-hs-slider {
+    flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .pf-hs-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+  }
+  .pf-hs-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+  }
+  .pf-hs-select {
+    flex: 1; padding: 4px 8px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; font-family: inherit;
+  }
+  .pf-hs-input {
+    flex: 1; padding: 4px 8px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-hs-btn {
+    padding: 4px 12px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent; color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; cursor: pointer; transition: background 0.15s;
+    font-family: inherit; white-space: nowrap;
+  }
+  .pf-hs-btn:hover { background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
+  .pf-hs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pf-hs-status { font-size: 11px; color: var(--pf-silver, #8b95a3); }
+  .pf-hs-hint {
+    font-size: 10px; color: var(--pf-silver, #8b95a3); line-height: 1.5;
+    margin-top: 4px; opacity: 0.7;
+  }
+  .pf-hs-plugin-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; margin-bottom: 3px; border-radius: 5px;
+    background: rgba(0,0,0,0.15); font-size: 11px;
+  }
+  .pf-hs-plugin-name { color: var(--pf-vellum, #e8dcc4); }
+  .pf-hs-plugin-status { color: var(--pf-silver, #8b95a3); font-size: 10px; }
+  .pf-hs-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
+
+  /* ---- Unified Chat Settings panel ---- */
+  .pf-cs-panel { padding: 16px; }
+  .pf-cs-title {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--pf-accent, #d4a855);
+    font-family: Georgia, 'Times New Roman', serif;
+    margin-bottom: 14px; padding-bottom: 8px;
+    border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+  }
+  .pf-cs-accordion { margin-bottom: 2px; }
+  .pf-cs-accordion-header {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 8px 10px; border: none;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.03);
+    border-radius: 6px; color: var(--pf-vellum, #e8dcc4);
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s; font-family: inherit;
+    text-align: left;
+  }
+  .pf-cs-accordion-header:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+  }
+  .pf-cs-chevron { color: var(--pf-silver, #8b95a3); font-size: 11px; }
+  .pf-cs-accordion-body { padding: 8px 10px 12px; }
+  .pf-cs-section { margin-bottom: 4px; }
+  .pf-cs-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px; font-size: 11px; color: var(--pf-vellum, #e8dcc4);
+  }
+  .pf-cs-label { flex-shrink: 0; min-width: 110px; color: var(--pf-silver, #8b95a3); font-size: 11px; }
+  .pf-cs-val {
+    font-size: 11px; color: var(--pf-accent, #d4a855); min-width: 40px; text-align: right;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-cs-slider-row { display: flex; align-items: center; gap: 6px; flex: 1; }
+  .pf-cs-slider {
+    flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  .pf-cs-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+  }
+  .pf-cs-slider::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+  }
+  .pf-cs-select {
+    flex: 1; padding: 4px 8px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; font-family: inherit;
+  }
+  .pf-cs-input {
+    flex: 1; padding: 4px 8px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-cs-btn {
+    padding: 4px 12px; border-radius: 5px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent; color: var(--pf-vellum, #e8dcc4);
+    font-size: 11px; cursor: pointer; transition: background 0.15s;
+    font-family: inherit; white-space: nowrap;
+  }
+  .pf-cs-btn:hover { background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
+  .pf-cs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pf-cs-status { font-size: 11px; color: var(--pf-silver, #8b95a3); }
+  .pf-cs-toggle {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--pf-vellum, #e8dcc4);
+    cursor: pointer; margin-bottom: 6px;
+  }
+  .pf-cs-toggle input[type="checkbox"] { accent-color: var(--pf-accent, #d4a855); }
+  .pf-cs-hint {
+    font-size: 10px; color: var(--pf-silver, #8b95a3); line-height: 1.5;
+    margin-top: 4px; opacity: 0.7;
+  }
+  .pf-cs-plugin {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; margin-bottom: 3px; border-radius: 5px;
+    background: rgba(0,0,0,0.15); font-size: 11px;
+    color: var(--pf-vellum, #e8dcc4);
+  }
+  .pf-cs-plugin-dot { color: var(--pf-silver, #8b95a3); font-size: 10px; }
+  .pf-cs-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
+
+  /* ---- Input dock (Widgets + Options, left of chat input) ---- */
+  .pf-input-dock {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-self: flex-end;
+    flex-shrink: 0;
+    position: relative;
+    margin-right: 6px;
+    margin-bottom: 2px;
+  }
+  .pf-dock-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    border-radius: 7px;
+    color: var(--pf-vellum, #e8dcc4);
+    cursor: pointer;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+    min-width: 80px;
+    justify-content: center;
+  }
+  .pf-dock-btn:hover {
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08) 0%, var(--pf-theme-secondary, #161b22) 100%);
+  }
+  .pf-dock-btn:active {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+  }
+  .pf-dock-btn-icon {
+    font-size: 12px;
+    line-height: 1;
+  }
+  .pf-dock-btn-label {
+    font-weight: 500;
+  }
+
+  /* ---- Consent gate dialog ---- */
+  .pf-consent {
+    max-width: 420px;
+    margin: 40px auto;
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+    background: var(--pf-theme-secondary, #161b22);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .pf-consent-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+  }
+  .pf-consent-icon { font-size: 20px; color: var(--pf-accent, #d4a855); }
+  .pf-consent-title {
+    font-size: 14px; font-weight: 600; color: var(--pf-accent, #d4a855);
+    letter-spacing: 0.06em;
+  }
+  .pf-consent-name {
+    font-size: 13px; color: var(--pf-vellum, #e8dcc4); line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  .pf-consent-patterns, .pf-consent-clamps, .pf-consent-voice {
+    margin-bottom: 10px; font-size: 11px;
+  }
+  .pf-consent-label {
+    color: var(--pf-silver, #8b95a3); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;
+  }
+  .pf-consent-list {
+    color: var(--pf-vellum, #e8dcc4); font-size: 11px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  }
+  .pf-consent-detail { color: var(--pf-silver, #8b95a3); font-size: 11px; }
+  .pf-consent-actions {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px;
+  }
+  .pf-consent-btn {
+    padding: 8px 16px; border-radius: 6px;
+    border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+    background: transparent; color: var(--pf-vellum, #e8dcc4);
+    font-size: 12px; cursor: pointer; transition: background 0.15s;
+    font-family: inherit;
+  }
+  .pf-consent-btn:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  }
+  .pf-consent-btn-primary {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+    border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+    color: var(--pf-accent-hi, #e8c97a); font-weight: 600;
+  }
+  .pf-consent-btn-primary:hover {
+    background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  }
+  .pf-consent-note {
+    font-size: 10px; color: var(--pf-silver, #8b95a3);
+    margin-top: 12px; opacity: 0.7;
+  }
   `.trim();
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/schema.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/schema.js
+  //
+  // Data shapes for the haptic subsystem. Defines the character-card
+  // `haptics` field, the `voice` field, and their defaults. All fields
+  // are optional — absent fields fall back to defaults. Characters
+  // without haptic data behave identically to upstream ai-character-chat.
+  //
+  // Schema version is embedded in the payload so future migrations can
+  // detect and upgrade older exports.
+
+  const HAPTIC_SCHEMA_VERSION = 1;
+
+  /**
+   * Default haptic configuration for a character card.
+   * Merged over by any values present in `character.haptics`.
+   */
+  function defaultHaptics() {
+    return {
+      enabled: false,
+      schemaVersion: HAPTIC_SCHEMA_VERSION,
+      defaults: {
+        atomicDuration: 3000,       // ms — default duration for tags without explicit duration
+        atomicIntensity: 0.5,       // 0..1
+        defaultTrack: 'vibe',       // 'vibe' | 'stroke' | 'rotate' | 'intensity'
+      },
+      patterns: {},                  // { [name]: PatternDef }
+      ambientPattern: null,          // string | null — pattern name for tagless blocks
+      instructionSnippet: null,      // string | null — custom AI instruction override
+      clampOverrides: null,          // partial ClampConfig | null — merged via min() with user clamps
+      aliases: {},                   // { [aiGeneratedName]: patternName } — pinned fuzzy-match resolutions
+    };
+  }
+
+  /**
+   * Default voice configuration for a character card (§8).
+   */
+  function defaultVoice() {
+    return {
+      enabled: false,
+      preferredVoiceName: null,
+      rate: 1.0,
+      pitch: 1.0,
+      split: null,                   // { enabled, dialogVoice, narrationVoice, splitRegex } | null
+    };
+  }
+
+  /**
+   * Default user-adjustable clamp values (§2.5).
+   * These are hard ceilings on AI output — applied before the user's
+   * personal intensity slider.
+   */
+  function defaultClamps() {
+    return {
+      intensityCeiling: 0.8,          // max value for intensity/level/speed params
+      durationCeiling: 20000,         // ms — max duration per single tag
+      tagsPerMessageCap: 8,           // max tags parsed per AI message
+      patternDurationCeiling: 60000,  // ms — max total duration of a named pattern
+      minTagGap: 0,                   // ms — minimum gap between consecutive tag events
+      blockCooldown: 0,               // ms — mandatory pause after each executed block (0 = off)
+    };
+  }
+
+  /**
+   * Default global haptic settings (stored in IndexedDB, single row).
+   */
+  function defaultHapticSettings() {
+    return {
+      id: 'global',
+      // Device
+      deviceType: 'vibe',             // primary device-type toggle
+      intensitySlider: 1.0,           // 0..1.5 — personal preference multiplier at dispatch
+      // Clamps
+      clamps: defaultClamps(),
+      // Bridging (§3.6)
+      decayHalfLife: 2000,            // ms — exponential tail after explicit duration
+      taglessBlockMode: 'silent',     // 'silent' | 'baseline' | 'ambient'
+      baselineIntensity: 0.15,        // 0..0.3 — floor when mode='baseline'
+      // Safety
+      idleTimeout: 0,                 // ms — 0 = off
+      safewordKey: null,              // key binding string | null
+      // AI awareness (§3 step 4)
+      aiAwarenessDefault: false,      // default for new characters
+      // Author mode
+      authorMode: false,
+      // Glyph theming
+      glyphTheme: {},                 // { [tagOrPatternName]: glyphString }
+      // Active backend
+      activeBackendId: 'buttplug',
+    };
+  }
+
+  /**
+   * Shape of a pattern definition inside character.haptics.patterns.
+   *
+   * @typedef {Object} PatternDef
+   * @property {string} description - one-line description for AI instruction
+   * @property {string} defaultTrack - 'vibe' | 'stroke' | 'rotate'
+   * @property {Object<string, Array<{t:number, i:number, d:number}>>} tracks
+   *   Map of track name → timeline events. Each event:
+   *     t = time offset (ms), i = intensity (0..1), d = duration (ms)
+   * @property {number} totalDuration - total length in ms
+   */
+
+  /**
+   * Validate and fill in defaults for a character's haptics field.
+   * Non-destructive: returns a new object, never mutates input.
+   */
+  function normalizeHaptics(raw) {
+    const defaults = defaultHaptics();
+    if (!raw || typeof raw !== 'object') return defaults;
+    return {
+      enabled: typeof raw.enabled === 'boolean' ? raw.enabled : defaults.enabled,
+      schemaVersion: raw.schemaVersion || defaults.schemaVersion,
+      defaults: { ...defaults.defaults, ...(raw.defaults || {}) },
+      patterns: (raw.patterns && typeof raw.patterns === 'object') ? raw.patterns : {},
+      ambientPattern: raw.ambientPattern || null,
+      instructionSnippet: raw.instructionSnippet || null,
+      clampOverrides: raw.clampOverrides || null,
+      aliases: (raw.aliases && typeof raw.aliases === 'object') ? raw.aliases : {},
+    };
+  }
+
+  /**
+   * Validate and fill in defaults for a character's voice field.
+   */
+  function normalizeVoice(raw) {
+    const defaults = defaultVoice();
+    if (!raw || typeof raw !== 'object') return defaults;
+    return {
+      enabled: typeof raw.enabled === 'boolean' ? raw.enabled : defaults.enabled,
+      preferredVoiceName: raw.preferredVoiceName || null,
+      rate: typeof raw.rate === 'number' ? Math.max(0.1, Math.min(10, raw.rate)) : defaults.rate,
+      pitch: typeof raw.pitch === 'number' ? Math.max(0, Math.min(2, raw.pitch)) : defaults.pitch,
+      split: raw.split || null,
+    };
+  }
+
+  /**
+   * Merge character-level clamp overrides with user clamps via min().
+   * Character authors can only tighten, never loosen.
+   */
+  function mergeClamps(userClamps, characterOverrides) {
+    const base = { ...defaultClamps(), ...(userClamps || {}) };
+    if (!characterOverrides || typeof characterOverrides !== 'object') return base;
+    const merged = { ...base };
+    for (const key of Object.keys(base)) {
+      if (typeof characterOverrides[key] === 'number') {
+        merged[key] = Math.min(base[key], characterOverrides[key]);
+      }
+    }
+    return merged;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/control_bus.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/control_bus.js
+  //
+  // Unified event bus for the haptic + narration subsystem (§3).
+  //
+  // Every abnormal event — stream error, WebSocket disconnect, idle
+  // timeout, user pause, duration-cap exceeded — routes through this
+  // bus. Subscribers (scheduler, backend, UI chip) all react to the
+  // same signal with no direct coupling between them.
+  //
+  // States: 'idle' → 'active' → 'paused' → 'active' | 'idle'
+  //                 → 'error'  → 'active' | 'idle'
+
+  const VALID_STATES = ['idle', 'active', 'paused', 'error'];
+  const EVENTS = ['stateChange', 'stop', 'pause', 'resume', 'error'];
+
+  let _state = 'idle';
+  const _listeners = {};
+  for (const e of EVENTS) _listeners[e] = new Set();
+
+  /**
+   * Subscribe to a control bus event.
+   * @param {'stateChange'|'stop'|'pause'|'resume'|'error'} event
+   * @param {Function} handler
+   * @returns {Function} unsubscribe
+   */
+  function onBusEvent(event, handler) {
+    if (!_listeners[event]) return () => {};
+    _listeners[event].add(handler);
+    return () => _listeners[event].delete(handler);
+  }
+
+  function _emit(event, detail) {
+    for (const fn of _listeners[event]) {
+      try { fn(detail); } catch (e) {
+        console.warn('[haptic:bus]', event, 'handler error:', e && e.message);
+      }
+    }
+  }
+
+  function _setState(next, reason) {
+    if (!VALID_STATES.includes(next)) return;
+    const prev = _state;
+    if (prev === next) return;
+    _state = next;
+    _emit('stateChange', { prev, next, reason });
+  }
+
+  /**
+   * Current bus state.
+   */
+  function getBusState() {
+    return _state;
+  }
+
+  /**
+   * Transition to active. Called when scheduler starts dispatching.
+   */
+  function busActivate(reason) {
+    _setState('active', reason || 'dispatch-start');
+  }
+
+  /**
+   * Pause — ramp to zero, scheduler halts, resumable.
+   * Triggered by: user pause button, idle timeout, safeword.
+   */
+  function busPause(reason) {
+    _setState('paused', reason || 'user-pause');
+    _emit('pause', { reason: reason || 'user-pause' });
+  }
+
+  /**
+   * Resume from pause.
+   */
+  function busResume(reason) {
+    _setState('active', reason || 'user-resume');
+    _emit('resume', { reason: reason || 'user-resume' });
+  }
+
+  /**
+   * Full stop — back to idle. Scheduler flushes queue.
+   * Triggered by: stream end, user explicit stop, disconnect.
+   */
+  function busStop(reason) {
+    _setState('idle', reason || 'stop');
+    _emit('stop', { reason: reason || 'stop' });
+  }
+
+  /**
+   * Error state — like pause but with error context.
+   * Triggered by: WebSocket disconnect, backend error.
+   */
+  function busError(reason, error) {
+    _setState('error', reason || 'backend-error');
+    _emit('error', { reason: reason || 'backend-error', error });
+  }
+
+  /**
+   * Reset bus to idle without emitting stop (for init/teardown).
+   */
+  function busReset() {
+    _state = 'idle';
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/backend.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/backend.js
+  //
+  // HapticBackend contract (§1.5) and plugin registry.
+  //
+  // The generator knows nothing about any specific hardware protocol.
+  // Everything below this interface is a plugin. The registry manages
+  // registered backends, tracks the active one, and provides a unified
+  // API for the scheduler and UI.
+  //
+  // Multiple backends can be registered; only one is active at a time.
+  // The active backend is selected by the user in settings.
+
+
+
+  // ---- Backend registry ----
+
+  const _backends = new Map();   // id → HapticBackend instance
+  let _activeId = null;
+
+  /**
+   * Register a backend plugin. Built-in backends (buttplug) call this
+   * at module load time. User-loaded plugins call this after blob import.
+   *
+   * @param {HapticBackend} backend
+   */
+  function registerBackend(backend) {
+    if (!backend || !backend.id) {
+      console.warn('[haptic:backend] cannot register backend without id');
+      return;
+    }
+    _backends.set(backend.id, backend);
+  }
+
+  /**
+   * Get all registered backend IDs + display names.
+   */
+  function listBackends() {
+    return Array.from(_backends.values()).map(b => ({
+      id: b.id,
+      displayName: b.displayName || b.id,
+      connected: b.isConnected(),
+      capabilities: b.capabilities || {},
+    }));
+  }
+
+  /**
+   * Get a backend by ID.
+   */
+  function getBackend(id) {
+    return _backends.get(id) || null;
+  }
+
+  /**
+   * Set the active backend. Does NOT auto-connect — that's explicit.
+   */
+  function setActiveBackend(id) {
+    if (!_backends.has(id)) return false;
+    // Disconnect previous if different and connected
+    if (_activeId && _activeId !== id) {
+      const prev = _backends.get(_activeId);
+      if (prev && prev.isConnected()) {
+        prev.disconnect().catch(() => {});
+      }
+    }
+    _activeId = id;
+    return true;
+  }
+
+  /**
+   * Get the currently active backend instance, or null.
+   */
+  function getActiveBackend() {
+    if (!_activeId) return null;
+    return _backends.get(_activeId) || null;
+  }
+
+  /**
+   * Get the active backend ID.
+   */
+  function getActiveBackendId() {
+    return _activeId;
+  }
+
+  // ---- Unified dispatch API ----
+
+  /**
+   * Connect the active backend.
+   * @returns {Promise<boolean>} true if connected successfully
+   */
+  async function connectActiveBackend() {
+    const backend = getActiveBackend();
+    if (!backend) {
+      busError('no-backend', new Error('No active backend selected'));
+      return false;
+    }
+    try {
+      await backend.connect();
+      return true;
+    } catch (err) {
+      busError('connect-failed', err);
+      return false;
+    }
+  }
+
+  /**
+   * Disconnect the active backend.
+   */
+  async function disconnectActiveBackend() {
+    const backend = getActiveBackend();
+    if (!backend) return;
+    try {
+      await backend.disconnect();
+    } catch { /* best-effort */ }
+    busStop('user-disconnect');
+  }
+
+  /**
+   * Execute a haptic event on the active backend.
+   * The event has already been through the envelope resolver + clamps + slider.
+   *
+   * @param {HapticEvent} event - { track, intensity, duration }
+   */
+  async function executeEvent(event) {
+    const backend = getActiveBackend();
+    if (!backend || !backend.isConnected()) return;
+    try {
+      await backend.execute(event);
+    } catch (err) {
+      busError('execute-failed', err);
+    }
+  }
+
+  /**
+   * Stop all output on the active backend (ramp to zero).
+   */
+  async function stopAll() {
+    const backend = getActiveBackend();
+    if (!backend) return;
+    try {
+      await backend.stopAll();
+    } catch { /* best-effort — device may already be disconnected */ }
+  }
+
+  /**
+   * Check if the active backend is connected and has devices.
+   */
+  function isHapticReady() {
+    const backend = getActiveBackend();
+    return !!(backend && backend.isConnected());
+  }
+
+  /**
+   * List devices on the active backend.
+   */
+  function listDevices() {
+    const backend = getActiveBackend();
+    if (!backend || !backend.isConnected()) return [];
+    return backend.listDevices();
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/buttplug.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/buttplug.js
+  //
+  // First-party haptic backend plugin — Buttplug.io via Intiface Central.
+  //
+  // Connects to Intiface Central's WebSocket server (default ws://localhost:12345).
+  // Maps HapticEvent → Buttplug protocol messages (ScalarCmd, LinearCmd, RotateCmd).
+  // Enumerates paired devices on connect. Auto-selects first available device.
+  //
+  // This plugin is always available and cannot be removed. It self-registers
+  // into the backend registry at module load time.
+  //
+  // Requires: Intiface Central running locally with WebSocket server enabled.
+  // Download: https://intiface.com/central/
+  //
+  // Protocol reference: https://buttplug-spec.docs.buttplug.io/
+
+
+
+
+  const DEFAULT_WS_URL = 'ws://localhost:12345';
+  const CLIENT_NAME = 'PerchanceHapticChat';
+  const MSG_VERSION = 3; // Buttplug protocol version
+
+  // ---- Track → Buttplug command mapping ----
+
+  const TRACK_TO_CMD = {
+    vibe:      'ScalarCmd',
+    intensity: 'ScalarCmd',    // abstract channel → primary actuator
+    stroke:    'LinearCmd',
+    rotate:    'RotateCmd',
+  };
+
+  const TRACK_TO_ACTUATOR = {
+    vibe:      'Vibrate',
+    intensity: 'Vibrate',
+    stroke:    'Linear',
+    rotate:    'Rotate',
+  };
+
+  // ---- Buttplug protocol message helpers ----
+
+  let _msgId = 1;
+  function nextId() { return _msgId++; }
+
+  function bpMsg(type, fields) {
+    return [{ [type]: { Id: nextId(), ...fields } }];
+  }
+
+  // ---- Plugin implementation ----
+
+  class ButtplugBackend {
+    constructor() {
+      this.id = 'buttplug';
+      this.displayName = 'Buttplug.io (Intiface Central)';
+      this.capabilities = { vibe: true, stroke: true, rotate: true, intensity: true };
+
+      this._ws = null;
+      this._connected = false;
+      this._devices = new Map();         // deviceIndex → DeviceInfo
+      this._activeDeviceIndex = null;
+      this._wsUrl = DEFAULT_WS_URL;
+      this._listeners = { connect: new Set(), disconnect: new Set(), deviceChange: new Set() };
+      this._pendingResponses = new Map(); // msgId → { resolve, reject, timer }
+    }
+
+    // ---- Connection ----
+
+    async connect(wsUrl) {
+      if (this._connected) return;
+      const url = wsUrl || this._wsUrl;
+
+      return new Promise((resolve, reject) => {
+        try {
+          const ws = new WebSocket(url);
+          this._ws = ws;
+
+          ws.onopen = async () => {
+            try {
+              // Handshake: RequestServerInfo
+              await this._send('RequestServerInfo', {
+                ClientName: CLIENT_NAME,
+                MessageVersion: MSG_VERSION,
+              });
+
+              // Request device list
+              const deviceResp = await this._send('RequestDeviceList', {});
+              if (deviceResp && deviceResp.DeviceList) {
+                this._handleDeviceList(deviceResp.DeviceList.Devices || []);
+              }
+
+              // Start scanning for new devices
+              this._sendFire('StartScanning', {});
+
+              this._connected = true;
+              this._emit('connect');
+              resolve();
+            } catch (err) {
+              this._cleanup();
+              reject(err);
+            }
+          };
+
+          ws.onmessage = (event) => {
+            try {
+              const msgs = JSON.parse(event.data);
+              for (const msg of msgs) {
+                this._handleMessage(msg);
+              }
+            } catch { /* malformed message */ }
+          };
+
+          ws.onerror = () => {
+            if (!this._connected) {
+              reject(new Error('Could not connect to Intiface Central at ' + url));
+            }
+          };
+
+          ws.onclose = () => {
+            const wasConnected = this._connected;
+            this._cleanup();
+            if (wasConnected) {
+              this._emit('disconnect');
+              busError('device-disconnected', new Error('Intiface Central connection lost'));
+            }
+          };
+
+          // Timeout — don't wait forever for a dead server
+          setTimeout(() => {
+            if (!this._connected && ws.readyState !== WebSocket.OPEN) {
+              ws.close();
+              reject(new Error('Connection to Intiface Central timed out'));
+            }
+          }, 5000);
+
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
+
+    async disconnect() {
+      if (!this._ws) return;
+      // Stop all devices before disconnecting
+      try { await this.stopAll(); } catch {}
+      // Send StopAllDevices
+      try { this._sendFire('StopAllDevices', {}); } catch {}
+      this._cleanup();
+      this._emit('disconnect');
+    }
+
+    isConnected() {
+      return this._connected && this._ws && this._ws.readyState === WebSocket.OPEN;
+    }
+
+    // ---- Device enumeration ----
+
+    listDevices() {
+      return Array.from(this._devices.values());
+    }
+
+    getActiveDeviceType() {
+      if (this._activeDeviceIndex === null) return null;
+      const dev = this._devices.get(this._activeDeviceIndex);
+      return dev ? dev.primaryType : null;
+    }
+
+    /**
+     * Select which device to target. Index from listDevices().
+     */
+    setActiveDevice(index) {
+      if (this._devices.has(index)) {
+        this._activeDeviceIndex = index;
+        this._emit('deviceChange');
+      }
+    }
+
+    // ---- Command dispatch ----
+
+    async execute(event) {
+      if (!this.isConnected()) return;
+
+      const dev = this._getActiveDevice();
+      if (!dev) return;
+
+      const track = event.track || 'vibe';
+      const intensity = Math.max(0, Math.min(1, event.intensity || 0));
+      const duration = Math.max(0, event.duration || 0);
+
+      // Map track → Buttplug command
+      const actuatorType = TRACK_TO_ACTUATOR[track] || 'Vibrate';
+      const actuatorIndex = this._findActuator(dev, actuatorType);
+      if (actuatorIndex === -1) return;
+
+      if (track === 'stroke') {
+        // LinearCmd — position + duration
+        this._sendFire('LinearCmd', {
+          DeviceIndex: dev.index,
+          Vectors: [{ Index: actuatorIndex, Duration: duration, Position: intensity }],
+        });
+      } else if (track === 'rotate') {
+        // RotateCmd — speed + clockwise
+        this._sendFire('RotateCmd', {
+          DeviceIndex: dev.index,
+          Rotations: [{ Index: actuatorIndex, Speed: intensity, Clockwise: true }],
+        });
+      } else {
+        // ScalarCmd — vibrate or generic
+        this._sendFire('ScalarCmd', {
+          DeviceIndex: dev.index,
+          Scalars: [{ Index: actuatorIndex, Scalar: intensity, ActuatorType: actuatorType }],
+        });
+      }
+
+      // Auto-stop after duration (if specified and > 0)
+      if (duration > 0) {
+        setTimeout(() => {
+          if (!this.isConnected()) return;
+          this._sendZero(dev.index, actuatorType, actuatorIndex);
+        }, duration);
+      }
+    }
+
+    async stopAll() {
+      if (!this.isConnected()) return;
+      this._sendFire('StopAllDevices', {});
+    }
+
+    // ---- Event listeners ----
+
+    on(event, handler) {
+      if (this._listeners[event]) {
+        this._listeners[event].add(handler);
+      }
+    }
+
+    off(event, handler) {
+      if (this._listeners[event]) {
+        this._listeners[event].delete(handler);
+      }
+    }
+
+    // ---- Internals ----
+
+    _emit(event, detail) {
+      for (const fn of (this._listeners[event] || [])) {
+        try { fn(detail); } catch {}
+      }
+    }
+
+    _getActiveDevice() {
+      if (this._activeDeviceIndex !== null) {
+        return this._devices.get(this._activeDeviceIndex) || null;
+      }
+      // Auto-select first device
+      if (this._devices.size > 0) {
+        const first = this._devices.keys().next().value;
+        this._activeDeviceIndex = first;
+        return this._devices.get(first);
+      }
+      return null;
+    }
+
+    _findActuator(dev, type) {
+      // Search DeviceMessages for matching actuator type
+      if (!dev.messages) return 0; // fallback to index 0
+      for (const [cmdType, features] of Object.entries(dev.messages)) {
+        if (cmdType === 'ScalarCmd' && type !== 'Linear' && type !== 'Rotate') {
+          const featureArr = features.FeatureCount ? Array.from({ length: features.FeatureCount }, (_, i) => i) : [0];
+          return featureArr[0] !== undefined ? featureArr[0] : 0;
+        }
+        if (cmdType === 'LinearCmd' && type === 'Linear') return 0;
+        if (cmdType === 'RotateCmd' && type === 'Rotate') return 0;
+      }
+      return 0;
+    }
+
+    _sendZero(deviceIndex, actuatorType, actuatorIndex) {
+      if (!this.isConnected()) return;
+      this._sendFire('ScalarCmd', {
+        DeviceIndex: deviceIndex,
+        Scalars: [{ Index: actuatorIndex, Scalar: 0, ActuatorType: actuatorType }],
+      });
+    }
+
+    /** Send and wait for response (with timeout). */
+    _send(type, fields) {
+      return new Promise((resolve, reject) => {
+        if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
+          reject(new Error('WebSocket not open'));
+          return;
+        }
+        const id = nextId();
+        const msg = [{ [type]: { Id: id, ...fields } }];
+
+        const timer = setTimeout(() => {
+          this._pendingResponses.delete(id);
+          reject(new Error(`${type} timed out`));
+        }, 5000);
+
+        this._pendingResponses.set(id, { resolve, reject, timer });
+        this._ws.send(JSON.stringify(msg));
+      });
+    }
+
+    /** Send without waiting for response. */
+    _sendFire(type, fields) {
+      if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;
+      const msg = [{ [type]: { Id: nextId(), ...fields } }];
+      try { this._ws.send(JSON.stringify(msg)); } catch {}
+    }
+
+    _handleMessage(msg) {
+      // Each message is { TypeName: { Id, ...fields } }
+      const type = Object.keys(msg)[0];
+      const body = msg[type];
+      const id = body && body.Id;
+
+      // Route responses to pending promises
+      if (id && this._pendingResponses.has(id)) {
+        const pending = this._pendingResponses.get(id);
+        this._pendingResponses.delete(id);
+        clearTimeout(pending.timer);
+        if (type === 'Error') {
+          pending.reject(new Error(body.ErrorMessage || 'Buttplug error'));
+        } else {
+          pending.resolve(msg);
+        }
+        return;
+      }
+
+      // Handle server-initiated messages
+      if (type === 'DeviceAdded') {
+        this._addDevice(body);
+      } else if (type === 'DeviceRemoved') {
+        this._removeDevice(body.DeviceIndex);
+      } else if (type === 'ScanningFinished') {
+        // Normal — scanning complete, no action needed
+      }
+    }
+
+    _handleDeviceList(devices) {
+      this._devices.clear();
+      for (const dev of devices) {
+        this._addDevice(dev);
+      }
+    }
+
+    _addDevice(raw) {
+      const info = {
+        index: raw.DeviceIndex,
+        name: raw.DeviceName || `Device ${raw.DeviceIndex}`,
+        messages: raw.DeviceMessages || {},
+        primaryType: this._detectPrimaryType(raw.DeviceMessages || {}),
+      };
+      this._devices.set(info.index, info);
+      this._emit('deviceChange');
+    }
+
+    _removeDevice(index) {
+      this._devices.delete(index);
+      if (this._activeDeviceIndex === index) {
+        this._activeDeviceIndex = this._devices.size > 0
+          ? this._devices.keys().next().value
+          : null;
+      }
+      this._emit('deviceChange');
+    }
+
+    _detectPrimaryType(messages) {
+      if (messages.RotateCmd) return 'rotate';
+      if (messages.LinearCmd) return 'stroke';
+      return 'vibe';
+    }
+
+    _cleanup() {
+      this._connected = false;
+      this._devices.clear();
+      this._activeDeviceIndex = null;
+      for (const [, pending] of this._pendingResponses) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error('Connection closed'));
+      }
+      this._pendingResponses.clear();
+      if (this._ws) {
+        try { this._ws.close(); } catch {}
+        this._ws = null;
+      }
+    }
+  }
+
+  // ---- Self-register on module load ----
+
+  const buttplugInstance = new ButtplugBackend();
+  registerBackend(buttplugInstance);
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/settings.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/settings.js
+  //
+  // IndexedDB-backed persistence for the haptic subsystem.
+  //
+  // Four tables (§6):
+  //   hapticSettings  — single row (id=global), user preferences
+  //   hapticPlugins   — registered backend plugins (builtin + user-added)
+  //   userHapticOverrides — per-character consent + overrides
+  //   hapticMessageEdits  — per-message tag edits (thread-local)
+  //
+  // Uses the same Dexie instance as upstream ai-character-chat.
+  // Tables are additive — no schema changes to pre-existing tables.
+  // All reads/writes are async. Missing tables degrade gracefully.
+
+
+
+  // ---- Table names ----
+  const T_SETTINGS  = 'hapticSettings';
+  const T_PLUGINS   = 'hapticPlugins';
+  const T_OVERRIDES = 'userHapticOverrides';
+  const T_EDITS     = 'hapticMessageEdits';
+
+  // ---- DB access ----
+
+  /**
+   * Get the Dexie DB instance. In the Perchance bundle, `window.db`
+   * is the shared Dexie database. In tests, callers inject a mock.
+   */
+  function getDb() {
+    if (typeof window !== 'undefined' && window.db) return window.db;
+    return null;
+  }
+
+  /**
+   * Check if our tables exist on the DB. They're added via Dexie
+   * version upgrade in the init function below.
+   */
+  function hasTable(db, name) {
+    return db && db.tables && db.tables.some(t => t.name === name);
+  }
+
+  // ---- Init: ensure tables exist ----
+
+  let _initialized = false;
+
+  /**
+   * Register haptic tables on the Dexie DB. Called once at boot.
+   * If the DB already has the tables (from a previous session), this
+   * is a no-op. If not, it opens a new version with the added stores.
+   *
+   * In the Perchance environment, the upstream DB is already open.
+   * We can't call db.version() after open, so we use a separate
+   * lightweight IDB open to create our tables if missing.
+   */
+  async function initHapticDb() {
+    if (_initialized) return;
+    _initialized = true;
+
+    const db = getDb();
+    if (!db) {
+      console.warn('[haptic:settings] No database available — settings will not persist');
+      return;
+    }
+
+    // Ensure our tables exist. In Perchance's Dexie setup, tables are
+    // declared before the DB opens. Since we're a fork adding tables
+    // after upstream's schema, we check if they already exist; if not,
+    // we create them via a raw IDB upgrade.
+    try {
+      const idb = db.backendDB && db.backendDB();
+      if (idb && !idb.objectStoreNames.contains(T_SETTINGS)) {
+        // Tables don't exist yet — need to close and reopen with new version
+        const dbName = db.name;
+        const currentVersion = idb.version;
+        db.close();
+
+        const req = indexedDB.open(dbName, currentVersion + 1);
+        req.onupgradeneeded = (event) => {
+          const raw = event.target.result;
+          if (!raw.objectStoreNames.contains(T_SETTINGS)) {
+            raw.createObjectStore(T_SETTINGS, { keyPath: 'id' });
+          }
+          if (!raw.objectStoreNames.contains(T_PLUGINS)) {
+            raw.createObjectStore(T_PLUGINS, { keyPath: 'id' });
+          }
+          if (!raw.objectStoreNames.contains(T_OVERRIDES)) {
+            raw.createObjectStore(T_OVERRIDES, { keyPath: 'characterId' });
+          }
+          if (!raw.objectStoreNames.contains(T_EDITS)) {
+            raw.createObjectStore(T_EDITS, { keyPath: 'messageId' });
+          }
+        };
+        await new Promise((resolve, reject) => {
+          req.onsuccess = () => { req.result.close(); resolve(); };
+          req.onerror = () => reject(req.error);
+        });
+
+        // Reopen Dexie so it picks up the new tables
+        await db.open();
+      }
+    } catch (err) {
+      console.warn('[haptic:settings] Could not init DB tables:', err && err.message);
+      // Non-fatal — settings just won't persist
+    }
+  }
+
+  // ---- Settings CRUD ----
+
+  /** In-memory cache so reads don't hit IDB every time. */
+  let _settingsCache = null;
+
+  /**
+   * Load the global haptic settings. Returns merged defaults + stored.
+   */
+  async function loadHapticSettings() {
+    if (_settingsCache) return { ..._settingsCache };
+
+    const defaults = defaultHapticSettings();
+    const db = getDb();
+    if (!db) return defaults;
+
+    try {
+      const row = await db.table(T_SETTINGS).get('global');
+      if (row) {
+        _settingsCache = { ...defaults, ...row, clamps: { ...defaults.clamps, ...(row.clamps || {}) } };
+      } else {
+        _settingsCache = defaults;
+      }
+    } catch {
+      _settingsCache = defaults;
+    }
+    return { ..._settingsCache };
+  }
+
+  /**
+   * Save the global haptic settings.
+   */
+  async function saveHapticSettings(settings) {
+    _settingsCache = { ...settings, id: 'global' };
+    const db = getDb();
+    if (!db) return;
+    try {
+      await db.table(T_SETTINGS).put(_settingsCache);
+    } catch (err) {
+      console.warn('[haptic:settings] save failed:', err && err.message);
+    }
+  }
+
+  /**
+   * Update a single field in haptic settings (convenience).
+   */
+  async function updateHapticSetting(key, value) {
+    const settings = await loadHapticSettings();
+    settings[key] = value;
+    await saveHapticSettings(settings);
+  }
+
+  // ---- Per-character overrides ----
+
+  /**
+   * Load overrides for a specific character.
+   */
+  async function loadCharacterOverrides(characterId) {
+    const db = getDb();
+    if (!db || !characterId) return null;
+    try {
+      return await db.table(T_OVERRIDES).get(characterId) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * Save per-character overrides (consent, added patterns, clamps).
+   */
+  async function saveCharacterOverrides(characterId, overrides) {
+    const db = getDb();
+    if (!db || !characterId) return;
+    try {
+      await db.table(T_OVERRIDES).put({ ...overrides, characterId });
+    } catch {}
+  }
+
+  /**
+   * Check if the user has consented to haptics for a character.
+   */
+  async function hasCharacterConsent(characterId) {
+    const ov = await loadCharacterOverrides(characterId);
+    return !!(ov && ov.consentedAt);
+  }
+
+  /**
+   * Record consent for a character.
+   */
+  async function grantCharacterConsent(characterId) {
+    const ov = (await loadCharacterOverrides(characterId)) || {};
+    ov.consentedAt = new Date().toISOString();
+    await saveCharacterOverrides(characterId, ov);
+  }
+
+  // ---- Plugin registry persistence ----
+
+  /**
+   * Load all registered plugins from DB.
+   */
+  async function loadPlugins() {
+    const db = getDb();
+    if (!db) return [];
+    try {
+      return await db.table(T_PLUGINS).toArray();
+    } catch { return []; }
+  }
+
+  /**
+   * Save a plugin entry.
+   */
+  async function savePlugin(plugin) {
+    const db = getDb();
+    if (!db || !plugin || !plugin.id) return;
+    try {
+      await db.table(T_PLUGINS).put(plugin);
+    } catch {}
+  }
+
+  // ---- Message edits ----
+
+  /**
+   * Load edits for a message.
+   */
+  async function loadMessageEdits(messageId) {
+    const db = getDb();
+    if (!db || !messageId) return null;
+    try {
+      return await db.table(T_EDITS).get(messageId) || null;
+    } catch { return null; }
+  }
+
+  /**
+   * Save edits for a message.
+   */
+  async function saveMessageEdits(messageId, threadId, edits) {
+    const db = getDb();
+    if (!db || !messageId) return;
+    try {
+      await db.table(T_EDITS).put({ messageId, threadId, edits });
+    } catch {}
+  }
+
+  /**
+   * Clear settings cache (for tests).
+   */
+  function _resetSettingsCache() {
+    _settingsCache = null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/plugin_loader.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/plugin_loader.js
+  //
+  // Third-party plugin loading for haptic and TTS backends (§1.5, §8).
+  //
+  // Loading paths:
+  //   - URL paste: fetched via superFetch, wrapped in Blob, imported via
+  //     blob URL, default export registered.
+  //   - Local file picker: FileReader → same blob-import path. File never
+  //     leaves the user's machine.
+  //   - Cache in IndexedDB: registered plugins auto-load on subsequent
+  //     page loads. User can reload from source or remove at will.
+  //
+  // Trust model: one-time dialog on first add. No silent refetch — cached
+  // copy runs unless user clicks "Reload from source."
+  //
+  // Plugin manifest validation adapted from Adaptive Session Studio's
+  // plugin-host.js (MIT license, scrapped).
+
+
+
+
+  // ---- Manifest validation ----
+
+  const REQUIRED_FIELDS = ['id', 'displayName'];
+  const VALID_TYPES = ['haptic', 'tts'];
+
+  /**
+   * Validate a plugin's exported manifest/shape.
+   * Adapted from plugin-host.js validatePluginManifest().
+   */
+  function validatePluginExport(exported) {
+    if (!exported || typeof exported !== 'object') {
+      throw new Error('Plugin must export an object with id, displayName, and backend methods.');
+    }
+    for (const field of REQUIRED_FIELDS) {
+      if (!exported[field]) {
+        throw new Error(`Plugin missing required field: "${field}".`);
+      }
+    }
+    if (typeof exported.id !== 'string' || !/^[a-z0-9_-]{2,64}$/.test(exported.id)) {
+      throw new Error('Plugin id must be 2–64 lowercase alphanumeric/dash/underscore characters.');
+    }
+    // Must implement at least connect/disconnect/execute or speak/stop
+    const isHaptic = typeof exported.connect === 'function' && typeof exported.execute === 'function';
+    const isTts = typeof exported.speak === 'function' && typeof exported.stop === 'function';
+    if (!isHaptic && !isTts) {
+      throw new Error('Plugin must implement either HapticBackend (connect, execute) or TtsBackend (speak, stop).');
+    }
+    return isHaptic ? 'haptic' : 'tts';
+  }
+
+  // ---- Loading from URL ----
+
+  /**
+   * Load a plugin from a URL. Fetches the source, caches in IDB,
+   * and registers the backend.
+   *
+   * @param {string} url - URL to a .js module
+   * @returns {Promise<{id: string, type: string}>}
+   */
+  async function loadPluginFromUrl(url) {
+    if (!url || typeof url !== 'string') {
+      throw new Error('Plugin URL is required.');
+    }
+
+    // Fetch source (use superFetch for CORS bypass if available)
+    let response;
+    if (typeof window !== 'undefined' && window.root && typeof window.root.superFetch === 'function') {
+      response = await window.root.superFetch(url);
+    } else {
+      response = await fetch(url);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch plugin: ${response.status} ${response.statusText}`);
+    }
+
+    const code = await response.text();
+    return _loadFromCode(code, 'url', url);
+  }
+
+  // ---- Loading from file ----
+
+  /**
+   * Load a plugin from a local file.
+   *
+   * @param {File} file - a .js file from <input type="file">
+   * @returns {Promise<{id: string, type: string}>}
+   */
+  async function loadPluginFromFile(file) {
+    if (!file) throw new Error('No file provided.');
+
+    const code = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Could not read file.'));
+      reader.readAsText(file);
+    });
+
+    return _loadFromCode(code, 'file', file.name);
+  }
+
+  // ---- Common import path ----
+
+  async function _loadFromCode(code, source, sourceRef) {
+    // Wrap in a Blob and import via blob URL
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    let exported;
+    try {
+      const module = await import(blobUrl);
+      exported = module.default || module;
+    } catch (err) {
+      URL.revokeObjectURL(blobUrl);
+      throw new Error(`Plugin code failed to load: ${err.message}`);
+    }
+    URL.revokeObjectURL(blobUrl);
+
+    // Validate
+    const type = validatePluginExport(exported);
+
+    // Register
+    if (type === 'haptic') {
+      // Ensure the backend has required interface methods with safe defaults
+      const backend = {
+        capabilities: {},
+        isConnected: () => false,
+        listDevices: () => [],
+        getActiveDeviceType: () => null,
+        stopAll: async () => {},
+        on: () => {},
+        ...exported,
+      };
+      registerBackend(backend);
+    }
+    // TTS plugins will be handled in M9/M10
+
+    // Cache in IDB for auto-load on next page load
+    await savePlugin({
+      id: exported.id,
+      source,
+      sourceRef,
+      code,
+      registeredAt: new Date().toISOString(),
+      lastReloadedAt: new Date().toISOString(),
+      trusted: true,
+      type,
+    });
+
+    return { id: exported.id, type };
+  }
+
+  // ---- Auto-load cached plugins ----
+
+  /**
+   * Load all cached plugins from IDB on boot.
+   * Called from haptic/init.js after DB is ready.
+   */
+  async function autoLoadCachedPlugins() {
+    try {
+      const plugins = await loadPlugins();
+      for (const plugin of plugins) {
+        if (!plugin.code || plugin.source === 'builtin') continue;
+        if (!plugin.trusted) continue;
+        try {
+          await _loadFromCode(plugin.code, plugin.source, plugin.sourceRef);
+        } catch (err) {
+          console.warn(`[haptic:plugin] Failed to reload cached plugin "${plugin.id}":`, err.message);
+        }
+      }
+    } catch {}
+  }
+
+  /**
+   * Reload a plugin from its original source URL.
+   */
+  async function reloadPluginFromSource(pluginId) {
+    const plugins = await loadPlugins();
+    const plugin = plugins.find(p => p.id === pluginId);
+    if (!plugin || plugin.source !== 'url' || !plugin.sourceRef) {
+      throw new Error('Plugin cannot be reloaded — no source URL.');
+    }
+    return loadPluginFromUrl(plugin.sourceRef);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/parser.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/parser.js
+  //
+  // Streaming tag parser for haptic markup in AI output (§2, §4).
+  //
+  // Ingests AI streaming chunks. Maintains a buffer for tags split
+  // across deltas. Emits two event types:
+  //   - tagParsed(tag, position)   → UI glyph renderer
+  //   - blockComplete(block)       → ready queue
+  //
+  // Block boundary: paragraph break (\n\n). Trailing incomplete blocks
+  // flush on stream end.
+  //
+  // Parsing rules (§2):
+  //   - Strict tag regex: <tagname attr=value ...>
+  //   - Known atomic tags: vibe, stroke, rotate, intensity, stop
+  //   - Named patterns: <pattern name=X ...>
+  //   - Unknown tags → preserved with error annotation
+  //   - Malformed segments → [!] glyphs (never silently dropped)
+  //   - Tag positions in prose preserved for glyph rendering
+
+
+
+
+  // ---- Tag regex ----
+  // Matches: <vibe intensity=0.6 duration=4s>
+  //          <pattern name=tease intensity=0.8>
+  //          <stop>
+  //          <intensity level=0.5 duration=3s>
+  // Does NOT match: <3 (emoticon), <note> (unless it's a known tag)
+  const TAG_RE = /<(vibe|stroke|rotate|intensity|stop|pattern)\b([^>]*?)>/gi;
+
+  // Known atomic tag names
+  const ATOMIC_TAGS = new Set(['vibe', 'stroke', 'rotate', 'intensity', 'stop']);
+
+  // Attribute parser: key=value pairs (value can be quoted or bare)
+  const ATTR_RE = /([a-z_]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/gi;
+
+  // Duration parser: "4s", "500ms", "4000" (bare number = ms)
+  function parseDuration(raw) {
+    if (typeof raw !== 'string') return null;
+    const trimmed = raw.trim().toLowerCase();
+    const mMatch = trimmed.match(/^([\d.]+)\s*ms$/);
+    if (mMatch) return Math.round(parseFloat(mMatch[1]));
+    const sMatch = trimmed.match(/^([\d.]+)\s*s$/);
+    if (sMatch) return Math.round(parseFloat(sMatch[1]) * 1000);
+    const bare = parseFloat(trimmed);
+    if (!isNaN(bare)) return Math.round(bare);
+    return null;
+  }
+
+  // Intensity parser: numeric or semantic
+  const SEMANTIC_INTENSITY = {
+    low: 0.3, light: 0.3, soft: 0.3, gentle: 0.3,
+    medium: 0.5, moderate: 0.5, normal: 0.5,
+    high: 0.7, strong: 0.7, hard: 0.7,
+    max: 1.0, intense: 1.0, full: 1.0,
+  };
+
+  function parseIntensity(raw) {
+    if (typeof raw !== 'string') return null;
+    const trimmed = raw.trim().toLowerCase();
+    if (SEMANTIC_INTENSITY[trimmed] !== undefined) {
+      return { value: SEMANTIC_INTENSITY[trimmed], semantic: trimmed };
+    }
+    const num = parseFloat(trimmed);
+    if (!isNaN(num)) return { value: Math.max(0, Math.min(1, num)), semantic: null };
+    return null;
+  }
+
+  // ---- Parsed tag shape ----
+
+  /**
+   * Parse attributes from the attribute string portion of a tag.
+   * Returns a map of { key: rawValue }.
+   */
+  function parseAttrs(attrStr) {
+    const attrs = {};
+    let match;
+    ATTR_RE.lastIndex = 0;
+    while ((match = ATTR_RE.exec(attrStr)) !== null) {
+      attrs[match[1].toLowerCase()] = match[2] || match[3] || match[4];
+    }
+    return attrs;
+  }
+
+  /**
+   * Parse a single tag match into a structured tag object.
+   *
+   * @param {string} tagName - 'vibe', 'stroke', 'rotate', etc.
+   * @param {string} attrStr - the raw attribute string
+   * @param {string} rawText - the full original tag text
+   * @param {number} position - character offset in the message
+   * @param {Object} defaults - character haptic defaults
+   * @returns {Object} parsed tag
+   */
+  function parseTag(tagName, attrStr, rawText, position, defaults) {
+    const attrs = parseAttrs(attrStr);
+    const name = tagName.toLowerCase();
+    const defs = defaults || defaultHaptics().defaults;
+
+    const tag = {
+      type: name,
+      raw: rawText,
+      position,
+      track: null,
+      intensity: null,
+      duration: null,
+      patternName: null,
+      annotations: [],    // warnings/resolutions for UI
+      valid: true,
+    };
+
+    if (name === 'stop') {
+      tag.track = 'all';
+      tag.intensity = 0;
+      tag.duration = 300;  // §3: ramp to zero over ~300ms
+      return tag;
+    }
+
+    if (name === 'pattern') {
+      tag.patternName = attrs.name || null;
+      if (!tag.patternName) {
+        tag.annotations.push({ type: 'error', text: 'pattern tag missing name attribute' });
+        tag.valid = false;
+      }
+      tag.track = attrs.track || defs.defaultTrack || 'vibe';
+    } else if (ATOMIC_TAGS.has(name)) {
+      tag.track = name === 'intensity' ? (attrs.track || defs.defaultTrack || 'vibe') : name;
+    } else {
+      // Unknown tag type → map to intensity (§3.5 step 3)
+      tag.track = defs.defaultTrack || 'vibe';
+      tag.annotations.push({
+        type: 'unknown-tag',
+        text: `unknown tag "${name}" mapped to intensity`,
+      });
+    }
+
+    // Parse intensity/speed/level
+    const rawIntensity = attrs.intensity || attrs.speed || attrs.level;
+    if (rawIntensity) {
+      const parsed = parseIntensity(rawIntensity);
+      if (parsed) {
+        tag.intensity = parsed.value;
+        if (parsed.semantic) {
+          tag.annotations.push({
+            type: 'semantic-value',
+            text: `"${parsed.semantic}" → ${parsed.value}`,
+          });
+        }
+      } else {
+        tag.intensity = defs.atomicIntensity;
+        tag.annotations.push({ type: 'parse-warning', text: `invalid intensity "${rawIntensity}", using default` });
+      }
+    } else {
+      tag.intensity = defs.atomicIntensity;
+    }
+
+    // Parse duration
+    const rawDuration = attrs.duration;
+    if (rawDuration) {
+      const parsed = parseDuration(rawDuration);
+      if (parsed !== null) {
+        tag.duration = parsed;
+      } else {
+        tag.duration = defs.atomicDuration;
+        tag.annotations.push({ type: 'parse-warning', text: `invalid duration "${rawDuration}", using default` });
+      }
+    } else {
+      tag.duration = defs.atomicDuration;
+    }
+
+    return tag;
+  }
+
+  // ---- Streaming parser ----
+
+  /**
+   * Create a new streaming parser instance.
+   *
+   * @param {Object} opts
+   * @param {Object} opts.defaults - character haptic defaults
+   * @param {Function} opts.onTag - callback(tag) for each parsed tag
+   * @param {Function} opts.onBlock - callback(block) when a paragraph block completes
+   * @returns {{ push(chunk), flush(), getTags(), reset() }}
+   */
+  function createParser(opts = {}) {
+    const defaults = opts.defaults || defaultHaptics().defaults;
+    const characterPatterns = opts.characterPatterns || {};
+    const aliases = opts.aliases || {};
+    const onTag = opts.onTag || (() => {});
+    const onBlock = opts.onBlock || (() => {});
+
+    let _buffer = '';          // chunk accumulation buffer
+    let _blockTags = [];       // tags in current block
+    let _blockProse = '';      // prose text in current block (tags stripped)
+    let _blockIndex = 0;
+    let _globalOffset = 0;     // character offset across all chunks
+    let _allTags = [];         // all tags parsed in this message
+
+    /**
+     * Push a streaming chunk into the parser.
+     * Tags may span chunk boundaries — we buffer until we see
+     * a complete tag or can confirm the partial is just prose.
+     */
+    function push(chunk) {
+      _buffer += chunk;
+
+      // Process complete blocks (paragraph boundaries = \n\n)
+      let blockBreak;
+      while ((blockBreak = _buffer.indexOf('\n\n')) !== -1) {
+        const blockText = _buffer.slice(0, blockBreak);
+        _processBlockText(blockText);
+        _emitBlock();
+        _buffer = _buffer.slice(blockBreak + 2);
+        _globalOffset += blockBreak + 2;
+      }
+
+      // Process tags in the remaining buffer (but keep a trailing
+      // partial tag in the buffer — it might complete in the next chunk).
+      // A trailing '<' without '>' means a tag might be split.
+      const lastOpen = _buffer.lastIndexOf('<');
+      const lastClose = _buffer.lastIndexOf('>');
+      if (lastOpen > lastClose) {
+        // Potential partial tag at end — process everything before it
+        const safe = _buffer.slice(0, lastOpen);
+        if (safe.length > 0) {
+          _processInlineText(safe);
+          _buffer = _buffer.slice(lastOpen);
+          _globalOffset += lastOpen;
+        }
+      }
+      // If buffer has no partial tags, process what we can without
+      // emitting a block (tags accumulate for the current block)
+    }
+
+    /**
+     * Flush remaining buffer at stream end.
+     */
+    function flush() {
+      if (_buffer.length > 0) {
+        _processBlockText(_buffer);
+        _buffer = '';
+      }
+      if (_blockTags.length > 0 || _blockProse.length > 0) {
+        _emitBlock();
+      }
+    }
+
+    /**
+     * Process a complete block of text (between \n\n boundaries).
+     * Extracts tags, preserves prose positions.
+     */
+    function _processBlockText(text) {
+      _processInlineText(text);
+    }
+
+    /**
+     * Extract tags from text, accumulate into current block.
+     */
+    function _processInlineText(text) {
+      let lastEnd = 0;
+      TAG_RE.lastIndex = 0;
+      let match;
+      while ((match = TAG_RE.exec(text)) !== null) {
+        // Prose before this tag
+        if (match.index > lastEnd) {
+          _blockProse += text.slice(lastEnd, match.index);
+        }
+
+        const tagName = match[1];
+        const attrStr = match[2] || '';
+        const rawText = match[0];
+        const position = _globalOffset + match.index;
+
+        const tag = parseTag(tagName, attrStr, rawText, position, defaults);
+
+        // Run hallucination ladder for pattern tags with unknown names
+        if (tag.type === 'pattern' && tag.patternName) {
+          const resolution = resolvePatternName(tag.patternName, characterPatterns, aliases);
+          if (resolution.annotation) {
+            tag.annotations.push(resolution.annotation);
+          }
+          if (resolution.resolved && resolution.resolved !== tag.patternName) {
+            tag.patternName = resolution.resolved;
+          }
+        }
+
+        _blockTags.push(tag);
+        _allTags.push(tag);
+        onTag(tag);
+
+        lastEnd = match.index + match[0].length;
+      }
+
+      // Trailing prose after last tag
+      if (lastEnd < text.length) {
+        _blockProse += text.slice(lastEnd);
+      }
+    }
+
+    /**
+     * Emit the current accumulated block.
+     */
+    function _emitBlock() {
+      const block = {
+        index: _blockIndex++,
+        tags: _blockTags.slice(),
+        prose: _blockProse,
+        proseLength: _blockProse.length,
+      };
+      _blockTags = [];
+      _blockProse = '';
+      onBlock(block);
+    }
+
+    /**
+     * Get all tags parsed so far (for the full message).
+     */
+    function getTags() {
+      return _allTags.slice();
+    }
+
+    /**
+     * Reset parser state for a new message.
+     */
+    function reset() {
+      _buffer = '';
+      _blockTags = [];
+      _blockProse = '';
+      _blockIndex = 0;
+      _globalOffset = 0;
+      _allTags = [];
+    }
+
+    return { push, flush, getTags, reset };
+  }
+
+  // ---- Exports for direct use ----
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/patterns.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/patterns.js
+  //
+  // Built-in haptic pattern library — pre-authored timeline patterns
+  // available to all characters. Authors can reference these by name
+  // in their character cards, or the AI can emit <pattern name=X>.
+  //
+  // Pattern format matches the character.haptics.patterns schema:
+  //   { description, defaultTrack, tracks: { [trackName]: [{t, i, d}] }, totalDuration }
+  //
+  // Generator helpers (sample, sine, ramp, blend) adapted from the
+  // Adaptive Session Studio project (MIT license, scrapped).
+
+  // ---- Generator helpers ----
+
+  /** Clamp intensity to [0, 1] */
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+
+  /**
+   * Build a timeline track by sampling a function at regular intervals.
+   * @param {function} fn - (t: 0–1) → intensity 0–1
+   * @param {number} durMs - total duration in ms
+   * @param {number} stepMs - sampling interval (default 200ms)
+   * @returns {Array<{t: number, i: number, d: number}>}
+   */
+  function sample(fn, durMs, stepMs = 200) {
+    const points = [];
+    for (let t = 0; t <= durMs; t += stepMs) {
+      points.push({ t, i: clamp01(fn(t / durMs)), d: stepMs });
+    }
+    return points;
+  }
+
+  /** Sine oscillation between lo and hi with given period in ms */
+  function sine(lo, hi, periodMs) {
+    const amp = (hi - lo) / 2;
+    const mid = lo + amp;
+    return t => mid + amp * Math.sin((t * 2 * Math.PI * 60000) / periodMs);
+  }
+
+  /** Linear ramp from start to end over [0, 1] */
+  function ramp(start, end) {
+    return t => start + (end - start) * t;
+  }
+
+  /** Blend two functions with a weight */
+  function blend(fnA, fnB, weight = 0.5) {
+    return t => fnA(t) * (1 - weight) + fnB(t) * weight;
+  }
+
+  /** Exponential curve application */
+  function applyCurve(t, curve) {
+    if (curve === 'exponential') return t * t;
+    if (curve === 'sine') return 0.5 - 0.5 * Math.cos(Math.PI * t);
+    return t; // linear
+  }
+
+  // ---- Pattern definitions ----
+  // Adapted from Adaptive Session Studio's funscript-patterns.js.
+  // Converted from position (0-100) to intensity (0-1).
+
+  const BUILTIN_PATTERNS = {
+
+    // ── Steady patterns ──────────────────────────────────────────
+    'slow-pulse': {
+      description: 'Smooth, unhurried oscillation. Good baseline for long sessions.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          return sine(0.1, 0.9, 4000)(t);
+        }, 12000, 200),
+      },
+      totalDuration: 12000,
+    },
+
+    'steady-rhythm': {
+      description: 'Medium-pace consistent rhythm. Predictable and reliable.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => sine(0.15, 0.85, 1800)(t), 8000, 150),
+      },
+      totalDuration: 8000,
+    },
+
+    // ── Escalating patterns ──────────────────────────────────────
+    'slow-build': {
+      description: 'Starts subtle, widens and quickens over time.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const lo = 0.5 - (0.4 * t);
+          const hi = 0.5 + (0.4 * t);
+          const period = 5000 - (3200 * t);
+          const amp = (hi - lo) / 2;
+          const mid = lo + amp;
+          return mid + amp * Math.sin((t * 2 * Math.PI * 20000) / Math.max(period, 100));
+        }, 20000, 200),
+      },
+      totalDuration: 20000,
+    },
+
+    'tease': {
+      description: 'Climbs toward peak, retreats before the top, then climbs again. Sustained tension.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: (() => {
+          const points = [];
+          const cycleDur = 3000;
+          for (let t = 0; t <= 12000; t += 50) {
+            const phase = (t % cycleDur) / cycleDur;
+            let i;
+            if (phase < 0.40) i = 0.1 + (phase / 0.40) * 0.8;
+            else if (phase < 0.50) i = 0.9 - ((phase - 0.40) / 0.10) * 0.55;
+            else if (phase < 0.80) i = 0.35 + ((phase - 0.50) / 0.30) * 0.50;
+            else i = 0.85 - ((phase - 0.80) / 0.20) * 0.75;
+            points.push({ t, i: clamp01(i), d: 50 });
+          }
+          return points;
+        })(),
+      },
+      totalDuration: 12000,
+    },
+
+    'buildup': {
+      description: 'Cascading peaks that accelerate over time. High energy.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: (() => {
+          const points = [];
+          for (let t = 0; t <= 15000; t += 50) {
+            const progress = t / 15000;
+            const period = Math.max(600, 2200 - progress * 1600);
+            const phase = (t % period) / period;
+            let i;
+            if (phase < 0.35) i = phase / 0.35 * 0.95;
+            else if (phase < 0.55) i = 0.95 - (phase - 0.35) / 0.20 * 0.85;
+            else i = 0.10 + (phase - 0.55) / 0.45 * 0.10;
+            points.push({ t, i: clamp01(i), d: 50 });
+          }
+          return points;
+        })(),
+      },
+      totalDuration: 15000,
+    },
+
+    'edge': {
+      description: 'Builds to near-peak then drops suddenly, repeating in waves.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const cycle = (t % 0.2) / 0.2;
+          if (cycle < 0.7) return sine(0.1, 0.9, 8400)(t);
+          return sine(0.1, 0.3, 3600)(t);
+        }, 12000, 50),
+      },
+      totalDuration: 12000,
+    },
+
+    // ── Natural patterns ─────────────────────────────────────────
+    'wave': {
+      description: 'Two overlapping waves creating an organic, surging rhythm.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const slow = sine(0.2, 0.8, 6000)(t);
+          const fast = sine(0, 0.4, 1600)(t);
+          return slow * 0.65 + fast * 0.35;
+        }, 12000, 100),
+      },
+      totalDuration: 12000,
+    },
+
+    'heartbeat': {
+      description: 'Double-beat pulse with rest. Intimate and tension-building.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: (() => {
+          const cycleDur = 900;
+          const points = [];
+          for (let t = 0; t <= 10000; t += 25) {
+            const phase = (t % (cycleDur * 2.5)) / cycleDur;
+            let i;
+            if (phase < 0.15) i = phase / 0.15 * 0.9;
+            else if (phase < 0.30) i = 0.9 - (phase - 0.15) / 0.15 * 0.7;
+            else if (phase < 0.45) i = 0.2 + (phase - 0.30) / 0.15 * 0.8;
+            else if (phase < 0.65) i = 1.0 - (phase - 0.45) / 0.20 * 0.9;
+            else i = 0.1;
+            points.push({ t, i: clamp01(i), d: 25 });
+          }
+          return points;
+        })(),
+      },
+      totalDuration: 10000,
+    },
+
+    // ── Calming patterns ─────────────────────────────────────────
+    'breath': {
+      description: 'Matches a 6-second breathing cycle. Grounding and meditative.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: (() => {
+          const cycleDur = 6000;
+          const points = [];
+          for (let t = 0; t <= 12000; t += 100) {
+            const phase = (t % cycleDur) / cycleDur;
+            let i;
+            if (phase < 0.45) i = 0.15 + (phase / 0.45) * 0.65;
+            else if (phase < 0.55) i = 0.80;
+            else i = 0.80 - ((phase - 0.55) / 0.45) * 0.65;
+            points.push({ t, i: clamp01(i), d: 100 });
+          }
+          return points;
+        })(),
+      },
+      totalDuration: 12000,
+    },
+
+    'descent': {
+      description: 'Starts at full intensity and slowly winds down. Good for recovery.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const base = ramp(0.85, 0.15)(t);
+          const osc = sine(-0.2, 0.2, 3000)(t);
+          return base + osc;
+        }, 15000, 100),
+      },
+      totalDuration: 15000,
+    },
+
+    'afterglow': {
+      description: 'Starts intense then fades in diminishing tremors.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const decay = Math.exp(-t * 3);
+          const tremor = sine(0, 1, 800)(t) * decay;
+          return Math.max(0.05, tremor);
+        }, 15000, 60),
+      },
+      totalDuration: 15000,
+    },
+
+    'feather': {
+      description: 'Barely-there sensations. Extremely gentle — ideal for warm-up.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const drift = sine(0.05, 0.25, 4000)(t);
+          const micro = sine(0, 0.08, 700)(t);
+          return drift + micro;
+        }, 10000, 50),
+      },
+      totalDuration: 10000,
+    },
+
+    // ── Special patterns ─────────────────────────────────────────
+    'storm': {
+      description: 'Rapid overlapping waves at peak intensity. Maximum energy.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const a = sine(0.3, 1.0, 900)(t);
+          const b = sine(0, 0.7, 600)(t);
+          const c = sine(0.2, 0.8, 1400)(t);
+          return a * 0.5 + b * 0.3 + c * 0.2;
+        }, 8000, 50),
+      },
+      totalDuration: 8000,
+    },
+
+    'plateau': {
+      description: 'Rises quickly then holds at a steady level with slight tremor.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const rise = Math.min(1, t * 5);
+          const waver = sine(0.6, 0.75, 1800)(t) * 0.15;
+          return rise * 0.8 + waver;
+        }, 10000, 40),
+      },
+      totalDuration: 10000,
+    },
+
+    'staccato': {
+      description: 'Sharp short bursts with pauses. Rhythmic and percussive.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const phase = (t % 0.02) / 0.02;
+          return phase < 0.4 ? 0.9 - phase * 0.3 : 0.1;
+        }, 6000, 25),
+      },
+      totalDuration: 6000,
+    },
+
+    'pendulum': {
+      description: 'Full-range pendulum with hypnotic even tempo.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          return 0.5 + 0.48 * Math.cos(t * Math.PI * 2 * 4);
+        }, 12000, 60),
+      },
+      totalDuration: 12000,
+    },
+
+    'syncopated': {
+      description: 'Off-beat rhythm — two quick, one slow. Musical and surprising.',
+      defaultTrack: 'vibe',
+      tracks: {
+        vibe: sample(t => {
+          const beat = (t % 0.067) / 0.067;
+          if (beat < 0.2) return 0.85;
+          if (beat < 0.35) return 0.15;
+          if (beat < 0.55) return 0.90;
+          if (beat < 0.65) return 0.10;
+          if (beat < 0.9) return 0.80;
+          return 0.15;
+        }, 8000, 40),
+      },
+      totalDuration: 8000,
+    },
+  };
+
+  /**
+   * Get a pattern by name. Checks built-in library first, then
+   * the character's custom patterns.
+   *
+   * @param {string} name
+   * @param {Object} characterPatterns - character.haptics.patterns
+   * @returns {Object|null} pattern definition
+   */
+  function getPattern(name, characterPatterns) {
+    if (!name) return null;
+    const lower = name.toLowerCase().replace(/[\s_-]+/g, '-');
+    // Character patterns take priority (author overrides built-in)
+    if (characterPatterns && characterPatterns[name]) return characterPatterns[name];
+    if (characterPatterns && characterPatterns[lower]) return characterPatterns[lower];
+    // Built-in library
+    if (BUILTIN_PATTERNS[name]) return BUILTIN_PATTERNS[name];
+    if (BUILTIN_PATTERNS[lower]) return BUILTIN_PATTERNS[lower];
+    return null;
+  }
+
+  /**
+   * List all available patterns (built-in + character).
+   */
+  function listPatterns(characterPatterns) {
+    const all = {};
+    // Built-in first
+    for (const [name, pattern] of Object.entries(BUILTIN_PATTERNS)) {
+      all[name] = { ...pattern, source: 'builtin' };
+    }
+    // Character patterns override
+    if (characterPatterns) {
+      for (const [name, pattern] of Object.entries(characterPatterns)) {
+        all[name] = { ...pattern, source: 'character' };
+      }
+    }
+    return all;
+  }
+
+  /**
+   * Generate the AI instruction snippet listing available patterns.
+   * Sent in the system prompt when haptics are enabled.
+   */
+  function generatePatternInstructionSnippet(characterPatterns, clamps) {
+    const patterns = listPatterns(characterPatterns);
+    const names = Object.keys(patterns);
+    if (names.length === 0) return '';
+
+    const lines = [
+      'Available haptic tags: <vibe intensity=0..1 duration=Ns>, <stroke speed=0..1 duration=Ns>, <rotate speed=0..1 duration=Ns>, <intensity level=0..1 duration=Ns>, <stop>',
+      `Available patterns: ${names.map(n => `<pattern name=${n}>`).join(', ')}`,
+      `Pattern descriptions: ${names.map(n => `${n}: ${patterns[n].description || 'no description'}`).join('; ')}`,
+    ];
+
+    if (clamps) {
+      lines.push(`Limits: max intensity ${clamps.intensityCeiling}, max duration ${clamps.durationCeiling / 1000}s, max ${clamps.tagsPerMessageCap} tags per message.`);
+    }
+
+    return lines.join('\n');
+  }
+
+  // Export generator helpers for pattern authoring
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/hallucination.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/hallucination.js
+  //
+  // Hallucination resolution ladder (§3.5).
+  //
+  // When the AI emits unknown pattern names or tag types, this module
+  // attempts to resolve them through a layered fallback:
+  //
+  //   1. Exact match — known atomic tag or pattern. Fine.
+  //   2. Fuzzy pattern-name match (Levenshtein ≤ 2) → auto-resolve.
+  //   3. Unknown tag type → map to abstract intensity.
+  //   4. Semantic value mapping (intensity=medium → 0.5).
+  //   5. Out-of-range → clamp (handled by resolver).
+  //   6. Malformed → [!] glyph with error details.
+  //
+  // Also tracks unknown names across a conversation and generates
+  // a self-correcting feedback snippet when 3+ unknowns accumulate.
+
+
+
+  // ---- Levenshtein distance ----
+
+  function levenshtein(a, b) {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,      // deletion
+          matrix[i][j - 1] + 1,      // insertion
+          matrix[i - 1][j - 1] + cost // substitution
+        );
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+
+  // ---- Resolution state (per-conversation) ----
+
+  let _unknownNames = [];     // track unknown names for feedback loop
+  let _resolvedAliases = {};  // { unknownName: resolvedName } — auto-resolved this session
+
+  /**
+   * Reset hallucination tracking for a new conversation/message.
+   */
+  function resetHallucinationState() {
+    _unknownNames = [];
+    _resolvedAliases = {};
+  }
+
+  /**
+   * Get the list of unknown names encountered so far.
+   */
+  function getUnknownNames() {
+    return [..._unknownNames];
+  }
+
+  /**
+   * Get resolved aliases from this session.
+   */
+  function getResolvedAliases() {
+    return { ..._resolvedAliases };
+  }
+
+  // ---- Resolution ladder ----
+
+  /**
+   * Attempt to resolve an unknown pattern name through the ladder.
+   *
+   * @param {string} name - the AI-generated pattern name
+   * @param {Object} characterPatterns - character.haptics.patterns
+   * @param {Object} aliases - character.haptics.aliases (pinned resolutions)
+   * @returns {{ resolved: string|null, method: string, annotation: Object|null }}
+   */
+  function resolvePatternName(name, characterPatterns, aliases) {
+    if (!name) return { resolved: null, method: 'none', annotation: null };
+
+    const lower = name.toLowerCase().trim();
+
+    // Step 1: Exact match (builtin or character)
+    if (getPattern(lower, characterPatterns)) {
+      return { resolved: lower, method: 'exact', annotation: null };
+    }
+
+    // Step 1b: Check pinned aliases
+    if (aliases && aliases[lower]) {
+      const target = aliases[lower];
+      if (getPattern(target, characterPatterns)) {
+        return {
+          resolved: target,
+          method: 'alias',
+          annotation: {
+            type: 'alias',
+            text: `pinned alias: "${lower}" → "${target}"`,
+          },
+        };
+      }
+    }
+
+    // Step 1c: Check session auto-resolved aliases
+    if (_resolvedAliases[lower]) {
+      return {
+        resolved: _resolvedAliases[lower],
+        method: 'cached-fuzzy',
+        annotation: {
+          type: 'fuzzy-match',
+          text: `auto-resolved: "${lower}" → "${_resolvedAliases[lower]}"`,
+        },
+      };
+    }
+
+    // Step 2: Fuzzy match (Levenshtein ≤ 2)
+    const allNames = [
+      ...Object.keys(BUILTIN_PATTERNS),
+      ...Object.keys(characterPatterns || {}),
+    ];
+
+    let bestMatch = null;
+    let bestDist = Infinity;
+
+    for (const candidate of allNames) {
+      const dist = levenshtein(lower, candidate.toLowerCase());
+      if (dist <= 2 && dist < bestDist) {
+        bestDist = dist;
+        bestMatch = candidate;
+      }
+    }
+
+    if (bestMatch) {
+      _resolvedAliases[lower] = bestMatch;
+      return {
+        resolved: bestMatch,
+        method: 'fuzzy',
+        annotation: {
+          type: 'fuzzy-match',
+          text: `auto-resolved: "${lower}" → "${bestMatch}" (distance: ${bestDist})`,
+        },
+      };
+    }
+
+    // Step 3: No match at all — track as unknown
+    if (!_unknownNames.includes(lower)) {
+      _unknownNames.push(lower);
+    }
+
+    return {
+      resolved: null,
+      method: 'unknown',
+      annotation: {
+        type: 'unknown-pattern',
+        text: `unknown pattern "${lower}" — mapped to default intensity`,
+      },
+    };
+  }
+
+  // ---- Self-correcting feedback (§3.5) ----
+
+  /**
+   * Generate a feedback snippet for the AI instruction when 3+
+   * unknown pattern names or tag types have been emitted.
+   *
+   * @param {Object} characterPatterns - available patterns
+   * @returns {string|null} snippet to append, or null if no correction needed
+   */
+  function generateCorrectionSnippet(characterPatterns) {
+    if (_unknownNames.length < 3) return null;
+
+    const availableNames = [
+      ...Object.keys(BUILTIN_PATTERNS),
+      ...Object.keys(characterPatterns || {}),
+    ];
+
+    return `Note: you used undefined patterns — ${_unknownNames.join(', ')}. Available: ${availableNames.slice(0, 15).join(', ')}${availableNames.length > 15 ? '...' : ''}.`;
+  }
+
+  // ---- AI-awareness injection (§3 step 4) ----
+
+  /**
+   * Generate an AI-awareness injection for pause events.
+   * Prepended to the user's next message when haptic session pauses.
+   *
+   * @param {string} reason - pause reason from control bus
+   * @param {Object} opts
+   * @param {boolean} opts.includeState - include device state details
+   * @returns {string} system message to prepend
+   */
+  function generatePauseInjection(reason, opts = {}) {
+    const reasonMap = {
+      'user-pause': 'user paused the haptic session',
+      'device-disconnected': 'haptic device disconnected',
+      'ws-disconnect': 'device connection lost',
+      'connect-failed': 'device connection failed',
+      'stream-error': 'stream error occurred',
+      'idle-timeout': 'idle timeout — no activity',
+      'backend-error': 'device error occurred',
+    };
+
+    const desc = reasonMap[reason] || `haptic session paused (${reason})`;
+    return `[System: ${desc}]`;
+  }
+
+  // Export levenshtein for testing
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/resolver.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/resolver.js
+  //
+  // Envelope Resolver (§4). Pure function:
+  //
+  //   resolveBlock(block, config) → normalizedEventStream
+  //
+  // Composes explicit tags + §3.6 decay + baseline + ambient pattern.
+  // Applies §2.5 clamps first, then multiplies by user's intensity slider.
+  //
+  // Output: flat array of { t, track, intensity, duration } events
+  // sorted by time offset. The scheduler dispatches these sequentially.
+  //
+  // §3.6(a) Decay bridging: every tag has an exponential tail after its
+  // explicit duration. Intensity decays toward zero along a configurable
+  // half-life. Interrupted instantly by subsequent tags on the same track.
+  //
+  // Composition per track: clamp(slider × max(explicit, decayTail, baseline))
+  //
+  // Curve math adapted from Adaptive Session Studio's applyCurve() (MIT).
+
+
+
+
+  // ---- Decay state (persists across blocks) ----
+
+  const _decayState = new Map(); // track → { intensity, startedAt }
+
+  /**
+   * Reset decay state (new session / character switch).
+   */
+  function resetDecayState() {
+    _decayState.clear();
+  }
+
+  /**
+   * Record a tag's peak intensity for decay tail computation.
+   * Called after each explicit tag dispatches.
+   */
+  function recordDecayPeak(track, intensity, timestamp) {
+    _decayState.set(track, { intensity, startedAt: timestamp });
+  }
+
+  /**
+   * Compute the decayed intensity for a track at a given time.
+   * Uses exponential decay: I(t) = peak × 0.5^(elapsed / halfLife)
+   *
+   * @param {string} track
+   * @param {number} timestamp - current time in ms
+   * @param {number} halfLife - decay half-life in ms
+   * @returns {number} decayed intensity (0..1)
+   */
+  function getDecayedIntensity(track, timestamp, halfLife) {
+    const state = _decayState.get(track);
+    if (!state || halfLife <= 0) return 0;
+    const elapsed = timestamp - state.startedAt;
+    if (elapsed <= 0) return state.intensity;
+    return state.intensity * Math.pow(0.5, elapsed / halfLife);
+  }
+
+  /**
+   * Resolve a parsed block into a normalized, clamped, slider-adjusted
+   * event stream ready for the scheduler to dispatch.
+   *
+   * @param {Object} block - { index, tags, prose, proseLength }
+   * @param {Object} config
+   * @param {Object} config.clamps - user clamp settings
+   * @param {Object} config.characterClamps - character-level clamp overrides
+   * @param {number} config.slider - intensity slider multiplier (0..1.5)
+   * @param {string} config.taglessMode - 'silent' | 'baseline' | 'ambient'
+   * @param {number} config.baselineIntensity - floor for baseline mode
+   * @param {number} config.decayHalfLife - ms, exponential tail
+   * @param {Object} config.patterns - character's pattern library
+   * @param {string} config.ambientPattern - ambient pattern name
+   * @returns {Array<{t:number, track:string, intensity:number, duration:number}>}
+   */
+  function resolveBlock(block, config = {}) {
+    const clamps = mergeClamps(config.clamps, config.characterClamps);
+    const slider = typeof config.slider === 'number' ? config.slider : 1.0;
+    const tags = block.tags || [];
+
+    // Apply per-message tag cap (§2.5)
+    const capped = tags.slice(0, clamps.tagsPerMessageCap);
+    const discarded = tags.length - capped.length;
+
+    // Build raw event timeline from tags
+    let t = 0;  // running time offset in ms
+    const events = [];
+
+    for (const tag of capped) {
+      if (tag.type === 'pattern' && tag.patternName) {
+        // Resolve named pattern into event sequence
+        const patternEvents = resolvePattern(tag, config.patterns || {}, clamps, t);
+        for (const pe of patternEvents) {
+          events.push(pe);
+        }
+        // Advance time by pattern's total duration
+        const patternDur = patternEvents.reduce((max, e) => Math.max(max, e.t + e.duration - t), 0);
+        t += patternDur;
+      } else {
+        // Atomic tag → single event
+        const clamped = clampTag(tag, clamps);
+        events.push({
+          t,
+          track: clamped.track || 'vibe',
+          intensity: clamped.intensity,
+          duration: clamped.duration,
+        });
+        t += clamped.duration;
+      }
+
+      // Min gap between tags (§2.5)
+      if (clamps.minTagGap > 0) {
+        t += clamps.minTagGap;
+      }
+    }
+
+    // Tagless block fallback (§3.6b)
+    if (events.length === 0 && block.proseLength > 0) {
+      const readingDuration = estimateReadingDuration(block.proseLength);
+      const taglessEvents = resolveTaglessBlock(config, clamps, readingDuration);
+      for (const e of taglessEvents) events.push(e);
+    }
+
+    // §3.6(a) Decay bridging — exponential tail after explicit events
+    const halfLife = typeof config.decayHalfLife === 'number' ? config.decayHalfLife : 2000;
+    if (halfLife > 0 && events.length > 0) {
+      const decayEvents = generateDecayTail(events, halfLife, clamps);
+      for (const de of decayEvents) events.push(de);
+    }
+
+    // Apply slider multiplier to all intensities
+    for (const event of events) {
+      event.intensity = Math.max(0, Math.min(1, event.intensity * slider));
+    }
+
+    // Sort by time offset
+    events.sort((a, b) => a.t - b.t);
+
+    // Attach metadata for UI
+    const meta = {
+      tagCount: capped.length,
+      discardedCount: discarded,
+      totalDuration: events.reduce((max, e) => Math.max(max, e.t + e.duration), 0),
+      isSynthetic: capped.length === 0 && events.length > 0,
+    };
+
+    return { events, meta };
+  }
+
+  /**
+   * Clamp a single tag's intensity and duration to ceiling values.
+   */
+  function clampTag(tag, clamps) {
+    return {
+      ...tag,
+      intensity: Math.min(tag.intensity || 0, clamps.intensityCeiling),
+      duration: Math.min(tag.duration || 0, clamps.durationCeiling),
+      _clamped: tag.intensity > clamps.intensityCeiling || tag.duration > clamps.durationCeiling,
+    };
+  }
+
+  /**
+   * Resolve a named pattern into a sequence of events.
+   * Falls back to a single intensity event if pattern is unknown.
+   */
+  function resolvePattern(tag, patterns, clamps, startT) {
+    const name = tag.patternName;
+    // Look up in character patterns + built-in library
+    const pattern = getPattern(name, patterns);
+
+    if (!pattern || !pattern.tracks) {
+      // Unknown pattern → single intensity event with defaults
+      return [{
+        t: startT,
+        track: tag.track || 'vibe',
+        intensity: Math.min(tag.intensity || 0.5, clamps.intensityCeiling),
+        duration: Math.min(tag.duration || 3000, clamps.patternDurationCeiling),
+      }];
+    }
+
+    // Scale the pattern timeline by intensity/duration overrides
+    const intensityScale = tag.intensity || 1.0;
+    const durationScale = tag.duration
+      ? tag.duration / (pattern.totalDuration || tag.duration)
+      : 1.0;
+
+    const events = [];
+    for (const [trackName, timeline] of Object.entries(pattern.tracks)) {
+      for (const point of timeline) {
+        const rawT = (point.t || 0) * durationScale;
+        const rawD = (point.d || 0) * durationScale;
+        const rawI = (point.i || 0) * intensityScale;
+
+        events.push({
+          t: startT + rawT,
+          track: trackName,
+          intensity: Math.min(rawI, clamps.intensityCeiling),
+          duration: Math.min(rawD, clamps.durationCeiling),
+        });
+      }
+    }
+
+    // Enforce pattern duration ceiling
+    const totalDur = events.reduce((max, e) => Math.max(max, (e.t - startT) + e.duration), 0);
+    if (totalDur > clamps.patternDurationCeiling) {
+      const scale = clamps.patternDurationCeiling / totalDur;
+      for (const e of events) {
+        e.t = startT + (e.t - startT) * scale;
+        e.duration *= scale;
+      }
+    }
+
+    return events;
+  }
+
+  /**
+   * Generate a synthetic event for a tagless block.
+   */
+  function resolveTaglessBlock(config, clamps, readingDuration) {
+    const mode = config.taglessMode || 'silent';
+
+    if (mode === 'silent') {
+      return []; // No output — just decay tail from previous block
+    }
+
+    if (mode === 'baseline') {
+      const floor = Math.min(config.baselineIntensity || 0.15, clamps.intensityCeiling);
+      return [{
+        t: 0,
+        track: 'vibe',
+        intensity: floor,
+        duration: readingDuration,
+      }];
+    }
+
+    if (mode === 'ambient' && config.ambientPattern && config.patterns) {
+      const pattern = config.patterns[config.ambientPattern];
+      if (pattern) {
+        return resolvePattern(
+          { patternName: config.ambientPattern, track: 'vibe', intensity: 1.0, duration: null },
+          config.patterns,
+          clamps,
+          0
+        );
+      }
+      // Ambient pattern not found → fall back to baseline
+      const floor = Math.min(config.baselineIntensity || 0.15, clamps.intensityCeiling);
+      return [{
+        t: 0,
+        track: 'vibe',
+        intensity: floor,
+        duration: readingDuration,
+      }];
+    }
+
+    return [];
+  }
+
+  /**
+   * Estimate reading duration from prose length (~200 wpm).
+   */
+  function estimateReadingDuration(charCount) {
+    const wordsApprox = charCount / 5;
+    const minutes = wordsApprox / 200;
+    return Math.max(1000, Math.round(minutes * 60 * 1000));
+  }
+
+  /**
+   * Generate exponential decay tail events after a block's explicit events.
+   *
+   * For each track that has explicit events, appends a series of
+   * decreasing intensity steps starting after the last event ends.
+   * Decay follows: I(t) = peak × 0.5^(t / halfLife)
+   *
+   * Steps are sampled every 200ms until intensity drops below 0.02.
+   * The decay tail is capped at 3× halfLife to prevent infinite tails.
+   *
+   * @param {Array} events - explicit events (pre-slider)
+   * @param {number} halfLife - decay half-life in ms
+   * @param {Object} clamps - clamp config
+   * @returns {Array} decay tail events
+   */
+  function generateDecayTail(events, halfLife, clamps) {
+    if (halfLife <= 0 || events.length === 0) return [];
+
+    // Find the last event per track and its peak intensity
+    const trackPeaks = {};
+    for (const e of events) {
+      const endTime = e.t + e.duration;
+      if (!trackPeaks[e.track] || endTime > trackPeaks[e.track].endTime) {
+        trackPeaks[e.track] = { endTime, intensity: e.intensity };
+      }
+    }
+
+    const decayEvents = [];
+    const STEP_MS = 200;
+    const MIN_INTENSITY = 0.02;
+    const MAX_TAIL = halfLife * 3;
+
+    for (const [track, peak] of Object.entries(trackPeaks)) {
+      if (peak.intensity <= MIN_INTENSITY) continue;
+
+      let elapsed = 0;
+      while (elapsed < MAX_TAIL) {
+        elapsed += STEP_MS;
+        const decayed = peak.intensity * Math.pow(0.5, elapsed / halfLife);
+        if (decayed < MIN_INTENSITY) break;
+
+        decayEvents.push({
+          t: peak.endTime + elapsed,
+          track,
+          intensity: Math.min(decayed, clamps.intensityCeiling || 1),
+          duration: STEP_MS,
+          _decay: true, // metadata flag for UI
+        });
+      }
+
+      // Final zero event to cleanly end the tail
+      decayEvents.push({
+        t: peak.endTime + elapsed + STEP_MS,
+        track,
+        intensity: 0,
+        duration: STEP_MS,
+        _decay: true,
+      });
+
+      // Record peak for cross-block decay state
+      recordDecayPeak(track, peak.intensity, peak.endTime);
+    }
+
+    return decayEvents;
+  }
+
+  // Export internals for testing
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/scheduler.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/scheduler.js
+  //
+  // Pipelined block scheduler (§4).
+  //
+  // Single-threaded async loop. Dequeues one block from the ready queue,
+  // resolves it through the envelope resolver, dispatches events over
+  // their timeline, awaits completion, then dequeues the next block.
+  //
+  // Every await is abortable via a cancel token so pause/stop/error
+  // can interrupt mid-block. The scheduler never calls the backend
+  // directly — it goes through backend.js's executeEvent/stopAll.
+  //
+  // Pipeline: while block N is executing, block N+1 is already in the
+  // queue. This hides parsing latency from the user.
+
+
+
+
+
+
+
+  // ---- Ready queue (FIFO) ----
+
+  const _queue = [];
+  let _running = false;
+  let _cancelToken = null;
+  let _config = null;
+
+  /**
+   * Enqueue a parsed block for scheduled dispatch.
+   * Called by the parser when a paragraph block completes.
+   *
+   * @param {Object} block - { index, tags, prose, proseLength }
+   */
+  function enqueueBlock(block) {
+    _queue.push(block);
+    // Auto-start the scheduler if not already running
+    if (!_running) {
+      _startLoop();
+    }
+  }
+
+  /**
+   * Flush the queue and stop the scheduler.
+   * Called on stream end, disconnect, or error.
+   */
+  function flushQueue() {
+    _queue.length = 0;
+    _cancelCurrentBlock();
+  }
+
+  /**
+   * Get current queue depth (for diagnostics).
+   */
+  function getQueueDepth() {
+    return _queue.length;
+  }
+
+  // ---- Cancel token ----
+
+  function _createCancelToken() {
+    let _cancelled = false;
+    return {
+      get cancelled() { return _cancelled; },
+      cancel() { _cancelled = true; },
+    };
+  }
+
+  function _cancelCurrentBlock() {
+    if (_cancelToken) {
+      _cancelToken.cancel();
+      _cancelToken = null;
+    }
+  }
+
+  // ---- Scheduler loop ----
+
+  async function _startLoop() {
+    if (_running) return;
+    _running = true;
+
+    // Load config once per loop session
+    try {
+      const settings = await loadHapticSettings();
+      _config = {
+        clamps: settings.clamps,
+        slider: settings.intensitySlider,
+        taglessMode: settings.taglessBlockMode,
+        baselineIntensity: settings.baselineIntensity,
+        decayHalfLife: settings.decayHalfLife,
+        // Character-specific config is injected by the caller via
+        // setCharacterConfig() before blocks start flowing.
+        characterClamps: _characterConfig.clampOverrides || null,
+        patterns: _characterConfig.patterns || {},
+        ambientPattern: _characterConfig.ambientPattern || null,
+      };
+    } catch {
+      _config = {};
+    }
+
+    busActivate('scheduler-start');
+
+    while (_queue.length > 0) {
+      // Check if we should stop
+      const state = getBusState();
+      if (state === 'paused' || state === 'error' || state === 'idle') {
+        break;
+      }
+
+      if (!isHapticReady()) {
+        break;
+      }
+
+      const block = _queue.shift();
+      _cancelToken = _createCancelToken();
+
+      try {
+        await _dispatchBlock(block, _cancelToken);
+      } catch (err) {
+        if (_cancelToken && _cancelToken.cancelled) {
+          // Expected — block was cancelled by pause/stop
+          break;
+        }
+        console.warn('[haptic:scheduler] block dispatch error:', err && err.message);
+      }
+
+      // Block cooldown (§2.5)
+      const cooldown = _config && _config.clamps && _config.clamps.blockCooldown;
+      if (cooldown > 0 && !(_cancelToken && _cancelToken.cancelled)) {
+        await _abortableSleep(cooldown, _cancelToken);
+      }
+    }
+
+    _running = false;
+    _cancelToken = null;
+
+    // If queue drained naturally (not by cancel), transition to idle
+    if (getBusState() === 'active') {
+      busStop('queue-drained');
+    }
+  }
+
+  /**
+   * Dispatch a single block: resolve haptic events + speak prose in parallel.
+   * Block duration = max(hapticEnd, utteranceEnd) per §8.
+   */
+  async function _dispatchBlock(block, token) {
+    const { events, meta } = resolveBlock(block, _config || {});
+
+    // Start TTS narration in parallel (non-blocking)
+    let ttsPromise = null;
+    if (block.prose && block.prose.trim() && getActiveTtsBackend() && _voiceConfig) {
+      ttsPromise = speak(block.prose.trim(), _voiceConfig).catch(() => {});
+    }
+
+    // Dispatch haptic events in timeline order
+    if (events.length > 0) {
+      let lastT = 0;
+      for (const event of events) {
+        if (token.cancelled) return;
+
+        const waitMs = event.t - lastT;
+        if (waitMs > 0) {
+          await _abortableSleep(waitMs, token);
+          if (token.cancelled) return;
+        }
+
+        await executeEvent({
+          track: event.track,
+          intensity: event.intensity,
+          duration: event.duration,
+        });
+
+        lastT = event.t;
+      }
+
+      // Wait for the last haptic event to complete
+      const lastEvent = events[events.length - 1];
+      if (lastEvent && lastEvent.duration > 0 && !token.cancelled) {
+        await _abortableSleep(lastEvent.duration, token);
+      }
+    }
+
+    // Block duration = max(hapticEnd, utteranceEnd)
+    // Wait for TTS to finish if it's still speaking
+    if (ttsPromise && !token.cancelled) {
+      await ttsPromise;
+    }
+  }
+
+  /**
+   * Sleep that can be interrupted by a cancel token.
+   */
+  function _abortableSleep(ms, token) {
+    return new Promise((resolve) => {
+      if (token && token.cancelled) { resolve(); return; }
+      const timer = setTimeout(() => resolve(), ms);
+      // Check periodically for cancellation
+      const check = setInterval(() => {
+        if (token && token.cancelled) {
+          clearTimeout(timer);
+          clearInterval(check);
+          resolve();
+        }
+      }, 50);
+      // Clean up interval when timer fires naturally
+      const origResolve = resolve;
+      setTimeout(() => clearInterval(check), ms + 10);
+    });
+  }
+
+  // ---- Character config ----
+
+  let _characterConfig = {};
+  let _voiceConfig = null; // { voiceName, rate, pitch }
+
+  /**
+   * Set character-specific configuration for the current session.
+   * Called when a character with haptics loads.
+   *
+   * @param {Object} haptics - character.haptics (normalized)
+   */
+  function setCharacterConfig(haptics) {
+    _characterConfig = haptics || {};
+  }
+
+  /**
+   * Set the voice configuration for TTS narration.
+   * Called when a character with voice config loads.
+   *
+   * @param {Object} voice - { voiceName, rate, pitch }
+   */
+  function setVoiceConfig(voice) {
+    _voiceConfig = voice || null;
+  }
+
+  /**
+   * Clear character config (on thread/character switch).
+   */
+  function clearCharacterConfig() {
+    _characterConfig = {};
+    _voiceConfig = null;
+  }
+
+  // ---- Bus integration ----
+
+  // Stop scheduler on bus events
+  onBusEvent('stop', () => {
+    flushQueue();
+    _running = false;
+  });
+
+  onBusEvent('pause', () => {
+    _cancelCurrentBlock();
+    // Don't flush queue — resume will re-start the loop
+  });
+
+  onBusEvent('resume', () => {
+    if (_queue.length > 0 && !_running) {
+      _startLoop();
+    }
+  });
+
+  // ---- Exports for testing ----
+
+  function _isRunning() { return _running; }
+  function _getConfig() { return _config; }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/tts.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/tts.js
+  //
+  // Text-to-speech narration subsystem (§8).
+  //
+  // Pluggable TTS backend contract, plugin registry, and two built-in
+  // free backends: Web Speech API and StreamElements TTS.
+  //
+  // Narration is off by default. When enabled, the paragraph-block
+  // scheduler drives TTS utterances in lockstep with haptic envelopes.
+
+
+
+  // ---- TTS Backend registry ----
+
+  const _ttsBackends = new Map();
+  let _activeTtsId = null;
+
+  /**
+   * Register a TTS backend plugin.
+   */
+  function registerTtsBackend(backend) {
+    if (!backend || !backend.id) return;
+    _ttsBackends.set(backend.id, backend);
+  }
+
+  /**
+   * List registered TTS backends.
+   */
+  function listTtsBackends() {
+    return Array.from(_ttsBackends.values()).map(b => ({
+      id: b.id,
+      displayName: b.displayName || b.id,
+      capabilities: b.capabilities || {},
+    }));
+  }
+
+  /**
+   * Set active TTS backend.
+   */
+  function setActiveTtsBackend(id) {
+    if (!_ttsBackends.has(id)) return false;
+    // Stop current backend if switching
+    if (_activeTtsId && _activeTtsId !== id) {
+      const prev = _ttsBackends.get(_activeTtsId);
+      if (prev) try { prev.stop(); } catch {}
+    }
+    _activeTtsId = id;
+    return true;
+  }
+
+  /**
+   * Get active TTS backend.
+   */
+  function getActiveTtsBackend() {
+    if (!_activeTtsId) return null;
+    return _ttsBackends.get(_activeTtsId) || null;
+  }
+
+  // ---- Unified TTS API ----
+
+  /**
+   * Speak text using the active TTS backend.
+   *
+   * @param {string} text
+   * @param {Object} voiceConfig - { voiceName, rate, pitch }
+   * @returns {Promise<void>} resolves when utterance ends
+   */
+  async function speak(text, voiceConfig = {}) {
+    const backend = getActiveTtsBackend();
+    if (!backend) return;
+
+    try {
+      const handle = backend.speak({
+        text: text.slice(0, 2000), // max_utterance_length clamp
+        voiceId: voiceConfig.voiceName || null,
+        rate: voiceConfig.rate || 1.0,
+        pitch: voiceConfig.pitch || 1.0,
+      });
+      if (handle && handle.promise) {
+        await handle.promise;
+      }
+    } catch (err) {
+      console.warn('[haptic:tts] speak failed:', err && err.message);
+    }
+  }
+
+  /**
+   * Stop all TTS playback.
+   */
+  async function stopTts() {
+    const backend = getActiveTtsBackend();
+    if (!backend) return;
+    try { await backend.stop(); } catch {}
+  }
+
+  /**
+   * List available voices on the active backend.
+   */
+  function listVoices() {
+    const backend = getActiveTtsBackend();
+    if (!backend || !backend.listVoices) return [];
+    try { return backend.listVoices(); } catch { return []; }
+  }
+
+  // ---- Voice selection ladder (§8) ----
+
+  /**
+   * Find the best matching voice for a character's preferences.
+   *
+   * Ladder: exact name → fuzzy (Levenshtein ≤ 2) → language → first available.
+   *
+   * @param {string} preferredName
+   * @param {string} lang - page language code (e.g. 'en')
+   * @returns {Object|null} matched voice
+   */
+  function findBestVoice(preferredName, lang) {
+    const voices = listVoices();
+    if (voices.length === 0) return null;
+
+    // 1. Exact name match
+    if (preferredName) {
+      const lower = preferredName.toLowerCase();
+      const exact = voices.find(v => (v.name || '').toLowerCase() === lower);
+      if (exact) return exact;
+
+      // 2. Fuzzy match (Levenshtein ≤ 2)
+      for (const v of voices) {
+        const vName = (v.name || '').toLowerCase();
+        if (_levenshtein(lower, vName) <= 2) return v;
+      }
+    }
+
+    // 3. Language match
+    if (lang) {
+      const langMatch = voices.find(v => (v.lang || '').startsWith(lang));
+      if (langMatch) return langMatch;
+    }
+
+    // 4. First available
+    return voices[0];
+  }
+
+  function _levenshtein(a, b) {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const m = [];
+    for (let i = 0; i <= b.length; i++) m[i] = [i];
+    for (let j = 0; j <= a.length; j++) m[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        m[i][j] = Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+(b[i-1]===a[j-1]?0:1));
+      }
+    }
+    return m[b.length][a.length];
+  }
+
+  // ---- Built-in: Web Speech API plugin ----
+
+  const webSpeechPlugin = {
+    id: 'web-speech',
+    displayName: 'Web Speech API',
+    capabilities: { voices: true, rateControl: true, pitchControl: true, offline: true, boundaryEvents: true },
+
+    listVoices() {
+      if (typeof speechSynthesis === 'undefined') return [];
+      return speechSynthesis.getVoices().map(v => ({
+        id: v.voiceURI,
+        name: v.name,
+        lang: v.lang,
+        offline: v.localService,
+      }));
+    },
+
+    speak(utterance) {
+      if (typeof speechSynthesis === 'undefined') {
+        return { promise: Promise.resolve(), stop: () => {} };
+      }
+
+      const u = new SpeechSynthesisUtterance(utterance.text);
+      u.rate = Math.max(0.1, Math.min(10, utterance.rate || 1.0));
+      u.pitch = Math.max(0, Math.min(2, utterance.pitch || 1.0));
+
+      // Match voice by name/id
+      if (utterance.voiceId) {
+        const voices = speechSynthesis.getVoices();
+        const match = voices.find(v =>
+          v.name === utterance.voiceId || v.voiceURI === utterance.voiceId
+        );
+        if (match) u.voice = match;
+      }
+
+      let _resolve;
+      const promise = new Promise(resolve => { _resolve = resolve; });
+
+      u.onend = () => _resolve();
+      u.onerror = () => _resolve(); // don't reject — narration failure is non-blocking
+
+      speechSynthesis.speak(u);
+
+      return {
+        promise,
+        stop: () => { speechSynthesis.cancel(); _resolve(); },
+        onBoundary: null, // Web Speech boundary events are uneven
+      };
+    },
+
+    async stop() {
+      if (typeof speechSynthesis !== 'undefined') {
+        speechSynthesis.cancel();
+      }
+    },
+
+    on() {}, // event listeners — minimal for built-in
+  };
+
+  // ---- Built-in: StreamElements TTS plugin ----
+
+  const streamElementsPlugin = {
+    id: 'streamelements',
+    displayName: 'StreamElements TTS',
+    capabilities: { voices: true, rateControl: false, pitchControl: false, offline: false, boundaryEvents: false },
+
+    _voices: [
+      { id: 'Brian', name: 'Brian', lang: 'en-GB' },
+      { id: 'Amy', name: 'Amy', lang: 'en-GB' },
+      { id: 'Emma', name: 'Emma', lang: 'en-GB' },
+      { id: 'Joanna', name: 'Joanna', lang: 'en-US' },
+      { id: 'Matthew', name: 'Matthew', lang: 'en-US' },
+      { id: 'Ivy', name: 'Ivy', lang: 'en-US' },
+      { id: 'Justin', name: 'Justin', lang: 'en-US' },
+      { id: 'Kendra', name: 'Kendra', lang: 'en-US' },
+      { id: 'Joey', name: 'Joey', lang: 'en-US' },
+      { id: 'Salli', name: 'Salli', lang: 'en-US' },
+    ],
+
+    _currentAudio: null,
+
+    listVoices() {
+      return this._voices.map(v => ({ ...v, offline: false }));
+    },
+
+    speak(utterance) {
+      const voice = utterance.voiceId || 'Brian';
+      const text = encodeURIComponent(utterance.text.slice(0, 500)); // SE has shorter limits
+      const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${text}`;
+
+      let _resolve;
+      const promise = new Promise(resolve => { _resolve = resolve; });
+
+      const audio = new Audio(url);
+      this._currentAudio = audio;
+
+      audio.onended = () => { this._currentAudio = null; _resolve(); };
+      audio.onerror = () => { this._currentAudio = null; _resolve(); };
+      audio.play().catch(() => _resolve());
+
+      return {
+        promise,
+        stop: () => { audio.pause(); audio.currentTime = 0; this._currentAudio = null; _resolve(); },
+      };
+    },
+
+    async stop() {
+      if (this._currentAudio) {
+        this._currentAudio.pause();
+        this._currentAudio.currentTime = 0;
+        this._currentAudio = null;
+      }
+    },
+
+    on() {},
+  };
+
+  // ---- Self-register built-in plugins ----
+
+  registerTtsBackend(webSpeechPlugin);
+  registerTtsBackend(streamElementsPlugin);
+
+  // Default to Web Speech (offline, universal)
+  setActiveTtsBackend('web-speech');
+
+  // ---- Bus integration: stop TTS on any stop event ----
+
+  onBusEvent('stop', () => stopTts());
+  onBusEvent('pause', () => stopTts());
+  onBusEvent('error', () => stopTts());
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/message_hook.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/message_hook.js
+  //
+  // MutationObserver that watches for new AI messages in the chat,
+  // runs the haptic tag parser on their content, renders inline
+  // glyphs, and feeds parsed blocks to the scheduler.
+  //
+  // This is the bridge between the upstream chat UI and the haptic
+  // subsystem. It follows the same pattern as message_controls.js:
+  //   - MutationObserver on #chatMessagesEl (childList, subtree: false)
+  //   - Process each new .message.ai element
+  //   - Idempotent — safe to call multiple times
+  //
+  // When haptics are disabled (no character haptics, global off, no
+  // consent), this module is inert — it observes but does not process.
+
+
+
+
+
+
+
+
+
+  let _observer = null;
+  let _initialized = false;
+  let _hapticEnabled = false;    // current character has haptics
+  let _characterHaptics = null;  // normalized haptics config
+  let _glyphTheme = {};
+
+  /**
+   * Initialize the message hook. Call once after chat DOM is ready.
+   * Idempotent.
+   */
+  function initMessageHook() {
+    if (_initialized) return;
+
+    const chatEl = document.getElementById('chatMessagesEl');
+    if (!chatEl) return;
+
+    _initialized = true;
+
+    // Load glyph theme from settings
+    loadHapticSettings().then(s => {
+      _glyphTheme = (s && s.glyphTheme) || {};
+    }).catch(() => {});
+
+    // Observe new messages
+    _observer = new MutationObserver(mutations => {
+      if (!_hapticEnabled) return;
+      for (const mut of mutations) {
+        for (const node of mut.addedNodes) {
+          if (node.nodeType === 1 && node.classList && node.classList.contains('message')) {
+            if (node.classList.contains('ai')) {
+              processAiMessage(node);
+            }
+          }
+        }
+      }
+    });
+    _observer.observe(chatEl, { childList: true, subtree: false });
+
+    // Process existing AI messages on first load
+    chatEl.querySelectorAll('.message.ai').forEach(processAiMessage);
+  }
+
+  /**
+   * Set the current character's haptic configuration.
+   * Called when a thread/character loads.
+   *
+   * @param {Object|null} characterHaptics - character.haptics field
+   */
+  function setActiveCharacterHaptics(characterHaptics) {
+    _characterHaptics = normalizeHaptics(characterHaptics);
+    _hapticEnabled = !!(_characterHaptics && _characterHaptics.enabled);
+
+    // Push config to the scheduler
+    if (_hapticEnabled) {
+      setCharacterConfig(_characterHaptics);
+    }
+  }
+
+  /**
+   * Disable haptic processing (character switch, disconnect).
+   */
+  function disableHapticProcessing() {
+    _hapticEnabled = false;
+    _characterHaptics = null;
+  }
+
+  /**
+   * Check if haptic message processing is currently active.
+   */
+  function isHapticProcessingActive() {
+    return _hapticEnabled;
+  }
+
+  // ---- Message processing ----
+
+  /**
+   * Process a single AI message element.
+   * Extracts text, runs the parser, renders glyphs, feeds scheduler.
+   */
+  function processAiMessage(messageEl) {
+    if (!_hapticEnabled || !_characterHaptics) return;
+    if (messageEl.dataset.hapticProcessed === 'true') return;
+
+    // Extract the raw text content (before any glyph injection)
+    const contentEl = messageEl.querySelector('.message-text')
+                   || messageEl.querySelector('.msg-text')
+                   || messageEl.querySelector('.content')
+                   || messageEl;
+
+    const rawText = contentEl.textContent || '';
+    if (!rawText.trim()) return;
+
+    // Check if this message has haptic tags at all (fast path)
+    if (!/<(vibe|stroke|rotate|intensity|stop|pattern)\b/i.test(rawText)) {
+      messageEl.dataset.hapticProcessed = 'true';
+      return;
+    }
+
+    // Parse the message
+    const tags = [];
+    const blocks = [];
+    const parser = createParser({
+      defaults: _characterHaptics.defaults,
+      onTag: (tag) => tags.push(tag),
+      onBlock: (block) => blocks.push(block),
+    });
+
+    parser.push(rawText);
+    parser.flush();
+
+    if (tags.length === 0) {
+      messageEl.dataset.hapticProcessed = 'true';
+      return;
+    }
+
+    // Mark as processed
+    messageEl.dataset.hapticProcessed = 'true';
+
+    // Render inline glyphs
+    renderGlyphs(messageEl, tags, {
+      glyphTheme: _glyphTheme,
+      onDelete: (tagIndex) => {
+        handleTagDelete(messageEl, tagIndex, tags);
+      },
+      onEdit: (tagIndex, newTag) => {
+        handleTagEdit(messageEl, tagIndex, newTag, tags);
+      },
+    });
+
+    // Feed blocks to scheduler (only if backend is connected)
+    if (isHapticReady()) {
+      for (const block of blocks) {
+        enqueueBlock(block);
+      }
+    }
+  }
+
+  /**
+   * Re-process a message after edits (tag delete/modify).
+   * Clears existing glyphs and re-renders with updated tags.
+   */
+  function reprocessMessage(messageEl, updatedTags) {
+    clearGlyphs(messageEl);
+    delete messageEl.dataset.hapticProcessed;
+    delete messageEl.dataset.hapticGlyphs;
+
+    if (updatedTags.length > 0) {
+      messageEl.dataset.hapticProcessed = 'true';
+      renderGlyphs(messageEl, updatedTags, {
+        glyphTheme: _glyphTheme,
+        onDelete: (idx) => handleTagDelete(messageEl, idx, updatedTags),
+        onEdit: (idx, newTag) => handleTagEdit(messageEl, idx, newTag, updatedTags),
+      });
+    }
+  }
+
+  // ---- Tag editing ----
+
+  function handleTagDelete(messageEl, tagIndex, tags) {
+    const msgId = getMessageId(messageEl);
+    if (!msgId) return;
+
+    // Record the edit
+    const edit = { tagIndex, action: 'delete', originalTag: tags[tagIndex] };
+    persistEdit(msgId, messageEl, edit);
+
+    // Remove from tag array and re-render
+    const updated = tags.filter((_, i) => i !== tagIndex);
+    reprocessMessage(messageEl, updated);
+  }
+
+  function handleTagEdit(messageEl, tagIndex, newTag, tags) {
+    const msgId = getMessageId(messageEl);
+    if (!msgId) return;
+
+    const edit = { tagIndex, action: 'edit', originalTag: tags[tagIndex], editedTag: newTag };
+    persistEdit(msgId, messageEl, edit);
+
+    tags[tagIndex] = { ...tags[tagIndex], ...newTag };
+    reprocessMessage(messageEl, tags);
+  }
+
+  function persistEdit(msgId, messageEl, edit) {
+    // Get thread ID from the DOM or window globals
+    const threadId = (typeof window !== 'undefined' && window.currentThreadId) || 'unknown';
+
+    // Load existing edits and append
+    loadMessageEdits(msgId).then(existing => {
+      const edits = (existing && existing.edits) || [];
+      edits.push(edit);
+      saveMessageEdits(msgId, threadId, edits);
+    }).catch(() => {});
+  }
+
+  function getMessageId(messageEl) {
+    // Upstream messages usually have an id attribute or data-message-id
+    return messageEl.id || messageEl.dataset.messageId || null;
+  }
+
+  // ---- Streaming integration ----
+
+  /**
+   * Hook for streaming AI responses. Call this with each chunk
+   * as the AI generates it. This enables real-time glyph rendering
+   * and pipelined scheduling during generation (not just after).
+   *
+   * For M4 this is a placeholder — the full streaming hook requires
+   * deeper upstream integration (injecting into the onChunk callback).
+   *
+   * @param {string} chunk - streaming text chunk
+   * @param {HTMLElement} messageEl - the message being streamed into
+   */
+  function onStreamChunk(chunk, messageEl) {
+    // TODO: M4+ — connect to upstream's streaming pipeline
+    // For now, messages are processed after completion via MutationObserver
+  }
+
+  /**
+   * Tear down the observer (for cleanup/tests).
+   */
+  function destroyMessageHook() {
+    if (_observer) {
+      _observer.disconnect();
+      _observer = null;
+    }
+    _initialized = false;
+    _hapticEnabled = false;
+    _characterHaptics = null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/consent.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/consent.js
+  //
+  // First-launch consent gate (§3) and AI instruction injection.
+  //
+  // When a character with haptics.enabled loads (especially from a
+  // share link), all tag dispatch is MUTED until the user explicitly
+  // enables haptics for that character. The consent dialog shows:
+  //   - Character name
+  //   - Pattern count + names
+  //   - Effective clamp values
+  //   - Buttons: Enable · Load Muted · Cancel
+  //
+  // AI instruction injection appends the haptic tag reference and
+  // available patterns to the system prompt when haptics are active.
+
+
+
+
+
+
+
+
+
+
+  /**
+   * Check consent and activate haptics for a character.
+   * Called when a thread loads or character switches.
+   *
+   * @param {Object} character - the character object from Dexie
+   * @returns {Promise<boolean>} true if haptics were enabled
+   */
+  async function activateCharacterHaptics(character) {
+    if (!character) return false;
+
+    const haptics = normalizeHaptics(character.haptics);
+    if (!haptics.enabled) {
+      disableHapticProcessing();
+      return false;
+    }
+
+    const characterId = character.id || character.name;
+
+    // Check if user has already consented for this character
+    const consented = await hasCharacterConsent(characterId);
+
+    if (consented) {
+      // Already consented — activate immediately
+      setActiveCharacterHaptics(haptics);
+      setCharacterConfig(haptics);
+      if (character.voice) {
+        setVoiceConfig(character.voice);
+      }
+      return true;
+    }
+
+    // Show consent gate
+    return new Promise((resolve) => {
+      showConsentDialog(character, haptics, async (choice) => {
+        if (choice === 'enable') {
+          await grantCharacterConsent(characterId);
+          setActiveCharacterHaptics(haptics);
+          setCharacterConfig(haptics);
+          if (character.voice) {
+            setVoiceConfig(character.voice);
+          }
+          resolve(true);
+        } else {
+          // 'muted' or 'cancel' — load without haptics
+          disableHapticProcessing();
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * Show the consent dialog for a haptic-enabled character.
+   */
+  function showConsentDialog(character, haptics, onChoice) {
+    const patternNames = Object.keys(haptics.patterns || {});
+    const clamps = mergeClamps(null, haptics.clampOverrides);
+
+    const content = h('div', { class: 'pf-consent' }, [
+      h('div', { class: 'pf-consent-header' }, [
+        h('span', { class: 'pf-consent-icon' }, ['◈']),
+        h('span', { class: 'pf-consent-title' }, ['Haptic Character']),
+      ]),
+
+      h('p', { class: 'pf-consent-name' }, [
+        `"${character.name || 'This character'}" includes haptic feedback data.`,
+      ]),
+
+      patternNames.length > 0
+        ? h('div', { class: 'pf-consent-patterns' }, [
+            h('div', { class: 'pf-consent-label' }, [`${patternNames.length} named patterns:`]),
+            h('div', { class: 'pf-consent-list' }, [patternNames.join(', ')]),
+          ])
+        : null,
+
+      h('div', { class: 'pf-consent-clamps' }, [
+        h('div', { class: 'pf-consent-label' }, ['Safety limits:']),
+        h('div', { class: 'pf-consent-detail' }, [
+          `Max intensity: ${Math.round(clamps.intensityCeiling * 100)}% · `,
+          `Max duration: ${clamps.durationCeiling / 1000}s · `,
+          `Max tags/msg: ${clamps.tagsPerMessageCap}`,
+        ]),
+      ]),
+
+      character.voice && character.voice.enabled
+        ? h('div', { class: 'pf-consent-voice' }, [
+            `Voice: ${character.voice.preferredVoiceName || 'default'}, `,
+            `rate ${character.voice.rate || 1.0}`,
+          ])
+        : null,
+
+      h('div', { class: 'pf-consent-actions' }, [
+        h('button', {
+          type: 'button',
+          class: 'pf-consent-btn pf-consent-btn-primary',
+          onClick: () => { overlay.hide(); onChoice('enable'); },
+        }, ['Enable for this character']),
+        h('button', {
+          type: 'button',
+          class: 'pf-consent-btn',
+          onClick: () => { overlay.hide(); onChoice('muted'); },
+        }, ['Load muted']),
+        h('button', {
+          type: 'button',
+          class: 'pf-consent-btn',
+          onClick: () => { overlay.hide(); onChoice('cancel'); },
+        }, ['Cancel']),
+      ]),
+
+      h('p', { class: 'pf-consent-note' }, [
+        'You can change this later in Settings → Haptics.',
+      ]),
+    ].filter(Boolean));
+
+    const overlay = createOverlay({
+      ariaLabel: 'Haptic character consent',
+      children: [content],
+    });
+    overlay.show();
+  }
+
+  // ---- AI Instruction Injection ----
+
+  /**
+   * Build the haptic instruction snippet to inject into the AI's
+   * system prompt. Called when composing the message context.
+   *
+   * @param {Object} characterHaptics - normalized haptics config
+   * @param {Object} opts
+   * @param {boolean} opts.includeCorrectionFeedback - include §3.5 correction
+   * @returns {string|null} snippet to append, or null if haptics inactive
+   */
+  function buildHapticInstruction(characterHaptics, opts = {}) {
+    if (!characterHaptics || !characterHaptics.enabled) return null;
+
+    const parts = [];
+
+    // Author's custom snippet takes priority
+    if (characterHaptics.instructionSnippet) {
+      parts.push(characterHaptics.instructionSnippet);
+    } else {
+      // Auto-generated snippet from pattern library
+      const clamps = mergeClamps(null, characterHaptics.clampOverrides);
+      const snippet = generatePatternInstructionSnippet(
+        characterHaptics.patterns || {},
+        clamps
+      );
+      if (snippet) parts.push(snippet);
+    }
+
+    // Self-correcting feedback (§3.5) — appended when 3+ unknowns
+    if (opts.includeCorrectionFeedback) {
+      const correction = generateCorrectionSnippet(characterHaptics.patterns);
+      if (correction) parts.push(correction);
+    }
+
+    return parts.length > 0 ? parts.join('\n') : null;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: haptic/init.js
+     ────────────────────────────────────────────────────────── */
+  // haptic/init.js
+  //
+  // Boot-time initialization for the haptic subsystem.
+  // Called from start() in profile/index.js after the DB is open.
+  //
+  // Sequence:
+  //   1. Init DB tables (additive, no upstream schema changes)
+  //   2. Load persisted settings
+  //   3. Set active backend from saved preference
+  //   4. Wire control bus → backend stopAll
+  //   5. Mount UI chip + slider in chat header
+  //   6. Watch for character/thread switches
+
+
+
+
+
+
+
+
+  // buttplug.js self-registers on import — just ensure it's loaded
+
+
+  let _booted = false;
+  let _lastThreadId = null;
+
+  /**
+   * Initialize the haptic subsystem. Safe to call multiple times.
+   * Non-blocking, non-throwing — haptic failures never break chat.
+   */
+  async function initHapticSubsystem() {
+    if (_booted) return;
+    _booted = true;
+
+    try {
+      // 1. Ensure DB tables exist
+      await initHapticDb();
+
+      // 2. Load saved settings
+      const settings = await loadHapticSettings();
+
+      // 3. Activate saved backend preference
+      setActiveBackend(settings.activeBackendId || 'buttplug');
+
+      // 3b. Load any cached third-party plugins
+      try { await autoLoadCachedPlugins(); } catch {}
+
+      // 4. Wire control bus → backend stopAll on any stop/error/pause
+      onBusEvent('stop', () => { stopAll().catch(() => {}); });
+      onBusEvent('pause', () => { stopAll().catch(() => {}); });
+      onBusEvent('error', () => { stopAll().catch(() => {}); });
+
+      // 5. Mount UI (deferred to next tick so DOM is ready)
+      setTimeout(() => {
+        try { mountHapticChip(); } catch (e) {
+          console.warn('[haptic:init] chip mount failed:', e && e.message);
+        }
+        try { initMessageHook(); } catch (e) {
+          console.warn('[haptic:init] message hook failed:', e && e.message);
+        }
+      }, 0);
+
+      // 6. Watch for character/thread switches to activate haptics
+      _startCharacterWatcher();
+
+    } catch (err) {
+      console.warn('[haptic:init] subsystem init failed:', err && err.message);
+    }
+  }
+
+  /**
+   * Mount the device status chip + pause button into the chat header.
+   */
+  function mountHapticChip() {
+    if (typeof document === 'undefined') return;
+
+    const header = document.querySelector('.chat-header')
+                || document.querySelector('#chatHeader')
+                || document.querySelector('[data-chat-header]');
+
+    if (!header) {
+      setTimeout(() => { try { mountHapticChip(); } catch {} }, 2000);
+      return;
+    }
+
+    if (header.querySelector('.pf-haptic-chip')) return;
+
+    const chipContainer = document.createElement('div');
+    chipContainer.className = 'pf-haptic-chip-container';
+    chipContainer.setAttribute('data-haptic-chip', '');
+    header.appendChild(chipContainer);
+    renderHapticChip(chipContainer);
+  }
+
+  /**
+   * Poll for character/thread changes and activate haptics.
+   * Upstream Perchance sets window.currentThreadId and provides
+   * window.db.threads/characters for lookups. We poll since there's
+   * no event API for thread switches.
+   */
+  function _startCharacterWatcher() {
+    if (typeof window === 'undefined') return;
+
+    const CHECK_MS = 2000;
+
+    async function check() {
+      try {
+        const threadId = window.currentThreadId || null;
+        if (!threadId || threadId === _lastThreadId) return;
+        _lastThreadId = threadId;
+
+        // Look up the thread → character
+        if (!window.db || !window.db.threads || !window.db.characters) return;
+        const thread = await window.db.threads.get(threadId);
+        if (!thread || !thread.characterId) return;
+        const character = await window.db.characters.get(thread.characterId);
+        if (!character) return;
+
+        // Activate haptics for this character (shows consent gate if needed)
+        activateCharacterHaptics(character).catch(() => {});
+      } catch {
+        // Non-fatal — keep polling
+      }
+    }
+
+    // Initial check
+    setTimeout(check, 1000);
+    // Poll for changes
+    setInterval(check, CHECK_MS);
+  }
+
+  /**
+   * Check if haptics are globally available (subsystem booted).
+   */
+  function isHapticSubsystemReady() {
+    return _booted;
+  }
 
   /* ──────────────────────────────────────────────────────────
      module: profile/settings_store.js
@@ -29270,6 +33530,1073 @@ Use this template for your response:
     root.setFocused = setFocused;
 
     return root;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/haptic_glyphs.js
+     ────────────────────────────────────────────────────────── */
+  // render/haptic_glyphs.js
+  //
+  // Renders haptic tags as inline glyphs inside AI messages (§5).
+  //
+  // Each parsed tag becomes a small clickable glyph at its position in
+  // the message text. Clicking a glyph opens a context menu with:
+  //   - Parameter display (track, intensity, duration)
+  //   - Annotations (clamped, fuzzy-matched, unknown tag, semantic value)
+  //   - Actions: Replay · Edit · Delete · Save to library
+  //
+  // A "haptic cues" summary chip appears below each message that
+  // contains tags, showing tag count + any interventions.
+
+
+
+
+  // ---- Glyph vocabulary ----
+  // Default glyphs per tag type. User-themable via settings.glyphTheme.
+  const DEFAULT_GLYPHS = {
+    vibe:      '〰',
+    stroke:    '↕',
+    rotate:    '⟳',
+    intensity: '◈',
+    stop:      '⊘',
+    pattern:   '♫',
+    unknown:   '⚠',
+    error:     '⛌',
+  };
+
+  /**
+   * Get the glyph character for a tag type.
+   */
+  function glyphFor(tag, theme) {
+    if (theme && theme[tag.patternName]) return theme[tag.patternName];
+    if (theme && theme[tag.type]) return theme[tag.type];
+    if (!tag.valid) return DEFAULT_GLYPHS.error;
+    if (tag.type === 'pattern') return DEFAULT_GLYPHS.pattern;
+    return DEFAULT_GLYPHS[tag.type] || DEFAULT_GLYPHS.unknown;
+  }
+
+  // ---- Context menu ----
+
+  let _activeMenu = null;
+
+  function closeActiveMenu() {
+    if (_activeMenu) {
+      _activeMenu.remove();
+      _activeMenu = null;
+    }
+  }
+
+  // Close on click outside
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+      if (_activeMenu && !_activeMenu.contains(e.target) && !e.target.closest('.pf-hg-glyph')) {
+        closeActiveMenu();
+      }
+    });
+  }
+
+  /**
+   * Open a context menu for a glyph.
+   */
+  function openGlyphMenu(tag, glyphEl, messageEl, tagIndex, onEdit, onDelete) {
+    closeActiveMenu();
+
+    const menu = h('div', { class: 'pf-hg-menu' });
+
+    // Header: tag type + params
+    const header = h('div', { class: 'pf-hg-menu-header' }, [
+      h('span', { class: 'pf-hg-menu-type' }, [tag.type.toUpperCase()]),
+      tag.patternName ? h('span', { class: 'pf-hg-menu-name' }, [tag.patternName]) : null,
+    ].filter(Boolean));
+    menu.appendChild(header);
+
+    // Params
+    const params = h('div', { class: 'pf-hg-menu-params' });
+    if (tag.track && tag.track !== 'all') {
+      params.appendChild(h('div', {}, [`Track: ${tag.track}`]));
+    }
+    if (tag.intensity !== null && tag.intensity !== undefined) {
+      params.appendChild(h('div', {}, [`Intensity: ${(tag.intensity * 100).toFixed(0)}%`]));
+    }
+    if (tag.duration !== null && tag.duration !== undefined) {
+      const dur = tag.duration >= 1000 ? `${(tag.duration / 1000).toFixed(1)}s` : `${tag.duration}ms`;
+      params.appendChild(h('div', {}, [`Duration: ${dur}`]));
+    }
+    menu.appendChild(params);
+
+    // Annotations
+    if (tag.annotations && tag.annotations.length > 0) {
+      const annots = h('div', { class: 'pf-hg-menu-annotations' });
+      for (const a of tag.annotations) {
+        const prefix = a.type === 'error' ? '✗ '
+                     : a.type === 'unknown-tag' ? '⚠ '
+                     : a.type === 'semantic-value' ? '⤳ '
+                     : a.type === 'parse-warning' ? '⚠ '
+                     : '';
+        annots.appendChild(h('div', { class: 'pf-hg-menu-annot pf-hg-menu-annot-' + a.type }, [prefix + a.text]));
+      }
+      menu.appendChild(annots);
+    }
+
+    // Raw tag text
+    if (tag.raw) {
+      const rawEl = h('div', { class: 'pf-hg-menu-raw' }, [tag.raw]);
+      menu.appendChild(rawEl);
+    }
+
+    // Action buttons
+    const actions = h('div', { class: 'pf-hg-menu-actions' });
+
+    // Replay
+    const replayBtn = h('button', {
+      type: 'button', class: 'pf-hg-action',
+      onClick: () => {
+        if (isHapticReady()) {
+          executeEvent({ track: tag.track || 'vibe', intensity: tag.intensity || 0.5, duration: tag.duration || 3000 });
+        }
+        closeActiveMenu();
+      },
+    }, ['▶ Replay']);
+    actions.appendChild(replayBtn);
+
+    // Delete
+    const deleteBtn = h('button', {
+      type: 'button', class: 'pf-hg-action pf-hg-action-danger',
+      onClick: () => {
+        if (onDelete) onDelete(tagIndex);
+        glyphEl.remove();
+        closeActiveMenu();
+      },
+    }, ['✕ Delete']);
+    actions.appendChild(deleteBtn);
+
+    menu.appendChild(actions);
+
+    // Position the menu near the glyph
+    const rect = glyphEl.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.left = `${Math.min(rect.left, window.innerWidth - 240)}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.zIndex = '99999';
+
+    document.body.appendChild(menu);
+    _activeMenu = menu;
+  }
+
+  // ---- Inline glyph rendering ----
+
+  /**
+   * Process an AI message element: find haptic tags in its text,
+   * replace them with inline glyph elements, add cues chip.
+   *
+   * @param {HTMLElement} messageEl - the .message.ai element
+   * @param {Array} tags - parsed tags from the parser
+   * @param {Object} opts
+   * @param {Object} opts.glyphTheme - user glyph overrides
+   * @param {Function} opts.onDelete - callback(tagIndex) for tag deletion
+   * @param {Function} opts.onEdit - callback(tagIndex, newTag) for tag editing
+   */
+  function renderGlyphs(messageEl, tags, opts = {}) {
+    if (!messageEl || !tags || tags.length === 0) return;
+
+    const theme = opts.glyphTheme || {};
+
+    // Find the message content container
+    const contentEl = messageEl.querySelector('.message-text')
+                   || messageEl.querySelector('.msg-text')
+                   || messageEl.querySelector('.content')
+                   || messageEl;
+
+    // Don't double-process
+    if (messageEl.dataset.hapticGlyphs === 'true') return;
+    messageEl.dataset.hapticGlyphs = 'true';
+
+    // Replace raw tag text in the HTML with glyph elements.
+    // We work on innerHTML — find each tag.raw and replace it with a
+    // glyph span. Tags that aren't found in the HTML (already stripped
+    // by upstream sanitization) get appended as floating glyphs.
+    const html = contentEl.innerHTML;
+    let newHtml = html;
+    const glyphIds = [];
+
+    for (let i = 0; i < tags.length; i++) {
+      const tag = tags[i];
+      const glyphChar = glyphFor(tag, theme);
+      const id = `pf-hg-${Date.now()}-${i}`;
+      glyphIds.push({ id, tag, index: i });
+
+      const annotClass = tag.annotations && tag.annotations.length > 0 ? ' pf-hg-annotated' : '';
+      const glyphHtml = `<span class="pf-hg-glyph pf-hg-glyph-${tag.type}${annotClass}" data-hg-idx="${i}" id="${id}" title="${escHtml(tag.type)}${tag.patternName ? ': ' + escHtml(tag.patternName) : ''}">${escHtml(glyphChar)}</span>`;
+
+      if (tag.raw && newHtml.includes(escHtml(tag.raw))) {
+        // Replace first occurrence of the raw tag text
+        newHtml = newHtml.replace(escHtml(tag.raw), glyphHtml);
+      } else if (tag.raw && newHtml.includes(tag.raw)) {
+        newHtml = newHtml.replace(tag.raw, glyphHtml);
+      } else {
+        // Tag text not found in HTML (stripped by sanitizer) — append
+        newHtml += ' ' + glyphHtml;
+      }
+    }
+
+    contentEl.innerHTML = newHtml;
+
+    // Attach click handlers to each glyph
+    for (const { id, tag, index } of glyphIds) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openGlyphMenu(tag, el, messageEl, index, opts.onEdit, opts.onDelete);
+        });
+      }
+    }
+
+    // Add cues chip below message
+    addCuesChip(messageEl, tags);
+  }
+
+  /**
+   * Add a "haptic cues" summary chip below an AI message.
+   */
+  function addCuesChip(messageEl, tags) {
+    // Don't double-add
+    if (messageEl.querySelector('.pf-hg-cues')) return;
+
+    const count = tags.length;
+    const clamped = tags.filter(t => t.annotations && t.annotations.some(a => a.type === 'clamped')).length;
+    const fuzzy = tags.filter(t => t.annotations && t.annotations.some(a => a.type === 'fuzzy-match')).length;
+    const unknown = tags.filter(t => t.annotations && t.annotations.some(a => a.type === 'unknown-tag')).length;
+    const semantic = tags.filter(t => t.annotations && t.annotations.some(a => a.type === 'semantic-value')).length;
+
+    let summary = `${count} haptic cue${count !== 1 ? 's' : ''}`;
+    const details = [];
+    if (clamped > 0) details.push(`${clamped} clamped`);
+    if (fuzzy > 0) details.push(`${fuzzy} fuzzy-matched`);
+    if (unknown > 0) details.push(`${unknown} unknown`);
+    if (semantic > 0) details.push(`${semantic} semantic`);
+    if (details.length > 0) summary += ` (${details.join(', ')})`;
+
+    const chip = h('div', { class: 'pf-hg-cues' }, [
+      h('span', { class: 'pf-hg-cues-icon' }, ['◈']),
+      h('span', { class: 'pf-hg-cues-text' }, [summary]),
+    ]);
+
+    messageEl.appendChild(chip);
+  }
+
+  // ---- Helpers ----
+
+  function escHtml(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /**
+   * Remove all haptic glyphs from a message (for re-render).
+   */
+  function clearGlyphs(messageEl) {
+    if (!messageEl) return;
+    messageEl.querySelectorAll('.pf-hg-glyph').forEach(el => el.remove());
+    messageEl.querySelectorAll('.pf-hg-cues').forEach(el => el.remove());
+    delete messageEl.dataset.hapticGlyphs;
+  }
+
+  /**
+   * Get the default glyph map (for settings UI).
+   */
+  function getDefaultGlyphs() {
+    return { ...DEFAULT_GLYPHS };
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/haptic_chip.js
+     ────────────────────────────────────────────────────────── */
+  // render/haptic_chip.js
+  //
+  // Compact haptic controls for the chat header (§5):
+  //   - Device status chip (grey → green → pulsing → amber)
+  //   - Pause/stop button
+  //   - Intensity slider (0–150%)
+  //
+  // All controls are inert until a backend connects. The chip shows
+  // connection state; clicking it opens the connect flow. The slider
+  // directly drives the backend's primary actuator for M2 (no tags yet).
+
+
+
+
+
+
+  // Settings panel moved to render/input_dock.js (Options button in input dock)
+
+  // ---- State ----
+  let _chipEl = null;
+  let _sliderEl = null;
+  let _pauseBtn = null;
+  let _statusDot = null;
+  let _statusLabel = null;
+  let _sliderValue = 1.0;
+  let _connecting = false;
+
+  // ---- Public: render into container ----
+
+  /**
+   * Create the haptic chip UI and mount it.
+   * Called from haptic/init.js after the header container exists.
+   *
+   * @param {HTMLElement} container - the .pf-haptic-chip-container
+   */
+  function renderHapticChip(container) {
+    if (!container) return;
+
+    // Status dot
+    _statusDot = h('span', { class: 'pf-haptic-dot pf-haptic-dot-grey' });
+
+    // Status label
+    _statusLabel = h('span', { class: 'pf-haptic-label' }, ['Disconnected']);
+
+    // Chip button — click to connect/disconnect
+    _chipEl = h('button', {
+      type: 'button',
+      class: 'pf-haptic-chip',
+      title: 'Click to connect device',
+      onClick: () => handleChipClick(),
+    }, [_statusDot, _statusLabel]);
+
+    // Pause button
+    _pauseBtn = h('button', {
+      type: 'button',
+      class: 'pf-haptic-pause',
+      title: 'Pause haptic output',
+      hidden: true,
+      onClick: () => handlePauseClick(),
+    }, ['⏸']);
+
+    // Intensity slider
+    _sliderEl = h('input', {
+      type: 'range',
+      class: 'pf-haptic-slider',
+      min: '0',
+      max: '150',
+      value: '100',
+      title: 'Haptic intensity: 100%',
+      hidden: true,
+      onInput: (ev) => handleSliderInput(ev),
+    });
+
+    // Settings button removed — now lives in the input dock (render/input_dock.js)
+
+    container.replaceChildren(_chipEl, _pauseBtn, _sliderEl);
+
+    // Subscribe to bus state changes for live updates
+    onBusEvent('stateChange', () => refreshChipState());
+    onBusEvent('error', (detail) => showChipError(detail));
+
+    // Load saved slider value
+    loadHapticSettings().then(settings => {
+      _sliderValue = settings.intensitySlider || 1.0;
+      _sliderEl.value = String(Math.round(_sliderValue * 100));
+      _sliderEl.title = `Haptic intensity: ${Math.round(_sliderValue * 100)}%`;
+    }).catch(() => {});
+
+    refreshChipState();
+  }
+
+  // ---- Event handlers ----
+
+  async function handleChipClick() {
+    if (_connecting) return;
+
+    if (isHapticReady()) {
+      // Already connected — disconnect
+      await disconnectActiveBackend();
+      refreshChipState();
+      return;
+    }
+
+    // Connect
+    _connecting = true;
+    setChipState('connecting', 'Connecting…');
+
+    const success = await connectActiveBackend();
+    _connecting = false;
+
+    if (success) {
+      const devices = listDevices();
+      const devName = devices.length > 0 ? devices[0].name : 'Connected';
+      setChipState('connected', devName);
+      _pauseBtn.hidden = false;
+      _sliderEl.hidden = false;
+    } else {
+      setChipState('error', 'Connection failed');
+      setTimeout(() => refreshChipState(), 3000);
+    }
+  }
+
+  function handlePauseClick() {
+    const state = getBusState();
+    if (state === 'paused') {
+      busResume('user-resume');
+      _pauseBtn.textContent = '⏸';
+      _pauseBtn.title = 'Pause haptic output';
+    } else {
+      busPause('user-pause');
+      _pauseBtn.textContent = '▶';
+      _pauseBtn.title = 'Resume haptic output';
+    }
+  }
+
+  async function handleSliderInput(ev) {
+    const pct = Number(ev.target.value);
+    _sliderValue = pct / 100;
+    _sliderEl.title = `Haptic intensity: ${pct}%`;
+
+    // Save preference
+    updateHapticSetting('intensitySlider', _sliderValue).catch(() => {});
+
+    // M2: directly drive the device when slider changes (no tags yet).
+    // This gives the user immediate feedback that the connection works.
+    if (isHapticReady() && _sliderValue > 0) {
+      busActivate('slider-direct');
+      try {
+        await executeEvent({
+          track: 'vibe',
+          intensity: _sliderValue,
+          duration: 0,  // continuous until changed
+        });
+      } catch {}
+    } else if (isHapticReady() && _sliderValue === 0) {
+      try { await stopAll(); } catch {}
+    }
+  }
+
+  // ---- State display ----
+
+  function setChipState(state, label) {
+    if (!_statusDot || !_statusLabel) return;
+
+    _statusDot.className = 'pf-haptic-dot pf-haptic-dot-' + state;
+    _statusLabel.textContent = label || state;
+
+    const titles = {
+      grey: 'Click to connect device',
+      connecting: 'Connecting to Intiface Central…',
+      connected: `Connected: ${label}. Click to disconnect.`,
+      active: `Active: ${label}`,
+      error: label || 'Connection error',
+      paused: 'Paused — click ▶ to resume',
+    };
+    if (_chipEl) _chipEl.title = titles[state] || label || '';
+  }
+
+  function refreshChipState() {
+    const busState = getBusState();
+    const ready = isHapticReady();
+
+    if (!ready) {
+      setChipState('grey', 'Disconnected');
+      if (_pauseBtn) _pauseBtn.hidden = true;
+      if (_sliderEl) _sliderEl.hidden = true;
+      return;
+    }
+
+    const devices = listDevices();
+    const devName = devices.length > 0 ? devices[0].name : 'Connected';
+
+    if (busState === 'paused') {
+      setChipState('paused', 'Paused');
+    } else if (busState === 'error') {
+      setChipState('error', 'Error');
+    } else if (busState === 'active') {
+      setChipState('active', devName);
+    } else {
+      setChipState('connected', devName);
+    }
+
+    if (_pauseBtn) _pauseBtn.hidden = false;
+    if (_sliderEl) _sliderEl.hidden = false;
+  }
+
+  function showChipError(detail) {
+    const reason = (detail && detail.reason) || 'error';
+    setChipState('error', reason);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/chat_settings.js
+     ────────────────────────────────────────────────────────── */
+  // render/chat_settings.js
+  //
+  // Unified Chat Settings panel — consolidates all chat customization
+  // into a single discoverable location. Opens from the ⚙ button in
+  // the haptic chip container (always visible in chat header).
+  //
+  // Sections:
+  //   Appearance  — theme, font family, font size, custom background
+  //   Display     — reasoning toggle, token display
+  //   AI          — generation model overrides
+  //   Haptics     — device, clamps, bridging
+  //   Narration   — TTS backend, voice, rate/pitch
+  //   Plugins     — registered backends, add URL/file
+  //
+  // Each section reads/writes the same settings paths as the scattered
+  // modules (font_settings.js, theme_toggle.js, etc.), so both the
+  // panel controls and the individual buttons stay in sync.
+
+
+
+
+
+
+
+
+
+  // ---- Font/theme constants (mirrored from font_settings.js/theme_toggle.js) ----
+
+  const FONT_FAMILIES = [
+    { label: 'Default', value: '' },
+    { label: 'Sans-serif', value: 'system-ui, -apple-system, sans-serif' },
+    { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+    { label: 'Monospace', value: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace' },
+    { label: 'Dyslexic-friendly', value: '"Comic Sans MS", "Comic Sans", cursive' },
+  ];
+
+  const FONT_SIZES = [
+    { label: 'Small (13px)', value: '13px' },
+    { label: 'Medium (15px)', value: '15px' },
+    { label: 'Large (17px)', value: '17px' },
+    { label: 'X-Large (20px)', value: '20px' },
+  ];
+
+  // ---- Public API ----
+
+  /**
+   * Create the full Chat Settings panel. Returns a DOM element.
+   */
+  async function createChatSettingsPanel() {
+    const profileSettings = loadSettings();
+    const hapticSettings = await loadHapticSettings();
+
+    const panel = h('div', { class: 'pf-cs-panel' });
+
+    panel.appendChild(h('div', { class: 'pf-cs-title' }, ['Chat Settings']));
+
+    // Accordion sections
+    const sections = [
+      { id: 'appearance', label: '🎨 Appearance', builder: () => buildAppearanceSection(profileSettings) },
+      { id: 'display', label: '👁 Display', builder: () => buildDisplaySection(profileSettings) },
+      { id: 'haptics', label: '◈ Haptics', builder: () => buildHapticsSection(hapticSettings) },
+      { id: 'narration', label: '🔊 Narration', builder: () => buildNarrationSection(hapticSettings) },
+      { id: 'plugins', label: '🔌 Plugins', builder: () => buildPluginsSection() },
+    ];
+
+    for (const sec of sections) {
+      panel.appendChild(buildAccordion(sec.id, sec.label, sec.builder));
+    }
+
+    return panel;
+  }
+
+  // ---- Accordion helper ----
+
+  function buildAccordion(id, label, contentBuilder) {
+    const body = h('div', { class: 'pf-cs-accordion-body', hidden: true });
+    let built = false;
+
+    const header = h('button', {
+      type: 'button',
+      class: 'pf-cs-accordion-header',
+      onClick: () => {
+        const open = !body.hidden;
+        body.hidden = open;
+        chevron.textContent = open ? '▸' : '▾';
+        if (!built && !open) {
+          built = true;
+          const content = contentBuilder();
+          if (content instanceof Promise) {
+            content.then(el => body.appendChild(el));
+          } else {
+            body.appendChild(content);
+          }
+        }
+      },
+    });
+
+    const chevron = h('span', { class: 'pf-cs-chevron' }, ['▸']);
+    header.appendChild(h('span', {}, [label]));
+    header.appendChild(chevron);
+
+    return h('div', { class: 'pf-cs-accordion', 'data-section': id }, [header, body]);
+  }
+
+  // ---- Helpers ----
+
+  function sRow(label, control) {
+    return h('div', { class: 'pf-cs-row' }, [
+      h('span', { class: 'pf-cs-label' }, [label]),
+      control,
+    ]);
+  }
+
+  function sSelect(options, currentValue, onChange) {
+    return h('select', { class: 'pf-cs-select', onChange: (e) => onChange(e.target.value) },
+      options.map(o => h('option', { value: o.value, selected: o.value === currentValue }, [o.label]))
+    );
+  }
+
+  function sSlider(min, max, step, value, fmt, onChange) {
+    const valLabel = h('span', { class: 'pf-cs-val' }, [fmt(value)]);
+    const input = h('input', {
+      type: 'range', min: String(min), max: String(max), step: String(step),
+      value: String(value), class: 'pf-cs-slider',
+      onInput: (e) => {
+        const v = Number(e.target.value);
+        valLabel.textContent = fmt(v);
+        onChange(v);
+      },
+    });
+    return h('div', { class: 'pf-cs-slider-row' }, [input, valLabel]);
+  }
+
+  function sToggle(label, checked, onChange) {
+    const cb = h('input', {
+      type: 'checkbox', checked: checked || false,
+      onChange: (e) => onChange(e.target.checked),
+    });
+    return h('label', { class: 'pf-cs-toggle' }, [cb, h('span', {}, [label])]);
+  }
+
+  function saveProfileSetting(key, value) {
+    const s = loadSettings();
+    s[key] = value;
+    saveSettings(s);
+  }
+
+  async function saveHapticSetting(key, value) {
+    const s = await loadHapticSettings();
+    s[key] = value;
+    await saveHapticSettings(s);
+  }
+
+  async function saveHapticClamp(key, value) {
+    const s = await loadHapticSettings();
+    if (!s.clamps) s.clamps = defaultClamps();
+    s.clamps[key] = value;
+    await saveHapticSettings(s);
+  }
+
+  // ---- Appearance ----
+
+  function buildAppearanceSection(settings) {
+    const container = h('div', { class: 'pf-cs-section' });
+
+    // Theme
+    const currentTheme = settings.themeMode || 'dark';
+    container.appendChild(sRow('Theme', sSelect(
+      [{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }],
+      currentTheme,
+      (v) => {
+        saveProfileSetting('themeMode', v);
+        // Apply immediately — same path as theme_toggle.js
+        document.documentElement.classList.toggle('pf-light-theme', v === 'light');
+      }
+    )));
+
+    // Font family
+    container.appendChild(sRow('Font', sSelect(
+      FONT_FAMILIES, settings.fontFamily || '',
+      (v) => {
+        saveProfileSetting('fontFamily', v);
+        if (v) document.documentElement.style.setProperty('--pf-chat-font', v);
+        else document.documentElement.style.removeProperty('--pf-chat-font');
+      }
+    )));
+
+    // Font size
+    container.appendChild(sRow('Size', sSelect(
+      FONT_SIZES, settings.fontSize || '',
+      (v) => {
+        saveProfileSetting('fontSize', v);
+        if (v) document.documentElement.style.setProperty('--pf-chat-font-size', v);
+        else document.documentElement.style.removeProperty('--pf-chat-font-size');
+      }
+    )));
+
+    return container;
+  }
+
+  // ---- Display ----
+
+  function buildDisplaySection(settings) {
+    const container = h('div', { class: 'pf-cs-section' });
+
+    container.appendChild(sToggle('Show AI reasoning blocks', settings.showReasoning !== false, (v) => {
+      saveProfileSetting('showReasoning', v);
+      document.documentElement.classList.toggle('pf-hide-reasoning', !v);
+    }));
+
+    container.appendChild(sToggle('Show token count', settings.showTokenCount === true, (v) => {
+      saveProfileSetting('showTokenCount', v);
+    }));
+
+    container.appendChild(sToggle('Show timestamps on messages', settings.showTimestamps === true, (v) => {
+      saveProfileSetting('showTimestamps', v);
+    }));
+
+    return container;
+  }
+
+  // ---- Haptics ----
+
+  function buildHapticsSection(settings) {
+    const container = h('div', { class: 'pf-cs-section' });
+
+    // Backend selector
+    const backends = listBackends();
+    container.appendChild(sRow('Backend', sSelect(
+      backends.map(b => ({ label: b.displayName, value: b.id })),
+      settings.activeBackendId || 'buttplug',
+      (v) => { setActiveBackend(v); saveHapticSetting('activeBackendId', v); }
+    )));
+
+    // Connect button
+    const statusEl = h('span', { class: 'pf-cs-status' }, [isHapticReady() ? 'Connected' : 'Disconnected']);
+    const connectBtn = h('button', {
+      type: 'button', class: 'pf-cs-btn',
+      onClick: async () => {
+        if (isHapticReady()) {
+          await disconnectActiveBackend();
+          connectBtn.textContent = 'Connect';
+          statusEl.textContent = 'Disconnected';
+        } else {
+          connectBtn.textContent = 'Connecting…';
+          connectBtn.disabled = true;
+          const ok = await connectActiveBackend();
+          connectBtn.disabled = false;
+          if (ok) {
+            connectBtn.textContent = 'Disconnect';
+            const devs = listDevices();
+            statusEl.textContent = devs.length > 0 ? devs[0].name : 'Connected';
+          } else {
+            connectBtn.textContent = 'Connect';
+            statusEl.textContent = 'Failed';
+          }
+        }
+      },
+    }, [isHapticReady() ? 'Disconnect' : 'Connect']);
+    container.appendChild(h('div', { class: 'pf-cs-row' }, [connectBtn, statusEl]));
+
+    // Intensity
+    container.appendChild(sRow('Intensity',
+      sSlider(0, 150, 1, Math.round((settings.intensitySlider || 1) * 100),
+        v => `${v}%`, v => saveHapticSetting('intensitySlider', v / 100))
+    ));
+
+    // Clamps
+    const c = settings.clamps || defaultClamps();
+    container.appendChild(sRow('Max intensity',
+      sSlider(0, 100, 5, Math.round(c.intensityCeiling * 100),
+        v => `${v}%`, v => saveHapticClamp('intensityCeiling', v / 100))
+    ));
+    container.appendChild(sRow('Max duration',
+      sSlider(1, 60, 1, c.durationCeiling / 1000,
+        v => `${v}s`, v => saveHapticClamp('durationCeiling', v * 1000))
+    ));
+    container.appendChild(sRow('Max tags/msg',
+      sSlider(1, 20, 1, c.tagsPerMessageCap,
+        v => String(v), v => saveHapticClamp('tagsPerMessageCap', v))
+    ));
+
+    // Bridging
+    container.appendChild(sRow('Decay half-life',
+      sSlider(0, 10000, 500, settings.decayHalfLife || 2000,
+        v => v === 0 ? 'Off' : `${v/1000}s`, v => saveHapticSetting('decayHalfLife', v))
+    ));
+    container.appendChild(sRow('Tagless blocks', sSelect(
+      [{ label: 'Silent', value: 'silent' }, { label: 'Baseline', value: 'baseline' }, { label: 'Ambient', value: 'ambient' }],
+      settings.taglessBlockMode || 'silent',
+      v => saveHapticSetting('taglessBlockMode', v)
+    )));
+
+    return container;
+  }
+
+  // ---- Narration ----
+
+  function buildNarrationSection(settings) {
+    const container = h('div', { class: 'pf-cs-section' });
+
+    const ttsBackends = listTtsBackends();
+    const active = getActiveTtsBackend();
+    container.appendChild(sRow('TTS backend', sSelect(
+      ttsBackends.map(b => ({ label: b.displayName, value: b.id })),
+      active ? active.id : 'web-speech',
+      v => setActiveTtsBackend(v)
+    )));
+
+    const voices = listVoices();
+    if (voices.length > 0) {
+      container.appendChild(sRow('Default voice', sSelect(
+        voices.map(v => ({
+          label: `${v.name} (${v.lang})${v.offline ? ' ⚡' : ''}`,
+          value: v.id || v.name,
+        })),
+        '', () => {} // voice selection is per-character in §8
+      )));
+    }
+
+    container.appendChild(h('div', { class: 'pf-cs-hint' }, [
+      'Voice is configured per-character. Set a default here for new characters.',
+    ]));
+
+    return container;
+  }
+
+  // ---- Plugins ----
+
+  function buildPluginsSection() {
+    const container = h('div', { class: 'pf-cs-section' });
+
+    // List
+    const allBackends = [...listBackends(), ...listTtsBackends()];
+    const seen = new Set();
+    for (const b of allBackends) {
+      if (seen.has(b.id)) continue;
+      seen.add(b.id);
+      container.appendChild(h('div', { class: 'pf-cs-plugin' }, [
+        h('span', {}, [b.displayName]),
+        h('span', { class: 'pf-cs-plugin-dot' }, [b.connected ? '●' : '○']),
+      ]));
+    }
+
+    // Add from URL
+    const urlInput = h('input', { type: 'text', class: 'pf-cs-input', placeholder: 'Plugin URL (.js)' });
+    const addBtn = h('button', { type: 'button', class: 'pf-cs-btn',
+      onClick: async () => {
+        const url = urlInput.value.trim();
+        if (!url) return;
+        addBtn.textContent = 'Loading…';
+        addBtn.disabled = true;
+        try {
+          const r = await loadPluginFromUrl(url);
+          urlInput.value = '';
+          addBtn.textContent = `✓ ${r.id}`;
+        } catch (e) { addBtn.textContent = `✗ ${e.message}`; }
+        setTimeout(() => { addBtn.textContent = 'Add'; addBtn.disabled = false; }, 2500);
+      },
+    }, ['Add']);
+    container.appendChild(h('div', { class: 'pf-cs-add-row' }, [urlInput, addBtn]));
+
+    // Add from file
+    const fileInput = h('input', { type: 'file', accept: '.js,.mjs', style: 'display:none',
+      onChange: async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const r = await loadPluginFromFile(file);
+          fileBtn.textContent = `✓ ${r.id}`;
+        } catch (err) { fileBtn.textContent = `✗ ${err.message}`; }
+        setTimeout(() => { fileBtn.textContent = 'Load file'; }, 2500);
+      },
+    });
+    const fileBtn = h('button', { type: 'button', class: 'pf-cs-btn',
+      onClick: () => fileInput.click(),
+    }, ['Load file']);
+    container.appendChild(h('div', { class: 'pf-cs-add-row' }, [fileBtn, fileInput]));
+
+    container.appendChild(h('div', { class: 'pf-cs-hint' }, [
+      '⚠ Plugin code runs with full page access. Only add from trusted sources.',
+    ]));
+
+    return container;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: render/input_dock.js
+     ────────────────────────────────────────────────────────── */
+  // render/input_dock.js
+  //
+  // Vertical button dock to the left of the chat input bar.
+  // Houses the "Widgets" (tools menu) and "Options" (chat settings)
+  // buttons in a stacked layout:
+  //
+  //   |_________|
+  //   | Widgets |  ← opens tools popup
+  //   |---------|
+  //   | Options |  ← opens settings panel
+  //   |_________|  [ chat input ............... ]
+  //
+  // Consolidates discovery: users find all tools and settings from
+  // two clearly labeled buttons rather than scattered icon buttons.
+  //
+  // Bootstrap: call initInputDock() from start() AFTER initToolsMenu().
+
+
+
+  let _dock = null;
+  let _settingsOverlay = null;
+
+  /**
+   * Initialize the input dock. Finds the chat input area and
+   * injects the dock to its left. Idempotent.
+   */
+  function initInputDock() {
+    if (_dock) return;
+    if (typeof document === 'undefined') return;
+
+    const inputArea = document.getElementById('chatInputEl')
+                   || document.getElementById('inputBarEl')
+                   || document.querySelector('.chat-input-container')
+                   || document.querySelector('.input-bar')
+                   || document.querySelector('textarea[placeholder]');
+
+    if (!inputArea) {
+      // Retry — input might not be ready yet
+      setTimeout(() => initInputDock(), 2000);
+      return;
+    }
+
+    const parent = inputArea.parentElement;
+    if (!parent) return;
+
+    // Build the dock
+    _dock = h('div', { class: 'pf-input-dock' });
+
+    // ---- Widgets button ----
+    const widgetsBtn = h('button', {
+      type: 'button',
+      class: 'pf-dock-btn',
+      title: 'Widgets & tools',
+      onClick: (e) => {
+        e.stopPropagation();
+        toggleWidgetsPopup();
+      },
+    }, [
+      h('span', { class: 'pf-dock-btn-icon' }, ['⚙']),
+      h('span', { class: 'pf-dock-btn-label' }, ['Widgets']),
+    ]);
+
+    // ---- Options button ----
+    const optionsBtn = h('button', {
+      type: 'button',
+      class: 'pf-dock-btn',
+      title: 'Chat settings',
+      onClick: (e) => {
+        e.stopPropagation();
+        toggleSettingsPanel();
+      },
+    }, [
+      h('span', { class: 'pf-dock-btn-icon' }, ['◈']),
+      h('span', { class: 'pf-dock-btn-label' }, ['Options']),
+    ]);
+
+    _dock.appendChild(widgetsBtn);
+    _dock.appendChild(optionsBtn);
+
+    // Insert dock as a flex sibling to the left of the input
+    // Wrap the input + dock in a flex container if needed
+    if (!parent.classList.contains('pf-input-row')) {
+      // Make parent flex-aware
+      parent.style.display = 'flex';
+      parent.style.alignItems = 'flex-end';
+      parent.style.gap = '0';
+      parent.insertBefore(_dock, inputArea);
+    } else {
+      parent.insertBefore(_dock, parent.firstChild);
+    }
+
+    // Absorb the existing tools container if it exists
+    _absorbToolsContainer();
+    // Also try again after tools menu has time to init
+    setTimeout(_absorbToolsContainer, 4000);
+  }
+
+  // ---- Widgets popup (absorbs tools menu) ----
+
+  let _widgetsPopup = null;
+  let _widgetsOpen = false;
+
+  /**
+   * Find the existing pf-tools-container created by tools_menu.js
+   * and relocate its popup to anchor from our dock instead.
+   */
+  function _absorbToolsContainer() {
+    if (_widgetsPopup) return; // already absorbed
+
+    const existing = document.querySelector('.pf-tools-container');
+    if (!existing) return;
+
+    // Find the popup inside the tools container
+    const popup = existing.querySelector('.pf-tools-popup');
+    if (!popup) return;
+
+    // Steal the popup — move it into our dock's coordinate space
+    _widgetsPopup = popup;
+
+    // Hide the original trigger (we replace it with our dock button)
+    const oldTrigger = existing.querySelector('.pf-tools-trigger');
+    if (oldTrigger) oldTrigger.style.display = 'none';
+
+    // Move the popup to be a child of the dock (for positioning)
+    _dock.appendChild(_widgetsPopup);
+    _widgetsPopup.hidden = true;
+
+    // Update popup positioning to open above the dock
+    _widgetsPopup.style.position = 'absolute';
+    _widgetsPopup.style.bottom = 'calc(100% + 8px)';
+    _widgetsPopup.style.left = '0';
+    _widgetsPopup.style.right = 'auto';
+  }
+
+  function toggleWidgetsPopup() {
+    if (!_widgetsPopup) {
+      _absorbToolsContainer();
+    }
+
+    if (_widgetsPopup) {
+      _widgetsOpen = !_widgetsOpen;
+      _widgetsPopup.hidden = !_widgetsOpen;
+    }
+  }
+
+  // ---- Settings panel ----
+
+  function toggleSettingsPanel() {
+    if (_settingsOverlay && _settingsOverlay.parentNode) {
+      _settingsOverlay.hidden = !_settingsOverlay.hidden;
+      return;
+    }
+
+    // createChatSettingsPanel is in the same IIFE scope (bundle)
+    if (typeof createChatSettingsPanel !== 'function') return;
+
+    createChatSettingsPanel().then(panel => {
+      _settingsOverlay = h('div', { class: 'pf-haptic-settings-overlay' });
+
+      const closeBtn = h('button', {
+        class: 'pf-haptic-settings-close', type: 'button',
+        onClick: () => { _settingsOverlay.hidden = true; },
+      }, ['×']);
+
+      const wrapper = h('div', { class: 'pf-haptic-settings-wrapper' }, [closeBtn, panel]);
+      _settingsOverlay.appendChild(wrapper);
+
+      _settingsOverlay.addEventListener('click', (e) => {
+        if (e.target === _settingsOverlay) _settingsOverlay.hidden = true;
+      });
+
+      document.body.appendChild(_settingsOverlay);
+    }).catch(() => {});
+  }
+
+  // Close widgets popup on outside click
+  if (typeof document !== 'undefined') {
+    document.addEventListener('click', () => {
+      if (_widgetsOpen && _widgetsPopup) {
+        _widgetsOpen = false;
+        _widgetsPopup.hidden = true;
+      }
+    });
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -36358,6 +41685,67 @@ Use this template for your response:
     return { character: characterObj, loreCount };
   }
 
+  // ---- Backfill helper ----
+  //
+  // Characters created by the spin-off flow in earlier builds may be
+  // missing fields that upstream's character schema expects. This
+  // function scans all characters with a `pfSpawnedFrom` marker and
+  // fills in any absent fields with safe defaults.
+  //
+  // Only touches characters that have the pfSpawnedFrom marker —
+  // regular characters are left untouched. Preserves any existing
+  // values (only fills undefined/missing). Idempotent.
+
+  const BACKFILL_DEFAULTS = {
+    folderPath: '',
+    uuid: null,
+    customData: {},
+    userCharacter: {},
+    systemCharacter: { avatar: {} },
+    scene: { background: {}, music: {} },
+    streamingResponse: true,
+    roleInstruction: '',
+    autoGenerateMemories: 'none',
+    maxTokensPerMessage: null,
+  };
+
+  /**
+   * Backfill missing fields on spawned characters.
+   * Safe to call at boot — no-ops if nothing needs healing.
+   */
+  async function backfillSpawnedCharacterFields() {
+    try {
+      const db = (typeof window !== 'undefined' && window.db) ? window.db : null;
+      if (!db || !db.characters) return;
+
+      const allChars = await db.characters.toArray();
+
+      for (const char of allChars) {
+        // Only touch characters we spawned
+        if (!char.pfSpawnedFrom) continue;
+
+        const patch = {};
+        let needsPatch = false;
+
+        for (const [key, defaultVal] of Object.entries(BACKFILL_DEFAULTS)) {
+          if (char[key] === undefined) {
+            // Deep-clone default to avoid shared references across characters
+            patch[key] = typeof defaultVal === 'object' && defaultVal !== null
+              ? JSON.parse(JSON.stringify(defaultVal))
+              : defaultVal;
+            needsPatch = true;
+          }
+        }
+
+        if (needsPatch) {
+          await db.characters.update(char.id, patch);
+        }
+      }
+    } catch (err) {
+      console.warn('[pf] backfill spawned characters failed:', err && err.message);
+    }
+  }
+
   /* ──────────────────────────────────────────────────────────
      module: memory/window_open.js
      ────────────────────────────────────────────────────────── */
@@ -41548,6 +46936,12 @@ Use this template for your response:
     // Tools menu (MUST be last — collects all buttons injected above)
     try { initToolsMenu(); } catch { /* non-fatal */ }
 
+    // Input dock — Widgets + Options buttons left of chat input
+    // Must run AFTER initToolsMenu so it can absorb the tools container.
+    try {
+      setTimeout(() => { try { initInputDock(); } catch { /* non-fatal */ } }, 4500);
+    } catch { /* non-fatal */ }
+
     // Context dashboard (shows what's injected into AI prompt)
     try { initContextDashboard(); } catch { /* non-fatal */ }
 
@@ -41607,6 +47001,27 @@ Use this template for your response:
     try {
       if (typeof applyThemeColorsLive === 'function') {
         applyThemeColorsLive();
+      }
+    } catch { /* non-fatal */ }
+
+    // ---- Haptic subsystem (Milestone 2) ----
+    // Initialize haptic backend, load plugins, mount chat header chip.
+    // initHapticSubsystem is in the same IIFE scope (haptic/init.js).
+    // Non-blocking — haptic failures never break chat.
+    try {
+      if (typeof initHapticSubsystem === 'function') {
+        initHapticSubsystem().catch(e => {
+          console.warn('[pf] haptic subsystem init failed:', e && e.message);
+        });
+      }
+    } catch { /* non-fatal */ }
+
+    // ---- Backfill spawned characters ----
+    // Characters created by the spin-off flow in earlier builds may
+    // be missing fields. Heal them on boot. Non-blocking.
+    try {
+      if (typeof backfillSpawnedCharacterFields === 'function') {
+        backfillSpawnedCharacterFields().catch(() => {});
       }
     } catch { /* non-fatal */ }
 
