@@ -1,6 +1,7 @@
-# Perchance AI Character Chat — Redesign Fork
+# Perchance Hero Chat
 
-A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat) that adds a full suite of roleplay and writing tools, a gamified profile system, a memory manager, and a polished dark-parchment UI — all running client-side in your browser with zero accounts, zero servers, zero cost.
+A feature-rich fork of [Perchance's AI Character Chat](https://perchance.org/ai-character-chat). 
+This updated version adds a full suite of roleplay and writing tools, a gamified profile system, a advanced memory and lore manager, and a polished dark-parchment UI — all running client-side in your browser with zero accounts, zero servers, zero cost.
 
 > **118 modules · 940 tests · 91 achievements · MIT license**
 
