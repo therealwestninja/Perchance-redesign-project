@@ -397,6 +397,12 @@ export async function start() {
   // Tools menu (MUST be last — collects all buttons injected above)
   try { initToolsMenu(); } catch { /* non-fatal */ }
 
+  // Input dock — Widgets + Options buttons left of chat input
+  // Must run AFTER initToolsMenu so it can absorb the tools container.
+  try {
+    setTimeout(() => { try { initInputDock(); } catch { /* non-fatal */ } }, 4500);
+  } catch { /* non-fatal */ }
+
   // Context dashboard (shows what's injected into AI prompt)
   try { initContextDashboard(); } catch { /* non-fatal */ }
 
@@ -456,6 +462,27 @@ export async function start() {
   try {
     if (typeof applyThemeColorsLive === 'function') {
       applyThemeColorsLive();
+    }
+  } catch { /* non-fatal */ }
+
+  // ---- Haptic subsystem (Milestone 2) ----
+  // Initialize haptic backend, load plugins, mount chat header chip.
+  // initHapticSubsystem is in the same IIFE scope (haptic/init.js).
+  // Non-blocking — haptic failures never break chat.
+  try {
+    if (typeof initHapticSubsystem === 'function') {
+      initHapticSubsystem().catch(e => {
+        console.warn('[pf] haptic subsystem init failed:', e && e.message);
+      });
+    }
+  } catch { /* non-fatal */ }
+
+  // ---- Backfill spawned characters ----
+  // Characters created by the spin-off flow in earlier builds may
+  // be missing fields. Heal them on boot. Non-blocking.
+  try {
+    if (typeof backfillSpawnedCharacterFields === 'function') {
+      backfillSpawnedCharacterFields().catch(() => {});
     }
   } catch { /* non-fatal */ }
 

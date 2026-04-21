@@ -4873,4 +4873,570 @@ body.pf-light-theme .pf-glossary-textarea {
   opacity: 0.75;
   text-decoration: underline;
 }
+
+/* ================================================================
+   Haptic subsystem — chat header chip, slider, pause button
+   ================================================================ */
+
+.pf-haptic-chip-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.pf-haptic-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04);
+  color: var(--pf-silver, #8b95a3);
+  font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.pf-haptic-chip:hover {
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+}
+
+/* Status dot — state colors */
+.pf-haptic-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+.pf-haptic-dot-grey       { background: #555; }
+.pf-haptic-dot-connecting { background: #888; animation: pf-haptic-pulse 1s ease-in-out infinite; }
+.pf-haptic-dot-connected  { background: #4caf50; }
+.pf-haptic-dot-active     { background: #4caf50; animation: pf-haptic-pulse 0.8s ease-in-out infinite; }
+.pf-haptic-dot-paused     { background: var(--pf-accent, #d4a855); }
+.pf-haptic-dot-error      { background: var(--pf-palette-danger, #e06060); }
+
+@keyframes pf-haptic-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pf-haptic-label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pause button */
+.pf-haptic-pause {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent;
+  color: var(--pf-vellum, #e8dcc4);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-haptic-pause:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.45);
+}
+
+/* Intensity slider */
+.pf-haptic-slider {
+  width: 80px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.pf-haptic-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--pf-accent, #d4a855);
+  border: 2px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+.pf-haptic-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--pf-accent, #d4a855);
+  border: 2px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+
+/* Settings gear button */
+.pf-haptic-settings-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: transparent;
+  color: var(--pf-silver, #8b95a3);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.pf-haptic-settings-btn:hover {
+  color: var(--pf-vellum, #e8dcc4);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+}
+
+/* Settings overlay */
+.pf-haptic-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+}
+.pf-haptic-settings-wrapper {
+  width: 340px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: 40px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  background: var(--pf-theme-primary, #0d1117);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.pf-haptic-settings-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--pf-silver, #8b95a3);
+  font-size: 18px;
+  cursor: pointer;
+}
+.pf-haptic-settings-close:hover { color: var(--pf-vellum, #e8dcc4); }
+
+/* ---- Haptic inline glyphs ---- */
+.pf-hg-glyph {
+  display: inline-block;
+  padding: 1px 4px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  color: var(--pf-accent, #d4a855);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  vertical-align: baseline;
+  line-height: 1.2;
+}
+.pf-hg-glyph:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
+}
+.pf-hg-annotated {
+  border-color: rgba(230, 200, 120, 0.5);
+  background: rgba(230, 200, 120, 0.08);
+}
+.pf-hg-glyph-stop {
+  color: var(--pf-silver, #8b95a3);
+  border-color: rgba(139, 149, 163, 0.3);
+  background: rgba(139, 149, 163, 0.06);
+}
+
+/* ---- Glyph context menu ---- */
+.pf-hg-menu {
+  min-width: 200px;
+  max-width: 280px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: var(--pf-theme-secondary, #161b22);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  font-size: 12px;
+  color: var(--pf-vellum, #e8dcc4);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pf-hg-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+}
+.pf-hg-menu-type {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pf-accent, #d4a855);
+}
+.pf-hg-menu-name {
+  color: var(--pf-silver, #8b95a3);
+  font-style: italic;
+}
+.pf-hg-menu-params {
+  margin-bottom: 6px;
+  line-height: 1.6;
+  color: var(--pf-silver, #8b95a3);
+}
+.pf-hg-menu-annotations {
+  margin-bottom: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(230, 200, 120, 0.06);
+  border: 1px solid rgba(230, 200, 120, 0.15);
+}
+.pf-hg-menu-annot {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(230, 200, 120, 0.9);
+}
+.pf-hg-menu-annot-error {
+  color: var(--pf-palette-danger, #e06060);
+}
+.pf-hg-menu-raw {
+  margin-bottom: 8px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.3);
+  font-size: 10px;
+  color: var(--pf-silver, #8b95a3);
+  word-break: break-all;
+}
+.pf-hg-menu-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pf-hg-action {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent;
+  color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pf-hg-action:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.1);
+}
+.pf-hg-action-danger {
+  border-color: rgba(var(--pf-palette-danger-rgb, 224, 96, 96), 0.3);
+  color: var(--pf-palette-danger, #e06060);
+}
+.pf-hg-action-danger:hover {
+  background: rgba(var(--pf-palette-danger-rgb, 224, 96, 96), 0.1);
+}
+
+/* ---- Haptic cues chip (per-message summary) ---- */
+.pf-hg-cues {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  font-size: 10px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--pf-silver, #8b95a3);
+  letter-spacing: 0.03em;
+}
+.pf-hg-cues-icon {
+  color: var(--pf-accent, #d4a855);
+  font-size: 11px;
+}
+
+/* ---- Haptic settings panel ---- */
+.pf-haptic-settings {
+  padding: 12px;
+}
+.pf-hs-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+}
+.pf-hs-header-icon { color: var(--pf-accent, #d4a855); font-size: 16px; }
+.pf-hs-header-title {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+.pf-hs-section { margin-bottom: 14px; }
+.pf-hs-section-header {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--pf-silver, #8b95a3);
+  margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid rgba(139,149,163,0.15);
+}
+.pf-hs-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; font-size: 11px;
+  color: var(--pf-vellum, #e8dcc4);
+}
+.pf-hs-label { flex-shrink: 0; min-width: 130px; color: var(--pf-silver, #8b95a3); font-size: 11px; }
+.pf-hs-val { font-size: 11px; color: var(--pf-accent, #d4a855); min-width: 40px; text-align: right;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+.pf-hs-slider-row { display: flex; align-items: center; gap: 6px; flex: 1; }
+.pf-hs-slider {
+  flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+.pf-hs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+}
+.pf-hs-slider::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+}
+.pf-hs-select {
+  flex: 1; padding: 4px 8px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; font-family: inherit;
+}
+.pf-hs-input {
+  flex: 1; padding: 4px 8px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pf-hs-btn {
+  padding: 4px 12px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent; color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; cursor: pointer; transition: background 0.15s;
+  font-family: inherit; white-space: nowrap;
+}
+.pf-hs-btn:hover { background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
+.pf-hs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pf-hs-status { font-size: 11px; color: var(--pf-silver, #8b95a3); }
+.pf-hs-hint {
+  font-size: 10px; color: var(--pf-silver, #8b95a3); line-height: 1.5;
+  margin-top: 4px; opacity: 0.7;
+}
+.pf-hs-plugin-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 8px; margin-bottom: 3px; border-radius: 5px;
+  background: rgba(0,0,0,0.15); font-size: 11px;
+}
+.pf-hs-plugin-name { color: var(--pf-vellum, #e8dcc4); }
+.pf-hs-plugin-status { color: var(--pf-silver, #8b95a3); font-size: 10px; }
+.pf-hs-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
+
+/* ---- Unified Chat Settings panel ---- */
+.pf-cs-panel { padding: 16px; }
+.pf-cs-title {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--pf-accent, #d4a855);
+  font-family: Georgia, 'Times New Roman', serif;
+  margin-bottom: 14px; padding-bottom: 8px;
+  border-bottom: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+}
+.pf-cs-accordion { margin-bottom: 2px; }
+.pf-cs-accordion-header {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 8px 10px; border: none;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.03);
+  border-radius: 6px; color: var(--pf-vellum, #e8dcc4);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s; font-family: inherit;
+  text-align: left;
+}
+.pf-cs-accordion-header:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.06);
+}
+.pf-cs-chevron { color: var(--pf-silver, #8b95a3); font-size: 11px; }
+.pf-cs-accordion-body { padding: 8px 10px 12px; }
+.pf-cs-section { margin-bottom: 4px; }
+.pf-cs-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px; font-size: 11px; color: var(--pf-vellum, #e8dcc4);
+}
+.pf-cs-label { flex-shrink: 0; min-width: 110px; color: var(--pf-silver, #8b95a3); font-size: 11px; }
+.pf-cs-val {
+  font-size: 11px; color: var(--pf-accent, #d4a855); min-width: 40px; text-align: right;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pf-cs-slider-row { display: flex; align-items: center; gap: 6px; flex: 1; }
+.pf-cs-slider {
+  flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+.pf-cs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+}
+.pf-cs-slider::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--pf-accent, #d4a855); border: 1.5px solid rgba(0,0,0,0.3); cursor: pointer;
+}
+.pf-cs-select {
+  flex: 1; padding: 4px 8px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; font-family: inherit;
+}
+.pf-cs-input {
+  flex: 1; padding: 4px 8px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: rgba(0,0,0,0.2); color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pf-cs-btn {
+  padding: 4px 12px; border-radius: 5px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent; color: var(--pf-vellum, #e8dcc4);
+  font-size: 11px; cursor: pointer; transition: background 0.15s;
+  font-family: inherit; white-space: nowrap;
+}
+.pf-cs-btn:hover { background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08); }
+.pf-cs-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pf-cs-status { font-size: 11px; color: var(--pf-silver, #8b95a3); }
+.pf-cs-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--pf-vellum, #e8dcc4);
+  cursor: pointer; margin-bottom: 6px;
+}
+.pf-cs-toggle input[type="checkbox"] { accent-color: var(--pf-accent, #d4a855); }
+.pf-cs-hint {
+  font-size: 10px; color: var(--pf-silver, #8b95a3); line-height: 1.5;
+  margin-top: 4px; opacity: 0.7;
+}
+.pf-cs-plugin {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 8px; margin-bottom: 3px; border-radius: 5px;
+  background: rgba(0,0,0,0.15); font-size: 11px;
+  color: var(--pf-vellum, #e8dcc4);
+}
+.pf-cs-plugin-dot { color: var(--pf-silver, #8b95a3); font-size: 10px; }
+.pf-cs-add-row { display: flex; gap: 6px; margin-bottom: 6px; }
+
+/* ---- Input dock (Widgets + Options, left of chat input) ---- */
+.pf-input-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-self: flex-end;
+  flex-shrink: 0;
+  position: relative;
+  margin-right: 6px;
+  margin-bottom: 2px;
+}
+.pf-dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  border-radius: 7px;
+  color: var(--pf-vellum, #e8dcc4);
+  cursor: pointer;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  min-width: 80px;
+  justify-content: center;
+}
+.pf-dock-btn:hover {
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.5);
+  background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08) 0%, var(--pf-theme-secondary, #161b22) 100%);
+}
+.pf-dock-btn:active {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+}
+.pf-dock-btn-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+.pf-dock-btn-label {
+  font-weight: 500;
+}
+
+/* ---- Consent gate dialog ---- */
+.pf-consent {
+  max-width: 420px;
+  margin: 40px auto;
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+  background: var(--pf-theme-secondary, #161b22);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+}
+.pf-consent-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+}
+.pf-consent-icon { font-size: 20px; color: var(--pf-accent, #d4a855); }
+.pf-consent-title {
+  font-size: 14px; font-weight: 600; color: var(--pf-accent, #d4a855);
+  letter-spacing: 0.06em;
+}
+.pf-consent-name {
+  font-size: 13px; color: var(--pf-vellum, #e8dcc4); line-height: 1.5;
+  margin-bottom: 12px;
+}
+.pf-consent-patterns, .pf-consent-clamps, .pf-consent-voice {
+  margin-bottom: 10px; font-size: 11px;
+}
+.pf-consent-label {
+  color: var(--pf-silver, #8b95a3); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 3px;
+}
+.pf-consent-list {
+  color: var(--pf-vellum, #e8dcc4); font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+.pf-consent-detail { color: var(--pf-silver, #8b95a3); font-size: 11px; }
+.pf-consent-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px;
+}
+.pf-consent-btn {
+  padding: 8px 16px; border-radius: 6px;
+  border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
+  background: transparent; color: var(--pf-vellum, #e8dcc4);
+  font-size: 12px; cursor: pointer; transition: background 0.15s;
+  font-family: inherit;
+}
+.pf-consent-btn:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.08);
+}
+.pf-consent-btn-primary {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12);
+  border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
+  color: var(--pf-accent-hi, #e8c97a); font-weight: 600;
+}
+.pf-consent-btn-primary:hover {
+  background: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
+}
+.pf-consent-note {
+  font-size: 10px; color: var(--pf-silver, #8b95a3);
+  margin-top: 12px; opacity: 0.7;
+}
 `.trim();
