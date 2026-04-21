@@ -41,7 +41,7 @@ import { defaultClamps } from '../haptic/schema.js';
 
 // ---- Font/theme constants (mirrored from font_settings.js/theme_toggle.js) ----
 
-const FONT_FAMILIES = [
+const _CS_FONTS = [
   { label: 'Default', value: '' },
   { label: 'Sans-serif', value: 'system-ui, -apple-system, sans-serif' },
   { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
@@ -49,7 +49,7 @@ const FONT_FAMILIES = [
   { label: 'Dyslexic-friendly', value: '"Comic Sans MS", "Comic Sans", cursive' },
 ];
 
-const FONT_SIZES = [
+const _CS_SIZES = [
   { label: 'Small (13px)', value: '13px' },
   { label: 'Medium (15px)', value: '15px' },
   { label: 'Large (17px)', value: '17px' },
@@ -192,7 +192,7 @@ function buildAppearanceSection(settings) {
 
   // Font family
   container.appendChild(sRow('Font', sSelect(
-    FONT_FAMILIES, settings.fontFamily || '',
+    _CS_FONTS, settings.fontFamily || '',
     (v) => {
       saveProfileSetting('fontFamily', v);
       if (v) document.documentElement.style.setProperty('--pf-chat-font', v);
@@ -202,7 +202,7 @@ function buildAppearanceSection(settings) {
 
   // Font size
   container.appendChild(sRow('Size', sSelect(
-    FONT_SIZES, settings.fontSize || '',
+    _CS_SIZES, settings.fontSize || '',
     (v) => {
       saveProfileSetting('fontSize', v);
       if (v) document.documentElement.style.setProperty('--pf-chat-font-size', v);

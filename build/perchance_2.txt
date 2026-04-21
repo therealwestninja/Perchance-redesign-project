@@ -25979,11 +25979,11 @@ Use this template for your response:
   //                 → 'error'  → 'active' | 'idle'
 
   const VALID_STATES = ['idle', 'active', 'paused', 'error'];
-  const EVENTS = ['stateChange', 'stop', 'pause', 'resume', 'error'];
+  const _BUS_EVENTS = ['stateChange', 'stop', 'pause', 'resume', 'error'];
 
   let _state = 'idle';
   const _listeners = {};
-  for (const e of EVENTS) _listeners[e] = new Set();
+  for (const e of _BUS_EVENTS) _listeners[e] = new Set();
 
   /**
    * Subscribe to a control bus event.
@@ -34053,7 +34053,7 @@ Use this template for your response:
 
   // ---- Font/theme constants (mirrored from font_settings.js/theme_toggle.js) ----
 
-  const FONT_FAMILIES = [
+  const _CS_FONTS = [
     { label: 'Default', value: '' },
     { label: 'Sans-serif', value: 'system-ui, -apple-system, sans-serif' },
     { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
@@ -34061,7 +34061,7 @@ Use this template for your response:
     { label: 'Dyslexic-friendly', value: '"Comic Sans MS", "Comic Sans", cursive' },
   ];
 
-  const FONT_SIZES = [
+  const _CS_SIZES = [
     { label: 'Small (13px)', value: '13px' },
     { label: 'Medium (15px)', value: '15px' },
     { label: 'Large (17px)', value: '17px' },
@@ -34204,7 +34204,7 @@ Use this template for your response:
 
     // Font family
     container.appendChild(sRow('Font', sSelect(
-      FONT_FAMILIES, settings.fontFamily || '',
+      _CS_FONTS, settings.fontFamily || '',
       (v) => {
         saveProfileSetting('fontFamily', v);
         if (v) document.documentElement.style.setProperty('--pf-chat-font', v);
@@ -34214,7 +34214,7 @@ Use this template for your response:
 
     // Font size
     container.appendChild(sRow('Size', sSelect(
-      FONT_SIZES, settings.fontSize || '',
+      _CS_SIZES, settings.fontSize || '',
       (v) => {
         saveProfileSetting('fontSize', v);
         if (v) document.documentElement.style.setProperty('--pf-chat-font-size', v);

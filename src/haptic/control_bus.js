@@ -11,11 +11,11 @@
 //                 → 'error'  → 'active' | 'idle'
 
 const VALID_STATES = ['idle', 'active', 'paused', 'error'];
-const EVENTS = ['stateChange', 'stop', 'pause', 'resume', 'error'];
+const _BUS_EVENTS = ['stateChange', 'stop', 'pause', 'resume', 'error'];
 
 let _state = 'idle';
 const _listeners = {};
-for (const e of EVENTS) _listeners[e] = new Set();
+for (const e of _BUS_EVENTS) _listeners[e] = new Set();
 
 /**
  * Subscribe to a control bus event.
