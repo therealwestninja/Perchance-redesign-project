@@ -20469,7 +20469,7 @@ Use this template for your response:
     padding: 8px 10px;
     margin-bottom: 0.5rem;
     background:
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 10px;
     color: var(--pf-vellum, #e8dcc4);
@@ -20482,7 +20482,7 @@ Use this template for your response:
   }
   .pf-mini-card:hover {
     border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
   }
   .pf-mini-card:active {
     transform: translateY(1px);
@@ -20499,7 +20499,7 @@ Use this template for your response:
     width: 100%;
     padding: 6px 10px;
     margin-bottom: 0.5rem;
-    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
     color: var(--pf-vellum, #e8dcc4);
@@ -20536,8 +20536,8 @@ Use this template for your response:
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
-    border: 2px solid var(--pf-theme-primary, #0d1117);
+    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1b2e) 85%);
+    border: 2px solid var(--pf-theme-primary, #0d1b2e);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20770,7 +20770,7 @@ Use this template for your response:
     height: 44px;
     border-radius: 50%;
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
-    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     color: var(--pf-vellum, #e8dcc4);
     font-size: 28px;
     line-height: 1;
@@ -20795,7 +20795,7 @@ Use this template for your response:
     position: relative;
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 14px;
     padding: 22px 22px 20px;
@@ -20832,7 +20832,7 @@ Use this template for your response:
     width: 92px;
     height: 92px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1117) 85%);
+    background: radial-gradient(circle at 40% 35%, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15) 0%, var(--pf-theme-primary, #0d1b2e) 85%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20841,7 +20841,7 @@ Use this template for your response:
     background-position: center;
     position: relative;
     z-index: 1;
-    border: 2px solid var(--pf-theme-primary, #0d1117);
+    border: 2px solid var(--pf-theme-primary, #0d1b2e);
     box-shadow: 0 0 0 3px transparent;
   }
   /* Ornate ring — conic gradient around the avatar */
@@ -21224,7 +21224,7 @@ Use this template for your response:
 
   .pf-section {
     background:
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
     padding: 20px 22px;
@@ -22480,7 +22480,7 @@ Use this template for your response:
     flex-direction: column;
     min-height: 280px;
     background:
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 10px;
     overflow: hidden;
@@ -23084,13 +23084,13 @@ Use this template for your response:
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 6px;
     cursor: pointer;
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
     color: var(--pf-vellum, #e8dcc4);
     letter-spacing: 0.04em;
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
   .pf-mem-btn:hover:not(:disabled) {
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
     border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
   }
   .pf-mem-btn:active:not(:disabled) { transform: translateY(1px); }
@@ -23103,7 +23103,7 @@ Use this template for your response:
   .pf-mem-btn-primary {
     background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
     border-color: var(--pf-accent-deep, #8a6a2c);
-    color: var(--pf-theme-primary, #0d1117);
+    color: var(--pf-theme-primary, #0d1b2e);
     font-weight: 600;
     font-family: Georgia, 'Times New Roman', serif;
     letter-spacing: 0.08em;
@@ -23939,7 +23939,7 @@ Use this template for your response:
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     backdrop-filter: blur(12px);
     display: flex;
     flex-direction: column;
@@ -24110,7 +24110,7 @@ Use this template for your response:
     padding: 8px 28px;
     border-radius: 6px;
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
     color: var(--pf-vellum, #e8dcc4);
     cursor: pointer;
     font-size: 12px;
@@ -24120,7 +24120,7 @@ Use this template for your response:
   }
   .pf-sv2-close:hover {
     border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.4);
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
   }
 
   /* ---- Message controls (Batch 1) ----
@@ -24247,7 +24247,7 @@ Use this template for your response:
   .pf-glossary-modal {
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 14px;
     padding: 22px;
@@ -24311,7 +24311,7 @@ Use this template for your response:
     transition: background 0.15s, border-color 0.15s, transform 0.1s;
   }
   .pf-glossary-cancel {
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
     color: var(--pf-vellum, #e8dcc4);
   }
   .pf-glossary-cancel:hover {
@@ -24319,7 +24319,7 @@ Use this template for your response:
   }
   .pf-glossary-save {
     background: linear-gradient(180deg, var(--pf-accent-hi, #e8c97a) 0%, var(--pf-accent, #d4a855) 100%);
-    color: var(--pf-theme-primary, #0d1117);
+    color: var(--pf-theme-primary, #0d1b2e);
     border-color: var(--pf-accent-deep, #8a6a2c);
     font-weight: 600;
     font-family: Georgia, 'Times New Roman', serif;
@@ -24652,7 +24652,7 @@ Use this template for your response:
     align-items: center;
     gap: 4px;
     padding: 5px 10px;
-    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1f2630) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary-light, #1e3a5f) 0%, var(--pf-theme-secondary, #142847) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.3);
     border-radius: 8px;
     color: var(--pf-vellum, #e8dcc4);
@@ -24667,7 +24667,7 @@ Use this template for your response:
   }
   .pf-tools-trigger-open {
     border-color: rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.55);
-    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, var(--pf-theme-secondary, #161b22) 100%);
+    background: linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.12) 0%, var(--pf-theme-secondary, #142847) 100%);
   }
   .pf-tools-trigger-icon {
     font-size: 14px;
@@ -24684,7 +24684,7 @@ Use this template for your response:
     max-width: 280px;
     background:
       linear-gradient(180deg, rgba(232,220,196,0.02) 0%, transparent 20%),
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.25);
     border-radius: 12px;
     box-shadow: 0 12px 32px -8px rgba(0,0,0,0.7);
@@ -24766,7 +24766,7 @@ Use this template for your response:
   .pf-ctx-dashboard {
     padding: 8px 10px;
     margin-bottom: 6px;
-    background: linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+    background: linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.15);
     border-radius: 8px;
     font-size: 11px;
@@ -24979,7 +24979,7 @@ Use this template for your response:
   .pf-dq-card {
     background:
       linear-gradient(180deg, rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.04) 0%, transparent 40%),
-      linear-gradient(180deg, var(--pf-theme-secondary, #161b22) 0%, var(--pf-theme-primary, #0d1117) 100%);
+      linear-gradient(180deg, var(--pf-theme-secondary, #142847) 0%, var(--pf-theme-primary, #0d1b2e) 100%);
     border: 1px solid rgba(var(--pf-accent-rgb, var(--pf-palette-amber-rgb)), 0.2);
     border-radius: 10px;
     overflow: hidden;
@@ -25287,8 +25287,8 @@ Use this template for your response:
           accent:    null,  // main accent (default #d8b36a amber)
           vellum:    null,  // primary text (default #e8dcc4 parchment)
           silver:    null,  // secondary/meta text (default #8b95a3 pewter)
-          secondary: null,  // lighter bg gradient stop (default #161b22)
-          primary:   null,  // darker bg gradient stop (default #0d1117)
+          secondary: null,  // warm navy gradient mid-tone (default #142847)
+          primary:   null,  // deep navy gradient base (default #0d1b2e)
         },
       },
       display: {
@@ -29374,8 +29374,8 @@ Use this template for your response:
     const accent    = vm.accent    ? `#${vm.accent}`    : '#d8b36a';
     const vellum    = vm.vellum    ? `#${vm.vellum}`    : '#e8dcc4';
     const silver    = vm.silver    ? `#${vm.silver}`    : '#8b95a3';
-    const secondary = vm.secondary ? `#${vm.secondary}` : '#161b22';
-    const primary   = vm.primary   ? `#${vm.primary}`   : '#0d1117';
+    const secondary = vm.secondary ? `#${vm.secondary}` : '#142847';
+    const primary   = vm.primary   ? `#${vm.primary}`   : '#0d1b2e';
 
     const progress = Math.max(0, Math.min(1, vm.progress01 || 0));
     const progressPct = Math.round(progress * 100);
@@ -38216,8 +38216,8 @@ Use this template for your response:
       { label: 'Accent',    field: 'accent',    def: '#d8b36a', unlocked: flairUnlocks.accent, hint: 'Always available' },
       { label: 'Text',      field: 'vellum',    def: '#e8dcc4', unlocked: flairUnlocks.vellum, hint: '3 achievements' },
       { label: 'Meta',      field: 'silver',    def: '#8b95a3', unlocked: flairUnlocks.silver, hint: '8 achievements' },
-      { label: 'Secondary', field: 'secondary', def: '#161b22', unlocked: flairUnlocks.silver, hint: '8 achievements' },
-      { label: 'Primary',   field: 'primary',   def: '#0d1117', unlocked: flairUnlocks.deep,   hint: '15 achievements' },
+      { label: 'Secondary', field: 'secondary', def: '#142847', unlocked: flairUnlocks.silver, hint: '8 achievements' },
+      { label: 'Primary',   field: 'primary',   def: '#0d1b2e', unlocked: flairUnlocks.deep,   hint: '15 achievements' },
       { label: null,         field: null,        def: null,      unlocked: false,               hint: 'Coming soon' },
     ];
 
@@ -38485,12 +38485,17 @@ Use this template for your response:
   // Color grid defaults — all user-selectable color channels
   // ---------------------------------------------------------------------
 
+  // Memory Hero default look: deep navy primary + warm navy secondary, with
+  // amber/gold as the trim accent — the "Blue with gold trim" identity. Users
+  // who haven't picked custom theme colors land on this palette at first
+  // paint. Picking different values in the color grid cleanly overrides via
+  // applyThemeColorsLive() below; defaults are the fallback only.
   const THEME_DEFAULTS = {
-    accent:    '#d8b36a',
-    vellum:    '#e8dcc4',
-    silver:    '#8b95a3',
-    primary:   '#0d1117',
-    secondary: '#161b22',
+    accent:    '#d8b36a',  // amber — the gold TRIM
+    vellum:    '#e8dcc4',  // primary text
+    silver:    '#8b95a3',  // secondary / meta text
+    primary:   '#0d1b2e',  // deep navy — page base, replaces #0d1117
+    secondary: '#142847',  // warm navy — card mid-tone, replaces #161b22
   };
 
   /**
@@ -40770,8 +40775,8 @@ Use this template for your response:
             accent: accent.color,
             vellum: tc.vellum || '#e8dcc4',
             silver: tc.silver || '#8b95a3',
-            secondary: tc.secondary || '#161b22',
-            primary: tc.primary || '#0d1117',
+            secondary: tc.secondary || '#142847',
+            primary: tc.primary || '#0d1b2e',
             pinnedBadges: pickPinnedBadges(freshUnlocked, 5),
             xpIntoLevel: lvl.xpIntoLevel,
             xpForNextLevel: lvl.xpForNextLevel,
@@ -41654,6 +41659,392 @@ Use this template for your response:
       if (document.visibilityState === 'visible') refresh(card);
     });
   }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/character_favicon.js
+     ────────────────────────────────────────────────────────── */
+  // chat/character_favicon.js
+  //
+  // Adapted from HNE's session-favicon swap (perchance_2.txt around line
+  // 20776 in the HNE source). HNE swaps the browser-tab favicon to the
+  // user's "personal symbol" while a hypnosis session is playing.
+  //
+  // Memory Hero adapts this to chat: while a thread is open, the active
+  // CHARACTER's avatar becomes the tab favicon. Reverts on thread close
+  // or page navigation. Pure visual polish — gives each chat tab visual
+  // identity matching whomever you're talking to, useful when a user has
+  // many tabs open across different characters.
+  //
+  // Strategy: poll the chat messages container every ~1.5s and read the
+  // first character avatar (img tag with class .messageAvatar or similar)
+  // out of the rendered DOM. Robust against upstream refactors because
+  // we don't reach into private state — we observe rendered output.
+  //
+  // Falls back to no-op if root.faviconPlugin isn't loaded; still works
+  // by directly setting <link rel="icon">.href in that case.
+  //
+  // Bootstrap: idempotent. Self-installs after DOM ready.
+
+  function initCharacterFavicon() {
+    if (initCharacterFavicon._done) return;
+    initCharacterFavicon._done = true;
+
+    let _originalFaviconHref = null;
+    let _lastAppliedAvatarUrl = null;
+
+    function getOrCreateFaviconLink() {
+      let link = document.querySelector('link[rel~="icon"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      return link;
+    }
+
+    function captureOriginal() {
+      const link = getOrCreateFaviconLink();
+      if (_originalFaviconHref == null) _originalFaviconHref = link.href || '';
+    }
+
+    function setFavicon(url) {
+      if (!url || url === _lastAppliedAvatarUrl) return;
+      captureOriginal();
+      const link = getOrCreateFaviconLink();
+      link.href = url;
+      _lastAppliedAvatarUrl = url;
+      // Prefer the favicon-plugin if it loaded (handles cross-browser
+      // quirks better than direct DOM mutation). Safe no-op if absent.
+      try {
+        if (typeof window.root !== 'undefined' && window.root.faviconPlugin?.set) {
+          window.root.faviconPlugin.set(url);
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    function revertFavicon() {
+      if (_originalFaviconHref == null || _lastAppliedAvatarUrl == null) return;
+      const link = getOrCreateFaviconLink();
+      link.href = _originalFaviconHref;
+      _lastAppliedAvatarUrl = null;
+      try {
+        if (typeof window.root !== 'undefined' && window.root.faviconPlugin?.set
+            && _originalFaviconHref) {
+          window.root.faviconPlugin.set(_originalFaviconHref);
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // Find the active character avatar by looking at the chat messages
+    // panel. Upstream renders character avatar inside .characterAvatar /
+    // [data-avatar-url] / <img> in messages. We scan defensively.
+    function findActiveCharacterAvatar() {
+      try {
+        // Try several known upstream selectors first; bail on the first hit.
+        const selectors = [
+          '#chatMessagesEl .messageAvatar img[src]',
+          '#chatMessagesEl img.characterAvatar[src]',
+          '.chat-area .characterAvatar img[src]',
+          '.thread-header img.avatar[src]',
+          '[data-character-avatar][src]',
+        ];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          const url = el && (el.getAttribute('src') || el.dataset.characterAvatar);
+          if (url && /^https?:|^data:/.test(url)) return url;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    }
+
+    function tick() {
+      try {
+        // Don't fight the user when the tab isn't active — they can't see
+        // the favicon anyway, and pausing here saves work.
+        if (document.hidden) return;
+        const avatarUrl = findActiveCharacterAvatar();
+        if (avatarUrl) setFavicon(avatarUrl);
+        else if (_lastAppliedAvatarUrl) revertFavicon();
+      } catch { /* non-fatal */ }
+    }
+
+    // 1.5s tick — fast enough that switching threads feels instant, slow
+    // enough not to thrash. Pause when document.hidden via the early
+    // return inside tick().
+    setInterval(tick, 1500);
+    // Run once on init (after a short delay so upstream has rendered).
+    setTimeout(tick, 800);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/fresh_anchors.js
+     ────────────────────────────────────────────────────────── */
+  // chat/fresh_anchors.js
+  //
+  // Adapted from HNE's freshSeeds rotation memory (perchance_2.txt around
+  // its buildFreshnessBlock pattern). The corpus itself lives in
+  // memory_hero_1.txt as a top-level Perchance function (so other
+  // generators can import it via root.memHero.freshSeeds).
+  //
+  // This module exposes a small in-app helper that:
+  //   1. Maintains a session-scoped "recently used" rotation memory
+  //      (last ~8 phrases) so the same anchor doesn't appear back-to-back.
+  //   2. Calls root.freshSeeds(...) when available, with the rotation
+  //      memory passed as excludeSet.
+  //   3. Returns a short string suitable for splicing into AI prompt
+  //      assembly OR returns "" if the plugin isn't loaded (safe no-op).
+  //
+  // The chat code can call window.__memHero_freshAnchors(profileTags, n)
+  // to get a freshly-shuffled chunk of anchor phrases. By default the
+  // chat path does NOT auto-inject — wiring this into the prompt builder
+  // is opt-in, deliberately, so users keep control of what reaches the
+  // model. This module just makes the helper available.
+  //
+  // Bootstrap: registers the helper on window. Idempotent.
+
+  function initFreshAnchors() {
+    if (initFreshAnchors._done) return;
+    initFreshAnchors._done = true;
+
+    // Rotation memory — phrase strings most recently returned, oldest first.
+    // Capped at ROTATION_CAP so the exclude set doesn't grow forever.
+    const ROTATION_CAP = 8;
+    const _recent = [];
+
+    function _push(phrase) {
+      if (!phrase) return;
+      // De-dupe: if already recent, move to most-recent slot rather than dup.
+      const idx = _recent.indexOf(phrase);
+      if (idx >= 0) _recent.splice(idx, 1);
+      _recent.push(phrase);
+      while (_recent.length > ROTATION_CAP) _recent.shift();
+    }
+
+    /**
+     * Get up to n fresh anchor phrases tagged for the given profile/scene.
+     * Returns [] if the freshSeeds plugin isn't reachable.
+     *
+     * @param {string[]} profileTags  any-match tag filter (e.g. ['mystery'])
+     * @param {number}   n            how many phrases to return (default 3)
+     * @returns {string[]}
+     */
+    function freshAnchors(profileTags, n) {
+      try {
+        const r = (typeof window !== 'undefined') ? window.root : null;
+        if (!r || typeof r.freshSeeds !== 'function') return [];
+        const arr = r.freshSeeds({
+          profileTags: Array.isArray(profileTags) ? profileTags : [],
+          n: Number.isFinite(n) && n > 0 ? n : 3,
+          excludeSet: _recent.slice(),
+        });
+        if (!Array.isArray(arr)) return [];
+        for (const p of arr) _push(p);
+        return arr;
+      } catch {
+        return [];
+      }
+    }
+
+    /**
+     * Convenience: format anchors as a single inline prompt fragment.
+     * Empty string when nothing's available, so callers can `+` it.
+     */
+    function freshAnchorsFragment(profileTags, n) {
+      const arr = freshAnchors(profileTags, n);
+      if (!arr.length) return '';
+      return 'Optional sensory imagery you may weave in if it fits: '
+           + arr.map(p => `"${p}"`).join('; ') + '.';
+    }
+
+    // Expose globally so chat prompt assembly (or custom code) can opt in.
+    if (typeof window !== 'undefined') {
+      window.__memHero_freshAnchors = freshAnchors;
+      window.__memHero_freshAnchorsFragment = freshAnchorsFragment;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/community_packs.js
+     ────────────────────────────────────────────────────────── */
+  // chat/community_packs.js
+  //
+  // Adapted from HNE's community-pack loader (perchance_1.txt
+  // communityPacks list + lazy fetch in HNE's persona browser).
+  //
+  // Memory Hero pulls in third-party Perchance generators that expose a
+  // `characters` list (or `lore`, `prompts`). Each pack is registered in
+  // memory_hero_1.txt under `communityPacks` via dynamicImport(). We DON'T
+  // touch them at boot — instead this module exposes a one-shot loader
+  // that the character browser / lore picker / quest UI can call when
+  // the user opens those surfaces.
+  //
+  // Two stable shapes are returned by loadCommunityPacks():
+  //   {
+  //     characters: [ {id, name, roleInstruction, avatarUrl?, ...}, ...],
+  //     lore:       [ {text, ...}, ...],
+  //     prompts:    [ {text, category?, ...}, ...],
+  //     packMeta:   [ {packKey, characterCount, loreCount, promptCount}, ...]
+  //   }
+  //
+  // Each top-level array merges entries across all registered packs in
+  // declaration order. Pack metadata is preserved so the UI can show
+  // "from <packName>" attributions.
+  //
+  // Bootstrap: registers loadCommunityPacks on window. Idempotent.
+
+  function initCommunityPacks() {
+    if (initCommunityPacks._done) return;
+    initCommunityPacks._done = true;
+
+    let _cached = null;
+    let _inFlight = null;
+
+    /**
+     * Lazy fetch all registered community packs and return a merged
+     * {characters, lore, prompts, packMeta} bundle. Cached across calls.
+     * Awaiting concurrent calls de-duplicates the work.
+     *
+     * @returns {Promise<{characters:Array, lore:Array, prompts:Array, packMeta:Array}>}
+     */
+    async function loadCommunityPacks() {
+      if (_cached) return _cached;
+      if (_inFlight) return _inFlight;
+
+      _inFlight = (async () => {
+        const merged = { characters: [], lore: [], prompts: [], packMeta: [] };
+        try {
+          const r = (typeof window !== 'undefined') ? window.root : null;
+          const cp = r && r.communityPacks;
+          if (!cp || typeof cp !== 'object') return merged;
+
+          // Pack key → list of entries. Each pack is the result of
+          // dynamicImport, which exposes any top-level lists from the
+          // remote generator. We read the three known shapes.
+          for (const packKey of Object.keys(cp)) {
+            try {
+              // dynamicImport returns either a Perchance list-array or
+              // an object containing several lists; both shapes are
+              // valid. Accommodate both.
+              const pack = cp[packKey];
+              if (!pack) continue;
+
+              // Normalize "list of strings or list of JSON" — Perchance
+              // lists often surface as arrays whose `.toString()` returns
+              // a random pick. We want the underlying array.
+              const characters = _readPackList(pack, 'characters');
+              const lore       = _readPackList(pack, 'lore');
+              const prompts    = _readPackList(pack, 'prompts');
+
+              for (const c of characters) merged.characters.push({ ...c, _packKey: packKey });
+              for (const l of lore)       merged.lore.push({ ...l, _packKey: packKey });
+              for (const p of prompts)    merged.prompts.push({ ...p, _packKey: packKey });
+
+              merged.packMeta.push({
+                packKey,
+                characterCount: characters.length,
+                loreCount: lore.length,
+                promptCount: prompts.length,
+              });
+            } catch (e) {
+              // One pack failing shouldn't kill the rest. Surface to
+              // console for the pack author and move on.
+              console.warn(`[memHero] community pack '${packKey}' failed to load:`, e);
+            }
+          }
+        } catch (e) {
+          console.warn('[memHero] loadCommunityPacks failed:', e);
+        }
+        _cached = merged;
+        return merged;
+      })();
+
+      const result = await _inFlight;
+      _inFlight = null;
+      return result;
+    }
+
+    /** Read one named list out of a dynamicImport pack object. */
+    function _readPackList(pack, listName) {
+      try {
+        const list = pack && pack[listName];
+        if (!list) return [];
+        // Array shape: list.length, list[i] is JSON-string or object.
+        if (Array.isArray(list)) {
+          return list.map(_coerceEntry).filter(Boolean);
+        }
+        // Perchance list shape: has __ITEMS or numeric-keyed entries.
+        if (typeof list === 'object') {
+          const keys = Object.keys(list).filter(k => /^\d+$/.test(k));
+          if (keys.length) {
+            return keys.map(k => _coerceEntry(list[k])).filter(Boolean);
+          }
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    }
+
+    /** A pack entry might be a JSON string, an object, or a plain phrase. */
+    function _coerceEntry(raw) {
+      if (raw == null) return null;
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        // Try JSON parse first — pack authors typically put JSON objects.
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try { return JSON.parse(trimmed); } catch { /* fall through */ }
+        }
+        // Plain phrase (e.g. a lore line).
+        return { text: trimmed };
+      }
+      if (typeof raw === 'object') return raw;
+      return null;
+    }
+
+    /** Throw away the cache so the next call re-reads the registered packs. */
+    function invalidateCommunityPacks() {
+      _cached = null;
+      _inFlight = null;
+    }
+
+    // Expose globally so character browser / lore picker / quest UI can use it.
+    if (typeof window !== 'undefined') {
+      window.__memHero_loadCommunityPacks = loadCommunityPacks;
+      window.__memHero_invalidateCommunityPacks = invalidateCommunityPacks;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/_self_bootstrap.js
+     ────────────────────────────────────────────────────────── */
+  // chat/_self_bootstrap.js
+  //
+  // Self-init for the three modules above. Wires them up without needing
+  // to touch start() in profile/index.js. When mirroring this work back
+  // into the src/ tree, you can either keep this self-bootstrap or move
+  // the init calls into start(); both are idempotent.
+  //
+  // The init calls are deferred until DOMContentLoaded so the DOM is at
+  // least parsed. They don't need window.db — none of these three modules
+  // reads IndexedDB directly.
+
+  (function selfBootstrapHnePorts() {
+    function go() {
+      try { initCharacterFavicon(); } catch { /* non-fatal */ }
+      try { initFreshAnchors();     } catch { /* non-fatal */ }
+      try { initCommunityPacks();   } catch { /* non-fatal */ }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', go, { once: true });
+    } else {
+      // Defer one tick so we're after any synchronous DOM mutation
+      // happening immediately after this script tag.
+      setTimeout(go, 0);
+    }
+  })();
 
   /* ──────────────────────────────────────────────────────────
      module: bootstrap.js

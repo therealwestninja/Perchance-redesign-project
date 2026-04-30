@@ -8,15 +8,17 @@ superFetch = {import:super-fetch-plugin} // <-- to bypass CORs issues in charact
 fullscreenButtonPlugin = {import:fullscreen-button-plugin}
 combineEmojis = {import:combine-emojis-plugin}
 bugReport = {import:bug-report-plugin} // for comments-plugin-based feedback button - it's a helper for getting browser debug info like browser version, localStorage size limits, etc. - stuff that's relevant to bug reports
-
-// HEADS UP:
-// All the code you see here and in the bottom-right editor is what "powers" this chat app thing.
-// Perchance allows you to make random generators, but it also allows you to create more complex applications like this one.
-// If you accidentally opened this, then click the "fullscreen" button to go back to using the chat app.
-// If you want to customize it to create your own chat app, then you can do that by editing this code, but it's pretty complex!
-// I'd recommend starting simpler if you're new to Perchance.
-// Start with the tutorial:  perchance.org/tutorial
-// Then check out this plugin and the examples linked on the plugin page:  perchance.org/ai-text-plugin
+// (Memory Hero) faviconPlugin lets us swap the browser-tab favicon to the
+// active character's avatar for the duration of an open thread, then revert
+// when the thread closes. Pure visual polish; falls back to no-op if the
+// plugin is unavailable. Wired up by chat/character_favicon.js in the HTML pane.
+faviconPlugin = {import:favicon-plugin}
+// (Memory Hero) dynamicImport lets us pull in OPTIONAL community character
+// packs at runtime instead of paying their cost at page-load. Each pack is
+// another Perchance generator that exposes a `characters` list (or `lore`,
+// `prompts`). See `communityPacks` below for the active list and
+// chat/community_packs.js in the HTML pane for the consumer.
+dynamicImport = {import:dynamic-import-plugin}
 
 async generateShareLinkForCharacter(json) => 
   if(!window.CompressionStream) {
@@ -170,8 +172,8 @@ $meta
   // construct metadata based on character if the URL has a character reference:
   async dynamic(inputs) => // note that $meta.dynamic function *cannot reference/use any variables/lists/etc. that are outside of itself*. In other words, its code must be *fully* self-contained (i.e. only use `inputs.urlParams`). It must also use pure JavaScript (i.e. no Perchance-specific features like `foo.selectOne`, `foo.titleCase`, etc.).
     let defaults = {
-      title: `AI Character Chat (online, free, no sign-up, unlimited)`,   
-      description: `Perchance AI Chat - completely free, online, no login, unlimited messages, unlimited AI-generated images. Chat with AI characters via this Character.AI (C.AI) chat alternative. Custom AI character creation. Chat to the default Chloe character, or make your own AI character and talk to them freely - no limits, and no freemium gimicks that lure you to sign up. No message limits, no filter. You can create characters that can send pictures/images/photos, roleplay chatbots, AI RPGs/D&D experiences, an AI Dungeon alternative, anime AI chat, and basically anything else you can think of. No restrictions on daily usage. Like ChatGPT, but for fictional character RPs and AI characters, with image generation in chat.`,
+      title: `Memory Hero - An advanced Memory and Lore Manager, built on top of Perchance AI Character Chat (online, free, no sign-up, unlimited)`,   
+      description: `Built on top of Perchance Chat, you can now pin, arrange, and manage memories and lore, and spin them off into characters with a simple tool. Custom Hero profile tracks your progress as you chat. Enhance your play with Achievements, Daily Quests, stats tracking, and so much more!`,
     };
     let fileName;
     if(inputs.urlParams.data && inputs.urlParams.data.endsWith(".gz")) {
@@ -179,8 +181,8 @@ $meta
     } else if(inputs.urlParams.char) {
       if(inputs.urlParams.char === "assistant") {
         return {
-          title: `AI Character Chat (online, free, no sign-up, unlimited)`,   
-          description: `AI Chat with characters for roleplaying or to get help with writing, language practice, creative tasks, coding questions, and lots more. Completely free, online, no login, unlimited messages, unlimited AI-generated images. Basically a more creative (and unfiltered/uncensored) ChatGPT alternative. Chat to the Chloe or make an AI assistant/character and talk to them freely - no limits on credits, and no freemium gimicks that lure you to sign up. Completely unlimited, no filter. You can create characters that can send pictures/images/photos, roleplay chatbots, AI RPGs/D&D game masters. Like ChatGPT, but better at fictional character RPs and AI characters, with image generation in chat.`,
+          title: `Memory Hero - An advanced Memory and Lore Manager, built on top of Perchance AI Character Chat (online, free, no sign-up, unlimited)`,   
+          description: `Built on top of Perchance Chat, you can now pin, arrange, and manage memories and lore, and spin them off into characters with a simple tool. Custom Hero profile tracks your progress as you chat. Enhance your play with Achievements, Daily Quests, stats tracking, and so much more!`,
         };
       }
       let urlNamedCharacters = {
@@ -204,7 +206,7 @@ $meta
         let data = JSON.parse(text);
         let character = data.addCharacter;
         return {
-          title: character.metaTitle ? character.metaTitle : `${character.name.slice(0, 40)} - AI Character Chat (free, no sign-up, unlimited)`,
+          title: character.metaTitle ? character.metaTitle : `${character.name.slice(0, 40)} Memory Hero - (free AI Character Chat, no sign-up, unlimited)`,
           description: character.metaDescription ? character.metaDescription : `Chat with the ${character.name} AI character. Here's this character's description: ${character.roleInstruction.slice(0, 450).replace(/\s+/g, " ")}`,
           image: character.metaImage ? character.metaImage : character.avatarUrl,
         };
@@ -689,3 +691,258 @@ defaultCommentOptions
     300cb70b21f2d67b1496
     c3fc848cb123db2793f8
     403b16b3422020848cd0
+  // (Memory Hero) Slash commands for the in-app community channels.
+  // Each command echoes whatever's after it with a tagged prefix so the
+  // chat stays scannable when many users post share-links / tips. Adapted
+  // from the HNE pattern; chat-domain commands instead of session-config ones.
+  slashCommands
+    character
+      output = 👤 sharing a character: [this.input]
+    share
+      output = 🔗 sharing a thread / chat: [this.input]
+    quest
+      output = ⚔️ today's quest: [this.input]
+    memory
+      output = 💎 memory tip: [this.input]
+    lore
+      output = 📜 lore tip: [this.input]
+    tip
+      output = 💡 tip: [this.input]
+    achievement
+      output = 🏆 achievement unlocked: [this.input]
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// IMPORTING MEMORY HERO AS A PERCHANCE PLUGIN
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Memory Hero exposes pure functions other Perchance generators can call.
+// Useful for any tool that needs evocative sensory imagery, lore-style
+// fact entries, or character-chat memory utilities — story generators,
+// dream journals, tarot readers, RPG tools, etc.
+//
+// ─── HOW TO IMPORT ─────────────────────────────────────────────────────────
+//
+// In your own generator's top editor, add:
+//
+//   memHero = {import:memory-hero}
+//
+// (Replace the slug with this generator's actual URL slug. To find it: open
+// this generator's edit page and look at the URL — perchance.org/<slug>?edit.
+// Pick a short alias on your side; `memHero` is just a suggestion.)
+//
+// Once imported, exposed functions are reachable as `root.memHero.<name>(...)`.
+//
+// ─── EXPOSED FUNCTIONS ─────────────────────────────────────────────────────
+//
+// • root.memHero.freshSeeds(opts) → string[]
+//
+//   Draw evocative sensory anchor phrases from a curated 50+ phrase corpus
+//   tagged across 12 categories: adventure, mystery, romance, conflict,
+//   reflection, discovery, atmosphere, character, place, dialogue,
+//   sensory, emotional. Use these to break AI mode-collapse — feed the
+//   returned phrases into your own AI prompt as optional imagery so
+//   different sessions don't converge on the same metaphors.
+//
+//   opts: {
+//     profileTags: string[]   // category filter (any-match); empty = all tags
+//     n:           number     // how many phrases to return (default 5)
+//     excludeSet:  string[]   // phrases to skip (e.g. recently used, to
+//                             //   avoid repetition in the same session)
+//   }
+//   returns: string[]         // up to n phrases, randomized, no duplicates
+//
+//   Example — pull 3 mystery/atmosphere phrases, avoiding one recently used:
+//
+//     let anchors = root.memHero.freshSeeds({
+//       profileTags: ["mystery", "atmosphere"],
+//       n: 3,
+//       excludeSet: ["a candle guttering in a draft"],
+//     });
+//     // → ["a footprint in dust that wasn't there yesterday",
+//     //    "the sound of a key turning in a lock that has no door",
+//     //    "a name spoken once, then never again"]
+//
+//   The function falls back to ANY non-excluded entry when the tag-filtered
+//   set is too thin, so callers always get something useful — no need to
+//   handle empty results in the cold-start case.
+//
+// ─── EMBEDDING THE FULL TOOL ───────────────────────────────────────────────
+//
+// Memory Hero is also a complete chat app — character library, threaded
+// conversations, hierarchical memory, achievements, daily quests, etc. To
+// embed the WHOLE tool in your own page or generator (not just call its
+// functions), use a standard iframe:
+//
+//   <iframe src="https://perchance.org/<slug>"
+//           style="width:100%;height:90vh;border:0;display:block">
+//   </iframe>
+//
+// Character share-links also work via the `?data=...` URL parameter — see
+// the $meta.dynamic block above for the share-URL format.
+//
+// ─── CONTRIBUTING NEW EXPORTS ──────────────────────────────────────────────
+//
+// To expose another pure function: define it at the top level of THIS file
+// (memory_hero_1.txt). Anything declared here becomes part of `root.*` for
+// importing generators. Top-level definitions inside the HTML pane (script)
+// are NOT importable from other generators — only what's in this file is.
+//
+// Keep exports pure (no DOM, no state) so they work in headless contexts.
+//
+// ══════════════════════════════════════════════════════════════════════════
+
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Sensory anchor corpus — adapted from HNE's freshSeeds pattern
+// ──────────────────────────────────────────────────────────────────────────────
+// PUBLIC PLUGIN EXPORT — see the "IMPORTING MEMORY HERO AS A PERCHANCE PLUGIN"
+// block above. Also called by chat/fresh_anchors.js in the HTML pane to
+// occasionally inject anchor phrases into AI prompts so roleplay/character
+// chat doesn't converge on the same metaphors across different threads.
+//
+// Without this, the AI tends to fall into the same atmospheric beats
+// (a candle flickering, a distant bell, the smell of rain) for similar
+// scenes across different threads.
+//
+// freshSeeds is a sync top-level function with signature:
+//   freshSeeds({ profileTags: string[], n: number, excludeSet: string[] }) → string[]
+//
+// Returns up to n phrases that match at least one profileTag, excluding any
+// phrase in excludeSet (the rotation memory of recently-used anchors).
+//
+// IMPORTANT: corpus is embedded INLINE in the function body — Perchance's
+// parser rejects chained list access (treats dot paths through root as list
+// names), so we can't keep the bank as a separate list and reach into it.
+freshSeeds(opts) =>
+  let { profileTags, n, excludeSet } = opts || {};
+  if(!Array.isArray(profileTags)) profileTags = [];
+  if(!Number.isFinite(n) || n < 1) n = 5;
+  let exclude = new Set(Array.isArray(excludeSet) ? excludeSet : []);
+  // 50+ tagged sensory anchors across 12 chat-relevant tag categories.
+  // Add new entries by extending this array — function picks them up
+  // automatically.
+  let bank = [
+    // adventure
+    {tags:"adventure|atmosphere",  phrase:"a road that bends out of sight at the next ridge"},
+    {tags:"adventure|discovery",   phrase:"the first cold breath of a cave's mouth"},
+    {tags:"adventure|sensory",     phrase:"salt on the wind hours before the sea"},
+    {tags:"adventure|conflict",    phrase:"a horizon line that hasn't decided yet whether to be friendly"},
+    {tags:"adventure|place",       phrase:"a path that exists because someone insisted on it"},
+    // mystery
+    {tags:"mystery|atmosphere",    phrase:"a candle guttering in a draft from nowhere"},
+    {tags:"mystery|discovery",     phrase:"a footprint in dust that wasn't there yesterday"},
+    {tags:"mystery|sensory",       phrase:"the sound of a key turning in a lock that has no door"},
+    {tags:"mystery|character",     phrase:"a name spoken once, then never again"},
+    {tags:"mystery|place",         phrase:"a window lit in a building everyone insists is empty"},
+    // romance
+    {tags:"romance|emotional",     phrase:"the half-second pause before someone decides to speak"},
+    {tags:"romance|sensory",       phrase:"the smell of someone's coat after rain"},
+    {tags:"romance|character",     phrase:"a hand that almost reaches and then doesn't"},
+    {tags:"romance|atmosphere",    phrase:"a streetlamp turning two people gold for one block"},
+    {tags:"romance|emotional",     phrase:"a laugh that starts a half-second too late"},
+    // conflict
+    {tags:"conflict|emotional",    phrase:"the silence after a question nobody wants to answer"},
+    {tags:"conflict|character",    phrase:"a jaw setting before the words come out"},
+    {tags:"conflict|atmosphere",   phrase:"a room that gets two degrees colder when someone walks in"},
+    {tags:"conflict|sensory",      phrase:"the scrape of a chair pushed back too hard"},
+    {tags:"conflict|dialogue",     phrase:"a name said the way you don't want it said"},
+    // reflection
+    {tags:"reflection|emotional",  phrase:"the long beat after the door closes"},
+    {tags:"reflection|character",  phrase:"a hand finding the same coin in the same pocket"},
+    {tags:"reflection|sensory",    phrase:"the ceiling at three in the morning, watching back"},
+    {tags:"reflection|atmosphere", phrase:"a kettle starting to sing in an empty kitchen"},
+    {tags:"reflection|emotional",  phrase:"the part of the day where the light gives up"},
+    // discovery
+    {tags:"discovery|sensory",     phrase:"a sound the ear catches before the mind admits it heard"},
+    {tags:"discovery|atmosphere",  phrase:"a corridor that's longer on the way out"},
+    {tags:"discovery|character",   phrase:"a face you almost recognize from somewhere you've never been"},
+    {tags:"discovery|place",       phrase:"a door you've passed a hundred times, suddenly open"},
+    {tags:"discovery|emotional",   phrase:"the small shock of a thing that should not be here, here"},
+    // atmosphere
+    {tags:"atmosphere|sensory",    phrase:"the hush that falls on a street when snow begins"},
+    {tags:"atmosphere|place",      phrase:"a tavern where the conversation drops a level when the door opens"},
+    {tags:"atmosphere|sensory",    phrase:"the warm breath of an oven worked all afternoon"},
+    {tags:"atmosphere|character",  phrase:"a room that smells like the person who just left it"},
+    {tags:"atmosphere|sensory",    phrase:"the slow tick of a clock that keeps its own time"},
+    // character
+    {tags:"character|emotional",   phrase:"the way someone holds a cup when they're trying not to spill"},
+    {tags:"character|sensory",     phrase:"a voice that's been used too much today"},
+    {tags:"character|emotional",   phrase:"shoulders that have already heard the answer"},
+    {tags:"character|dialogue",    phrase:"a sentence that begins three times before it finishes"},
+    {tags:"character|sensory",     phrase:"the careful way old hands set down a fragile thing"},
+    // place
+    {tags:"place|atmosphere",      phrase:"a market the hour before it opens"},
+    {tags:"place|sensory",         phrase:"a library where the dust has its own weather"},
+    {tags:"place|atmosphere",      phrase:"a courtyard the noise of the city can't quite reach"},
+    {tags:"place|discovery",       phrase:"a side street that wasn't on the map you're holding"},
+    {tags:"place|sensory",         phrase:"a bridge that hums when something heavy crosses"},
+    // dialogue
+    {tags:"dialogue|emotional",    phrase:"the word someone almost said and then didn't"},
+    {tags:"dialogue|character",    phrase:"a question asked in the voice of an answer"},
+    {tags:"dialogue|conflict",     phrase:"a please that lands harder than a no"},
+    {tags:"dialogue|emotional",    phrase:"a thank-you held for the second person to leave"},
+    {tags:"dialogue|character",    phrase:"a story told slightly differently this time"},
+    // sensory
+    {tags:"sensory|atmosphere",    phrase:"firelight finding a face in pieces"},
+    {tags:"sensory|place",         phrase:"the cold of metal kept too long in shadow"},
+    {tags:"sensory|atmosphere",    phrase:"the smell of paper that's outlived its writer"},
+    {tags:"sensory|character",     phrase:"the warmth of a hand that's been in a pocket"},
+    {tags:"sensory|emotional",     phrase:"a perfume two rooms away, suddenly here"},
+    // emotional
+    {tags:"emotional|character",   phrase:"the small relief of being recognized"},
+    {tags:"emotional|reflection",  phrase:"the quiet of finally putting something down"},
+    {tags:"emotional|romance",     phrase:"the ache of a thing seen too late"},
+    {tags:"emotional|character",   phrase:"the soft pride of a thing kept for someone else"},
+    {tags:"emotional|conflict",    phrase:"a courage that arrives slightly winded"},
+  ];
+  // Tag overlap filter — entry passes if it shares at least one tag with profileTags.
+  let tagSet = new Set(profileTags.map(t => String(t).toLowerCase()));
+  let filtered = bank.filter(entry => {
+    if(exclude.has(entry.phrase)) return false;
+    if(!entry.tags) return true;
+    let entryTags = String(entry.tags).split('|').map(t => t.trim().toLowerCase());
+    if(tagSet.size === 0) return true; // no filter ⇒ accept all
+    return entryTags.some(t => tagSet.has(t));
+  });
+  // Fallback: if filtered set is too thin, loosen to ANY non-excluded entry
+  // so callers always get something. Matters for cold-start with empty profileTags.
+  if(filtered.length < n) {
+    let fallback = bank.filter(entry => !exclude.has(entry.phrase));
+    let seen = new Set(filtered.map(e => e.phrase));
+    for(let e of fallback) {
+      if(!seen.has(e.phrase)) { filtered.push(e); seen.add(e.phrase); }
+    }
+  }
+  // Fisher-Yates shuffle, then take first n
+  let arr = filtered.slice();
+  for(let i = arr.length - 1; i > 0; i--) {
+    let j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, n).map(e => e.phrase);
+
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Community character packs (dynamicImport lane — adapted from HNE)
+// ──────────────────────────────────────────────────────────────────────────────
+// HNE pulls personas/methods/presets from third-party Perchance generators
+// at runtime. Memory Hero does the same for community-authored character /
+// lore / starter-prompt packs.
+//
+// Each pack is another Perchance generator that exposes:
+//   characters — list of character JSON (name, roleInstruction, avatarUrl, etc.)
+//   lore       — optional shared world-lore entries
+//   prompts    — optional starter-prompt suggestions for daily quests
+//
+// Packs are fetched LAZILY on first use, so they don't add to page-load cost.
+// To publish a pack:
+//   1. Create a new Perchance generator whose top editor defines a `characters`
+//      list (or `lore`, `prompts`) of JSON entries.
+//   2. Add its generator-id to the list below.
+//
+// To consume from the HTML pane: read `root.communityPacks?.<packName>?.characters`.
+// chat/community_packs.js handles the loader pattern.
+communityPacks
+  // Example slot (commented — replace with real generator IDs when published):
+  // exampleCharacterPack = [dynamicImport('your-generator-id-here')]
