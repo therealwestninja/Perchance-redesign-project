@@ -42062,10 +42062,11 @@ Use this template for your response:
     const DEFAULT_NEGATIVE   = 'text, watermark, logo, deformed, distorted, low quality, '
                              + 'blurry artifacts, signature, ui elements';
 
-    // Subtle Ken Burns paths — pick one at random per advance. Each path
-    // is reverse-symmetric to its counterpart so successive slides don't
-    // all drift in the same direction. Numbers tuned to be just-noticeable
-    // (you read "the room is breathing") without being distracting.
+    // Subtle Ken Burns paths — pick one at random per Ken-Burns advance.
+    // Each path is reverse-symmetric to its counterpart so successive
+    // slides don't drift in the same direction. Numbers tuned to be
+    // just-noticeable (you read "the room is breathing") without being
+    // distracting.
     const KEN_BURNS_PATHS = [
       { from: 'scale(1.00) translate(0, 0)',          to: 'scale(1.06) translate(-1.5%, -0.8%)' },
       { from: 'scale(1.06) translate(-1.2%, -1.0%)',  to: 'scale(1.00) translate(0, 0)'        },
@@ -42075,14 +42076,218 @@ Use this template for your response:
       { from: 'scale(1.05) translate(0,  1.0%)',      to: 'scale(1.00) translate(0, 0)'        },
     ];
 
+    // Transition catalog — Ken Burns is the workhorse (weighted heavily),
+    // others add subtle variety. All five are designed to stay UNDER the
+    // chat content, so motion is calm and short. Adapted from AI Slideshow's
+    // larger transition library (perchance.org/ai-slideshow), but every
+    // one has been redesigned for backdrop use:
+    //   - smaller transforms so text doesn't appear to "wobble" against motion
+    //   - no 100%-translate effects (would briefly hide entire image)
+    //   - no fade-to-black/white flashes (would startle a reader)
+    //
+    // weight = relative pick probability (sums don't need to be 1).
+    // Ken Burns gets weight 5 vs. 1-2 each for variety transitions, so
+    // ~60% of advances are Ken Burns and the rest mix things up.
+    const TRANSITIONS = {
+      kenBurns: {
+        label:  'Ken Burns',
+        weight: 5,
+        run(oldEl, newEl, url, fadeSec, intervalSec) {
+          const z = KEN_BURNS_PATHS[Math.floor(Math.random() * KEN_BURNS_PATHS.length)];
+          newEl.style.transition = 'none';
+          newEl.style.opacity = '0';
+          newEl.style.transform = z.from;
+          newEl.style.filter = '';
+          newEl.style.backgroundImage = `url("${url}")`;
+          void newEl.offsetWidth;
+          newEl.style.transition =
+            `opacity ${fadeSec}s ease, transform ${intervalSec}s ease-in-out`;
+          newEl.style.opacity = String(state.opacity);
+          newEl.style.transform = z.to;
+          newEl.style.zIndex = '2';
+          if (oldEl) {
+            oldEl.style.transition = `opacity ${fadeSec}s ease`;
+            oldEl.style.opacity = '0';
+            oldEl.style.zIndex = '1';
+          }
+        },
+      },
+      crossfade: {
+        // Pure crossfade — no motion. A breath between Ken Burns picks.
+        label:  'Crossfade',
+        weight: 2,
+        run(oldEl, newEl, url, fadeSec /*, intervalSec*/) {
+          newEl.style.transition = 'none';
+          newEl.style.opacity = '0';
+          newEl.style.transform = 'scale(1.00)';
+          newEl.style.filter = '';
+          newEl.style.backgroundImage = `url("${url}")`;
+          void newEl.offsetWidth;
+          newEl.style.transition = `opacity ${fadeSec}s ease`;
+          newEl.style.opacity = String(state.opacity);
+          newEl.style.zIndex = '2';
+          if (oldEl) {
+            oldEl.style.transition = `opacity ${fadeSec}s ease`;
+            oldEl.style.opacity = '0';
+            oldEl.style.zIndex = '1';
+          }
+        },
+      },
+      slowZoom: {
+        // Slow continuous zoom-in — no panning, just a steady push.
+        // Calmer than Ken Burns but never static.
+        label:  'Slow zoom',
+        weight: 2,
+        run(oldEl, newEl, url, fadeSec, intervalSec) {
+          newEl.style.transition = 'none';
+          newEl.style.opacity = '0';
+          newEl.style.transform = 'scale(1.00)';
+          newEl.style.filter = '';
+          newEl.style.backgroundImage = `url("${url}")`;
+          void newEl.offsetWidth;
+          newEl.style.transition =
+            `opacity ${fadeSec}s ease, transform ${intervalSec}s linear`;
+          newEl.style.opacity = String(state.opacity);
+          newEl.style.transform = 'scale(1.07)';
+          newEl.style.zIndex = '2';
+          if (oldEl) {
+            oldEl.style.transition = `opacity ${fadeSec}s ease`;
+            oldEl.style.opacity = '0';
+            oldEl.style.zIndex = '1';
+          }
+        },
+      },
+      blurFade: {
+        // Crossfade with a brief blur on entry — gives a dreamlike
+        // "settling into focus" feel. Total blur travel is short
+        // (10px → 0) so it doesn't feel mushy.
+        label:  'Blur fade',
+        weight: 1,
+        run(oldEl, newEl, url, fadeSec /*, intervalSec*/) {
+          newEl.style.transition = 'none';
+          newEl.style.opacity = '0';
+          newEl.style.transform = 'scale(1.02)';
+          newEl.style.filter = 'blur(10px)';
+          newEl.style.backgroundImage = `url("${url}")`;
+          void newEl.offsetWidth;
+          newEl.style.transition =
+            `opacity ${fadeSec}s ease, filter ${fadeSec}s ease, transform ${fadeSec}s ease`;
+          newEl.style.opacity = String(state.opacity);
+          newEl.style.filter = 'blur(0px)';
+          newEl.style.transform = 'scale(1.00)';
+          newEl.style.zIndex = '2';
+          if (oldEl) {
+            oldEl.style.transition = `opacity ${fadeSec}s ease, filter ${fadeSec}s ease`;
+            oldEl.style.opacity = '0';
+            oldEl.style.filter = 'blur(6px)';
+            oldEl.style.zIndex = '1';
+          }
+        },
+      },
+      parallaxPan: {
+        // Diagonal pan only — no zoom. Like a slow truck shot. Direction
+        // alternates so successive panPerformanceparallax picks alternate left/right.
+        label:  'Parallax pan',
+        weight: 1,
+        _dir: 1, // mutable: flips each call
+        run(oldEl, newEl, url, fadeSec, intervalSec) {
+          this._dir = -this._dir;
+          const dir = this._dir;
+          newEl.style.transition = 'none';
+          newEl.style.opacity = '0';
+          newEl.style.transform = `scale(1.04) translate(${-1.8 * dir}%, 0)`;
+          newEl.style.filter = '';
+          newEl.style.backgroundImage = `url("${url}")`;
+          void newEl.offsetWidth;
+          newEl.style.transition =
+            `opacity ${fadeSec}s ease, transform ${intervalSec}s ease-in-out`;
+          newEl.style.opacity = String(state.opacity);
+          newEl.style.transform = `scale(1.04) translate(${1.8 * dir}%, 0)`;
+          newEl.style.zIndex = '2';
+          if (oldEl) {
+            oldEl.style.transition = `opacity ${fadeSec}s ease`;
+            oldEl.style.opacity = '0';
+            oldEl.style.zIndex = '1';
+          }
+        },
+      },
+    };
+
+    // Build a flat picker array honoring weights — pre-expanded so the
+    // hot path is just a single array index, no on-the-fly weight math.
+    const TRANSITION_PICKER = (() => {
+      const arr = [];
+      for (const [id, t] of Object.entries(TRANSITIONS)) {
+        for (let i = 0; i < (t.weight || 1); i++) arr.push(id);
+      }
+      return arr;
+    })();
+
+    // ──────────────────────────────────────────────────────────────────
+    // Style preset chips — adapted from AI Slideshow's STYLE_PRESETS.
+    // Click a chip to APPEND its prompt fragment to the user's prompt;
+    // click again to remove. Negatives merge in the same way. Active
+    // chips persist across reloads via state.activeStyleIds.
+    // Reduced from AI Slideshow's 19 presets to 12 chat-friendly ones
+    // (atmosphere + nature + style only — no abstract category, since
+    // figurative imagery reads more "scene" than "screensaver").
+    // ──────────────────────────────────────────────────────────────────
+    const STYLE_PRESETS = [
+      // Atmosphere
+      { id: 'misty',      label: 'Misty',         prompt: 'misty fog, drifting low clouds, ethereal haze, soft visibility' },
+      { id: 'twilight',   label: 'Twilight',      prompt: 'twilight blue hour, indigo and violet sky, soft fading light' },
+      { id: 'aurora',     label: 'Aurora',        prompt: 'aurora borealis ribbons, soft green and violet light bands, starry night' },
+      { id: 'cosmic',     label: 'Cosmic',        prompt: 'deep space nebula, soft star clusters, swirling cosmic dust, indigo and magenta' },
+      // Nature
+      { id: 'forest',     label: 'Forest',        prompt: 'ancient forest at dusk, soft mossy ground, dappled fading light, deep shadows' },
+      { id: 'ocean',      label: 'Ocean',         prompt: 'calm ocean horizon, slow gentle waves, soft pastel sky, infinite distance' },
+      { id: 'mountains',  label: 'Mountains',     prompt: 'distant snow-capped mountains, soft layered haze, muted blue-gray palette' },
+      { id: 'meadow',     label: 'Meadow',        prompt: 'soft grass meadow at dawn, golden mist, warm muted tones' },
+      // Style
+      { id: 'watercolor', label: 'Watercolor',    prompt: 'soft watercolor wash, gentle color bleeds, subtle paper texture, hand-painted' },
+      { id: 'oil',        label: 'Oil paint',     prompt: 'soft oil painting, romantic style, visible brush strokes, muted impressionist palette' },
+      { id: 'film',       label: 'Film',          prompt: 'analog film photograph, soft grain, faded vintage palette, warm muted highlights' },
+      { id: 'longexp',    label: 'Long exposure', prompt: 'long exposure photograph, soft motion blur trails, smooth water and clouds, dreamlike' },
+    ];
+    const STYLE_PRESET_MAP = Object.fromEntries(STYLE_PRESETS.map(p => [p.id, p]));
+
+    // ──────────────────────────────────────────────────────────────────
+    // Prompt enhancer — uses aiTextPlugin to rewrite a casual idea into
+    // an optimized AI image generation prompt. Streams back into the
+    // textarea. Click the same button while running to cancel.
+    //
+    // Adapted verbatim from AI Slideshow's ENHANCE_INSTRUCTIONS (which
+    // were in turn adapted from HNE's BG_ENHANCE_INSTRUCTIONS, originally
+    // from promptyx). The instructions are intentionally strict about
+    // format ("ONLY the final raw prompt string") so the streamed result
+    // drops straight into the textarea unedited.
+    // ──────────────────────────────────────────────────────────────────
+    const ENHANCE_INSTRUCTIONS = {
+      short: 'ROLE: Expert AI image prompt engineer.\n'
+        + 'ACTION: Transform the input into a concise, optimized AI image generation prompt (300-600 chars).\n'
+        + 'FORMAT: Comma-separated precise visual descriptors only.\n'
+        + 'ENHANCE WITH: specific lighting type, camera angle/lens, primary color palette, key material/texture detail, mood/atmosphere word, one compositional technique.\n'
+        + 'FORBIDDEN: 8K, UHD, hyperrealism, "extreme detail", explanatory sentences, question marks, quotes around the result.\n'
+        + 'OUTPUT: ONLY the final raw prompt string. No preamble. No quotes.',
+      medium: 'ROLE: Expert AI image prompt engineer.\n'
+        + 'ACTION: Transform the input into a richly-detailed AI image generation prompt (600-1100 chars).\n'
+        + 'FORMAT: Comma-separated visual descriptors with moderate depth.\n'
+        + 'ENHANCE WITH: specific lighting setup, focal length/camera type, 2-3 color palette descriptors, multiple surface textures, spatial composition (foreground/midground/background), atmosphere/weather, time of day, style anchor (one artist or aesthetic reference).\n'
+        + 'FORBIDDEN: 8K, UHD, hyperrealism, "extreme detail", narration, instructional language, quotes around the result.\n'
+        + 'OUTPUT: ONLY the final raw prompt string. No preamble. No quotes.',
+    };
+    let _enhanceToken = 0;
+    let _enhanceRunning = false;
+
     // ---- State ----
     const state = {
-      enabled:       false,
-      prompt:        DEFAULT_PROMPT,
-      intervalSec:   DEFAULT_INTERVAL,
-      opacity:       DEFAULT_OPACITY,
-      images:        [],            // [{ dataUrl, prompt }]
-      cursor:        0,
+      enabled:        false,
+      prompt:         DEFAULT_PROMPT,
+      intervalSec:    DEFAULT_INTERVAL,
+      opacity:        DEFAULT_OPACITY,
+      activeStyleIds: [],           // STYLE_PRESET ids currently appended to the prompt
+      images:         [],           // [{ dataUrl, prompt }]
+      cursor:         0,
       slot:          0,             // which slide (0=A, 1=B) is currently shown
       generating:    false,
       advanceTimer:  null,
@@ -42101,6 +42306,11 @@ Use this template for your response:
                             ? cfg.intervalSec : DEFAULT_INTERVAL;
       state.opacity     = Number.isFinite(cfg.opacity) && cfg.opacity > 0 && cfg.opacity <= 1
                             ? cfg.opacity : DEFAULT_OPACITY;
+      // Filter out any preset ids the user might have saved before we
+      // rename / delete a preset — keeps the loader robust to migrations.
+      state.activeStyleIds = Array.isArray(cfg.activeStyleIds)
+                              ? cfg.activeStyleIds.filter(id => STYLE_PRESET_MAP[id])
+                              : [];
     } catch { /* non-fatal */ }
 
     injectCSS();
@@ -42189,6 +42399,20 @@ Use this template for your response:
       }
     }
 
+    /**
+     * Build the effective prompt by appending active style preset
+     * fragments to the base prompt. Comma-separated, no duplicates.
+     */
+    function composedPrompt() {
+      const base = (state.prompt || DEFAULT_PROMPT).trim();
+      const stylePieces = (state.activeStyleIds || [])
+        .map(id => STYLE_PRESET_MAP[id])
+        .filter(Boolean)
+        .map(p => p.prompt);
+      if (!stylePieces.length) return base;
+      return base + ', ' + stylePieces.join(', ');
+    }
+
     async function generateOneImage() {
       try {
         const r = (typeof window !== 'undefined') ? window.root : null;
@@ -42197,7 +42421,7 @@ Use this template for your response:
         // values through Perchance's DSL evaluator, which throws on
         // brace-containing user input. AI Slideshow's exact warning.
         const result = await r.textToImagePlugin({
-          prompt:   state.prompt   || DEFAULT_PROMPT,
+          prompt:   composedPrompt(),
           negative: DEFAULT_NEGATIVE,
         });
         const dataUrl = (result && result.dataUrl) || (typeof result === 'string' ? result : null);
@@ -42232,35 +42456,26 @@ Use this template for your response:
       const newEl = state.slides[state.slot];
       const oldEl = state.slides[1 - state.slot];
       if (!newEl) return;
-      runKenBurns(oldEl, newEl, cur.dataUrl);
+      runTransition(oldEl, newEl, cur.dataUrl);
     }
 
-    function runKenBurns(oldEl, newEl, url) {
-      const z = KEN_BURNS_PATHS[Math.floor(Math.random() * KEN_BURNS_PATHS.length)];
-      const fadeSec = DEFAULT_FADE_SEC;
+    /**
+     * Pick a transition (Ken Burns weighted ~60%, others share the rest)
+     * and dispatch to its run() handler. Falls back to Ken Burns if the
+     * picker yields a missing entry.
+     */
+    function runTransition(oldEl, newEl, url) {
+      const id = TRANSITION_PICKER[Math.floor(Math.random() * TRANSITION_PICKER.length)];
+      const tx = TRANSITIONS[id] || TRANSITIONS.kenBurns;
+      const fadeSec     = DEFAULT_FADE_SEC;
       const intervalSec = state.intervalSec;
-
-      // Reset incoming slide to a known clean state. Same defensive wipe
-      // AI Slideshow's prepSlides does — every transition starts known.
-      newEl.style.transition = 'none';
-      newEl.style.opacity = '0';
-      newEl.style.transform = z.from;
-      newEl.style.backgroundImage = `url("${url}")`;
-      // Force reflow so the subsequent transition actually animates
-      void newEl.offsetWidth;
-
-      // Crossfade in opacity + slow zoom-pan over the FULL dwell interval.
-      // The interval is the entire visible time, so motion completes just
-      // as we hand off to the next slide — no jarring stop.
-      newEl.style.transition = `opacity ${fadeSec}s ease, transform ${intervalSec}s ease-in-out`;
-      newEl.style.opacity = String(state.opacity);
-      newEl.style.transform = z.to;
-      newEl.style.zIndex = '2';
-
-      if (oldEl) {
-        oldEl.style.transition = `opacity ${fadeSec}s ease`;
-        oldEl.style.opacity = '0';
-        oldEl.style.zIndex = '1';
+      try {
+        tx.run(oldEl, newEl, url, fadeSec, intervalSec);
+      } catch (e) {
+        // Defensive: if a custom transition throws, fall back to Ken Burns
+        // so the slideshow keeps progressing instead of freezing.
+        console.warn('[memHero bgSlideshow] transition failed, falling back:', id, e);
+        TRANSITIONS.kenBurns.run(oldEl, newEl, url, fadeSec, intervalSec);
       }
     }
 
@@ -42293,13 +42508,104 @@ Use this template for your response:
       try {
         const s = loadSettings();
         s.chatBgSlideshow = {
-          enabled:     state.enabled,
-          prompt:      state.prompt,
-          intervalSec: state.intervalSec,
-          opacity:     state.opacity,
+          enabled:        state.enabled,
+          prompt:         state.prompt,
+          intervalSec:    state.intervalSec,
+          opacity:        state.opacity,
+          activeStyleIds: state.activeStyleIds.slice(),
         };
         saveSettings(s);
       } catch { /* non-fatal */ }
+    }
+
+    // ----------------------------------------------------------------
+    // Prompt enhancer — streams an aiTextPlugin rewrite into the
+    // textarea. Cancels itself on second click. Adapted from AI
+    // Slideshow's runEnhance (perchance.org/ai-slideshow ~L2693).
+    // ----------------------------------------------------------------
+
+    /**
+     * Run the prompt enhancer against the textarea. Streams chunks back
+     * in real time. Click cancels by bumping a token; the in-flight call
+     * sees the stale token and bails on its next chunk.
+     *
+     * @param {HTMLTextAreaElement} promptTextarea
+     * @param {HTMLButtonElement}   enhanceBtn
+     * @param {'short'|'medium'}    length
+     */
+    async function runEnhance(promptTextarea, enhanceBtn, length) {
+      if (!promptTextarea || !enhanceBtn) return;
+      // Toggle-cancel if already running.
+      if (_enhanceRunning) {
+        _enhanceToken++;
+        _enhanceRunning = false;
+        enhanceBtn.disabled = false;
+        enhanceBtn.textContent = '✨';
+        return;
+      }
+      const r = (typeof window !== 'undefined') ? window.root : null;
+      if (!r || typeof r.aiTextPlugin !== 'function') {
+        // No-op when aiTextPlugin isn't loaded — bg_slideshow keeps working,
+        // user just can't enhance prompts.
+        enhanceBtn.title = 'Prompt enhancer needs aiTextPlugin';
+        return;
+      }
+      const original = (promptTextarea.value || '').trim();
+      if (!original) {
+        enhanceBtn.title = 'Type a casual idea first — the enhancer rewrites it';
+        return;
+      }
+      const instr = ENHANCE_INSTRUCTIONS[length] || ENHANCE_INSTRUCTIONS.medium;
+      const myToken = ++_enhanceToken;
+      _enhanceRunning = true;
+      enhanceBtn.textContent = '⏹';
+      enhanceBtn.title = 'Stop enhancing (revert)';
+
+      promptTextarea.value = '';
+      let acc = '';
+      let streamObj = null;
+      try {
+        streamObj = r.aiTextPlugin({
+          instruction: `${instr}\n\nUser Input: ${original}`,
+          onChunk: (data) => {
+            if (myToken !== _enhanceToken) {
+              try { streamObj && streamObj.stop && streamObj.stop(); } catch {}
+              throw new Error('cancelled');
+            }
+            if (data && data.isFromStartWith) return;
+            acc += (data && data.textChunk) || '';
+            promptTextarea.value = acc;
+          },
+        });
+        const result = await streamObj;
+        if (myToken !== _enhanceToken) return;
+        // Some flows return the whole text on result.generatedText
+        // without ever firing onChunk; pick whichever's non-empty.
+        const finalText = (acc || (result && result.generatedText) || '').trim();
+        if (!finalText) {
+          promptTextarea.value = original;
+          return;
+        }
+        // Strip stray surrounding quotes some models add despite instructions
+        const cleaned = finalText.replace(/^["']|["']$/g, '');
+        promptTextarea.value = cleaned;
+        state.prompt = cleaned;
+        saveCfg();
+      } catch (e) {
+        // On cancel or any failure, restore original — we never destroy
+        // the user's text. Empty acc is the cancel case.
+        promptTextarea.value = original;
+        if (e && e.message !== 'cancelled') {
+          console.warn('[memHero bgSlideshow] enhance failed:', e && e.message);
+        }
+      } finally {
+        if (myToken === _enhanceToken) {
+          _enhanceRunning = false;
+          enhanceBtn.disabled = false;
+          enhanceBtn.textContent = '✨';
+          enhanceBtn.title = 'Enhance prompt with AI';
+        }
+      }
     }
 
     // ----------------------------------------------------------------
@@ -42362,6 +42668,89 @@ Use this template for your response:
         saveCfg();
       });
       dropdown.appendChild(promptInput);
+
+      // ---- Enhance row (✨ short / ✨+ medium) ----
+      const enhanceRow = document.createElement('div');
+      enhanceRow.style.cssText = 'display:flex;gap:6px;margin-top:6px;';
+
+      const enhanceShortBtn = document.createElement('button');
+      enhanceShortBtn.type = 'button';
+      enhanceShortBtn.textContent = '✨';
+      enhanceShortBtn.title = 'Enhance prompt (short, ~300-600 chars)';
+      enhanceShortBtn.style.cssText = 'flex:1;padding:5px;cursor:pointer;font-size:13px;';
+      enhanceShortBtn.addEventListener('click', () => {
+        runEnhance(promptInput, enhanceShortBtn, 'short');
+      });
+      enhanceRow.appendChild(enhanceShortBtn);
+
+      const enhanceMedBtn = document.createElement('button');
+      enhanceMedBtn.type = 'button';
+      enhanceMedBtn.textContent = '✨+';
+      enhanceMedBtn.title = 'Enhance prompt (medium, ~600-1100 chars)';
+      enhanceMedBtn.style.cssText = 'flex:1;padding:5px;cursor:pointer;font-size:13px;';
+      enhanceMedBtn.addEventListener('click', () => {
+        runEnhance(promptInput, enhanceMedBtn, 'medium');
+      });
+      enhanceRow.appendChild(enhanceMedBtn);
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.type = 'button';
+      restoreBtn.textContent = '↺';
+      restoreBtn.title = 'Restore default prompt';
+      restoreBtn.style.cssText = 'padding:5px 10px;cursor:pointer;font-size:13px;opacity:0.75;';
+      restoreBtn.addEventListener('click', () => {
+        promptInput.value = DEFAULT_PROMPT;
+        state.prompt = DEFAULT_PROMPT;
+        saveCfg();
+      });
+      enhanceRow.appendChild(restoreBtn);
+      dropdown.appendChild(enhanceRow);
+
+      // ---- Style preset chips ----
+      const stylesLbl = document.createElement('div');
+      stylesLbl.style.cssText = 'font-size:11px;opacity:0.65;margin:10px 0 4px;';
+      stylesLbl.textContent = 'Style presets (click to toggle)';
+      dropdown.appendChild(stylesLbl);
+
+      const chipsRow = document.createElement('div');
+      chipsRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;';
+      const chipNodes = {};
+      function refreshChipStyles() {
+        for (const id of Object.keys(chipNodes)) {
+          const isActive = state.activeStyleIds.includes(id);
+          const node = chipNodes[id];
+          node.style.background = isActive
+            ? 'rgba(216, 179, 106, 0.22)'    // amber-tinted active
+            : 'rgba(255, 255, 255, 0.06)';
+          node.style.borderColor = isActive
+            ? 'rgba(216, 179, 106, 0.55)'
+            : 'rgba(255, 255, 255, 0.14)';
+          node.style.color = isActive
+            ? 'var(--pf-accent-hi, #e8c97a)'
+            : 'inherit';
+        }
+      }
+      for (const p of STYLE_PRESETS) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.textContent = p.label;
+        chip.title = p.prompt;
+        chip.style.cssText = 'border:1px solid rgba(255,255,255,0.14);'
+                           + 'border-radius:14px;padding:3px 9px;font-size:11px;'
+                           + 'cursor:pointer;background:rgba(255,255,255,0.06);'
+                           + 'color:inherit;transition:background 0.15s, border-color 0.15s, color 0.15s;';
+        chip.addEventListener('click', () => {
+          const idx = state.activeStyleIds.indexOf(p.id);
+          if (idx >= 0) state.activeStyleIds.splice(idx, 1);
+          else state.activeStyleIds.push(p.id);
+          refreshChipStyles();
+          saveCfg();
+        });
+        chipNodes[p.id] = chip;
+        chipsRow.appendChild(chip);
+      }
+      refreshChipStyles();
+      dropdown.appendChild(chipsRow);
 
       // ---- Interval slider ----
       const intervalLbl = document.createElement('div');
@@ -42493,8 +42882,9 @@ Use this template for your response:
       // ---- Hint footer ----
       const hint = document.createElement('div');
       hint.style.cssText = 'font-size:10.5px;opacity:0.55;margin-top:8px;line-height:1.4;';
-      hint.textContent = 'Soft Ken Burns motion + crossfade. Images are kept in '
-                       + 'memory only (cap ' + MAX_IMAGES + '), regenerated on reload.';
+      hint.textContent = 'Soft Ken Burns + 4 alternate transitions (crossfade, slow zoom, '
+                       + 'blur fade, parallax pan). Images kept in memory only (cap '
+                       + MAX_IMAGES + '), regenerated on reload.';
       dropdown.appendChild(hint);
 
       // Assemble + mount
@@ -42559,25 +42949,597 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/character_portraits.js
+     ────────────────────────────────────────────────────────── */
+  // chat/character_portraits.js
+  //
+  // Auto-generate avatar portraits for characters that don't have one.
+  // Adapted from HNE's "persona portrait grid hydration" pattern (HNE
+  // generates portraits for each persona card on demand using
+  // textToImagePlugin against the persona's tone/voice description).
+  //
+  // For Memory Hero, the input is the character's `roleInstruction`
+  // distilled into a short visual prompt. The result data URL is saved
+  // back into the character record (window.db.characters.update).
+  //
+  // The button is mounted into the chat header next to the existing
+  // 🎬 / 🏞 backdrop tools — it acts on the active thread's character.
+  // For batch portrait generation across the whole library, this could
+  // be extended to iterate db.characters.toArray() and skip ones that
+  // already have an avatarUrl; left as a future follow-up.
+  //
+  // Bootstrap: idempotent.
+
+  function initCharacterPortraits() {
+    if (initCharacterPortraits._done) return;
+    initCharacterPortraits._done = true;
+
+    const NEGATIVE = 'text, watermark, logo, deformed face, distorted anatomy, '
+                   + 'extra limbs, low quality, blurry, signature, ui elements, '
+                   + 'multiple subjects, frame, border';
+
+    /**
+     * Build a portrait prompt from a character's role instruction. We
+     * keep it short and visual — the role instruction is often long and
+     * full of behavioural rules ("never break character", "respond in
+     * third person") that aren't useful for an image model. We trim to
+     * the first 280 chars and prepend a portrait framing template.
+     */
+    function buildPortraitPrompt(character) {
+      const role = String((character && character.roleInstruction) || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 280);
+      const name = String((character && character.name) || 'character').trim();
+      // The framing terms are deliberately neutral — we want the
+      // character's own description to do the work, not impose a
+      // particular art style. Style overrides can be applied via the
+      // bg_slideshow chip system if the user wants a uniform look.
+      return `portrait of ${name}, character study, head and shoulders, `
+           + `soft natural lighting, neutral background, painterly. `
+           + `Character description: ${role}`;
+    }
+
+    /**
+     * Look up the active thread's character via upstream's Dexie
+     * instance. Returns { thread, character } or null on any failure.
+     * Defensive at every step so a missing object doesn't crash the UI.
+     */
+    async function getActiveCharacter() {
+      try {
+        const db = window.db;
+        if (!db || !db.threads || !db.characters) return null;
+        // Upstream stores active thread id either on window.activeThreadId
+        // or via a CSS class on a sidebar element. Fall back across both.
+        let threadId = window.activeThreadId;
+        if (threadId == null) {
+          const selected = document.querySelector('.thread.selected, .thread-item.selected, [data-thread-id].selected');
+          if (selected) {
+            const tid = selected.getAttribute('data-thread-id');
+            threadId = tid != null ? Number(tid) : null;
+          }
+        }
+        if (threadId == null) return null;
+        const thread = await db.threads.get(threadId);
+        if (!thread) return null;
+        const charId = (thread.character && thread.character.id != null)
+                        ? thread.character.id
+                        : thread.characterId;
+        if (charId == null) return null;
+        const character = await db.characters.get(charId);
+        if (!character) return null;
+        return { thread, character };
+      } catch (e) {
+        console.warn('[memHero portraits] getActiveCharacter failed:', e && e.message);
+        return null;
+      }
+    }
+
+    /**
+     * Generate ONE portrait for the given character via textToImagePlugin
+     * and write it back into the characters store. Returns the dataUrl
+     * on success, null on failure. Strict {prompt, negative} contract.
+     */
+    async function generatePortraitFor(character) {
+      const r = window.root;
+      if (!r || typeof r.textToImagePlugin !== 'function') return null;
+      try {
+        const result = await r.textToImagePlugin({
+          prompt:   buildPortraitPrompt(character),
+          negative: NEGATIVE,
+        });
+        const dataUrl = (result && result.dataUrl) || (typeof result === 'string' ? result : null);
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+        // Persist to the characters store. db.characters.update returns
+        // a promise that resolves when the write is durable.
+        try {
+          await window.db.characters.update(character.id, { avatarUrl: dataUrl });
+        } catch (e) {
+          console.warn('[memHero portraits] update failed (returning dataUrl anyway):', e && e.message);
+        }
+        return dataUrl;
+      } catch (e) {
+        console.warn('[memHero portraits] generation failed:', e && e.message);
+        return null;
+      }
+    }
+
+    /**
+     * Mount the 🖼️ button. It runs against whichever character the
+     * active thread points to. Visual feedback: ⏳ while generating,
+     * ✅ on success, ⚠ on failure, then reverts after a moment.
+     */
+    function mountButton() {
+      if (document.querySelector('.pf-charport-btn')) return; // idempotent
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-export-btn pf-charport-btn';
+      btn.textContent = '🖼️';
+      btn.title = 'Generate AI portrait for the current character';
+      btn.style.marginLeft = '4px';
+
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = '⏳';
+        try {
+          const ctx = await getActiveCharacter();
+          if (!ctx) {
+            btn.textContent = '⚠';
+            btn.title = 'No active character — open a thread first';
+          } else {
+            // If the character already has a non-empty avatar, confirm
+            // overwrite via the title (we don't want a confirm dialog
+            // every click; users can see existing avatar in the chat).
+            const dataUrl = await generatePortraitFor(ctx.character);
+            if (dataUrl) {
+              btn.textContent = '✅';
+              btn.title = 'Portrait generated and saved';
+            } else {
+              btn.textContent = '⚠';
+              btn.title = 'Portrait generation failed';
+            }
+          }
+        } finally {
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = orig;
+            btn.title = 'Generate AI portrait for the current character';
+          }, 1800);
+        }
+      });
+
+      const header = document.querySelector('.chat-header-right') ||
+                     document.querySelector('.chat-header');
+      if (header) header.appendChild(btn);
+    }
+
+    // Mount once chat header is present. Poll briefly because the chat
+    // header may render asynchronously after upstream loads threads.
+    function tryMount(remaining) {
+      mountButton();
+      if (!document.querySelector('.pf-charport-btn') && remaining > 0) {
+        setTimeout(() => tryMount(remaining - 1), 400);
+      }
+    }
+    tryMount(20); // up to ~8 seconds of retry, then give up silently
+
+    // Expose for programmatic use (e.g. batch hydration scripts later)
+    if (typeof window !== 'undefined') {
+      window.__memHero_generatePortraitFor = generatePortraitFor;
+      window.__memHero_buildPortraitPrompt = buildPortraitPrompt;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/reimagine.js
+     ────────────────────────────────────────────────────────── */
+  // chat/reimagine.js
+  //
+  // 🎭 "Reimagine" button on every message — rewrites the message text
+  // in the active character's voice (or the user's persona voice for
+  // user messages). Adapted from HNE's "✨ Reimagine in your guide's
+  // voice" pattern (HNE applies this to custom session blocks; we apply
+  // it to chat messages).
+  //
+  // Behavior:
+  //   1. Click 🎭 next to a message
+  //   2. A small floating popover shows: "Reimagine in <character>'s voice"
+  //      with a confirm + cancel
+  //   3. On confirm: stream a rewrite via aiTextPlugin into the message
+  //      text, replacing it. Empty-on-failure restores original.
+  //
+  // Storage: rewritten message goes back through upstream's
+  // db.messages.update so it sticks. The original is preserved in the
+  // message's `editHistory` if upstream tracks it; otherwise it's lost
+  // (chat is fundamentally lossy on rewrites).
+  //
+  // Bootstrap: idempotent. Uses MutationObserver to add buttons to new
+  // messages as they're rendered.
+
+  function initReimagine() {
+    if (initReimagine._done) return;
+    initReimagine._done = true;
+
+    const SHORT_INSTR = 'ROLE: Skilled prose stylist.\n'
+      + 'ACTION: Rewrite the user message below in the voice of the character described, '
+      + 'preserving meaning and intent but matching their tone, vocabulary, '
+      + 'cadence, and emotional register. Same approximate length.\n'
+      + 'FORBIDDEN: explanatory preamble, quotes around the result, narration about '
+      + 'what you changed, instructional language.\n'
+      + 'OUTPUT: ONLY the rewritten message text. No preamble. No quotes.';
+
+    /**
+     * Find the chat character — first try upstream's active thread, fall
+     * back to the most-recently-seen non-user message author in the DOM.
+     */
+    async function getCharacterForActiveThread() {
+      try {
+        const db = window.db;
+        if (db && db.threads && db.characters) {
+          const tid = window.activeThreadId;
+          if (tid != null) {
+            const thread = await db.threads.get(tid);
+            const charId = thread && (thread.character?.id ?? thread.characterId);
+            if (charId != null) {
+              const c = await db.characters.get(charId);
+              if (c) return c;
+            }
+          }
+        }
+      } catch {}
+      return null;
+    }
+
+    /**
+     * Rewrite a piece of text in the character's voice. Returns the
+     * rewritten string, or null on failure / cancellation.
+     */
+    async function rewriteText(text, character) {
+      const r = window.root;
+      if (!r || typeof r.aiTextPlugin !== 'function') return null;
+      const role = String((character && character.roleInstruction) || '')
+                    .replace(/\s+/g, ' ').trim().slice(0, 600);
+      const name = String((character && character.name) || 'the character').trim();
+      const instruction =
+        `${SHORT_INSTR}\n\n` +
+        `Character name: ${name}\n` +
+        `Character description: ${role}\n\n` +
+        `Original message:\n${text}`;
+      try {
+        const result = await r.aiTextPlugin({
+          instruction,
+          stopSequences: ['\n\n[[', '\n[['],
+        });
+        const out = (result && result.generatedText || '').trim().replace(/^["']|["']$/g, '');
+        return out || null;
+      } catch (e) {
+        console.warn('[memHero reimagine] aiTextPlugin failed:', e && e.message);
+        return null;
+      }
+    }
+
+    /**
+     * Add a 🎭 button to a message element if it doesn't already have one.
+     * Called from the MutationObserver as new messages render.
+     */
+    function decorateMessageEl(msgEl) {
+      if (!msgEl || msgEl._pfReimagineDone) return;
+      msgEl._pfReimagineDone = true;
+      // Find a control region to inject into. Upstream's message pattern
+      // varies, so try several known spots before giving up.
+      const controls = msgEl.querySelector('.messageControls, .message-controls, .msg-controls');
+      const target = controls || msgEl;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-reimagine-btn';
+      btn.textContent = '🎭';
+      btn.title = 'Reimagine this message in the character\'s voice';
+      btn.style.cssText = 'background:none;border:none;cursor:pointer;'
+                       + 'opacity:0.55;padding:2px 4px;font-size:14px;'
+                       + 'transition:opacity 0.15s;';
+      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.55'; });
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleReimagineClick(msgEl, btn);
+      });
+      target.appendChild(btn);
+    }
+
+    /**
+     * Find the message body text node within a rendered message. Tries
+     * known upstream selectors; falls back to the message element itself.
+     */
+    function findMessageBody(msgEl) {
+      return msgEl.querySelector('.messageText, .message-text, .msg-body, .msg-content')
+          || msgEl;
+    }
+
+    /** Find the message id from the rendered element. */
+    function findMessageId(msgEl) {
+      const fromAttr = msgEl.getAttribute('data-message-id') ||
+                       msgEl.getAttribute('data-msg-id') ||
+                       msgEl.getAttribute('data-id');
+      const n = fromAttr != null ? Number(fromAttr) : NaN;
+      return Number.isFinite(n) ? n : null;
+    }
+
+    async function handleReimagineClick(msgEl, btn) {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const origLabel = btn.textContent;
+      btn.textContent = '⏳';
+      try {
+        const body = findMessageBody(msgEl);
+        const original = (body.textContent || '').trim();
+        if (!original) { btn.textContent = '⚠'; return; }
+
+        const character = await getCharacterForActiveThread();
+        if (!character) {
+          btn.textContent = '⚠';
+          btn.title = 'No active character — open a thread first';
+          return;
+        }
+
+        const rewritten = await rewriteText(original, character);
+        if (!rewritten) { btn.textContent = '⚠'; return; }
+
+        // Apply visually first for instant feedback
+        body.textContent = rewritten;
+
+        // Persist to DB if we can identify the message
+        const msgId = findMessageId(msgEl);
+        if (msgId != null && window.db && window.db.messages) {
+          try {
+            await window.db.messages.update(msgId, { content: rewritten });
+          } catch (e) {
+            console.warn('[memHero reimagine] db.update failed:', e && e.message);
+          }
+        }
+        btn.textContent = '✅';
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = origLabel;
+        }, 1500);
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // MutationObserver — decorate every message as it appears.
+    // ------------------------------------------------------------------
+
+    function scanAndDecorate(root) {
+      const msgs = root.querySelectorAll('.message, .chat-message, [data-message-id]');
+      msgs.forEach(decorateMessageEl);
+    }
+
+    function watch() {
+      const chatEl = document.getElementById('chatMessagesEl') ||
+                     document.querySelector('.chat-messages, .chat-area');
+      if (!chatEl) {
+        // Try again shortly — chat may not be mounted yet
+        setTimeout(watch, 800);
+        return;
+      }
+      scanAndDecorate(chatEl);
+      const obs = new MutationObserver((muts) => {
+        for (const m of muts) {
+          for (const node of m.addedNodes || []) {
+            if (node.nodeType !== 1) continue;
+            // The added node may BE a message or contain new ones
+            if (node.matches && node.matches('.message, .chat-message, [data-message-id]')) {
+              decorateMessageEl(node);
+            } else {
+              scanAndDecorate(node);
+            }
+          }
+        }
+      });
+      obs.observe(chatEl, { childList: true, subtree: true });
+    }
+
+    watch();
+
+    // Expose for programmatic use
+    if (typeof window !== 'undefined') {
+      window.__memHero_reimagineText = rewriteText;
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     module: chat/bug_report.js
+     ────────────────────────────────────────────────────────── */
+  // chat/bug_report.js
+  //
+  // Surfaces the already-imported bug-report-plugin (perchance.org's
+  // bug-report-plugin) via a small 🐞 button. Adapted from HNE's
+  // bug-report integration (HNE uses it for opt-in user-initiated bug
+  // reports — never silent telemetry).
+  //
+  // The plugin gathers browser version, localStorage size limits,
+  // viewport, user agent, etc. and produces a markdown blob suitable
+  // for pasting into a forum / GitHub issue / comments thread. We just
+  // give it a button and copy the result to clipboard.
+  //
+  // The plugin is imported as `bugReport` in memory_hero_1.txt. If it's
+  // not available at runtime (e.g. Perchance plugin hosting is down),
+  // the button still works — we fall back to a minimal navigator dump.
+  //
+  // Bootstrap: idempotent.
+
+  function initBugReport() {
+    if (initBugReport._done) return;
+    initBugReport._done = true;
+
+    function fallbackInfo() {
+      // Minimal report when bugReport plugin isn't reachable. Includes
+      // the bare facts a forum helper would ask for first.
+      const lines = [];
+      lines.push('**Memory Hero bug report**');
+      lines.push('');
+      lines.push('User-Agent: `' + (navigator && navigator.userAgent || 'unknown') + '`');
+      lines.push('Language: `' + (navigator && navigator.language || 'unknown') + '`');
+      lines.push('Viewport: `' + window.innerWidth + 'x' + window.innerHeight + '`');
+      lines.push('Pixel ratio: `' + (window.devicePixelRatio || 1) + '`');
+      lines.push('Online: `' + (navigator && navigator.onLine) + '`');
+      lines.push('Page load time: `' + (window.pageLoadStartTime ? (Date.now() - window.pageLoadStartTime) + 'ms' : 'n/a') + '`');
+      lines.push('Cookies enabled: `' + (navigator && navigator.cookieEnabled) + '`');
+      lines.push('Storage estimate: pending...');
+      lines.push('');
+      lines.push('Steps to reproduce: ');
+      lines.push('1. ');
+      lines.push('2. ');
+      lines.push('');
+      lines.push('Expected vs. actual: ');
+      lines.push('');
+      return lines.join('\n');
+    }
+
+    async function gatherReport() {
+      // First-class path: use root.bugReport if the plugin loaded.
+      const r = window.root;
+      try {
+        if (r && r.bugReport && typeof r.bugReport === 'function') {
+          const out = await r.bugReport();
+          if (typeof out === 'string' && out.length) return out;
+        }
+        // Some versions expose .getInfo() or .text() — try those too
+        if (r && r.bugReport && typeof r.bugReport.getInfo === 'function') {
+          const out = await r.bugReport.getInfo();
+          if (typeof out === 'string' && out.length) return out;
+        }
+      } catch (e) {
+        console.warn('[memHero bugReport] plugin call failed, using fallback:', e && e.message);
+      }
+      // Fallback: build something minimally useful ourselves
+      let extra = '';
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const est = await navigator.storage.estimate();
+          extra = '\n\nStorage usage: `' + (est.usage || 0) + ' / ' + (est.quota || 0) + ' bytes`';
+        }
+      } catch {}
+      return fallbackInfo() + extra;
+    }
+
+    function mountButton() {
+      if (document.querySelector('.pf-bugreport-btn')) return; // idempotent
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-export-btn pf-bugreport-btn';
+      btn.textContent = '🐞';
+      btn.title = 'Copy bug-report info to clipboard';
+      btn.style.marginLeft = '4px';
+
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const orig = btn.textContent;
+        btn.textContent = '⏳';
+        try {
+          const report = await gatherReport();
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(report);
+            btn.textContent = '📋';
+            btn.title = 'Bug report copied to clipboard — paste it into the forum / GitHub issue';
+          } else {
+            // Clipboard API unavailable — show in a textarea modal instead
+            showReportModal(report);
+            btn.textContent = '📋';
+          }
+        } catch (e) {
+          console.warn('[memHero bugReport] copy failed:', e && e.message);
+          btn.textContent = '⚠';
+        } finally {
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.textContent = orig;
+            btn.title = 'Copy bug-report info to clipboard';
+          }, 2000);
+        }
+      });
+
+      const header = document.querySelector('.chat-header-right') ||
+                     document.querySelector('.chat-header');
+      if (header) header.appendChild(btn);
+    }
+
+    /**
+     * Fallback modal for browsers/contexts where navigator.clipboard
+     * isn't available (older Safari, file:// origins, etc.). Shows the
+     * report text in a selectable textarea + a close button.
+     */
+    function showReportModal(reportText) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;'
+                            + 'background:rgba(0,0,0,0.6);display:flex;'
+                            + 'align-items:center;justify-content:center;padding:20px;';
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#142847;color:#e8dcc4;border:1px solid #d8b36a;'
+                         + 'border-radius:8px;padding:14px;max-width:560px;width:100%;'
+                         + 'box-shadow:0 8px 32px rgba(0,0,0,0.6);';
+      const title = document.createElement('div');
+      title.textContent = 'Bug report (select all + copy)';
+      title.style.cssText = 'font-weight:600;margin-bottom:8px;color:#d8b36a;';
+      const ta = document.createElement('textarea');
+      ta.value = reportText;
+      ta.rows = 14;
+      ta.style.cssText = 'width:100%;font-family:monospace;font-size:11px;'
+                       + 'background:#0d1b2e;color:#e8dcc4;'
+                       + 'border:1px solid rgba(216,179,106,0.4);'
+                       + 'border-radius:4px;padding:8px;resize:vertical;box-sizing:border-box;';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.textContent = 'Close';
+      closeBtn.style.cssText = 'margin-top:10px;padding:6px 14px;cursor:pointer;'
+                             + 'background:#d8b36a;color:#0d1b2e;border:none;'
+                             + 'border-radius:4px;font-weight:600;';
+      closeBtn.addEventListener('click', () => overlay.remove());
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      card.appendChild(title);
+      card.appendChild(ta);
+      card.appendChild(closeBtn);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+      try { ta.focus(); ta.select(); } catch {}
+    }
+
+    function tryMount(remaining) {
+      mountButton();
+      if (!document.querySelector('.pf-bugreport-btn') && remaining > 0) {
+        setTimeout(() => tryMount(remaining - 1), 400);
+      }
+    }
+    tryMount(20);
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/_self_bootstrap.js
      ────────────────────────────────────────────────────────── */
   // chat/_self_bootstrap.js
   //
-  // Self-init for the four modules above. Wires them up without needing
+  // Self-init for the seven modules above. Wires them up without needing
   // to touch start() in profile/index.js. When mirroring this work back
   // into the src/ tree, you can either keep this self-bootstrap or move
   // the init calls into start(); both are idempotent.
   //
   // The init calls are deferred until DOMContentLoaded so the DOM is at
-  // least parsed. They don't need window.db — none of these four modules
-  // reads IndexedDB directly.
+  // least parsed. Most modules don't need window.db; the two that do
+  // (character_portraits, reimagine) check for db internally and
+  // gracefully retry / no-op until upstream finishes loading.
 
   (function selfBootstrapHnePorts() {
     function go() {
-      try { initCharacterFavicon(); } catch { /* non-fatal */ }
-      try { initFreshAnchors();     } catch { /* non-fatal */ }
-      try { initCommunityPacks();   } catch { /* non-fatal */ }
-      try { initBgSlideshow();      } catch { /* non-fatal */ }
+      try { initCharacterFavicon();   } catch { /* non-fatal */ }
+      try { initFreshAnchors();       } catch { /* non-fatal */ }
+      try { initCommunityPacks();     } catch { /* non-fatal */ }
+      try { initBgSlideshow();        } catch { /* non-fatal */ }
+      try { initCharacterPortraits(); } catch { /* non-fatal */ }
+      try { initReimagine();          } catch { /* non-fatal */ }
+      try { initBugReport();          } catch { /* non-fatal */ }
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', go, { once: true });
