@@ -42018,17 +42018,558 @@ Use this template for your response:
   }
 
   /* ──────────────────────────────────────────────────────────
+     module: chat/bg_slideshow.js
+     ────────────────────────────────────────────────────────── */
+  // chat/bg_slideshow.js
+  //
+  // Live AI-generated chat background slideshow with a soft Ken Burns
+  // effect. Adapted from AI Slideshow (perchance.org/ai-slideshow):
+  //   - dual-slide crossfade pattern (slideA / slideB)
+  //   - Ken Burns transition (slow scale + translate over the dwell interval)
+  //   - root.textToImagePlugin's strict {prompt, negative} contract
+  //
+  // Differences from AI Slideshow:
+  //   - Subliminal sizing: 6% zoom + ~1.5% pan (vs. AI Slideshow's 18%
+  //     foreground sizing). The slideshow lives BEHIND chat content, so
+  //     motion has to be calm enough not to compete with reading.
+  //   - Body-level fixed positioning. Mounting inside #chatMessagesEl
+  //     would make the bg scroll with messages, which we don't want.
+  //     A fixed container at body level is robust to upstream DOM
+  //     refactors and to the chat element's overflow:auto.
+  //   - Tight memory cap (8 images max, top-up to 4) — chat is a
+  //     long-lived page, we can't accumulate forever.
+  //   - In-memory only — no IndexedDB persistence (intentional: keeps
+  //     storage budget for chat history; the slideshow regenerates on
+  //     reload, which is cheap with cached prompts).
+  //
+  // Storage: settings.chatBgSlideshow = { enabled, prompt, intervalSec, opacity }
+  //
+  // Bootstrap: call initBgSlideshow() from start() OR self-bootstrap below.
+  // Idempotent.
+
+  function initBgSlideshow() {
+    if (initBgSlideshow._done) return;
+    initBgSlideshow._done = true;
+
+    // ---- Tunables ----
+    const MAX_IMAGES         = 8;     // hard cap — protects browser memory
+    const TOPUP_TARGET       = 4;     // background top-up aims for this many cached
+    const DEFAULT_INTERVAL   = 12;    // seconds per slide (dwell)
+    const DEFAULT_FADE_SEC   = 1.8;   // crossfade duration
+    const DEFAULT_OPACITY    = 0.35;  // dim so chat stays readable
+    const DEFAULT_PROMPT     = 'soft cinematic atmosphere, dreamy color palette, '
+                             + 'ethereal lighting, abstract scene, painterly';
+    const DEFAULT_NEGATIVE   = 'text, watermark, logo, deformed, distorted, low quality, '
+                             + 'blurry artifacts, signature, ui elements';
+
+    // Subtle Ken Burns paths — pick one at random per advance. Each path
+    // is reverse-symmetric to its counterpart so successive slides don't
+    // all drift in the same direction. Numbers tuned to be just-noticeable
+    // (you read "the room is breathing") without being distracting.
+    const KEN_BURNS_PATHS = [
+      { from: 'scale(1.00) translate(0, 0)',          to: 'scale(1.06) translate(-1.5%, -0.8%)' },
+      { from: 'scale(1.06) translate(-1.2%, -1.0%)',  to: 'scale(1.00) translate(0, 0)'        },
+      { from: 'scale(1.00) translate(0, 0)',          to: 'scale(1.06) translate(1.5%,  -0.6%)' },
+      { from: 'scale(1.05) translate(1.0%, 1.0%)',    to: 'scale(1.00) translate(0, 0)'        },
+      { from: 'scale(1.00) translate(0, 0)',          to: 'scale(1.05) translate(0,    -1.2%)' },
+      { from: 'scale(1.05) translate(0,  1.0%)',      to: 'scale(1.00) translate(0, 0)'        },
+    ];
+
+    // ---- State ----
+    const state = {
+      enabled:       false,
+      prompt:        DEFAULT_PROMPT,
+      intervalSec:   DEFAULT_INTERVAL,
+      opacity:       DEFAULT_OPACITY,
+      images:        [],            // [{ dataUrl, prompt }]
+      cursor:        0,
+      slot:          0,             // which slide (0=A, 1=B) is currently shown
+      generating:    false,
+      advanceTimer:  null,
+      container:     null,
+      slides:        [null, null],  // [slideA, slideB] DOM refs
+    };
+
+    // ---- Boot: load persisted settings ----
+    try {
+      const s = loadSettings();
+      const cfg = (s && s.chatBgSlideshow) || {};
+      state.enabled     = !!cfg.enabled;
+      state.prompt      = (typeof cfg.prompt === 'string' && cfg.prompt.trim())
+                            ? cfg.prompt.trim() : DEFAULT_PROMPT;
+      state.intervalSec = Number.isFinite(cfg.intervalSec) && cfg.intervalSec >= 6
+                            ? cfg.intervalSec : DEFAULT_INTERVAL;
+      state.opacity     = Number.isFinite(cfg.opacity) && cfg.opacity > 0 && cfg.opacity <= 1
+                            ? cfg.opacity : DEFAULT_OPACITY;
+    } catch { /* non-fatal */ }
+
+    injectCSS();
+    buildUI();
+
+    // If already enabled (returning user), spin up.
+    if (state.enabled) startSlideshow();
+
+    // ----------------------------------------------------------------
+    // Lifecycle
+    // ----------------------------------------------------------------
+
+    function startSlideshow() {
+      ensureContainer();
+      // No images yet → kick off generation; the first one shown wins.
+      if (state.images.length === 0) {
+        generateMore(2);
+      } else {
+        state.cursor = 0;
+        state.slot = 0;
+        showCurrent();
+        scheduleNext();
+        queueTopUp();
+      }
+    }
+
+    function stopSlideshow() {
+      clearTimeout(state.advanceTimer);
+      state.advanceTimer = null;
+      if (state.container) {
+        state.container.remove();
+        state.container = null;
+        state.slides = [null, null];
+      }
+      // Don't clear state.images — keeping them lets re-enabling resume
+      // instantly without paying generation cost again.
+    }
+
+    function ensureContainer() {
+      if (state.container) return;
+      const container = document.createElement('div');
+      container.className = 'pf-bgss-container';
+      const slideA = document.createElement('div');
+      slideA.className = 'pf-bgss-slide';
+      const slideB = document.createElement('div');
+      slideB.className = 'pf-bgss-slide';
+      const overlay = document.createElement('div');
+      overlay.className = 'pf-bgss-overlay';
+      container.appendChild(slideA);
+      container.appendChild(slideB);
+      container.appendChild(overlay);
+      // body-level mount so the slideshow doesn't scroll with chat
+      document.body.appendChild(container);
+      state.container = container;
+      state.slides = [slideA, slideB];
+    }
+
+    // ----------------------------------------------------------------
+    // Generation — strict {prompt, negative} contract per AI Slideshow's note
+    // ----------------------------------------------------------------
+
+    async function generateMore(n) {
+      if (state.generating) return;
+      state.generating = true;
+      try {
+        for (let i = 0; i < n; i++) {
+          if (!state.enabled) break;
+          if (state.images.length >= MAX_IMAGES) break;
+          const dataUrl = await generateOneImage();
+          if (dataUrl) {
+            state.images.push({ dataUrl, prompt: state.prompt });
+            // First image arrived: kick off display
+            if (state.images.length === 1 && state.enabled && state.container) {
+              state.cursor = 0;
+              state.slot = 0;
+              showCurrent();
+              scheduleNext();
+            }
+          } else {
+            // Backoff if generation failed — don't hammer the plugin
+            await new Promise(r => setTimeout(r, 1500));
+          }
+        }
+      } finally {
+        state.generating = false;
+      }
+    }
+
+    async function generateOneImage() {
+      try {
+        const r = (typeof window !== 'undefined') ? window.root : null;
+        if (!r || typeof r.textToImagePlugin !== 'function') return null;
+        // Strict contract: ONLY {prompt, negative}. Extra fields route
+        // values through Perchance's DSL evaluator, which throws on
+        // brace-containing user input. AI Slideshow's exact warning.
+        const result = await r.textToImagePlugin({
+          prompt:   state.prompt   || DEFAULT_PROMPT,
+          negative: DEFAULT_NEGATIVE,
+        });
+        const dataUrl = (result && result.dataUrl) || (typeof result === 'string' ? result : null);
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+        return dataUrl;
+      } catch (e) {
+        console.warn('[memHero bgSlideshow] generation failed:', e && e.message);
+        return null;
+      }
+    }
+
+    function queueTopUp() {
+      if (!state.enabled) return;
+      if (state.images.length >= TOPUP_TARGET) return;
+      if (state.generating) return;
+      // Defer slightly so we don't race the just-shown image's transition
+      setTimeout(() => {
+        if (!state.enabled) return;
+        const need = TOPUP_TARGET - state.images.length;
+        if (need > 0) generateMore(need);
+      }, 800);
+    }
+
+    // ----------------------------------------------------------------
+    // Display + Ken Burns transition
+    // ----------------------------------------------------------------
+
+    function showCurrent() {
+      if (!state.container || !state.images.length) return;
+      const cur = state.images[state.cursor % state.images.length];
+      if (!cur) return;
+      const newEl = state.slides[state.slot];
+      const oldEl = state.slides[1 - state.slot];
+      if (!newEl) return;
+      runKenBurns(oldEl, newEl, cur.dataUrl);
+    }
+
+    function runKenBurns(oldEl, newEl, url) {
+      const z = KEN_BURNS_PATHS[Math.floor(Math.random() * KEN_BURNS_PATHS.length)];
+      const fadeSec = DEFAULT_FADE_SEC;
+      const intervalSec = state.intervalSec;
+
+      // Reset incoming slide to a known clean state. Same defensive wipe
+      // AI Slideshow's prepSlides does — every transition starts known.
+      newEl.style.transition = 'none';
+      newEl.style.opacity = '0';
+      newEl.style.transform = z.from;
+      newEl.style.backgroundImage = `url("${url}")`;
+      // Force reflow so the subsequent transition actually animates
+      void newEl.offsetWidth;
+
+      // Crossfade in opacity + slow zoom-pan over the FULL dwell interval.
+      // The interval is the entire visible time, so motion completes just
+      // as we hand off to the next slide — no jarring stop.
+      newEl.style.transition = `opacity ${fadeSec}s ease, transform ${intervalSec}s ease-in-out`;
+      newEl.style.opacity = String(state.opacity);
+      newEl.style.transform = z.to;
+      newEl.style.zIndex = '2';
+
+      if (oldEl) {
+        oldEl.style.transition = `opacity ${fadeSec}s ease`;
+        oldEl.style.opacity = '0';
+        oldEl.style.zIndex = '1';
+      }
+    }
+
+    function scheduleNext() {
+      clearTimeout(state.advanceTimer);
+      state.advanceTimer = setTimeout(() => {
+        advance();
+      }, state.intervalSec * 1000);
+    }
+
+    function advance() {
+      if (!state.enabled || !state.container) return;
+      if (state.images.length === 0) {
+        // Still empty — try again later, generation may catch up
+        scheduleNext();
+        return;
+      }
+      state.cursor = (state.cursor + 1) % state.images.length;
+      state.slot = 1 - state.slot;
+      showCurrent();
+      scheduleNext();
+      queueTopUp();
+    }
+
+    // ----------------------------------------------------------------
+    // Settings persistence
+    // ----------------------------------------------------------------
+
+    function saveCfg() {
+      try {
+        const s = loadSettings();
+        s.chatBgSlideshow = {
+          enabled:     state.enabled,
+          prompt:      state.prompt,
+          intervalSec: state.intervalSec,
+          opacity:     state.opacity,
+        };
+        saveSettings(s);
+      } catch { /* non-fatal */ }
+    }
+
+    // ----------------------------------------------------------------
+    // UI — 🎬 button + popover, mounted next to the static-bg button
+    // ----------------------------------------------------------------
+
+    function buildUI() {
+      const container = document.createElement('div');
+      container.className = 'pf-presets-container';
+      container.style.cssText = 'position:relative;display:inline-block;';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pf-export-btn';
+      btn.textContent = '🎬';
+      btn.title = 'Slideshow background (AI-generated)';
+
+      const dropdown = document.createElement('div');
+      dropdown.className = 'pf-presets-dropdown';
+      dropdown.hidden = true;
+      dropdown.style.cssText = 'min-width:280px;padding:10px;';
+
+      // ---- Enable toggle ----
+      const toggleRow = document.createElement('label');
+      toggleRow.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;'
+                              + 'margin-bottom:6px;font-size:13px;';
+      const toggleInput = document.createElement('input');
+      toggleInput.type = 'checkbox';
+      toggleInput.checked = state.enabled;
+      toggleRow.appendChild(toggleInput);
+      const toggleText = document.createElement('span');
+      toggleText.textContent = ' Enable image slideshow';
+      toggleRow.appendChild(toggleText);
+      toggleInput.addEventListener('change', () => {
+        state.enabled = toggleInput.checked;
+        saveCfg();
+        if (state.enabled) startSlideshow();
+        else stopSlideshow();
+      });
+      dropdown.appendChild(toggleRow);
+
+      // ---- Prompt textarea ----
+      const promptLbl = document.createElement('div');
+      promptLbl.style.cssText = 'font-size:11px;opacity:0.65;margin:8px 0 2px;';
+      promptLbl.textContent = 'Image prompt';
+      dropdown.appendChild(promptLbl);
+
+      const promptInput = document.createElement('textarea');
+      promptInput.value = state.prompt;
+      promptInput.rows = 2;
+      promptInput.placeholder = DEFAULT_PROMPT;
+      promptInput.style.cssText = 'width:100%;resize:vertical;min-height:46px;'
+                                + 'font-size:12px;font-family:inherit;'
+                                + 'background:rgba(0,0,0,0.2);color:inherit;'
+                                + 'border:1px solid rgba(255,255,255,0.12);'
+                                + 'border-radius:4px;padding:6px;box-sizing:border-box;';
+      promptInput.addEventListener('input', () => {
+        const v = promptInput.value.trim();
+        state.prompt = v || DEFAULT_PROMPT;
+        saveCfg();
+      });
+      dropdown.appendChild(promptInput);
+
+      // ---- Interval slider ----
+      const intervalLbl = document.createElement('div');
+      intervalLbl.style.cssText = 'font-size:11px;opacity:0.65;margin:8px 0 2px;'
+                                + 'display:flex;justify-content:space-between;';
+      const intervalLblText = document.createElement('span');
+      intervalLblText.textContent = 'Interval';
+      const intervalLblVal = document.createElement('span');
+      intervalLblVal.textContent = state.intervalSec + 's';
+      intervalLbl.appendChild(intervalLblText);
+      intervalLbl.appendChild(intervalLblVal);
+      dropdown.appendChild(intervalLbl);
+
+      const intervalInput = document.createElement('input');
+      intervalInput.type = 'range';
+      intervalInput.min = '6';
+      intervalInput.max = '30';
+      intervalInput.step = '1';
+      intervalInput.value = String(state.intervalSec);
+      intervalInput.style.width = '100%';
+      intervalInput.addEventListener('input', () => {
+        state.intervalSec = Number(intervalInput.value);
+        intervalLblVal.textContent = state.intervalSec + 's';
+        saveCfg();
+        // Reschedule with the new interval so the change feels immediate
+        if (state.enabled && state.container) {
+          scheduleNext();
+        }
+      });
+      dropdown.appendChild(intervalInput);
+
+      // ---- Opacity slider ----
+      const opacityLbl = document.createElement('div');
+      opacityLbl.style.cssText = 'font-size:11px;opacity:0.65;margin:8px 0 2px;'
+                               + 'display:flex;justify-content:space-between;';
+      const opacityLblText = document.createElement('span');
+      opacityLblText.textContent = 'Opacity';
+      const opacityLblVal = document.createElement('span');
+      opacityLblVal.textContent = Math.round(state.opacity * 100) + '%';
+      opacityLbl.appendChild(opacityLblText);
+      opacityLbl.appendChild(opacityLblVal);
+      dropdown.appendChild(opacityLbl);
+
+      const opacityInput = document.createElement('input');
+      opacityInput.type = 'range';
+      opacityInput.min = '0.10';
+      opacityInput.max = '0.80';
+      opacityInput.step = '0.05';
+      opacityInput.value = String(state.opacity);
+      opacityInput.style.width = '100%';
+      opacityInput.addEventListener('input', () => {
+        state.opacity = Number(opacityInput.value);
+        opacityLblVal.textContent = Math.round(state.opacity * 100) + '%';
+        saveCfg();
+        // Live update: nudge the visible slide's opacity so the user sees
+        // the change without waiting for the next advance.
+        const visible = state.slides[state.slot];
+        if (visible && visible.style.opacity !== '0') {
+          visible.style.opacity = String(state.opacity);
+        }
+      });
+      dropdown.appendChild(opacityInput);
+
+      // ---- Action buttons ----
+      const actionsRow = document.createElement('div');
+      actionsRow.style.cssText = 'display:flex;gap:6px;margin-top:10px;';
+
+      const genBtn = document.createElement('button');
+      genBtn.type = 'button';
+      genBtn.textContent = '+ Generate';
+      genBtn.style.cssText = 'flex:1;padding:6px;cursor:pointer;font-size:12px;';
+      genBtn.addEventListener('click', async () => {
+        const orig = genBtn.textContent;
+        genBtn.disabled = true;
+        genBtn.textContent = '⏳ ...';
+        try {
+          const dataUrl = await generateOneImage();
+          if (dataUrl) {
+            state.images.push({ dataUrl, prompt: state.prompt });
+            // If newly cached image is the FIRST and we're enabled, show it
+            if (state.enabled && state.images.length === 1) {
+              ensureContainer();
+              state.cursor = 0;
+              state.slot = 0;
+              showCurrent();
+              scheduleNext();
+            }
+            updateClearLabel();
+            genBtn.textContent = '✅';
+          } else {
+            genBtn.textContent = '⚠';
+          }
+        } finally {
+          setTimeout(() => {
+            genBtn.disabled = false;
+            genBtn.textContent = orig;
+          }, 1200);
+        }
+      });
+      actionsRow.appendChild(genBtn);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.style.cssText = 'flex:1;padding:6px;cursor:pointer;font-size:12px;opacity:0.75;';
+      function updateClearLabel() {
+        clearBtn.textContent = '🗑 Clear (' + state.images.length + ')';
+      }
+      updateClearLabel();
+      clearBtn.addEventListener('click', () => {
+        state.images = [];
+        state.cursor = 0;
+        updateClearLabel();
+        // If running, immediately blank the slides and re-generate
+        if (state.enabled && state.container) {
+          for (const slide of state.slides) {
+            if (slide) {
+              slide.style.transition = 'opacity 0.4s ease';
+              slide.style.opacity = '0';
+              slide.style.backgroundImage = '';
+            }
+          }
+          generateMore(2);
+        }
+      });
+      actionsRow.appendChild(clearBtn);
+
+      dropdown.appendChild(actionsRow);
+
+      // ---- Hint footer ----
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:10.5px;opacity:0.55;margin-top:8px;line-height:1.4;';
+      hint.textContent = 'Soft Ken Burns motion + crossfade. Images are kept in '
+                       + 'memory only (cap ' + MAX_IMAGES + '), regenerated on reload.';
+      dropdown.appendChild(hint);
+
+      // Assemble + mount
+      container.appendChild(btn);
+      container.appendChild(dropdown);
+      const header = document.querySelector('.chat-header-right') ||
+                     document.querySelector('.chat-header');
+      if (header) header.appendChild(container);
+
+      btn.addEventListener('click', () => { dropdown.hidden = !dropdown.hidden; });
+      document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) dropdown.hidden = true;
+      });
+
+      // Light polling refresh of the cleared-count label so background
+      // top-ups appear in the popover without needing a re-open.
+      setInterval(() => {
+        if (!dropdown.hidden) updateClearLabel();
+      }, 2000);
+    }
+
+    // ----------------------------------------------------------------
+    // CSS — body-level fixed container, two slides, soft tint overlay
+    // ----------------------------------------------------------------
+
+    function injectCSS() {
+      if (document.getElementById('pf-bgss-styles')) return;
+      const style = document.createElement('style');
+      style.id = 'pf-bgss-styles';
+      // The overlay tint matches the navy/gold trim palette so the
+      // slideshow blends with the new theme. RGBA values are derived
+      // from --pf-theme-primary (#0d1b2e). The tint also gives messages
+      // a consistent dark backdrop regardless of which generated image
+      // is currently visible — text stays readable.
+      style.textContent =
+        '.pf-bgss-container { '
+          + 'position: fixed !important; inset: 0; z-index: 0; '
+          + 'pointer-events: none; overflow: hidden; '
+        + '}'
+        + '.pf-bgss-slide { '
+          + 'position: absolute; inset: 0; '
+          + 'background-size: cover; background-position: center; '
+          + 'background-repeat: no-repeat; '
+          + 'opacity: 0; will-change: opacity, transform; '
+          + 'transform-origin: center center; '
+          + 'backface-visibility: hidden; '
+        + '}'
+        + '.pf-bgss-overlay { '
+          + 'position: absolute; inset: 0; pointer-events: none; '
+          + 'background: linear-gradient(to bottom, '
+            + 'rgba(13, 27, 46, 0.18) 0%, '
+            + 'rgba(13, 27, 46, 0.38) 100%); '
+        + '}'
+        // Lift app chrome above the slideshow. We don't blanket-set
+        // position:relative on every element (would break layouts);
+        // instead we rely on existing stacking contexts. body's direct
+        // children almost universally have their own stacking context
+        // already from upstream Perchance + our overlays.
+        + 'body > *:not(.pf-bgss-container) { position: relative; z-index: 1; }';
+      document.head.appendChild(style);
+    }
+  }
+
+  /* ──────────────────────────────────────────────────────────
      module: chat/_self_bootstrap.js
      ────────────────────────────────────────────────────────── */
   // chat/_self_bootstrap.js
   //
-  // Self-init for the three modules above. Wires them up without needing
+  // Self-init for the four modules above. Wires them up without needing
   // to touch start() in profile/index.js. When mirroring this work back
   // into the src/ tree, you can either keep this self-bootstrap or move
   // the init calls into start(); both are idempotent.
   //
   // The init calls are deferred until DOMContentLoaded so the DOM is at
-  // least parsed. They don't need window.db — none of these three modules
+  // least parsed. They don't need window.db — none of these four modules
   // reads IndexedDB directly.
 
   (function selfBootstrapHnePorts() {
@@ -42036,6 +42577,7 @@ Use this template for your response:
       try { initCharacterFavicon(); } catch { /* non-fatal */ }
       try { initFreshAnchors();     } catch { /* non-fatal */ }
       try { initCommunityPacks();   } catch { /* non-fatal */ }
+      try { initBgSlideshow();      } catch { /* non-fatal */ }
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', go, { once: true });
