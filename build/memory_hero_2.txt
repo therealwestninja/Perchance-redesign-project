@@ -42919,9 +42919,31 @@ Use this template for your response:
       // from --pf-theme-primary (#0d1b2e). The tint also gives messages
       // a consistent dark backdrop regardless of which generated image
       // is currently visible — text stays readable.
+      //
+      // Layering strategy (intentionally minimal):
+      //   - slideshow uses z-index: -1, so it's behind ALL content
+      //     without us having to touch any other element. Modals,
+      //     popups, sidebars all paint over it normally.
+      //   - html background is set to --pf-theme-primary so the page
+      //     has the themed navy base when the slideshow is OFF (or
+      //     between generations). The slideshow div paints over the
+      //     html bg at level z=-1 when ON.
+      //   - body background is forced transparent so the slideshow
+      //     (which is body-level fixed at z=-1) is actually visible
+      //     through body's painting layer.
+      //
+      // Earlier rounds tried `body > *:not(.pf-bgss-container) { z-index: 1 }`
+      // to lift content above an at-z-index-0 slideshow. That rule
+      // created new stacking contexts on every body child, which TRAPPED
+      // modal popups (Profile, Memory & Lore, etc.) inside their
+      // ancestor's stacking context — they couldn't expand to viewport
+      // and their themed panel rendered at an unintended z-layer. The
+      // negative-z approach below avoids all of that.
       style.textContent =
-        '.pf-bgss-container { '
-          + 'position: fixed !important; inset: 0; z-index: 0; '
+        'html { background-color: var(--pf-theme-primary, #0d1b2e); }'
+        + 'body { background-color: transparent !important; }'
+        + '.pf-bgss-container { '
+          + 'position: fixed !important; inset: 0; z-index: -1; '
           + 'pointer-events: none; overflow: hidden; '
         + '}'
         + '.pf-bgss-slide { '
@@ -42937,13 +42959,7 @@ Use this template for your response:
           + 'background: linear-gradient(to bottom, '
             + 'rgba(13, 27, 46, 0.18) 0%, '
             + 'rgba(13, 27, 46, 0.38) 100%); '
-        + '}'
-        // Lift app chrome above the slideshow. We don't blanket-set
-        // position:relative on every element (would break layouts);
-        // instead we rely on existing stacking contexts. body's direct
-        // children almost universally have their own stacking context
-        // already from upstream Perchance + our overlays.
-        + 'body > *:not(.pf-bgss-container) { position: relative; z-index: 1; }';
+        + '}';
       document.head.appendChild(style);
     }
   }
